@@ -339,8 +339,8 @@ export function OrderDetailsTab({
         stagedItems={stagedItems}
         availableUnits={availableUnits}
         orderId={order.id}
-        eventDate={order.event_date}
-        eventEndDate={order.event_end_date}
+        eventDate={editedOrder.event_date}
+        eventEndDate={editedOrder.event_end_date || editedOrder.event_date}
         onAddProduct={onAddEEProduct}
         onAddBundle={onAddEEBundle}
       />

@@ -212,9 +212,7 @@ export function useQuoteForm() {
     });
 
     if (parsedFormData) {
-      const { _version, ...restFormData } = parsedFormData;
-
-      const safeFormData = normalizeStoredQuoteForm(restFormData);
+      const safeFormData = normalizeStoredQuoteForm(parsedFormData);
 
       setFormData(prev => ({
         ...prev,

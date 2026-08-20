@@ -7,6 +7,7 @@ import { formatPriceCents } from '../../lib/eventEssentialsCatalogResolver';
 import { productLineKey, bundleLineKey } from '../../lib/eventEssentialsCartRepricing';
 import { isInflatableCartItem as isInflatable, isEventEssentialProductCartItem, isEventEssentialBundleCartItem, expandCartToProductQuantities } from '../../lib/unifiedCart';
 import { checkProductAvailability } from '../../lib/queries/products';
+import { validateAvailabilityResult } from '../../lib/eeOrderItemAvailability';
 
 interface CartSectionProps {
   cart: UnifiedCartItem[];
@@ -25,31 +26,7 @@ export function CartSection({ cart, eventDate, eventEndDate, onUpdateItem, onRem
   async function increaseEventEssentialQuantity(index: number): Promise<void> {
     const item = cart[index];
     if (!isEventEssentialProductCartItem(item) && !isEventEssentialBundleCartItem(item)) return;
-    const nextCart = cart.map((cartItem, cartIndex) => cartIndex === index ? { ...cartItem, qty: cartItem.qty + 1 } : cartItem);
-    setQuantityChecks(prev => new Set(prev).add(index));
-    setQuantityErrors(prev => ({ ...prev, [index]: '' }));
-    try {
-      if (eventDate && eventEndDate) {
-        const eventEssentialCart = nextCart.filter((cartItem) => isEventEssentialProductCartItem(cartItem) || isEventEssentialBundleCartItem(cartItem));
-        const requested = expandCartToProductQuantities(eventEssentialCart);
-        const result = await checkProductAvailability(requested, eventDate, eventEndDate, null);
-        const blocked = result.error || requested.some((request) => {
-          const availability = result.data?.find((entry) => entry.product_id === request.product_id);
-          return !availability || !availability.is_allowed;
-        });
-        if (blocked) {
-          setQuantityErrors(prev => ({ ...prev, [index]: result.error?.message || 'That quantity is not available for the selected dates.' }));
-          return;
-        }
-      }
-      onUpdateItem(index, { qty: item.qty + 1 });
-    } finally {
-      setQuantityChecks(prev => {
-        const next = new Set(prev);
-        next.delete(index);
-        return next;
-      });
-    }
+    await setEventEssentialQuantity(index, item.qty + 1);
   }
 
   async function setEventEssentialQuantity(index: number, newQty: number): Promise<void> {
@@ -57,20 +34,27 @@ export function CartSection({ cart, eventDate, eventEndDate, onUpdateItem, onRem
     if (!isEventEssentialProductCartItem(item) && !isEventEssentialBundleCartItem(item)) return;
     if (!Number.isFinite(newQty) || !Number.isInteger(newQty) || newQty < 1) return;
     if (newQty === item.qty) return;
-    const nextCart = cart.map((cartItem, cartIndex) => cartIndex === index ? { ...cartItem, qty: newQty } : cartItem);
+
+    const isIncrease = newQty > item.qty;
     setQuantityChecks(prev => new Set(prev).add(index));
     setQuantityErrors(prev => ({ ...prev, [index]: '' }));
     try {
-      if (eventDate && eventEndDate) {
+      if (isIncrease) {
+        const effectiveEndDate = eventEndDate || eventDate;
+        if (!eventDate || !effectiveEndDate) {
+          setQuantityErrors(prev => ({ ...prev, [index]: 'Please select your event dates before increasing this quantity.' }));
+          return;
+        }
+        const nextCart = cart.map((cartItem, cartIndex) => cartIndex === index ? { ...cartItem, qty: newQty } : cartItem);
         const eventEssentialCart = nextCart.filter((cartItem) => isEventEssentialProductCartItem(cartItem) || isEventEssentialBundleCartItem(cartItem));
         const requested = expandCartToProductQuantities(eventEssentialCart);
-        const result = await checkProductAvailability(requested, eventDate, eventEndDate, null);
-        const blocked = result.error || requested.some((request) => {
-          const availability = result.data?.find((entry) => entry.product_id === request.product_id);
-          return !availability || !availability.is_allowed;
-        });
-        if (blocked) {
-          setQuantityErrors(prev => ({ ...prev, [index]: result.error?.message || 'That quantity is not available for the selected dates.' }));
+        const result = await checkProductAvailability(requested, eventDate, effectiveEndDate, null);
+        const validation = validateAvailabilityResult(
+          requested.map(p => p.product_id),
+          result,
+        );
+        if (!validation.ok) {
+          setQuantityErrors(prev => ({ ...prev, [index]: validation.error || 'That quantity is not available for the selected dates.' }));
           return;
         }
       }

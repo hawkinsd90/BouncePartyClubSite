@@ -42,7 +42,7 @@ export interface StagedEEItem {
   item_name?: string;
   qty: number;
   unit_price_cents: number;
-  pricing_context?: string;
+  pricing_context?: 'standalone' | 'addon' | null;
   component_snapshot?: BundleComponentSnapshot | null;
   is_new: boolean;
   is_deleted: boolean;
@@ -254,6 +254,34 @@ export function AddEventEssentialsSection({
     return qty >= 1 ? qty : 1;
   };
 
+  function resolveProductCandidate(product: any, qty: number) {
+    if (qty < 1) return null;
+    const input = buildResolverInput();
+    const candidateLine: ResolverInputLine = {
+      resolverKey: `new-product-${product.id}`,
+      itemType: 'event_essential_product',
+      qty,
+      productId: product.id,
+    };
+    input.lines.push(candidateLine);
+    const result = resolveEventEssentialsPricing(input);
+    return result.lines.find(l => l.resolverKey === candidateLine.resolverKey) ?? null;
+  }
+
+  function resolveBundleCandidate(bundle: ProductBundleWithConfiguration, qty: number) {
+    if (qty < 1) return null;
+    const input = buildResolverInput();
+    const candidateLine: ResolverInputLine = {
+      resolverKey: `new-bundle-${bundle.id}`,
+      itemType: 'event_essential_bundle',
+      qty,
+      bundleId: bundle.id,
+    };
+    input.lines.push(candidateLine);
+    const result = resolveEventEssentialsPricing(input);
+    return result.lines.find(l => l.resolverKey === candidateLine.resolverKey) ?? null;
+  }
+
   const handleAddProduct = useCallback(async (product: any) => {
     const qty = getProductQty(product.id);
     if (qty < 1) {
@@ -295,21 +323,24 @@ export function AddEventEssentialsSection({
         setAvailabilityError('Unable to verify availability. Please try again.');
         return;
       }
-      if (eventDate && eventEndDate) {
-        const availResult = await checkProductAvailability(
-          expansion.productQuantities,
-          eventDate,
-          eventEndDate,
-          orderId,
-        );
-        const validation = validateAvailabilityResult(
-          expansion.productQuantities.map(p => p.product_id),
-          availResult,
-        );
-        if (!validation.ok) {
-          setAvailabilityError(validation.error || 'That quantity is not available for the selected dates.');
-          return;
-        }
+      const effectiveEndDate = eventEndDate || eventDate;
+      if (!eventDate || !effectiveEndDate) {
+        setAvailabilityError('Please select the event dates before adding Event Essentials.');
+        return;
+      }
+      const availResult = await checkProductAvailability(
+        expansion.productQuantities,
+        eventDate,
+        effectiveEndDate,
+        orderId,
+      );
+      const validation = validateAvailabilityResult(
+        expansion.productQuantities.map(p => p.product_id),
+        availResult,
+      );
+      if (!validation.ok) {
+        setAvailabilityError(validation.error || 'That quantity is not available for the selected dates.');
+        return;
       }
 
       onAddProduct({
@@ -318,7 +349,7 @@ export function AddEventEssentialsSection({
         item_name: product.name,
         qty,
         unit_price_cents: candidateResult.resolvedUnitPriceCents,
-        pricing_context: candidateResult.resolvedPricingContext || 'standalone',
+        pricing_context: candidateResult.resolvedPricingContext,
         component_snapshot: null,
         is_new: true,
         is_deleted: false,
@@ -384,21 +415,24 @@ export function AddEventEssentialsSection({
         setAvailabilityError('Unable to verify availability. Please try again.');
         return;
       }
-      if (eventDate && eventEndDate) {
-        const availResult = await checkProductAvailability(
-          expansion.productQuantities,
-          eventDate,
-          eventEndDate,
-          orderId,
-        );
-        const validation = validateAvailabilityResult(
-          expansion.productQuantities.map(p => p.product_id),
-          availResult,
-        );
-        if (!validation.ok) {
-          setAvailabilityError(validation.error || 'That quantity is not available for the selected dates.');
-          return;
-        }
+      const effectiveEndDate = eventEndDate || eventDate;
+      if (!eventDate || !effectiveEndDate) {
+        setAvailabilityError('Please select the event dates before adding Event Essentials.');
+        return;
+      }
+      const availResult = await checkProductAvailability(
+        expansion.productQuantities,
+        eventDate,
+        effectiveEndDate,
+        orderId,
+      );
+      const validation = validateAvailabilityResult(
+        expansion.productQuantities.map(p => p.product_id),
+        availResult,
+      );
+      if (!validation.ok) {
+        setAvailabilityError(validation.error || 'That quantity is not available for the selected dates.');
+        return;
       }
 
       onAddBundle({
@@ -407,7 +441,7 @@ export function AddEventEssentialsSection({
         item_name: bundle.name,
         qty,
         unit_price_cents: candidateResult.resolvedUnitPriceCents,
-        pricing_context: candidateResult.resolvedPricingContext || 'standalone',
+        pricing_context: candidateResult.resolvedPricingContext,
         component_snapshot: snapshot,
         is_new: true,
         is_deleted: false,
@@ -525,14 +559,23 @@ export function AddEventEssentialsSection({
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3 max-h-80 overflow-y-auto">
             {filteredProducts.length > 0 ? filteredProducts.map(product => {
-              const pc = pricingConfigs[product.id];
-              const price = pc?.standalone_price_cents || pc?.addon_price_cents || 0;
-              const qty = productQtyInputs[product.id] ?? '1';
+              const qty = getProductQty(product.id);
+              const candidate = resolveProductCandidate(product, qty);
+              const priceCents = candidate?.resolvedUnitPriceCents ?? null;
+              const context = candidate?.resolvedPricingContext ?? null;
+              const selectable = !!candidate?.selectable && priceCents !== null && (context === 'standalone' || context === 'addon');
               return (
                 <div key={product.id} className="bg-slate-50 border border-slate-200 rounded-lg p-3 flex flex-col gap-2">
                   <div>
                     <p className="font-medium text-slate-900">{product.name}</p>
-                    <p className="text-xs text-slate-600">{formatCurrency(price)}</p>
+                    {selectable ? (
+                      <>
+                        <p className="text-xs text-slate-600">{context === 'addon' ? 'Add-on price' : 'Standalone price'}</p>
+                        <p className="text-xs text-slate-600">{formatCurrency(priceCents!)}</p>
+                      </>
+                    ) : (
+                      <p className="text-xs text-amber-700">Not available for purchase</p>
+                    )}
                   </div>
                   <div className="flex items-center justify-between gap-2">
                     <div className="flex items-center gap-1.5">
@@ -547,7 +590,7 @@ export function AddEventEssentialsSection({
                       <input
                         type="text"
                         inputMode="numeric"
-                        value={qty}
+                        value={productQtyInputs[product.id] ?? '1'}
                         onChange={e => setProductQtyInputs(prev => ({ ...prev, [product.id]: e.target.value }))}
                         onBlur={() => commitProductQty(product.id)}
                         onKeyDown={e => { if (e.key === 'Enter') commitProductQty(product.id); }}
@@ -565,7 +608,7 @@ export function AddEventEssentialsSection({
                     </div>
                     <button
                       onClick={() => void handleAddProduct(product)}
-                      disabled={availabilityChecking}
+                      disabled={availabilityChecking || !selectable}
                       className="flex items-center gap-1 bg-green-600 hover:bg-green-700 text-white text-xs py-1.5 px-3 rounded transition-colors disabled:opacity-50"
                     >
                       <Plus className="w-3 h-3" />
@@ -595,14 +638,24 @@ export function AddEventEssentialsSection({
           </div>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3 max-h-80 overflow-y-auto">
             {bundles.length > 0 ? bundles.map(bundle => {
-              const price = bundle.standalone_price_cents || bundle.addon_price_cents || 0;
-              const qty = bundleQtyInputs[bundle.id] ?? '1';
+              const qty = getBundleQty(bundle.id);
+              const candidate = resolveBundleCandidate(bundle, qty);
+              const priceCents = candidate?.resolvedUnitPriceCents ?? null;
+              const context = candidate?.resolvedPricingContext ?? null;
+              const selectable = !!candidate?.selectable && priceCents !== null && (context === 'standalone' || context === 'addon');
               return (
                 <div key={bundle.id} className="bg-slate-50 border border-slate-200 rounded-lg p-3 flex flex-col gap-2">
                   <div>
                     <p className="font-medium text-slate-900">{bundle.name}</p>
                     {bundle.description && <p className="text-xs text-slate-600">{bundle.description}</p>}
-                    <p className="text-xs text-slate-600">{formatCurrency(price)}</p>
+                    {selectable ? (
+                      <>
+                        <p className="text-xs text-slate-600">{context === 'addon' ? 'Add-on price' : 'Standalone price'}</p>
+                        <p className="text-xs text-slate-600">{formatCurrency(priceCents!)}</p>
+                      </>
+                    ) : (
+                      <p className="text-xs text-amber-700">Not available for purchase</p>
+                    )}
                   </div>
                   <div className="flex items-center justify-between gap-2">
                     <div className="flex items-center gap-1.5">
@@ -617,7 +670,7 @@ export function AddEventEssentialsSection({
                       <input
                         type="text"
                         inputMode="numeric"
-                        value={qty}
+                        value={bundleQtyInputs[bundle.id] ?? '1'}
                         onChange={e => setBundleQtyInputs(prev => ({ ...prev, [bundle.id]: e.target.value }))}
                         onBlur={() => commitBundleQty(bundle.id)}
                         onKeyDown={e => { if (e.key === 'Enter') commitBundleQty(bundle.id); }}
@@ -635,7 +688,7 @@ export function AddEventEssentialsSection({
                     </div>
                     <button
                       onClick={() => void handleAddBundle(bundle)}
-                      disabled={availabilityChecking}
+                      disabled={availabilityChecking || !selectable}
                       className="flex items-center gap-1 bg-green-600 hover:bg-green-700 text-white text-xs py-1.5 px-3 rounded transition-colors disabled:opacity-50"
                     >
                       <Plus className="w-3 h-3" />
@@ -653,6 +706,3 @@ export function AddEventEssentialsSection({
     </div>
   );
 }
-
-
-export { AddEventEssentialsSection }
