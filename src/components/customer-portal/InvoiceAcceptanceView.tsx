@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { supabase } from '../../lib/supabase';
 import { formatCurrency } from '../../lib/pricing';
 import {
@@ -25,6 +25,7 @@ import {
 } from '../../lib/orderEmailTemplates';
 import { formatOrderId, createShortPortalLink } from '../../lib/utils';
 import { ReferralSourceSelect } from '../shared/ReferralSourceSelect';
+import { getPublicBusinessSettings } from '../../lib/adminSettingsCache';
 
 interface InvoiceAcceptanceViewProps {
   order: any;
@@ -70,6 +71,11 @@ export function InvoiceAcceptanceView({
   const [referralSource, setReferralSource] = useState<string>(order.referral_source || '');
   const [referralSourceDetail, setReferralSourceDetail] = useState<string>(order.referral_source_detail || '');
   const [referralError, setReferralError] = useState('');
+  const [howDidYouHearEnabled, setHowDidYouHearEnabled] = useState(true);
+
+  useEffect(() => {
+    getPublicBusinessSettings().then(s => setHowDidYouHearEnabled(s.how_did_you_hear_enabled)).catch(() => {});
+  }, []);
 
   const referralAlreadyCaptured = !!order.referral_source;
 
@@ -139,7 +145,7 @@ export function InvoiceAcceptanceView({
       return;
     }
 
-    if (!referralAlreadyCaptured && !referralSource) {
+    if (howDidYouHearEnabled && !referralAlreadyCaptured && !referralSource) {
       setReferralError('Please tell us how you heard about us.');
       showToast('Please tell us how you heard about us.', 'error');
       return;
@@ -740,6 +746,7 @@ export function InvoiceAcceptanceView({
               </label>
             </div>
 
+              {howDidYouHearEnabled && (
             <div className="bg-slate-50 border border-slate-200 rounded-lg p-4">
               <h3 className="font-semibold text-slate-900 mb-3">One Quick Question</h3>
               {referralAlreadyCaptured ? (
@@ -762,6 +769,7 @@ export function InvoiceAcceptanceView({
                 />
               )}
             </div>
+              )}
           </div>
 
           <button
@@ -781,7 +789,7 @@ export function InvoiceAcceptanceView({
                   !customerInfo.last_name ||
                   !customerInfo.email ||
                   !customerInfo.phone)) ||
-              (!referralAlreadyCaptured && !referralSource)
+              (howDidYouHearEnabled && !referralAlreadyCaptured && !referralSource)
             }
             className="w-full bg-blue-600 hover:bg-blue-700 disabled:bg-slate-400 text-white font-semibold py-4 px-6 rounded-lg transition-colors flex items-center justify-center"
           >

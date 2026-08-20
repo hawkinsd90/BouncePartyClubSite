@@ -120,7 +120,7 @@ export function QuoteSummarySection({ cart, priceBreakdown, totals, pricingConfi
                       <div className="flex items-start gap-2 flex-1 min-w-0">
                         <span className="text-emerald-600 flex-shrink-0 mt-0.5">•</span>
                         <span className="text-slate-700 break-words">
-                          {pkgDisplay.packageName}
+                          {pkgDisplay.packageName} × {item.qty}
                           {item.isAvailable === false && (
                             <span className="ml-1 text-red-600 font-medium">(unavailable)</span>
                           )}
@@ -138,7 +138,7 @@ export function QuoteSummarySection({ cart, priceBreakdown, totals, pricingConfi
                   <div className="flex items-start gap-2 flex-1 min-w-0">
                     <span className="text-emerald-600 flex-shrink-0 mt-0.5">•</span>
                     <span className="text-slate-700 break-words">
-                      {item.product_name}
+                      {item.product_name} × {item.qty}
                       {item.isAvailable === false && (
                         <span className="ml-1 text-red-600 font-medium">(unavailable)</span>
                       )}

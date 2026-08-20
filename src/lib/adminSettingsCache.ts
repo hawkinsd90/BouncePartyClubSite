@@ -17,6 +17,7 @@ export interface PublicBusinessSettings {
   home_address_zip: string | null;
   event_essentials_page_enabled: boolean;
   min_event_essentials_order_cents: number | null;
+  how_did_you_hear_enabled: boolean;
 }
 
 let publicSettingsCache: { data: PublicBusinessSettings; timestamp: number } | null = null;
@@ -27,7 +28,7 @@ export async function getPublicBusinessSettings(useCache = true): Promise<Public
     return publicSettingsCache.data;
   }
 
-  const { data, error } = await supabase.rpc('get_public_business_settings');
+  const { data, error } = await (supabase.rpc as any)('get_public_business_settings');
 
   const dataRecord = (data ?? {}) as Record<string, string>;
 
@@ -46,6 +47,7 @@ export async function getPublicBusinessSettings(useCache = true): Promise<Public
     home_address_zip: '48184',
     event_essentials_page_enabled: false,
     min_event_essentials_order_cents: null,
+    how_did_you_hear_enabled: true,
   };
 
   if (error || !data) {
@@ -68,6 +70,7 @@ export async function getPublicBusinessSettings(useCache = true): Promise<Public
     home_address_zip: dataRecord.home_address_zip ?? defaults.home_address_zip,
     event_essentials_page_enabled: dataRecord.event_essentials_page_enabled === 'true',
     min_event_essentials_order_cents: parseMinOrderCents(dataRecord.min_event_essentials_order_cents),
+    how_did_you_hear_enabled: dataRecord.how_did_you_hear_enabled !== 'false',
   };
 
   publicSettingsCache = { data: result, timestamp: now };

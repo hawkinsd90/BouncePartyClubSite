@@ -704,6 +704,7 @@ export function Quote() {
                 <CartSection
                   cart={cart}
                   eventDate={formData.event_date}
+                  eventEndDate={formData.event_end_date}
                   onUpdateItem={updateCartItem}
                   onRemoveItem={removeFromCart}
                   eventEssentialsIssues={eventEssentialsRepricing.issues}

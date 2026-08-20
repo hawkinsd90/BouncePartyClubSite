@@ -23,6 +23,7 @@ import { TipSection } from '../components/checkout/TipSection';
 import { ConsentSection } from '../components/checkout/ConsentSection';
 import { CheckoutSummary } from '../components/checkout/CheckoutSummary';
 import { ReferralSourceSelect } from '../components/shared/ReferralSourceSelect';
+import { getPublicBusinessSettings } from '../lib/adminSettingsCache';
 import { createLogger } from '../lib/logger';
 import { trackEvent } from '../lib/siteEvents';
 
@@ -68,6 +69,7 @@ export function Checkout() {
   const [bookingDepositSettings, setBookingDepositSettings] = useState<BookingDepositSettingsResult | null>(null);
   const [settingsLoading, setSettingsLoading] = useState(true);
   const [settingsError, setSettingsError] = useState<string | null>(null);
+  const [howDidYouHearEnabled, setHowDidYouHearEnabled] = useState(true);
 
   useEffect(() => {
     (async () => {
@@ -91,6 +93,10 @@ export function Checkout() {
         setSettingsLoading(false);
       }
     })();
+  }, []);
+
+  useEffect(() => {
+    getPublicBusinessSettings().then(s => setHowDidYouHearEnabled(s.how_did_you_hear_enabled)).catch(() => {});
   }, []);
 
   void cart; // cart used in unifiedTotals computation below
@@ -130,7 +136,7 @@ export function Checkout() {
       return;
     }
 
-    if (!referralSource) {
+    if (howDidYouHearEnabled && !referralSource) {
       setReferralError('Please tell us how you heard about us.');
       showToast('Please tell us how you heard about us.', 'error');
       return;
@@ -406,6 +412,7 @@ export function Checkout() {
               onCustomTipChange={setCustomTip}
             />
 
+            {howDidYouHearEnabled && (
             <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-6 sm:p-8">
               <h2 className="text-xl font-bold text-slate-900 mb-1">One Quick Question</h2>
               <p className="text-sm text-slate-500 mb-5">Help us understand how our customers find us.</p>
@@ -420,6 +427,7 @@ export function Checkout() {
                 error={referralError}
               />
             </div>
+            )}
 
             <ConsentSection
               cardOnFileConsent={cardOnFileConsent}
