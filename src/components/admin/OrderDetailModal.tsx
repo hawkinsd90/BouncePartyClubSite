@@ -111,7 +111,7 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
   const [requireCardOnFile, setRequireCardOnFile] = useState(order.require_card_on_file ?? true);
   const [manualDirty, setManualDirty] = useState(false);
   const [pricingPending, setPricingPending] = useState(false);
-  const [lastSuccessfullyPricedRevision, setLastSuccessfullyPricedRevision] = useState<number>(0);
+  const [lastSuccessfullyPricedRevision, setLastSuccessfullyPricedRevision] = useState<string | null>(null);
 
   // Initialize taxWaived based on actual tax state and current settings
   // For old orders created before apply_taxes_by_default setting:
@@ -146,39 +146,36 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
 
   // Pricing input signature — changes immediately when any pricing-affecting
   // dependency changes, even before the 300ms debounce fires.
-  const currentPricingRevision = useMemo(() => {
-    const signature = JSON.stringify({
-      stagedItems: stagedItems.map(i => ({
-        id: i.id, client_id: i.client_id, product_id: i.product_id,
-        bundle_id: i.bundle_id, qty: i.qty, unit_price_cents: i.unit_price_cents,
-        is_new: i.is_new, is_deleted: i.is_deleted, is_updated: i.is_updated,
-      })),
-      discounts: discounts.map((d: any) => ({ id: d.id, amount_cents: d.amount_cents, percentage: d.percentage, is_new: d.is_new })),
-      customFees: customFees.map((f: any) => ({ id: f.id, amount_cents: f.amount_cents, is_new: f.is_new })),
-      customDepositCents,
-      location_type: editedOrder.location_type,
-      surface: editedOrder.surface,
-      generator_qty: editedOrder.generator_qty,
-      address_line1: editedOrder.address_line1,
-      address_city: editedOrder.address_city,
-      address_state: editedOrder.address_state,
-      address_zip: editedOrder.address_zip,
-      pickup_preference: editedOrder.pickup_preference,
-      event_date: editedOrder.event_date,
-      event_end_date: editedOrder.event_end_date,
-      taxWaived,
-      travelFeeWaived,
-      sameDayPickupFeeWaived,
-      surfaceFeeWaived,
-      generatorFeeWaived,
-      sameDayWeekdayDeliveryFeeWaived,
-    });
-    let hash = 0;
-    for (let i = 0; i < signature.length; i++) {
-      hash = ((hash << 5) - hash + signature.charCodeAt(i)) | 0;
-    }
-    return hash;
-  }, [
+  // Uses the full deterministic JSON string (no lossy hash) so two different
+  // pricing inputs can never collapse to the same revision.
+  const currentPricingRevision = useMemo(() => JSON.stringify({
+    stagedItems: stagedItems.map(i => ({
+      unit_id: i.unit_id, product_id: i.product_id, bundle_id: i.bundle_id,
+      qty: i.qty, wet_or_dry: i.wet_or_dry, unit_price_cents: i.unit_price_cents,
+      pricing_context: i.pricing_context, component_snapshot: i.component_snapshot,
+      is_new: i.is_new, is_deleted: i.is_deleted, is_updated: i.is_updated,
+    })),
+    discounts: discounts.map((d: any) => ({ id: d.id, amount_cents: d.amount_cents, percentage: d.percentage, is_new: d.is_new })),
+    customFees: customFees.map((f: any) => ({ id: f.id, amount_cents: f.amount_cents, is_new: f.is_new })),
+    customDepositCents,
+    location_type: editedOrder.location_type,
+    surface: editedOrder.surface,
+    generator_qty: editedOrder.generator_qty,
+    address_line1: editedOrder.address_line1,
+    address_city: editedOrder.address_city,
+    address_state: editedOrder.address_state,
+    address_zip: editedOrder.address_zip,
+    pickup_preference: editedOrder.pickup_preference,
+    event_date: editedOrder.event_date,
+    event_end_date: editedOrder.event_end_date,
+    taxWaived,
+    travelFeeWaived,
+    sameDayPickupFeeWaived,
+    surfaceFeeWaived,
+    generatorFeeWaived,
+    sameDayWeekdayDeliveryFeeWaived,
+    pricingRules: pricingRules ?? null,
+  }), [
     stagedItems, discounts, customFees, customDepositCents,
     editedOrder.location_type, editedOrder.surface, editedOrder.generator_qty,
     editedOrder.address_line1, editedOrder.address_city, editedOrder.address_state,
@@ -186,6 +183,7 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
     editedOrder.event_date, editedOrder.event_end_date,
     taxWaived, travelFeeWaived, sameDayPickupFeeWaived,
     surfaceFeeWaived, generatorFeeWaived, sameDayWeekdayDeliveryFeeWaived,
+    pricingRules,
   ]);
 
   // Pricing is current only when the last successful calculation matches the
@@ -343,7 +341,7 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
 
   // Recalculate pricing whenever discounts, custom fees, staged items, or fee waivers change
   useEffect(() => {
-    if (pricingRules && editedOrder && stagedItems.length > 0) {
+    if (pricingRules && adminSettings && editedOrder && stagedItems.length > 0) {
       const revision = currentPricingRevision;
       setPricingPending(true);
       if (pricingDebounceRef.current) clearTimeout(pricingDebounceRef.current);
@@ -377,6 +375,8 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
     surfaceFeeWaived,
     generatorFeeWaived,
     sameDayWeekdayDeliveryFeeWaived,
+    pricingRules,
+    adminSettings,
   ]);
 
   // Check if any changes have been made
@@ -517,9 +517,11 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
     }
   }
 
-  const handleRecalculatePricing = useCallback(async (revision: number) => {
+  const handleRecalculatePricing = useCallback(async (revision: string) => {
     if (!pricingRules || !adminSettings) {
-      setPricingPending(false);
+      if (revision === currentPricingRevisionRef.current) {
+        setPricingPending(false);
+      }
       return;
     }
     const inflatableItems = stagedItems
@@ -547,7 +549,7 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
         is_deleted: item.is_deleted,
       }));
     try {
-      await calculatePricing({
+      const result = await calculatePricing({
         items: inflatableItems,
         eeProductItems,
         eventDetails: {
@@ -580,8 +582,9 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
           same_day_weekday_delivery_fee_cents: order.same_day_weekday_delivery_fee_cents ?? 0,
         },
       });
-      // Only commit this revision if it is still the current one.
-      if (revision === currentPricingRevisionRef.current) {
+      // Only commit this revision if the calculation succeeded AND it is still
+      // the current revision.
+      if (result.status === 'success' && revision === currentPricingRevisionRef.current) {
         setLastSuccessfullyPricedRevision(revision);
       }
     } finally {

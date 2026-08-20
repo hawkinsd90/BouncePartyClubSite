@@ -105,6 +105,11 @@ interface CalculatedPricing {
   generator_fee_before_waiver_cents: number;
 }
 
+export type PricingCalculationResult =
+  | { status: 'success' }
+  | { status: 'failed' }
+  | { status: 'superseded' };
+
 export function usePricing() {
   const [orderSummary, setOrderSummary] = useState<any>(null);
   const [calculatedPricing, setCalculatedPricing] = useState<CalculatedPricing | null>(null);
@@ -397,8 +402,9 @@ export function usePricing() {
         if (isLatest()) {
           setCalculatedPricing(null);
           setPricingError(depositConfigError);
+          return { status: 'failed' } as PricingCalculationResult;
         }
-        return;
+        return { status: 'superseded' } as PricingCalculationResult;
       }
       if (isLatest()) setPricingError(null);
       const rawDepositDueCents = customDepositCents !== null ? customDepositCents : calculatedDepositDueCents;
@@ -460,13 +466,17 @@ export function usePricing() {
           event_essentials_subtotal_cents: eeSubtotalCents,
           generator_fee_before_waiver_cents: originalGeneratorFeeCents,
         });
+        return { status: 'success' } as PricingCalculationResult;
       }
+      return { status: 'superseded' } as PricingCalculationResult;
     } catch (error) {
       console.error('Error calculating pricing:', error);
       if (isLatest()) {
         setCalculatedPricing(null);
         setPricingError('Unable to calculate pricing. Please review the order and try again.');
+        return { status: 'failed' } as PricingCalculationResult;
       }
+      return { status: 'superseded' } as PricingCalculationResult;
     }
   }, []);
 
