@@ -169,6 +169,8 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
   const [generatorResolutionPending, setGeneratorResolutionPending] = useState(false);
   const generatorResolutionIdRef = useRef(0);
   const [generatorLegacyConfirm, setGeneratorLegacyConfirm] = useState<null | {
+    resolutionId: number;
+    contextRevision: string;
     additionalQty: number;
     isWaived: boolean;
   }>(null);
@@ -229,6 +231,27 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
   // without depending on currentPricingRevision directly.
   const currentPricingRevisionRef = useRef(currentPricingRevision);
   currentPricingRevisionRef.current = currentPricingRevision;
+
+  // Generator-resolution context signature — represents the inputs that affect
+  // Generator pricing or availability. If any of these change while a Generator
+  // resolution is running, the resolution is invalidated.
+  const currentGeneratorContextRevision = useMemo(() => JSON.stringify({
+    stagedItems: stagedItems.map(i => ({
+      unit_id: i.unit_id, product_id: i.product_id, bundle_id: i.bundle_id,
+      qty: i.qty, wet_or_dry: i.wet_or_dry, unit_price_cents: i.unit_price_cents,
+      pricing_context: i.pricing_context, component_snapshot: i.component_snapshot,
+      is_deleted: i.is_deleted,
+    })),
+    event_date: editedOrder.event_date,
+    event_end_date: editedOrder.event_end_date,
+    generator_qty: editedOrder.generator_qty,
+    generatorFeeWaived,
+  }), [
+    stagedItems, editedOrder.event_date, editedOrder.event_end_date,
+    editedOrder.generator_qty, generatorFeeWaived,
+  ]);
+  const currentGeneratorContextRevisionRef = useRef(currentGeneratorContextRevision);
+  currentGeneratorContextRevisionRef.current = currentGeneratorContextRevision;
 
   useEffect(() => {
     // Load current order summary for display
@@ -712,6 +735,14 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
   }, []);
 
   async function handleSaveChanges() {
+    if (generatorResolutionPending) {
+      showToast('Generator availability is still being resolved. Please wait.', 'error');
+      return;
+    }
+    if (generatorLegacyConfirm) {
+      showToast('Please finish the Generator selection before saving.', 'error');
+      return;
+    }
     if (pricingPending) {
       showToast('Pricing is still being recalculated. Please wait for the updated totals.', 'error');
       return;
@@ -809,6 +840,11 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
     // Version guard: each call gets a new resolution ID. Only the latest may mutate state.
     const resolutionId = ++generatorResolutionIdRef.current;
     const isStale = () => resolutionId !== generatorResolutionIdRef.current;
+    // Context guard: capture the order context at resolution start. If it changes
+    // mid-resolution, the result is invalidated.
+    const startingContextRevision = currentGeneratorContextRevisionRef.current;
+    const isContextStale = () => startingContextRevision !== currentGeneratorContextRevisionRef.current;
+    const isInvalid = () => isStale() || isContextStale();
 
     const directItems = stagedItems.filter((item) => !item.is_deleted && !!item.product_id && generatorProductIds.has(item.product_id));
     const directQty = directItems.reduce((sum, item) => sum + item.qty, 0);
@@ -879,17 +915,17 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
       return;
     }
 
-    // INCREASE — async path with version guard.
+    // INCREASE — async path with version + context guard.
     const additionalQty = requestedQty - currentTotal;
     setGeneratorResolutionPending(true);
 
-    // Load full catalog config for the pricing resolver.
-    let productConfigs: Record<string, ResolverProductConfig> = {};
-    let bundleConfigs: Record<string, ResolverBundleConfig> = {};
-    let categoryMap: Record<string, ResolverCategory> = {};
-    let unitMap: Record<string, ResolverUnitConfig> = {};
-
     try {
+      // Load full catalog config for the pricing resolver.
+      let productConfigs: Record<string, ResolverProductConfig> = {};
+      let bundleConfigs: Record<string, ResolverBundleConfig> = {};
+      let categoryMap: Record<string, ResolverCategory> = {};
+      let unitMap: Record<string, ResolverUnitConfig> = {};
+
       const [catsRes, prodsRes, pricingRes, bundlesRes] = await Promise.all([
         fetchAdminProductCategories(),
         fetchAdminInventoryProducts(),
@@ -897,10 +933,10 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
         fetchAdminProductBundlesWithConfiguration(),
       ]);
 
-      if (isStale()) return;
+      if (isInvalid()) return;
 
       if (catsRes.error || prodsRes.error || pricingRes.error || bundlesRes.error) {
-        if (!isStale()) showToast('Unable to load product catalog for Generator pricing. Please try again.', 'error');
+        if (!isInvalid()) showToast('Unable to load product catalog for Generator pricing. Please try again.', 'error');
         return;
       }
 
@@ -953,121 +989,144 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
 
       for (const c of allCats) categoryMap[c.id] = { id: c.id };
       for (const u of availableUnits) unitMap[u.id] = { id: u.id, active: true };
-    } catch {
-      if (!isStale()) showToast('Unable to load product catalog for Generator pricing. Please try again.', 'error');
-      return;
-    } finally {
-      if (isStale()) return;
-      setGeneratorResolutionPending(false);
-    }
 
-    if (isStale()) return;
+      if (isInvalid()) return;
 
-    const resolution = await resolveAdminGeneratorIncrease({
-      current: { legacyQty: editedOrder.generator_qty ?? 0, directEeQty: directQty },
-      requestedTotal: requestedQty,
-      stagedItems: stagedItems as AdminGeneratorStagedItem[],
-      eventDate: editedOrder.event_date,
-      eventEndDate: editedOrder.event_end_date,
-      orderId: order.id,
-      productConfigs,
-      bundleConfigs,
-      categories: categoryMap,
-      units: unitMap,
-    });
-
-    if (isStale()) return;
-
-    if (resolution.status === 'fail_closed') {
-      showToast(resolution.reason || 'Unable to verify Generator availability. Please try again.', 'error');
-      return;
-    }
-
-    if (resolution.status === 'ee') {
-      const { product, resolvedUnitPriceCents, resolvedPricingContext } = resolution.candidate;
-
-      setStagedItems((previous) => {
-        // CASE A: same product_id, same resolved price, same resolved context → increase existing row.
-        const exactMatch = previous.find(
-          (item) =>
-            !item.is_deleted &&
-            item.product_id === product.product_id &&
-            !item.bundle_id &&
-            item.unit_price_cents === resolvedUnitPriceCents &&
-            (item.pricing_context || 'standalone') === resolvedPricingContext,
-        );
-
-        if (exactMatch) {
-          return previous.map((item) =>
-            item === exactMatch
-              ? { ...item, qty: item.qty + additionalQty, is_updated: !item.is_new }
-              : item,
-          );
-        }
-
-        // CASE B: same product_id but different price/context → new staged row (historical frozen).
-        return [...previous, {
-          client_id: `new-generator-${Date.now()}-${Math.random().toString(36).slice(2)}`,
-          product_id: product.product_id,
-          product_name: product.product_name,
-          item_name: product.product_name,
-          qty: additionalQty,
-          unit_price_cents: resolvedUnitPriceCents,
-          pricing_context: resolvedPricingContext,
-          is_new: true,
-          is_deleted: false,
-        }];
+      const resolution = await resolveAdminGeneratorIncrease({
+        current: { legacyQty: editedOrder.generator_qty ?? 0, directEeQty: directQty },
+        requestedTotal: requestedQty,
+        stagedItems: stagedItems as AdminGeneratorStagedItem[],
+        eventDate: editedOrder.event_date,
+        eventEndDate: editedOrder.event_end_date,
+        orderId: order.id,
+        productConfigs,
+        bundleConfigs,
+        categories: categoryMap,
+        units: unitMap,
       });
 
-      setManualDirty(true);
-      return;
-    }
-
-    // Legacy fallback (no_candidate).
-    // Determine whether confirmation is needed before applying the legacy increase.
-    const existingLegacyQty = editedOrder.generator_qty ?? 0;
-    const isCurrentlyWaived = generatorFeeWaived;
-
-    if (existingLegacyQty === 0) {
-      // No existing legacy Generator — normal legacy creation.
-      // If waiver is stale (waived but no generators), clear it before creating.
-      if (isCurrentlyWaived) {
-        setGeneratorFeeWaived(false);
-        setGeneratorFeeWaiveReason('');
+      if (isInvalid()) {
+        if (isContextStale() && !isStale()) {
+          showToast('Order details changed while Generator availability was being checked. Please select the Generator quantity again.', 'error');
+        }
+        return;
       }
-      setEditedOrder((previous: any) => ({ ...previous, generator_qty: (previous.generator_qty ?? 0) + additionalQty }));
-      setManualDirty(true);
-      return;
-    }
 
-    // Existing legacy Generator present — require confirmation.
-    // Store pending request and show dialog. The dialog callbacks will apply or cancel.
-    setGeneratorLegacyConfirm({ additionalQty, isWaived: isCurrentlyWaived });
+      if (resolution.status === 'fail_closed') {
+        showToast(resolution.reason || 'Unable to verify Generator availability. Please try again.', 'error');
+        return;
+      }
+
+      if (resolution.status === 'ee') {
+        const { product, resolvedUnitPriceCents, resolvedPricingContext } = resolution.candidate;
+
+        setStagedItems((previous) => {
+          // CASE A: same product_id, same resolved price, same resolved context → increase existing row.
+          const exactMatch = previous.find(
+            (item) =>
+              !item.is_deleted &&
+              item.product_id === product.product_id &&
+              !item.bundle_id &&
+              item.unit_price_cents === resolvedUnitPriceCents &&
+              (item.pricing_context || 'standalone') === resolvedPricingContext,
+          );
+
+          if (exactMatch) {
+            return previous.map((item) =>
+              item === exactMatch
+                ? { ...item, qty: item.qty + additionalQty, is_updated: !item.is_new }
+                : item,
+            );
+          }
+
+          // CASE B: same product_id but different price/context → new staged row (historical frozen).
+          return [...previous, {
+            client_id: `new-generator-${Date.now()}-${Math.random().toString(36).slice(2)}`,
+            product_id: product.product_id,
+            product_name: product.product_name,
+            item_name: product.product_name,
+            qty: additionalQty,
+            unit_price_cents: resolvedUnitPriceCents,
+            pricing_context: resolvedPricingContext,
+            is_new: true,
+            is_deleted: false,
+          }];
+        });
+
+        setManualDirty(true);
+        return;
+      }
+
+      // Legacy fallback (no_candidate).
+      // Determine whether confirmation is needed before applying the legacy increase.
+      const existingLegacyQty = editedOrder.generator_qty ?? 0;
+      const isCurrentlyWaived = generatorFeeWaived;
+
+      if (existingLegacyQty === 0) {
+        // No existing legacy Generator — normal legacy creation.
+        // If waiver is stale (waived but no generators), clear it before creating.
+        if (isCurrentlyWaived) {
+          setGeneratorFeeWaived(false);
+          setGeneratorFeeWaiveReason('');
+        }
+        setEditedOrder((previous: any) => ({ ...previous, generator_qty: (previous.generator_qty ?? 0) + additionalQty }));
+        setManualDirty(true);
+        return;
+      }
+
+      // Existing legacy Generator present — require confirmation.
+      // Store pending request with ownership info and show dialog.
+      // Resolution itself is no longer pending — we are now waiting for Admin confirmation.
+      setGeneratorLegacyConfirm({
+        resolutionId,
+        contextRevision: startingContextRevision,
+        additionalQty,
+        isWaived: isCurrentlyWaived,
+      });
+    } catch {
+      if (!isInvalid()) showToast('Unable to load product catalog for Generator pricing. Please try again.', 'error');
+    } finally {
+      // Only the current resolution may clear the pending state.
+      // An obsolete request must not clear a newer request's pending state.
+      if (!isStale()) {
+        setGeneratorResolutionPending(false);
+      }
+    }
   }, [editedOrder.event_date, editedOrder.event_end_date, editedOrder.generator_qty, generatorProductIdsState, generatorProductIds, stagedItems, order.id, availableUnits, generatorFeeWaived]);
 
   const handleGeneratorLegacyConfirm = useCallback(() => {
     const pending = generatorLegacyConfirm;
     if (!pending) return;
 
+    // Verify request ownership: the confirmation must belong to the current resolution
+    // and the order context must not have changed since the confirmation was opened.
+    if (pending.resolutionId !== generatorResolutionIdRef.current ||
+        pending.contextRevision !== currentGeneratorContextRevisionRef.current) {
+      setGeneratorLegacyConfirm(null);
+      showToast('Order details changed while Generator selection was pending. Please select the Generator quantity again.', 'error');
+      return;
+    }
+
     // KEEP WAIVED: increase legacy qty, preserve waiver.
     // REMOVE WAIVER: increase legacy qty, clear waiver (pricing recalculates).
     // This callback handles "keep waived" — the only confirm option for non-waived.
     // For waived, the three-way choice is handled by separate callbacks below.
-    if (!pending.isWaived) {
-      // Not waived — simple confirmation. Increase legacy qty, fee recalculates.
-      setEditedOrder((previous: any) => ({ ...previous, generator_qty: (previous.generator_qty ?? 0) + pending.additionalQty }));
-      setManualDirty(true);
-    } else {
-      // Waived + keep waived: increase qty, preserve waiver.
-      setEditedOrder((previous: any) => ({ ...previous, generator_qty: (previous.generator_qty ?? 0) + pending.additionalQty }));
-      setManualDirty(true);
-    }
+    setEditedOrder((previous: any) => ({ ...previous, generator_qty: (previous.generator_qty ?? 0) + pending.additionalQty }));
+    setManualDirty(true);
     setGeneratorLegacyConfirm(null);
   }, [generatorLegacyConfirm]);
 
   const handleGeneratorLegacyRemoveWaiver = useCallback(() => {
     const pending = generatorLegacyConfirm;
     if (!pending) return;
+
+    if (pending.resolutionId !== generatorResolutionIdRef.current ||
+        pending.contextRevision !== currentGeneratorContextRevisionRef.current) {
+      setGeneratorLegacyConfirm(null);
+      showToast('Order details changed while Generator selection was pending. Please select the Generator quantity again.', 'error');
+      return;
+    }
+
     setGeneratorFeeWaived(false);
     setGeneratorFeeWaiveReason('');
     setEditedOrder((previous: any) => ({ ...previous, generator_qty: (previous.generator_qty ?? 0) + pending.additionalQty }));
@@ -1147,12 +1206,12 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
                 )}
                 <button
                   onClick={handleSaveChanges}
-                  disabled={saving || !pricingIsCurrent}
+                  disabled={saving || !pricingIsCurrent || generatorResolutionPending || generatorLegacyConfirm !== null}
                   className="flex items-center gap-1 md:gap-2 bg-green-600 hover:bg-green-700 text-white px-2 md:px-4 py-1.5 md:py-2 rounded-lg text-sm md:text-base font-medium disabled:opacity-50"
                 >
                   <Save className="w-3.5 h-3.5 md:w-4 md:h-4" />
-                  <span className="hidden sm:inline">{saving ? 'Saving...' : pricingPending ? 'Calculating...' : 'Save Changes'}</span>
-                  <span className="sm:hidden">{saving ? '...' : pricingPending ? '...' : 'Save'}</span>
+                  <span className="hidden sm:inline">{saving ? 'Saving...' : pricingPending ? 'Calculating...' : generatorResolutionPending ? 'Resolving...' : 'Save Changes'}</span>
+                  <span className="sm:hidden">{saving ? '...' : pricingPending ? '...' : generatorResolutionPending ? '...' : 'Save'}</span>
                 </button>
               </>
             )}
@@ -1368,7 +1427,7 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
           onClose={handleGeneratorLegacyCancel}
           onConfirm={handleGeneratorLegacyConfirm}
           title="Add Legacy Generator"
-          message="No Event Essentials Generator is available for this order. One additional legacy Generator will be added, and the aggregate legacy Generator fee will be recalculated using the current pricing rules."
+          message={`No Event Essentials Generator is available for this order. ${generatorLegacyConfirm.additionalQty === 1 ? '1 additional legacy Generator will be added' : `${generatorLegacyConfirm.additionalQty} additional legacy Generators will be added`}, and the aggregate legacy Generator fee will be recalculated using the current pricing rules.`}
           confirmText="Add Generator"
           cancelText="Cancel"
           variant="info"
@@ -1383,7 +1442,7 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
             </div>
             <div className="p-6">
               <p className="text-slate-700 mb-6">
-                No Event Essentials Generator is available. The existing Generator fee is currently waived. Adding a legacy Generator requires an explicit choice about the waiver.
+                No Event Essentials Generator is available. The existing Generator fee is currently waived. {generatorLegacyConfirm!.additionalQty === 1 ? '1 additional legacy Generator will be added' : `${generatorLegacyConfirm!.additionalQty} additional legacy Generators will be added`}. Adding a legacy Generator requires an explicit choice about the waiver.
               </p>
               <div className="space-y-3">
                 <button
