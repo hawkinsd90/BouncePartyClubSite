@@ -911,6 +911,10 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
       });
 
       setEditedOrder((previous: any) => ({ ...previous, generator_qty: decision.newLegacyQty }));
+      if (decision.newLegacyQty === 0) {
+        setGeneratorFeeWaived(false);
+        setGeneratorFeeWaiveReason('');
+      }
       setManualDirty(true);
       return;
     }
