@@ -15,6 +15,7 @@ interface BusinessSettings {
   facebook_url: string;
   google_review_url: string;
   business_license_number: string;
+  how_did_you_hear_enabled: boolean;
 }
 
 interface TravelAddress {
@@ -39,6 +40,7 @@ export function BusinessBrandingTab() {
     facebook_url: '',
     google_review_url: '',
     business_license_number: '',
+    how_did_you_hear_enabled: true,
   });
   const [travelAddress, setTravelAddress] = useState<TravelAddress>({
     line1: '',
@@ -73,6 +75,7 @@ export function BusinessBrandingTab() {
           'facebook_url',
           'google_review_url',
           'business_license_number',
+          'how_did_you_hear_enabled',
           'home_address_line1',
           'home_address_line2',
           'home_address_city',
@@ -92,7 +95,11 @@ export function BusinessBrandingTab() {
 
         data.forEach(({ key, value }) => {
           if (key in loadedSettings) {
-            loadedSettings[key as keyof BusinessSettings] = value || '';
+            if (key === 'how_did_you_hear_enabled') {
+              (loadedSettings as any)[key] = value !== 'false';
+            } else {
+              (loadedSettings as unknown as Record<string, string | boolean>)[key] = value || '';
+            }
           }
 
           switch (key) {
@@ -162,6 +169,7 @@ export function BusinessBrandingTab() {
         { key: 'home_address_lat', value: effectiveTravelAddress.lat.toString() },
         { key: 'home_address_lng', value: effectiveTravelAddress.lng.toString() },
         { key: 'use_business_address_for_travel', value: useBusinessAddress.toString() },
+        { key: 'how_did_you_hear_enabled', value: settings.how_did_you_hear_enabled.toString() },
       ];
 
       for (const { key, value } of updates) {
@@ -205,6 +213,7 @@ export function BusinessBrandingTab() {
       home_address_lat: 'Travel calculation starting point - Latitude',
       home_address_lng: 'Travel calculation starting point - Longitude',
       use_business_address_for_travel: 'Whether to use business address for travel calculations',
+      how_did_you_hear_enabled: 'Show the How did you hear about us? question on Checkout and Invoice Acceptance',
     };
     return descriptions[key] || '';
   }
@@ -430,6 +439,23 @@ export function BusinessBrandingTab() {
         </div>
 
         <div className="mt-8 pt-8 border-t border-slate-200">
+          <div className="mb-6">
+            <label className="flex items-center cursor-pointer">
+              <input
+                type="checkbox"
+                checked={settings.how_did_you_hear_enabled}
+                onChange={(e) => setSettings({ ...settings, how_did_you_hear_enabled: e.target.checked })}
+                className="w-4 h-4 text-blue-600 border-slate-300 rounded focus:ring-blue-500"
+              />
+              <span className="ml-2 text-sm font-medium text-slate-700">
+                Show "How did you hear about us?" question
+              </span>
+            </label>
+            <p className="text-xs text-slate-500 mt-1 ml-6">
+              When enabled, customers will see this question on Checkout and Invoice Acceptance. When disabled, the question is hidden and does not block submission.
+            </p>
+          </div>
+
           <div className="flex items-center mb-4">
             <MapPin className="w-6 h-6 text-blue-600 mr-2" />
             <h3 className="text-xl font-bold text-slate-900">Travel Calculation Address</h3>

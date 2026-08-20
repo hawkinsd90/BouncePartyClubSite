@@ -782,52 +782,11 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
     setManualDirty(true);
   }, []);
 
-  const handleAddGeneratorProduct = useCallback((item: StagedItem) => {
-    setStagedItems(prev => {
-      const existing = prev.find(p => !p.is_deleted && p.product_id === item.product_id && !p.bundle_id && ((item.id && p.id === item.id) || (item.client_id && p.client_id === item.client_id)));
-      if (existing) {
-        // Preserve is_updated: persisted row that gets qty merged must be marked
-        // is_updated so orderSaveService reaches its update branch. Unsaved new
-        // rows keep is_new=true and do NOT need is_updated.
-        const isUpdated = existing.is_new ? false : true;
-        return prev.map(p => p === existing ? { ...p, qty: item.qty, is_updated: isUpdated } : p);
-      }
-      return [...prev, { ...item, client_id: item.client_id || `new-generator-${Date.now()}-${Math.random().toString(36).slice(2)}` }];
-    });
-    setManualDirty(true);
-  }, []);
-
   const handleUpdateQuantity = useCallback((itemToUpdate: StagedItem, qty: number) => {
     setStagedItems(prev => prev.map(item => {
       const matches = item.id ? item.id === itemToUpdate.id : item.client_id === itemToUpdate.client_id;
       return matches ? { ...item, qty: Math.max(1, qty), is_updated: true } : item;
     }));
-    setManualDirty(true);
-  }, []);
-
-  const handleLegacyGeneratorFallback = useCallback((additionalQty: number, keepWaiver: boolean) => {
-    const currentQty = editedOrder.generator_qty ?? order.generator_qty ?? 0;
-    const newQty = currentQty + additionalQty;
-    setEditedOrder((prev: any) => ({
-      ...prev,
-      generator_qty: newQty,
-      generator_fee_waived: keepWaiver,
-    }));
-    if (!keepWaiver) {
-      setGeneratorFeeWaived(false);
-    }
-    setManualDirty(true);
-  }, [editedOrder.generator_qty, order.generator_qty]);
-
-  const handleLegacyGeneratorQtyChange = useCallback((newQty: number) => {
-    setEditedOrder((prev: any) => ({
-      ...prev,
-      generator_qty: newQty,
-      ...(newQty === 0 ? { generator_fee_waived: false } : {}),
-    }));
-    if (newQty === 0) {
-      setGeneratorFeeWaived(false);
-    }
     setManualDirty(true);
   }, []);
 
@@ -988,11 +947,8 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
               }}
               generatorFeeWaived={generatorFeeWaived}
               generatorFeeWaiveReason={generatorFeeWaiveReason}
-              onGeneratorFeeWaiverToggle={() => {
+              onGeneratorFeeWaiverToggle={(reason: string) => {
                 setGeneratorFeeWaived((value: boolean) => !value);
-                setManualDirty(true);
-              }}
-              onGeneratorFeeWaiverReasonChange={(reason) => {
                 setGeneratorFeeWaiveReason(reason);
                 setManualDirty(true);
               }}
@@ -1014,9 +970,6 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
               onMarkChanges={() => setManualDirty(true)}
               onAddEEProduct={handleAddEEProduct}
               onAddEEBundle={handleAddEEBundle}
-              onAddGeneratorProduct={handleAddGeneratorProduct}
-              onLegacyGeneratorFallback={handleLegacyGeneratorFallback}
-              onLegacyGeneratorQtyChange={handleLegacyGeneratorQtyChange}
             />
           )}
 

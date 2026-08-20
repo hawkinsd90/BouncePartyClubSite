@@ -1,6 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
 import { Plus, Package, ShoppingBag } from 'lucide-react';
-import { supabase } from '../../lib/supabase';
 import { formatCurrency } from '../../lib/pricing';
 import { resolveEventEssentialsPricing } from '../../lib/eventEssentialsPricing';
 import type {
@@ -10,8 +9,16 @@ import type {
   ResolverBundleConfig,
   ResolverCategory,
   ResolverUnitConfig,
+  InflatableEligibilityMode,
 } from '../../lib/eventEssentialsPricingTypes';
 import type { BundleComponentSnapshot } from '../admin/OrderDetailModal';
+import {
+  fetchAdminInventoryProducts,
+  fetchAdminProductPricing,
+  fetchAdminProductCategories,
+  fetchAdminProductBundlesWithConfiguration,
+} from '../../lib/queries/products';
+import type { ProductBundleWithConfiguration } from '../../types';
 
 interface AddEventEssentialsSectionProps {
   stagedItems: any[];
@@ -37,12 +44,10 @@ const GENERATORS_CATEGORY_SLUG = 'generators';
 
 export function AddEventEssentialsSection({ stagedItems, availableUnits, onAddProduct, onAddBundle }: AddEventEssentialsSectionProps) {
   const [products, setProducts] = useState<any[]>([]);
-  const [bundles, setBundles] = useState<any[]>([]);
-  const [allBundles, setAllBundles] = useState<any[]>([]);
+  const [bundles, setBundles] = useState<ProductBundleWithConfiguration[]>([]);
+  const [allBundles, setAllBundles] = useState<ProductBundleWithConfiguration[]>([]);
   const [categories, setCategories] = useState<Record<string, any>>({});
   const [pricingConfigs, setPricingConfigs] = useState<Record<string, any>>({});
-  const [bundlePricingConfigs, setBundlePricingConfigs] = useState<Record<string, any>>({});
-  const [bundleComponents, setBundleComponents] = useState<Record<string, any[]>>({});
   const [allProducts, setAllProducts] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -53,54 +58,36 @@ export function AddEventEssentialsSection({ stagedItems, availableUnits, onAddPr
     setLoading(true);
     setError(null);
     try {
-      const [catsRes, prodsRes, bundlesRes, pricingRes, bundlePricingRes, componentsRes] = await Promise.all([
-        supabase.from('product_categories').select('id, slug, name, active'),
-        supabase.from('inventory_products').select('id, slug, name, active, category_id, total_quantity, temp_unavailable_qty'),
-        supabase.from('product_bundles').select('id, slug, name, description, active, category_id'),
-        (supabase.from('product_pricing') as any).select('product_id, standalone_price_cents, addon_price_cents, standalone_enabled, addon_enabled, addon_qualifying_threshold_cents'),
-        (supabase.from as any)('product_bundle_pricing').select('bundle_id, standalone_price_cents, addon_price_cents, standalone_enabled, addon_enabled, addon_qualifying_threshold_cents, excluded_category_ids, inflatable_eligibility_mode, eligible_unit_ids'),
-        supabase.from('product_bundle_components').select('bundle_id, product_id, quantity_per_bundle, inventory_products!inner(id, name, category_id)') as any,
+      const [catsRes, prodsRes, pricingRes, bundlesRes] = await Promise.all([
+        fetchAdminProductCategories(),
+        fetchAdminInventoryProducts(),
+        fetchAdminProductPricing(),
+        fetchAdminProductBundlesWithConfiguration(),
       ]);
 
       if (catsRes.error) throw new Error(catsRes.error.message);
       if (prodsRes.error) throw new Error(prodsRes.error.message);
-      if (bundlesRes.error) throw new Error(bundlesRes.error.message);
       if (pricingRes.error) throw new Error(pricingRes.error.message);
-      if (bundlePricingRes.error) throw new Error(bundlePricingRes.error.message);
-      if (componentsRes.error) throw new Error(componentsRes.error.message);
+      if (bundlesRes.error) throw new Error(bundlesRes.error.message);
 
       const catMap: Record<string, any> = {};
       (catsRes.data || []).forEach((c: any) => { catMap[c.id] = c; });
       setCategories(catMap);
 
-      // Keep ALL products for resolver config (including inactive for historical staged rows)
       setAllProducts(prodsRes.data || []);
 
-      // Exclude products in the generators category from the generic picker
       const generatorsCat = (catsRes.data || []).find((c: any) => c.slug === GENERATORS_CATEGORY_SLUG);
       const generatorsCatId = generatorsCat?.id;
       const filteredProducts = (prodsRes.data || []).filter((p: any) => p.category_id !== generatorsCatId && p.active);
       setProducts(filteredProducts);
 
-      // Keep ALL bundles for resolver config (including inactive for historical staged rows)
-      setAllBundles(bundlesRes.data || []);
-      // Picker shows active bundles only
-      setBundles((bundlesRes.data || []).filter((b: any) => b.active));
+      const allBundleData = bundlesRes.data || [];
+      setAllBundles(allBundleData);
+      setBundles(allBundleData.filter((b: any) => b.active));
 
       const pMap: Record<string, any> = {};
       (pricingRes.data || []).forEach((p: any) => { pMap[p.product_id] = p; });
       setPricingConfigs(pMap);
-
-      const bpMap: Record<string, any> = {};
-      (bundlePricingRes.data || []).forEach((p: any) => { bpMap[p.bundle_id] = p; });
-      setBundlePricingConfigs(bpMap);
-
-      const compMap: Record<string, any[]> = {};
-      (componentsRes.data || []).forEach((c: any) => {
-        if (!compMap[c.bundle_id]) compMap[c.bundle_id] = [];
-        compMap[c.bundle_id].push(c);
-      });
-      setBundleComponents(compMap);
     } catch (err: any) {
       setError(err?.message || 'Failed to load Event Essentials catalog');
     } finally {
@@ -115,7 +102,6 @@ export function AddEventEssentialsSection({ stagedItems, availableUnits, onAddPr
   }, [showProducts, showBundles, loadData]);
 
   const buildResolverInput = useCallback((): ResolverInput => {
-    // Build product configs from ALL products (not just filtered picker list)
     const productConfigs: Record<string, ResolverProductConfig> = {};
     for (const p of allProducts) {
       const pc = pricingConfigs[p.id];
@@ -131,13 +117,9 @@ export function AddEventEssentialsSection({ stagedItems, availableUnits, onAddPr
       };
     }
 
-    // Build bundle configs from ALL bundles (including inactive for historical staged rows)
     const bundleConfigs: Record<string, ResolverBundleConfig> = {};
     for (const b of allBundles) {
-      const bp = bundlePricingConfigs[b.id];
-      if (!bp) continue;
-      const comps = bundleComponents[b.id] || [];
-      // Get category_id from the joined inventory_products in the component query
+      const comps = b.product_bundle_components || [];
       const containedCategoryIds = Array.from(new Set(
         comps
           .map((c: any) => c.inventory_products?.category_id)
@@ -145,26 +127,28 @@ export function AddEventEssentialsSection({ stagedItems, availableUnits, onAddPr
       ));
       bundleConfigs[b.id] = {
         id: b.id,
-        standalonePriceCents: bp.standalone_price_cents ?? null,
-        addonPriceCents: bp.addon_price_cents ?? null,
-        standaloneEnabled: bp.standalone_enabled === true,
-        addonEnabled: bp.addon_enabled === true,
-        addonQualifyingThresholdCents: bp.addon_qualifying_threshold_cents ?? null,
-        inflatableEligibilityMode: bp.inflatable_eligibility_mode || 'none',
-        excludedCategoryIds: bp.excluded_category_ids || [],
-        eligibleUnitIds: bp.eligible_unit_ids || [],
-        inflatableComponents: [],
+        standalonePriceCents: b.standalone_price_cents ?? null,
+        addonPriceCents: b.addon_price_cents ?? null,
+        standaloneEnabled: b.standalone_enabled === true,
+        addonEnabled: b.addon_enabled === true,
+        addonQualifyingThresholdCents: b.addon_qualifying_threshold_cents ?? null,
+        inflatableEligibilityMode: (b.inflatable_eligibility_mode || 'none') as InflatableEligibilityMode,
+        excludedCategoryIds: (b.product_bundle_excluded_categories || []).map((e: any) => e.category_id),
+        eligibleUnitIds: (b.package_inflatable_eligibility || []).map((e: any) => e.unit_id),
+        inflatableComponents: (b.package_inflatable_components || []).map((c: any) => ({
+          unitId: c.unit_id,
+          quantityPerBundle: c.quantity_per_bundle,
+          selectionMode: c.selection_mode,
+        })),
         containedProductCategoryIds: containedCategoryIds,
       };
     }
 
-    // Build category configs
     const catMap: Record<string, ResolverCategory> = {};
     for (const id of Object.keys(categories)) {
       catMap[id] = { id };
     }
 
-    // Build unit configs from availableUnits for inflatable resolver context
     const unitsMap: Record<string, ResolverUnitConfig> = {};
     for (const u of availableUnits) {
       unitsMap[u.id] = {
@@ -173,7 +157,6 @@ export function AddEventEssentialsSection({ stagedItems, availableUnits, onAddPr
       };
     }
 
-    // Build lines from ALL staged items (inflatables + EE products + packages)
     const lines: ResolverInputLine[] = stagedItems
       .filter((item: any) => !item.is_deleted)
       .map((item: any) => {
@@ -212,7 +195,7 @@ export function AddEventEssentialsSection({ stagedItems, availableUnits, onAddPr
       categories: catMap,
       units: unitsMap,
     };
-  }, [allProducts, allBundles, pricingConfigs, bundlePricingConfigs, bundleComponents, categories, availableUnits, stagedItems]);
+  }, [allProducts, allBundles, pricingConfigs, categories, availableUnits, stagedItems]);
 
   const handleAddProduct = useCallback((product: any) => {
     try {
@@ -249,7 +232,7 @@ export function AddEventEssentialsSection({ stagedItems, availableUnits, onAddPr
     }
   }, [buildResolverInput, onAddProduct]);
 
-  const handleAddBundle = useCallback((bundle: any) => {
+  const handleAddBundle = useCallback((bundle: ProductBundleWithConfiguration) => {
     try {
       const input = buildResolverInput();
       const candidateLine: ResolverInputLine = {
@@ -267,7 +250,7 @@ export function AddEventEssentialsSection({ stagedItems, availableUnits, onAddPr
         return;
       }
 
-      const comps = bundleComponents[bundle.id] || [];
+      const comps = bundle.product_bundle_components || [];
       const snapshot: BundleComponentSnapshot = {
         bundle_name: bundle.name,
         bundle_description: bundle.description || null,
@@ -293,7 +276,7 @@ export function AddEventEssentialsSection({ stagedItems, availableUnits, onAddPr
     } catch (err: any) {
       setError(err?.message || 'Failed to add package');
     }
-  }, [buildResolverInput, onAddBundle, bundleComponents]);
+  }, [buildResolverInput, onAddBundle]);
 
   return (
     <div className="bg-white border border-slate-200 rounded-lg p-4 sm:p-6">
@@ -363,8 +346,7 @@ export function AddEventEssentialsSection({ stagedItems, availableUnits, onAddPr
           <h4 className="font-medium text-slate-900 mb-3">Available Packages</h4>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3 max-h-80 overflow-y-auto">
             {bundles.length > 0 ? bundles.map(bundle => {
-              const bp = bundlePricingConfigs[bundle.id];
-              const price = bp?.standalone_price_cents || bp?.addon_price_cents || 0;
+              const price = bundle.standalone_price_cents || bundle.addon_price_cents || 0;
               return (
                 <div key={bundle.id} className="bg-slate-50 border border-slate-200 rounded-lg p-3 flex items-center justify-between">
                   <div>

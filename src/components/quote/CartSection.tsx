@@ -1,21 +1,56 @@
 import { useNavigate } from 'react-router-dom';
-import { Trash2, Sun, Droplets, XCircle, AlertCircle, Package, AlertTriangle } from 'lucide-react';
+import { useState } from 'react';
+import { Trash2, Sun, Droplets, XCircle, AlertCircle, Package, AlertTriangle, Plus, Minus } from 'lucide-react';
 import type { UnifiedCartItem } from '../../types';
 import type { EventEssentialsCartIssue } from '../../lib/eventEssentialsCartRepricing';
 import { formatPriceCents } from '../../lib/eventEssentialsCatalogResolver';
 import { productLineKey, bundleLineKey } from '../../lib/eventEssentialsCartRepricing';
-import { isInflatableCartItem as isInflatable, isEventEssentialProductCartItem, isEventEssentialBundleCartItem } from '../../lib/unifiedCart';
+import { isInflatableCartItem as isInflatable, isEventEssentialProductCartItem, isEventEssentialBundleCartItem, expandCartToProductQuantities } from '../../lib/unifiedCart';
+import { checkProductAvailability } from '../../lib/queries/products';
 
 interface CartSectionProps {
   cart: UnifiedCartItem[];
   eventDate: string;
+  eventEndDate?: string;
   onUpdateItem: (index: number, updates: Partial<UnifiedCartItem>) => void;
   onRemoveItem: (index: number) => void;
   eventEssentialsIssues?: EventEssentialsCartIssue[];
 }
 
-export function CartSection({ cart, eventDate, onUpdateItem, onRemoveItem, eventEssentialsIssues }: CartSectionProps) {
+export function CartSection({ cart, eventDate, eventEndDate, onUpdateItem, onRemoveItem, eventEssentialsIssues }: CartSectionProps) {
   const navigate = useNavigate();
+  const [quantityChecks, setQuantityChecks] = useState<Set<number>>(new Set());
+  const [quantityErrors, setQuantityErrors] = useState<Record<number, string>>({});
+
+  async function increaseEventEssentialQuantity(index: number): Promise<void> {
+    const item = cart[index];
+    if (!isEventEssentialProductCartItem(item) && !isEventEssentialBundleCartItem(item)) return;
+    const nextCart = cart.map((cartItem, cartIndex) => cartIndex === index ? { ...cartItem, qty: cartItem.qty + 1 } : cartItem);
+    setQuantityChecks(prev => new Set(prev).add(index));
+    setQuantityErrors(prev => ({ ...prev, [index]: '' }));
+    try {
+      if (eventDate && eventEndDate) {
+        const eventEssentialCart = nextCart.filter((cartItem) => isEventEssentialProductCartItem(cartItem) || isEventEssentialBundleCartItem(cartItem));
+        const requested = expandCartToProductQuantities(eventEssentialCart);
+        const result = await checkProductAvailability(requested, eventDate, eventEndDate, null);
+        const blocked = result.error || requested.some((request) => {
+          const availability = result.data?.find((entry) => entry.product_id === request.product_id);
+          return !availability || !availability.is_allowed;
+        });
+        if (blocked) {
+          setQuantityErrors(prev => ({ ...prev, [index]: result.error?.message || 'That quantity is not available for the selected dates.' }));
+          return;
+        }
+      }
+      onUpdateItem(index, { qty: item.qty + 1 });
+    } finally {
+      setQuantityChecks(prev => {
+        const next = new Set(prev);
+        next.delete(index);
+        return next;
+      });
+    }
+  }
   // Map issues by cartIndex. Identity (itemType + itemId) is validated at
   // render time so a stale issue can never appear beside a different line
   // after an add/remove shifts indices.
@@ -103,9 +138,33 @@ export function CartSection({ cart, eventDate, onUpdateItem, onRemoveItem, event
                         </span>
                       )}
                     </div>
-                    <span className="text-xs sm:text-sm text-slate-600">Qty: {item.qty}</span>
+                    <div className="flex items-center gap-2 mt-1">
+                      <span className="text-xs sm:text-sm text-slate-600">Qty:</span>
+                      <button
+                        type="button"
+                        onClick={() => onUpdateItem(index, { qty: Math.max(1, item.qty - 1) })}
+                        disabled={item.qty <= 1}
+                        className="p-1 rounded border border-slate-300 text-slate-700 hover:bg-slate-100 disabled:opacity-40"
+                        aria-label={`Decrease ${item.item_type === 'event_essential_bundle' ? item.bundle_name : item.product_name} quantity`}
+                      >
+                        <Minus className="w-3 h-3" />
+                      </button>
+                      <span className="min-w-5 text-center text-sm font-semibold text-slate-900">{item.qty}</span>
+                      <button
+                        type="button"
+                        onClick={() => void increaseEventEssentialQuantity(index)}
+                        disabled={quantityChecks.has(index)}
+                        className="p-1 rounded border border-slate-300 text-slate-700 hover:bg-slate-100 disabled:opacity-40"
+                        aria-label={`Increase ${item.item_type === 'event_essential_bundle' ? item.bundle_name : item.product_name} quantity`}
+                      >
+                        <Plus className="w-3 h-3" />
+                      </button>
+                    </div>
                     {isAddOn && (
                       <span className="ml-2 text-xs text-slate-400">(Add-on)</span>
+                    )}
+                    {quantityErrors[index] && (
+                      <p className="mt-1 text-xs text-red-700">{quantityErrors[index]}</p>
                     )}
                   </div>
                   <button

@@ -15,8 +15,6 @@ import { FeeWaiver } from '../shared/FeeWaiver';
 import { CardOnFileRequirement } from '../shared/CardOnFileRequirement';
 import { VALID_ADMIN_TRANSITIONS } from '../../lib/orderStateMachine';
 import { AddEventEssentialsSection } from './AddEventEssentialsSection';
-import { AddGeneratorSection } from './AddGeneratorSection';
-import { LegacyGeneratorEditor } from './LegacyGeneratorEditor';
 
 interface OrderDetailsTabProps {
   order: any;
@@ -65,8 +63,7 @@ interface OrderDetailsTabProps {
   onTravelFeeWaivedToggle: (reason: string) => void;
   onSameDayPickupFeeWaivedToggle: (reason: string) => void;
   onSurfaceFeeWaivedToggle: (reason: string) => void;
-  onGeneratorFeeWaiverToggle: () => void;
-  onGeneratorFeeWaiverReasonChange: (reason: string) => void;
+  onGeneratorFeeWaiverToggle: (reason: string) => void;
   onSameDayWeekdayDeliveryFeeWaivedToggle: (reason: string) => void;
   onStatusChange: (status: string) => void;
   onMarkChanges: () => void;
@@ -74,9 +71,6 @@ interface OrderDetailsTabProps {
   onRequireCardOnFileChange: (value: boolean) => void;
   onAddEEProduct: (item: any) => void;
   onAddEEBundle: (item: any) => void;
-  onAddGeneratorProduct: (item: any) => void;
-  onLegacyGeneratorFallback: (additionalQty: number, keepWaiver: boolean) => void;
-  onLegacyGeneratorQtyChange: (newQty: number) => void;
 }
 
 export function OrderDetailsTab({
@@ -127,7 +121,6 @@ export function OrderDetailsTab({
   onSameDayPickupFeeWaivedToggle,
   onSurfaceFeeWaivedToggle,
   onGeneratorFeeWaiverToggle,
-  onGeneratorFeeWaiverReasonChange,
   onSameDayWeekdayDeliveryFeeWaivedToggle,
   onStatusChange,
   onMarkChanges,
@@ -135,9 +128,6 @@ export function OrderDetailsTab({
   onRequireCardOnFileChange,
   onAddEEProduct,
   onAddEEBundle,
-  onAddGeneratorProduct,
-  onLegacyGeneratorFallback,
-  onLegacyGeneratorQtyChange,
 }: OrderDetailsTabProps) {
   const depositAlreadyCapturedCents = order.deposit_paid_cents || 0;
   const isConfirmedWithPayment = (order.status === ORDER_STATUS.CONFIRMED || order.status === ORDER_STATUS.IN_PROGRESS) && depositAlreadyCapturedCents > 0;
@@ -343,25 +333,14 @@ export function OrderDetailsTab({
         onAddBundle={onAddEEBundle}
       />
 
-      <AddGeneratorSection
-        orderId={order.id}
-        editedOrder={editedOrder}
-        stagedItems={stagedItems}
-        availableUnits={availableUnits}
-        existingGeneratorFeeWaived={generatorFeeWaived}
-        onAddGeneratorProduct={onAddGeneratorProduct}
-        onLegacyFallback={onLegacyGeneratorFallback}
-      />
-
-      {((editedOrder.generator_qty ?? order.generator_qty ?? 0) > 0) && (
-        <LegacyGeneratorEditor
-          generatorQty={editedOrder.generator_qty ?? order.generator_qty ?? 0}
-          generatorFeeCents={generatorFeeWaived ? (calculatedPricing?.generator_fee_before_waiver_cents ?? order.generator_fee_cents ?? 0) : (calculatedPricing?.generator_fee_cents ?? order.generator_fee_cents ?? 0)}
-          generatorFeeWaived={generatorFeeWaived}
-          generatorFeeWaiveReason={generatorFeeWaiveReason}
-          onQtyChange={onLegacyGeneratorQtyChange}
-          onWaiverToggle={onGeneratorFeeWaiverToggle}
-          onWaiverReasonChange={onGeneratorFeeWaiverReasonChange}
+      {((calculatedPricing?.generator_fee_cents ?? 0) > 0 || (order.generator_fee_cents ?? 0) > 0 || generatorFeeWaived) && (
+        <FeeWaiver
+          feeName="Generator Fee"
+          feeAmount={calculatedPricing?.generator_fee_cents ?? order.generator_fee_cents ?? 0}
+          isWaived={generatorFeeWaived}
+          waiveReason={generatorFeeWaiveReason}
+          onToggle={onGeneratorFeeWaiverToggle}
+          color="orange"
         />
       )}
 
