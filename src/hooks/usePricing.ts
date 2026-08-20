@@ -121,6 +121,7 @@ export function usePricing() {
     feeWaivers = {},
     existingOrder,
   }: CalculatePricingParams) => {
+    setPricingError(null);
     const {
       taxWaived = false,
       travelFeeWaived = false,
@@ -451,6 +452,8 @@ export function usePricing() {
       });
     } catch (error) {
       console.error('Error calculating pricing:', error);
+      setCalculatedPricing(null);
+      setPricingError('Unable to calculate pricing. Please review the order and try again.');
     }
   }, []);
 

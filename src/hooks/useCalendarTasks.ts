@@ -4,6 +4,7 @@ import { formatOrderId } from '../lib/utils';
 import { format, startOfMonth, endOfMonth, parseISO, addDays } from 'date-fns';
 import { ORDER_STATUS } from '../lib/constants/statuses';
 import { formatOperationalEquipmentLabels } from '../lib/operationalEquipment';
+import { aggregateOrderEquipment, loadGeneratorCategoryProductIds } from '../lib/generatorUnified';
 
 export type PickupReadiness = 'projected' | 'blocked' | 'ready' | 'completed';
 
@@ -114,6 +115,7 @@ export function derivePickupBlockReason(
 export function useCalendarTasks(currentMonth: Date) {
   const [tasks, setTasks] = useState<Task[]>([]);
   const [loading, setLoading] = useState(true);
+  const [generatorCategoryProductIds, setGeneratorCategoryProductIds] = useState<Set<string> | null>(null);
   const debounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const isLoadingRef = useRef(false);
   const pendingRefreshRef = useRef(false);
@@ -135,6 +137,17 @@ export function useCalendarTasks(currentMonth: Date) {
   useEffect(() => {
     loadTasksForMonth(currentMonth);
   }, [currentMonth]);
+
+  useEffect(() => {
+    let mounted = true;
+    void loadGeneratorCategoryProductIds().then(ids => {
+      if (mounted) setGeneratorCategoryProductIds(ids);
+    }).catch(() => {
+      // Leave null — operational qty falls back to legacy-only
+      if (mounted) setGeneratorCategoryProductIds(null);
+    });
+    return () => { mounted = false; };
+  }, []);
 
   useEffect(() => {
     const channel = supabase
@@ -244,7 +257,10 @@ export function useCalendarTasks(currentMonth: Date) {
         const items = formatOperationalEquipmentLabels(orderItemsForOrder);
         const equipmentIds = orderItemsForOrder.filter((i: any) => i.unit_id).map((i: any) => i.unit_id);
         const numInflatables = orderItemsForOrder.filter((i: any) => i.unit_id).reduce((s: number, i: any) => s + (i.qty || 1), 0);
-        const totalGeneratorQty = order.generator_qty || 0;
+        const legacyGeneratorQty = order.generator_qty || 0;
+        const { totalGeneratorQty } = generatorCategoryProductIds
+          ? aggregateOrderEquipment({ orderItems: orderItemsForOrder, legacyGeneratorQty, generatorCategoryProductIds })
+          : { totalGeneratorQty: legacyGeneratorQty };
 
         const total = order.total_cents || 0;
 

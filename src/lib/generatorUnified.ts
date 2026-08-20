@@ -516,6 +516,40 @@ export async function loadPackageGeneratorConfigs(
   }
 }
 
+// ---------------------------------------------------------------------------
+// Operational physical Generator quantity (legacy + direct EE + package)
+// Pure helper for Calendar/Crew equipment counting. Does NOT touch pricing.
+// ---------------------------------------------------------------------------
+
+export function aggregateOrderEquipment(input: {
+  orderItems: any[];
+  legacyGeneratorQty: number;
+  generatorCategoryProductIds: Set<string>;
+}): { totalGeneratorQty: number } {
+  const { orderItems, legacyGeneratorQty, generatorCategoryProductIds } = input;
+  let directEeGeneratorQty = 0;
+  let packageGeneratorQty = 0;
+
+  for (const item of orderItems) {
+    // Direct EE Generator product
+    if (item.product_id && generatorCategoryProductIds.has(item.product_id)) {
+      directEeGeneratorQty += item.qty || 0;
+    }
+    // Package component_snapshot containing a Generator
+    if (item.component_snapshot && Array.isArray(item.component_snapshot.components)) {
+      for (const comp of item.component_snapshot.components) {
+        if (comp.product_id && generatorCategoryProductIds.has(comp.product_id)) {
+          packageGeneratorQty += (comp.quantity_per_bundle || 0) * (item.qty || 0);
+        }
+      }
+    }
+  }
+
+  return {
+    totalGeneratorQty: legacyGeneratorQty + directEeGeneratorQty + packageGeneratorQty,
+  };
+}
+
 let _generatorCategoryProductIdsCache: Set<string> | null = null;
 let _generatorCategoryProductIdsPromise: Promise<Set<string>> | null = null;
 

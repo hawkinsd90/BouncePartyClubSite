@@ -230,16 +230,17 @@ function testZeroDepositOverride(): void {
 function testUnsavedGeneratorMerge(): void {
   // Simulate: existing unsaved row C qty 1, child returns { ...C, qty: 2 }
   // Parent should update the matched row, not append.
+  // is_updated = existing.is_new ? false : true — for unsaved new, stays false
   const existing = { client_id: 'C', product_id: 'gen', qty: 1, is_new: true, is_updated: false };
   const childItem = { ...existing, qty: 2 };
-  // Simulate parent logic: find existing by client_id, update qty regardless of is_updated
   const matched = existing.client_id === childItem.client_id;
   ok('merge: existing found by client_id', matched);
   if (matched) {
-    const updated = { ...existing, qty: childItem.qty };
+    const isUpdated = existing.is_new ? false : true;
+    const updated = { ...existing, qty: childItem.qty, is_updated: isUpdated };
     ok('merge: qty is 2', updated.qty === 2);
     ok('merge: is_new preserved', updated.is_new === true);
-    ok('merge: is_updated not forced', updated.is_updated === false);
+    ok('merge: is_updated stays false for unsaved', updated.is_updated === false);
   }
 }
 
@@ -562,25 +563,19 @@ function testValidMixedGeneratorRepresentation(): void {
 // ---------------------------------------------------------------------------
 
 function testUnknownResolverReasonFailsClosed(): void {
-  // Simulate: candidate not selectable with unknown reason
-  // Whitelist: only NO_STANDALONE_AND_ADDON_NOT_QUALIFIED, PREREQUISITE_NOT_MET, NO_PURCHASE_PATH may continue
-  const businessReasons = new Set([
-    'NO_STANDALONE_AND_ADDON_NOT_QUALIFIED',
-    'PREREQUISITE_NOT_MET',
-    'NO_PURCHASE_PATH',
-  ]);
-  const unknownReason = 'PRODUCT_CONFIG_MISSING';
-  const knownBusinessReason = 'NO_STANDALONE_AND_ADDON_NOT_QUALIFIED';
+  // Narrowed whitelist: only NO_STANDALONE_AND_ADDON_NOT_QUALIFIED may continue.
+  // All other reasons (including PREREQUISITE_NOT_MET and NO_PURCHASE_PATH) fail closed.
+  const allowedReason: string = 'NO_STANDALONE_AND_ADDON_NOT_QUALIFIED';
+  const unknownReason: string = 'PRODUCT_CONFIG_MISSING';
 
-  ok('unknown reason: not in whitelist', !businessReasons.has(unknownReason));
-  ok('unknown reason: would fail closed', !businessReasons.has(unknownReason) === true);
-
-  ok('business reason: in whitelist', businessReasons.has(knownBusinessReason));
-  ok('business reason: would continue', businessReasons.has(knownBusinessReason) === true);
+  ok('unknown reason: not allowed', unknownReason !== allowedReason);
+  ok('NO_PURCHASE_PATH: not allowed', 'NO_PURCHASE_PATH' !== allowedReason);
+  ok('PREREQUISITE_NOT_MET: not allowed', 'PREREQUISITE_NOT_MET' !== allowedReason);
+  ok('business reason: allowed', allowedReason === 'NO_STANDALONE_AND_ADDON_NOT_QUALIFIED');
 
   // Empty/null reason also fails closed
-  ok('null reason: not in whitelist', !businessReasons.has(null as any));
-  ok('undefined reason: not in whitelist', !businessReasons.has(undefined as any));
+  ok('null reason: not allowed', (null as any) !== allowedReason);
+  ok('undefined reason: not allowed', (undefined as any) !== allowedReason);
 }
 
 // ---------------------------------------------------------------------------

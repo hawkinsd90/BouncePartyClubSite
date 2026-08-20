@@ -25,25 +25,44 @@ const STATUS_BADGE_COLORS: Record<string, string> = {
 export function OrderInfoSection({ order, customerDisplayName, onEditClick }: OrderInfoSectionProps) {
   const badgeColor = STATUS_BADGE_COLORS[order.status] ?? 'bg-slate-600';
   const badgeLabel = ORDER_STATUS_LABELS[order.status as keyof typeof ORDER_STATUS_LABELS] ?? order.status ?? 'Unknown';
-  const [generatorCategoryProductIds, setGeneratorCategoryProductIds] = useState<Set<string>>(new Set());
+  const [generatorCategoryProductIds, setGeneratorCategoryProductIds] = useState<Set<string> | null>(null);
+  const [generatorLookupStatus, setGeneratorLookupStatus] = useState<'loading' | 'ready' | 'failed'>('loading');
 
   useEffect(() => {
     let mounted = true;
+    setGeneratorLookupStatus('loading');
     void loadGeneratorCategoryProductIds().then(ids => {
-      if (mounted) setGeneratorCategoryProductIds(ids);
+      if (mounted) {
+        setGeneratorCategoryProductIds(ids);
+        setGeneratorLookupStatus('ready');
+      }
     }).catch(() => {
-      // Preserve previous value (initially empty Set) — do not falsely show "No" on query failure
+      if (mounted) setGeneratorLookupStatus('failed');
     });
     return () => { mounted = false; };
   }, []);
 
   const orderItems = (order as any).order_items ?? (order as any).orderItems ?? [];
   const legacyGeneratorQty = (order as any).generator_qty ?? 0;
-  const hasGenerator = hasGeneratorInOrderItemsByCategory({
-    orderItems,
-    generatorCategoryProductIds,
-    legacyGeneratorQty,
-  });
+  const legacyGeneratorFeeCents = (order as any).generator_fee_cents ?? 0;
+
+  // Tri-state Generator display:
+  // A. Clear legacy representation (qty > 0 or fee > 0) -> Yes immediately
+  // B. No legacy + lookup ready -> evaluate EE items/packages
+  // C. No legacy + lookup loading/failed -> neutral "—"
+  let generatorDisplay: string;
+  if (legacyGeneratorQty > 0 || legacyGeneratorFeeCents > 0) {
+    generatorDisplay = 'Yes';
+  } else if (generatorLookupStatus === 'ready' && generatorCategoryProductIds) {
+    const hasGenerator = hasGeneratorInOrderItemsByCategory({
+      orderItems,
+      generatorCategoryProductIds,
+      legacyGeneratorQty: 0,
+    });
+    generatorDisplay = hasGenerator ? 'Yes' : 'No';
+  } else {
+    generatorDisplay = '—';
+  }
 
   return (
     <>
@@ -118,7 +137,7 @@ export function OrderInfoSection({ order, customerDisplayName, onEditClick }: Or
           <div className="text-center">
             <div className="text-xs text-slate-500 mb-1">Generator</div>
             <div className="font-medium text-slate-900">
-              {hasGenerator ? 'Yes' : 'No'}
+              {generatorDisplay}
             </div>
           </div>
           <div className="text-center">

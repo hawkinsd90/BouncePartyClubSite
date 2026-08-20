@@ -704,7 +704,11 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
     setStagedItems(prev => {
       const existing = prev.find(p => !p.is_deleted && p.product_id === item.product_id && !p.bundle_id && ((item.id && p.id === item.id) || (item.client_id && p.client_id === item.client_id)));
       if (existing) {
-        return prev.map(p => p === existing ? { ...p, qty: item.qty } : p);
+        // Preserve is_updated: persisted row that gets qty merged must be marked
+        // is_updated so orderSaveService reaches its update branch. Unsaved new
+        // rows keep is_new=true and do NOT need is_updated.
+        const isUpdated = existing.is_new ? false : true;
+        return prev.map(p => p === existing ? { ...p, qty: item.qty, is_updated: isUpdated } : p);
       }
       return [...prev, { ...item, client_id: item.client_id || `new-generator-${Date.now()}-${Math.random().toString(36).slice(2)}` }];
     });

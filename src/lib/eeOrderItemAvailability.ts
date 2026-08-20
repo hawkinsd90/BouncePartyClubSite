@@ -141,6 +141,26 @@ export function validateAvailabilityResult(
         'Unable to verify Event Essentials availability. Please try again or contact us for assistance.',
     };
   }
+  // Validate each returned row shape BEFORE building the returned-product-ID set:
+  // product_id must be a non-blank string, is_allowed must be a boolean
+  for (const row of result.data) {
+    if (typeof row.product_id !== 'string' || row.product_id.trim() === '') {
+      return {
+        ok: false,
+        status: 'invalid',
+        error:
+          'Availability check returned a malformed result. Please try again or contact us for assistance.',
+      };
+    }
+    if (typeof row.is_allowed !== 'boolean') {
+      return {
+        ok: false,
+        status: 'invalid',
+        error:
+          'Availability check returned a malformed result. Please try again or contact us for assistance.',
+      };
+    }
+  }
   const returnedProductIds = new Set(result.data.map((r: any) => r.product_id));
   for (const reqId of requestedProductIds) {
     if (!returnedProductIds.has(reqId)) {
@@ -149,17 +169,6 @@ export function validateAvailabilityResult(
         status: 'invalid',
         error:
           'Availability check did not return a result for all requested items. Please try again or contact us for assistance.',
-      };
-    }
-  }
-  // Validate each result row: is_allowed must be a boolean
-  for (const row of result.data) {
-    if (typeof row.is_allowed !== 'boolean') {
-      return {
-        ok: false,
-        status: 'invalid',
-        error:
-          'Availability check returned a malformed result. Please try again or contact us for assistance.',
       };
     }
   }

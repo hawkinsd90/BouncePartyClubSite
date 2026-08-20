@@ -243,14 +243,11 @@ export function AddGeneratorSection({
         }
         if (!candidateResult.selectable || candidateResult.resolvedUnitPriceCents === null) {
           const reason = candidateResult.selectableReason || candidateResult.invalidReason;
-          // Whitelist of legitimate business non-qualification reasons that may continue to next candidate.
-          // Any other reason is a technical/configuration failure and must fail closed.
-          const businessNonQualificationReasons = new Set([
-            'NO_STANDALONE_AND_ADDON_NOT_QUALIFIED',
-            'PREREQUISITE_NOT_MET',
-            'NO_PURCHASE_PATH',
-          ]);
-          if (!reason || !businessNonQualificationReasons.has(reason)) {
+          // Only NO_STANDALONE_AND_ADDON_NOT_QUALIFIED is a legitimate business
+          // non-qualification reason that may continue to the next candidate.
+          // All other reasons (NO_PURCHASE_PATH, PREREQUISITE_NOT_MET, unknown,
+          // missing) are technical/configuration failures and must fail closed.
+          if (reason !== 'NO_STANDALONE_AND_ADDON_NOT_QUALIFIED') {
             setError(`Generator pricing configuration error (${reason || 'unknown'}). No changes were staged.`);
             return;
           }
