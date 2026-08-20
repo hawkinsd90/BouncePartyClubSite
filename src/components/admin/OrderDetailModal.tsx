@@ -658,7 +658,7 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
   async function loadOrderDetails() {
     try {
       const [itemsRes, changelogRes, unitsRes, discountsRes, customFeesRes] = await Promise.all([
-        supabase.from('order_items').select('*, units(name, price_dry_cents, price_water_cents)').eq('order_id', order.id).order('created_at', { ascending: true }),
+        supabase.from('order_items').select('*, units(name, price_dry_cents, price_water_cents)').eq('order_id', order.id),
         supabase.from('order_changelog').select('*').eq('order_id', order.id).order('created_at', { ascending: false }),
         supabase.from('units').select('*').eq('active', true).order('name'),
         supabase.from('order_discounts').select('*').eq('order_id', order.id).order('created_at', { ascending: false }),
