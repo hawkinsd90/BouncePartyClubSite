@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { X, Truck, MessageSquare, FileText, History, Save, CreditCard } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { format } from 'date-fns';
@@ -111,6 +111,7 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
   const [requireCardOnFile, setRequireCardOnFile] = useState(order.require_card_on_file ?? true);
   const [manualDirty, setManualDirty] = useState(false);
   const [pricingPending, setPricingPending] = useState(false);
+  const [lastSuccessfullyPricedRevision, setLastSuccessfullyPricedRevision] = useState<number>(0);
 
   // Initialize taxWaived based on actual tax state and current settings
   // For old orders created before apply_taxes_by_default setting:
@@ -142,6 +143,59 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
   const { orderSummary: updatedOrderSummary, calculatedPricing, pricingError, calculatePricing } = usePricing();
   const { payments, pricingRules, reload: reloadOrderData } = useOrderDetails(order.id);
   const pricingDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Pricing input signature — changes immediately when any pricing-affecting
+  // dependency changes, even before the 300ms debounce fires.
+  const currentPricingRevision = useMemo(() => {
+    const signature = JSON.stringify({
+      stagedItems: stagedItems.map(i => ({
+        id: i.id, client_id: i.client_id, product_id: i.product_id,
+        bundle_id: i.bundle_id, qty: i.qty, unit_price_cents: i.unit_price_cents,
+        is_new: i.is_new, is_deleted: i.is_deleted, is_updated: i.is_updated,
+      })),
+      discounts: discounts.map((d: any) => ({ id: d.id, amount_cents: d.amount_cents, percentage: d.percentage, is_new: d.is_new })),
+      customFees: customFees.map((f: any) => ({ id: f.id, amount_cents: f.amount_cents, is_new: f.is_new })),
+      customDepositCents,
+      location_type: editedOrder.location_type,
+      surface: editedOrder.surface,
+      generator_qty: editedOrder.generator_qty,
+      address_line1: editedOrder.address_line1,
+      address_city: editedOrder.address_city,
+      address_state: editedOrder.address_state,
+      address_zip: editedOrder.address_zip,
+      pickup_preference: editedOrder.pickup_preference,
+      event_date: editedOrder.event_date,
+      event_end_date: editedOrder.event_end_date,
+      taxWaived,
+      travelFeeWaived,
+      sameDayPickupFeeWaived,
+      surfaceFeeWaived,
+      generatorFeeWaived,
+      sameDayWeekdayDeliveryFeeWaived,
+    });
+    let hash = 0;
+    for (let i = 0; i < signature.length; i++) {
+      hash = ((hash << 5) - hash + signature.charCodeAt(i)) | 0;
+    }
+    return hash;
+  }, [
+    stagedItems, discounts, customFees, customDepositCents,
+    editedOrder.location_type, editedOrder.surface, editedOrder.generator_qty,
+    editedOrder.address_line1, editedOrder.address_city, editedOrder.address_state,
+    editedOrder.address_zip, editedOrder.pickup_preference,
+    editedOrder.event_date, editedOrder.event_end_date,
+    taxWaived, travelFeeWaived, sameDayPickupFeeWaived,
+    surfaceFeeWaived, generatorFeeWaived, sameDayWeekdayDeliveryFeeWaived,
+  ]);
+
+  // Pricing is current only when the last successful calculation matches the
+  // current input revision.
+  const pricingIsCurrent = !pricingPending && !pricingError && !!calculatedPricing && lastSuccessfullyPricedRevision === currentPricingRevision;
+
+  // Ref mirror so handleRecalculatePricing can check revision freshness
+  // without depending on currentPricingRevision directly.
+  const currentPricingRevisionRef = useRef(currentPricingRevision);
+  currentPricingRevisionRef.current = currentPricingRevision;
 
   useEffect(() => {
     // Load current order summary for display
@@ -290,11 +344,12 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
   // Recalculate pricing whenever discounts, custom fees, staged items, or fee waivers change
   useEffect(() => {
     if (pricingRules && editedOrder && stagedItems.length > 0) {
+      const revision = currentPricingRevision;
       setPricingPending(true);
       if (pricingDebounceRef.current) clearTimeout(pricingDebounceRef.current);
       pricingDebounceRef.current = setTimeout(() => {
         pricingDebounceRef.current = null;
-        handleRecalculatePricing();
+        handleRecalculatePricing(revision);
       }, 300);
     }
     return () => {
@@ -462,7 +517,7 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
     }
   }
 
-  const handleRecalculatePricing = useCallback(async () => {
+  const handleRecalculatePricing = useCallback(async (revision: number) => {
     if (!pricingRules || !adminSettings) {
       setPricingPending(false);
       return;
@@ -525,8 +580,15 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
           same_day_weekday_delivery_fee_cents: order.same_day_weekday_delivery_fee_cents ?? 0,
         },
       });
+      // Only commit this revision if it is still the current one.
+      if (revision === currentPricingRevisionRef.current) {
+        setLastSuccessfullyPricedRevision(revision);
+      }
     } finally {
-      setPricingPending(false);
+      // Only clear pending if this revision is still the latest.
+      if (revision === currentPricingRevisionRef.current) {
+        setPricingPending(false);
+      }
     }
   }, [order, editedOrder, stagedItems, discounts, customFees, customDepositCents, pricingRules, adminSettings, taxWaived, travelFeeWaived, sameDayPickupFeeWaived, surfaceFeeWaived, generatorFeeWaived, sameDayWeekdayDeliveryFeeWaived, calculatePricing]);
 
@@ -611,15 +673,15 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
 
   async function handleSaveChanges() {
     if (pricingPending) {
-      showToast('Pricing is still recalculating. Please wait for the new totals before saving.', 'error');
+      showToast('Pricing is still being recalculated. Please wait for the updated totals.', 'error');
       return;
     }
     if (pricingError) {
       showToast(`Cannot save: ${pricingError}`, 'error');
       return;
     }
-    if (!calculatedPricing) {
-      showToast('Cannot save: pricing has not been calculated yet.', 'error');
+    if (!calculatedPricing || lastSuccessfullyPricedRevision !== currentPricingRevision) {
+      showToast('Pricing is still being recalculated. Please wait for the updated totals.', 'error');
       return;
     }
     setSaving(true);
@@ -795,7 +857,7 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
                 )}
                 <button
                   onClick={handleSaveChanges}
-                  disabled={saving || pricingPending || !!pricingError || !calculatedPricing}
+                  disabled={saving || !pricingIsCurrent}
                   className="flex items-center gap-1 md:gap-2 bg-green-600 hover:bg-green-700 text-white px-2 md:px-4 py-1.5 md:py-2 rounded-lg text-sm md:text-base font-medium disabled:opacity-50"
                 >
                   <Save className="w-3.5 h-3.5 md:w-4 md:h-4" />

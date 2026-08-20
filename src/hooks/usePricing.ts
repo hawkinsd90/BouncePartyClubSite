@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useRef } from 'react';
 import { calculatePrice, calculateDrivingDistance, isSameDayWeekdayDelivery, type PricingRules } from '../lib/pricing';
 import { formatOrderSummary, type OrderSummaryData } from '../lib/orderSummary';
 import { HOME_BASE } from '../lib/constants';
@@ -109,6 +109,7 @@ export function usePricing() {
   const [orderSummary, setOrderSummary] = useState<any>(null);
   const [calculatedPricing, setCalculatedPricing] = useState<CalculatedPricing | null>(null);
   const [pricingError, setPricingError] = useState<string | null>(null);
+  const pricingCalculationIdRef = useRef(0);
 
   const calculatePricing = useCallback(async ({
     items,
@@ -123,6 +124,8 @@ export function usePricing() {
   }: CalculatePricingParams) => {
     // Clear stale pricing immediately so an old result is never treated as
     // current while a new calculation is in progress.
+    const calculationId = ++pricingCalculationIdRef.current;
+    const isLatest = () => calculationId === pricingCalculationIdRef.current;
     setCalculatedPricing(null);
     setPricingError(null);
     const {
@@ -391,11 +394,13 @@ export function usePricing() {
         calculatedDepositDueCents = priceBreakdown.deposit_due_cents;
       }
       if (depositConfigError) {
-        setCalculatedPricing(null);
-        setPricingError(depositConfigError);
+        if (isLatest()) {
+          setCalculatedPricing(null);
+          setPricingError(depositConfigError);
+        }
         return;
       }
-      setPricingError(null);
+      if (isLatest()) setPricingError(null);
       const rawDepositDueCents = customDepositCents !== null ? customDepositCents : calculatedDepositDueCents;
       const depositDueCents = Math.min(rawDepositDueCents, finalTotalCents);
       const balanceDueCents = Math.max(0, finalTotalCents - depositDueCents);
@@ -429,35 +434,39 @@ export function usePricing() {
 
       const summary = formatOrderSummary(orderData);
 
-      setOrderSummary(summary);
+      if (isLatest()) {
+        setOrderSummary(summary);
 
-      setCalculatedPricing({
-        subtotal_cents: subtotalWithEE,
-        generator_fee_cents: finalGeneratorFeeCents,
-        travel_fee_cents: finalTravelFeeCents,
-        travel_total_miles: finalTravelMiles,
-        travel_base_radius_miles: priceBreakdown.travel_base_radius_miles,
-        travel_chargeable_miles: priceBreakdown.travel_chargeable_miles,
-        travel_per_mile_cents: priceBreakdown.travel_per_mile_cents,
-        travel_is_flat_fee: priceBreakdown.travel_is_flat_fee,
-        travel_fee_display_name: priceBreakdown.travel_fee_display_name,
-        distance_miles: finalTravelMiles,
-        surface_fee_cents: finalSurfaceFeeCents,
-        same_day_pickup_fee_cents: finalSameDayPickupFeeCents,
-        same_day_weekday_delivery_fee_cents: finalSameDayWeekdayDeliveryFeeCents,
-        custom_fees_total_cents: summary.customFees.reduce((sum, f) => sum + f.amount, 0),
-        discount_total_cents: summary.discounts.reduce((sum, d) => sum + d.amount, 0),
-        tax_cents: finalTaxCents,
-        total_cents: summary.total,
-        deposit_due_cents: summary.depositDue,
-        balance_due_cents: summary.balanceDue,
-        event_essentials_subtotal_cents: eeSubtotalCents,
-        generator_fee_before_waiver_cents: originalGeneratorFeeCents,
-      });
+        setCalculatedPricing({
+          subtotal_cents: subtotalWithEE,
+          generator_fee_cents: finalGeneratorFeeCents,
+          travel_fee_cents: finalTravelFeeCents,
+          travel_total_miles: finalTravelMiles,
+          travel_base_radius_miles: priceBreakdown.travel_base_radius_miles,
+          travel_chargeable_miles: priceBreakdown.travel_chargeable_miles,
+          travel_per_mile_cents: priceBreakdown.travel_per_mile_cents,
+          travel_is_flat_fee: priceBreakdown.travel_is_flat_fee,
+          travel_fee_display_name: priceBreakdown.travel_fee_display_name,
+          distance_miles: finalTravelMiles,
+          surface_fee_cents: finalSurfaceFeeCents,
+          same_day_pickup_fee_cents: finalSameDayPickupFeeCents,
+          same_day_weekday_delivery_fee_cents: finalSameDayWeekdayDeliveryFeeCents,
+          custom_fees_total_cents: summary.customFees.reduce((sum, f) => sum + f.amount, 0),
+          discount_total_cents: summary.discounts.reduce((sum, d) => sum + d.amount, 0),
+          tax_cents: finalTaxCents,
+          total_cents: summary.total,
+          deposit_due_cents: summary.depositDue,
+          balance_due_cents: summary.balanceDue,
+          event_essentials_subtotal_cents: eeSubtotalCents,
+          generator_fee_before_waiver_cents: originalGeneratorFeeCents,
+        });
+      }
     } catch (error) {
       console.error('Error calculating pricing:', error);
-      setCalculatedPricing(null);
-      setPricingError('Unable to calculate pricing. Please review the order and try again.');
+      if (isLatest()) {
+        setCalculatedPricing(null);
+        setPricingError('Unable to calculate pricing. Please review the order and try again.');
+      }
     }
   }, []);
 
