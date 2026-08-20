@@ -21,6 +21,7 @@ interface Item {
   item_name?: string;
   pricing_context?: string;
   component_snapshot?: any;
+  client_id?: string;
 }
 
 interface ItemsEditorProps {
@@ -150,7 +151,32 @@ export function ItemsEditor({
                         >
                           <Minus className="w-3 h-3" />
                         </button>
-                        <span className="w-8 text-center text-sm font-semibold text-slate-900">{item.qty}</span>
+                        <input
+                          type="text"
+                          inputMode="numeric"
+                          defaultValue={item.qty}
+                          key={`${item.id || item.client_id || index}-${item.qty}`}
+                          onBlur={(e) => {
+                            const n = Number(e.target.value.trim());
+                            if (Number.isFinite(n) && Number.isInteger(n) && n >= 1) {
+                              onUpdateQuantity?.(removeByIndex ? index : item, n);
+                            } else {
+                              e.target.value = String(item.qty);
+                            }
+                          }}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter') {
+                              const n = Number((e.target as HTMLInputElement).value.trim());
+                              if (Number.isFinite(n) && Number.isInteger(n) && n >= 1) {
+                                onUpdateQuantity?.(removeByIndex ? index : item, n);
+                              } else {
+                                (e.target as HTMLInputElement).value = String(item.qty);
+                              }
+                            }
+                          }}
+                          className="w-12 px-1 py-1 text-center text-sm font-semibold text-slate-900 border border-slate-300 rounded focus:outline-none focus:border-blue-500"
+                          aria-label={`Quantity for ${displayName}`}
+                        />
                         <button
                           onClick={() => onUpdateQuantity?.(removeByIndex ? index : item, item.qty + 1)}
                           className="w-6 h-6 flex items-center justify-center bg-slate-200 hover:bg-slate-300 rounded transition-colors"

@@ -338,6 +338,9 @@ export function OrderDetailsTab({
       <AddEventEssentialsSection
         stagedItems={stagedItems}
         availableUnits={availableUnits}
+        orderId={order.id}
+        eventDate={order.event_date}
+        eventEndDate={order.event_end_date}
         onAddProduct={onAddEEProduct}
         onAddBundle={onAddEEBundle}
       />

@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { Plus, Package, ShoppingBag } from 'lucide-react';
+import { Plus, Package, ShoppingBag, Minus, X } from 'lucide-react';
 import { formatCurrency } from '../../lib/pricing';
 import { resolveEventEssentialsPricing } from '../../lib/eventEssentialsPricing';
 import type {
@@ -17,12 +17,20 @@ import {
   fetchAdminProductPricing,
   fetchAdminProductCategories,
   fetchAdminProductBundlesWithConfiguration,
+  checkProductAvailability,
 } from '../../lib/queries/products';
 import type { ProductBundleWithConfiguration } from '../../types';
+import {
+  buildEventEssentialAvailabilityRequestFromOrderItems,
+  validateAvailabilityResult,
+} from '../../lib/eeOrderItemAvailability';
 
 interface AddEventEssentialsSectionProps {
   stagedItems: any[];
   availableUnits: any[];
+  orderId: string;
+  eventDate: string;
+  eventEndDate?: string;
   onAddProduct: (item: StagedEEItem) => void;
   onAddBundle: (item: StagedEEItem) => void;
 }
@@ -42,7 +50,15 @@ export interface StagedEEItem {
 
 const GENERATORS_CATEGORY_SLUG = 'generators';
 
-export function AddEventEssentialsSection({ stagedItems, availableUnits, onAddProduct, onAddBundle }: AddEventEssentialsSectionProps) {
+export function AddEventEssentialsSection({
+  stagedItems,
+  availableUnits,
+  orderId,
+  eventDate,
+  eventEndDate,
+  onAddProduct,
+  onAddBundle,
+}: AddEventEssentialsSectionProps) {
   const [products, setProducts] = useState<any[]>([]);
   const [bundles, setBundles] = useState<ProductBundleWithConfiguration[]>([]);
   const [allBundles, setAllBundles] = useState<ProductBundleWithConfiguration[]>([]);
@@ -53,6 +69,11 @@ export function AddEventEssentialsSection({ stagedItems, availableUnits, onAddPr
   const [error, setError] = useState<string | null>(null);
   const [showProducts, setShowProducts] = useState(false);
   const [showBundles, setShowBundles] = useState(false);
+  const [selectedCategoryId, setSelectedCategoryId] = useState<string | null>(null);
+  const [productQtyInputs, setProductQtyInputs] = useState<Record<string, string>>({});
+  const [bundleQtyInputs, setBundleQtyInputs] = useState<Record<string, string>>({});
+  const [availabilityChecking, setAvailabilityChecking] = useState(false);
+  const [availabilityError, setAvailabilityError] = useState<string | null>(null);
 
   const loadData = useCallback(async () => {
     setLoading(true);
@@ -197,13 +218,56 @@ export function AddEventEssentialsSection({ stagedItems, availableUnits, onAddPr
     };
   }, [allProducts, allBundles, pricingConfigs, categories, availableUnits, stagedItems]);
 
-  const handleAddProduct = useCallback((product: any) => {
+  const parseQty = (raw: string): number => {
+    const trimmed = raw.trim();
+    if (trimmed === '') return 0;
+    const n = Number(trimmed);
+    if (!Number.isFinite(n) || !Number.isInteger(n) || n < 1) return 0;
+    return n;
+  };
+
+  const commitProductQty = (productId: string) => {
+    const raw = productQtyInputs[productId] ?? '1';
+    const qty = parseQty(raw);
+    if (qty < 1) {
+      setProductQtyInputs(prev => ({ ...prev, [productId]: '1' }));
+    }
+  };
+
+  const commitBundleQty = (bundleId: string) => {
+    const raw = bundleQtyInputs[bundleId] ?? '1';
+    const qty = parseQty(raw);
+    if (qty < 1) {
+      setBundleQtyInputs(prev => ({ ...prev, [bundleId]: '1' }));
+    }
+  };
+
+  const getProductQty = (productId: string): number => {
+    const raw = productQtyInputs[productId] ?? '1';
+    const qty = parseQty(raw);
+    return qty >= 1 ? qty : 1;
+  };
+
+  const getBundleQty = (bundleId: string): number => {
+    const raw = bundleQtyInputs[bundleId] ?? '1';
+    const qty = parseQty(raw);
+    return qty >= 1 ? qty : 1;
+  };
+
+  const handleAddProduct = useCallback(async (product: any) => {
+    const qty = getProductQty(product.id);
+    if (qty < 1) {
+      setProductQtyInputs(prev => ({ ...prev, [product.id]: '1' }));
+      return;
+    }
+    setAvailabilityChecking(true);
+    setAvailabilityError(null);
     try {
       const input = buildResolverInput();
       const candidateLine: ResolverInputLine = {
         resolverKey: `new-product-${product.id}`,
         itemType: 'event_essential_product',
-        qty: 1,
+        qty,
         productId: product.id,
       };
       input.lines.push(candidateLine);
@@ -215,30 +279,73 @@ export function AddEventEssentialsSection({ stagedItems, availableUnits, onAddPr
         return;
       }
 
+      // Availability check: build the COMPLETE resulting staged requirement.
+      const projectedItems = [
+        ...stagedItems.filter((i: any) => !i.is_deleted),
+        {
+          product_id: product.id,
+          qty,
+          unit_id: null,
+          bundle_id: null,
+          component_snapshot: null,
+        },
+      ];
+      const expansion = buildEventEssentialAvailabilityRequestFromOrderItems(projectedItems);
+      if (expansion.status !== 'ready') {
+        setAvailabilityError('Unable to verify availability. Please try again.');
+        return;
+      }
+      if (eventDate && eventEndDate) {
+        const availResult = await checkProductAvailability(
+          expansion.productQuantities,
+          eventDate,
+          eventEndDate,
+          orderId,
+        );
+        const validation = validateAvailabilityResult(
+          expansion.productQuantities.map(p => p.product_id),
+          availResult,
+        );
+        if (!validation.ok) {
+          setAvailabilityError(validation.error || 'That quantity is not available for the selected dates.');
+          return;
+        }
+      }
+
       onAddProduct({
         product_id: product.id,
         product_name: product.name,
         item_name: product.name,
-        qty: 1,
+        qty,
         unit_price_cents: candidateResult.resolvedUnitPriceCents,
         pricing_context: candidateResult.resolvedPricingContext || 'standalone',
         component_snapshot: null,
         is_new: true,
         is_deleted: false,
       });
-      setShowProducts(false);
+      // Reset only the quantity input for this product; keep picker open.
+      setProductQtyInputs(prev => ({ ...prev, [product.id]: '1' }));
     } catch (err: any) {
-      setError(err?.message || 'Failed to add product');
+      setAvailabilityError(err?.message || 'Failed to add product');
+    } finally {
+      setAvailabilityChecking(false);
     }
-  }, [buildResolverInput, onAddProduct]);
+  }, [buildResolverInput, onAddProduct, stagedItems, eventDate, eventEndDate, orderId]);
 
-  const handleAddBundle = useCallback((bundle: ProductBundleWithConfiguration) => {
+  const handleAddBundle = useCallback(async (bundle: ProductBundleWithConfiguration) => {
+    const qty = getBundleQty(bundle.id);
+    if (qty < 1) {
+      setBundleQtyInputs(prev => ({ ...prev, [bundle.id]: '1' }));
+      return;
+    }
+    setAvailabilityChecking(true);
+    setAvailabilityError(null);
     try {
       const input = buildResolverInput();
       const candidateLine: ResolverInputLine = {
         resolverKey: `new-bundle-${bundle.id}`,
         itemType: 'event_essential_bundle',
-        qty: 1,
+        qty,
         bundleId: bundle.id,
       };
       input.lines.push(candidateLine);
@@ -261,22 +368,68 @@ export function AddEventEssentialsSection({ stagedItems, availableUnits, onAddPr
         })),
       };
 
+      // Availability check: build the COMPLETE resulting staged requirement.
+      const projectedItems = [
+        ...stagedItems.filter((i: any) => !i.is_deleted),
+        {
+          bundle_id: bundle.id,
+          qty,
+          unit_id: null,
+          product_id: null,
+          component_snapshot: snapshot,
+        },
+      ];
+      const expansion = buildEventEssentialAvailabilityRequestFromOrderItems(projectedItems);
+      if (expansion.status !== 'ready') {
+        setAvailabilityError('Unable to verify availability. Please try again.');
+        return;
+      }
+      if (eventDate && eventEndDate) {
+        const availResult = await checkProductAvailability(
+          expansion.productQuantities,
+          eventDate,
+          eventEndDate,
+          orderId,
+        );
+        const validation = validateAvailabilityResult(
+          expansion.productQuantities.map(p => p.product_id),
+          availResult,
+        );
+        if (!validation.ok) {
+          setAvailabilityError(validation.error || 'That quantity is not available for the selected dates.');
+          return;
+        }
+      }
+
       onAddBundle({
         bundle_id: bundle.id,
         product_name: bundle.name,
         item_name: bundle.name,
-        qty: 1,
+        qty,
         unit_price_cents: candidateResult.resolvedUnitPriceCents,
         pricing_context: candidateResult.resolvedPricingContext || 'standalone',
         component_snapshot: snapshot,
         is_new: true,
         is_deleted: false,
       });
-      setShowBundles(false);
+      setBundleQtyInputs(prev => ({ ...prev, [bundle.id]: '1' }));
     } catch (err: any) {
-      setError(err?.message || 'Failed to add package');
+      setAvailabilityError(err?.message || 'Failed to add package');
+    } finally {
+      setAvailabilityChecking(false);
     }
-  }, [buildResolverInput, onAddBundle]);
+  }, [buildResolverInput, onAddBundle, stagedItems, eventDate, eventEndDate, orderId]);
+
+  // Build the list of active categories that have at least one product in the picker.
+  const activeCategoryIds = Array.from(new Set(products.map(p => p.category_id).filter(Boolean)));
+  const sortedCategories = activeCategoryIds
+    .map(id => categories[id])
+    .filter(Boolean)
+    .sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0) || a.name.localeCompare(b.name));
+
+  const filteredProducts = selectedCategoryId
+    ? products.filter(p => p.category_id === selectedCategoryId)
+    : products;
 
   return (
     <div className="bg-white border border-slate-200 rounded-lg p-4 sm:p-6">
@@ -288,17 +441,27 @@ export function AddEventEssentialsSection({ stagedItems, availableUnits, onAddPr
         </div>
       )}
 
+      {availabilityError && (
+        <div className="mb-3 bg-amber-50 border border-amber-200 rounded-lg p-3">
+          <p className="text-sm text-amber-800">{availabilityError}</p>
+        </div>
+      )}
+
       <div className="flex flex-col sm:flex-row gap-2">
         <button
-          onClick={() => { setShowProducts(!showProducts); setShowBundles(false); }}
-          className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors"
+          onClick={() => { setShowProducts(true); setShowBundles(false); }}
+          className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+            showProducts ? 'bg-blue-700 text-white' : 'bg-blue-600 hover:bg-blue-700 text-white'
+          }`}
         >
           <ShoppingBag className="w-4 h-4" />
           Add Product
         </button>
         <button
-          onClick={() => { setShowBundles(!showBundles); setShowProducts(false); }}
-          className="flex items-center gap-2 bg-teal-600 hover:bg-teal-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors"
+          onClick={() => { setShowBundles(true); setShowProducts(false); }}
+          className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+            showBundles ? 'bg-teal-700 text-white' : 'bg-teal-600 hover:bg-teal-700 text-white'
+          }`}
         >
           <Package className="w-4 h-4" />
           Add Package
@@ -312,26 +475,103 @@ export function AddEventEssentialsSection({ stagedItems, availableUnits, onAddPr
         </div>
       )}
 
+      {availabilityChecking && (
+        <div className="mt-3 flex items-center gap-2 text-sm text-slate-600">
+          <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-slate-600"></div>
+          Checking availability...
+        </div>
+      )}
+
       {showProducts && !loading && (
         <div className="mt-4 border-t border-slate-200 pt-4">
-          <h4 className="font-medium text-slate-900 mb-3">Available Products</h4>
+          <div className="flex items-center justify-between mb-3">
+            <h4 className="font-medium text-slate-900">Available Products</h4>
+            <button
+              onClick={() => setShowProducts(false)}
+              className="flex items-center gap-1 text-xs text-slate-500 hover:text-slate-700"
+            >
+              <X className="w-3 h-3" />
+              Done
+            </button>
+          </div>
+
+          {sortedCategories.length > 0 && (
+            <div className="flex flex-wrap gap-1.5 mb-3">
+              <button
+                onClick={() => setSelectedCategoryId(null)}
+                className={`px-3 py-1 rounded-full text-xs font-medium transition-colors ${
+                  selectedCategoryId === null
+                    ? 'bg-slate-800 text-white'
+                    : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+                }`}
+              >
+                All
+              </button>
+              {sortedCategories.map(cat => (
+                <button
+                  key={cat.id}
+                  onClick={() => setSelectedCategoryId(cat.id)}
+                  className={`px-3 py-1 rounded-full text-xs font-medium transition-colors ${
+                    selectedCategoryId === cat.id
+                      ? 'bg-slate-800 text-white'
+                      : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+                  }`}
+                >
+                  {cat.name}
+                </button>
+              ))}
+            </div>
+          )}
+
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3 max-h-80 overflow-y-auto">
-            {products.length > 0 ? products.map(product => {
+            {filteredProducts.length > 0 ? filteredProducts.map(product => {
               const pc = pricingConfigs[product.id];
               const price = pc?.standalone_price_cents || pc?.addon_price_cents || 0;
+              const qty = productQtyInputs[product.id] ?? '1';
               return (
-                <div key={product.id} className="bg-slate-50 border border-slate-200 rounded-lg p-3 flex items-center justify-between">
+                <div key={product.id} className="bg-slate-50 border border-slate-200 rounded-lg p-3 flex flex-col gap-2">
                   <div>
                     <p className="font-medium text-slate-900">{product.name}</p>
                     <p className="text-xs text-slate-600">{formatCurrency(price)}</p>
                   </div>
-                  <button
-                    onClick={() => handleAddProduct(product)}
-                    className="flex items-center gap-1 bg-green-600 hover:bg-green-700 text-white text-xs py-1.5 px-3 rounded transition-colors"
-                  >
-                    <Plus className="w-3 h-3" />
-                    Add
-                  </button>
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="flex items-center gap-1.5">
+                      <button
+                        type="button"
+                        onClick={() => setProductQtyInputs(prev => ({ ...prev, [product.id]: String(Math.max(1, (parseQty(prev[product.id] ?? '1') || 1) - 1)) }))}
+                        className="w-6 h-6 flex items-center justify-center bg-slate-200 hover:bg-slate-300 rounded transition-colors"
+                        title="Decrease quantity"
+                      >
+                        <Minus className="w-3 h-3" />
+                      </button>
+                      <input
+                        type="text"
+                        inputMode="numeric"
+                        value={qty}
+                        onChange={e => setProductQtyInputs(prev => ({ ...prev, [product.id]: e.target.value }))}
+                        onBlur={() => commitProductQty(product.id)}
+                        onKeyDown={e => { if (e.key === 'Enter') commitProductQty(product.id); }}
+                        className="w-12 px-1 py-1 text-center text-sm font-semibold text-slate-900 border border-slate-300 rounded focus:outline-none focus:border-blue-500"
+                        aria-label={`Quantity for ${product.name}`}
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setProductQtyInputs(prev => ({ ...prev, [product.id]: String((parseQty(prev[product.id] ?? '1') || 1) + 1) }))}
+                        className="w-6 h-6 flex items-center justify-center bg-slate-200 hover:bg-slate-300 rounded transition-colors"
+                        title="Increase quantity"
+                      >
+                        <Plus className="w-3 h-3" />
+                      </button>
+                    </div>
+                    <button
+                      onClick={() => void handleAddProduct(product)}
+                      disabled={availabilityChecking}
+                      className="flex items-center gap-1 bg-green-600 hover:bg-green-700 text-white text-xs py-1.5 px-3 rounded transition-colors disabled:opacity-50"
+                    >
+                      <Plus className="w-3 h-3" />
+                      Add
+                    </button>
+                  </div>
                 </div>
               );
             }) : (
@@ -343,24 +583,65 @@ export function AddEventEssentialsSection({ stagedItems, availableUnits, onAddPr
 
       {showBundles && !loading && (
         <div className="mt-4 border-t border-slate-200 pt-4">
-          <h4 className="font-medium text-slate-900 mb-3">Available Packages</h4>
+          <div className="flex items-center justify-between mb-3">
+            <h4 className="font-medium text-slate-900">Available Packages</h4>
+            <button
+              onClick={() => setShowBundles(false)}
+              className="flex items-center gap-1 text-xs text-slate-500 hover:text-slate-700"
+            >
+              <X className="w-3 h-3" />
+              Done
+            </button>
+          </div>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3 max-h-80 overflow-y-auto">
             {bundles.length > 0 ? bundles.map(bundle => {
               const price = bundle.standalone_price_cents || bundle.addon_price_cents || 0;
+              const qty = bundleQtyInputs[bundle.id] ?? '1';
               return (
-                <div key={bundle.id} className="bg-slate-50 border border-slate-200 rounded-lg p-3 flex items-center justify-between">
+                <div key={bundle.id} className="bg-slate-50 border border-slate-200 rounded-lg p-3 flex flex-col gap-2">
                   <div>
                     <p className="font-medium text-slate-900">{bundle.name}</p>
                     {bundle.description && <p className="text-xs text-slate-600">{bundle.description}</p>}
                     <p className="text-xs text-slate-600">{formatCurrency(price)}</p>
                   </div>
-                  <button
-                    onClick={() => handleAddBundle(bundle)}
-                    className="flex items-center gap-1 bg-green-600 hover:bg-green-700 text-white text-xs py-1.5 px-3 rounded transition-colors"
-                  >
-                    <Plus className="w-3 h-3" />
-                    Add
-                  </button>
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="flex items-center gap-1.5">
+                      <button
+                        type="button"
+                        onClick={() => setBundleQtyInputs(prev => ({ ...prev, [bundle.id]: String(Math.max(1, (parseQty(prev[bundle.id] ?? '1') || 1) - 1)) }))}
+                        className="w-6 h-6 flex items-center justify-center bg-slate-200 hover:bg-slate-300 rounded transition-colors"
+                        title="Decrease quantity"
+                      >
+                        <Minus className="w-3 h-3" />
+                      </button>
+                      <input
+                        type="text"
+                        inputMode="numeric"
+                        value={qty}
+                        onChange={e => setBundleQtyInputs(prev => ({ ...prev, [bundle.id]: e.target.value }))}
+                        onBlur={() => commitBundleQty(bundle.id)}
+                        onKeyDown={e => { if (e.key === 'Enter') commitBundleQty(bundle.id); }}
+                        className="w-12 px-1 py-1 text-center text-sm font-semibold text-slate-900 border border-slate-300 rounded focus:outline-none focus:border-blue-500"
+                        aria-label={`Quantity for ${bundle.name}`}
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setBundleQtyInputs(prev => ({ ...prev, [bundle.id]: String((parseQty(prev[bundle.id] ?? '1') || 1) + 1) }))}
+                        className="w-6 h-6 flex items-center justify-center bg-slate-200 hover:bg-slate-300 rounded transition-colors"
+                        title="Increase quantity"
+                      >
+                        <Plus className="w-3 h-3" />
+                      </button>
+                    </div>
+                    <button
+                      onClick={() => void handleAddBundle(bundle)}
+                      disabled={availabilityChecking}
+                      className="flex items-center gap-1 bg-green-600 hover:bg-green-700 text-white text-xs py-1.5 px-3 rounded transition-colors disabled:opacity-50"
+                    >
+                      <Plus className="w-3 h-3" />
+                      Add
+                    </button>
+                  </div>
                 </div>
               );
             }) : (
@@ -372,3 +653,6 @@ export function AddEventEssentialsSection({ stagedItems, availableUnits, onAddPr
     </div>
   );
 }
+
+
+export { AddEventEssentialsSection }

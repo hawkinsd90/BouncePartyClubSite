@@ -100,12 +100,14 @@ export function useQuoteForm() {
   }, [addressInput, isInitialized]);
 
   useEffect(() => {
+    if (!isInitialized) return;
     if (formData.event_date && !formData.event_end_date) {
       setFormData(prev => ({ ...prev, event_end_date: prev.event_date }));
     }
-  }, [formData.event_date]);
+  }, [formData.event_date, isInitialized]);
 
   useEffect(() => {
+    if (!isInitialized) return;
     if (formData.location_type === 'commercial') {
       setFormData(prev => ({ ...prev, pickup_preference: 'same_day' }));
     } else if (formData.location_type === 'residential' && formData.pickup_preference === 'same_day') {
@@ -113,9 +115,10 @@ export function useQuoteForm() {
     } else if (formData.location_type === null) {
       setFormData(prev => ({ ...prev, pickup_preference: null }));
     }
-  }, [formData.location_type]);
+  }, [formData.location_type, isInitialized]);
 
   useEffect(() => {
+    if (!isInitialized) return;
     const isSameDayRestricted =
       (formData.location_type === 'residential' && formData.pickup_preference === 'same_day') ||
       formData.location_type === 'commercial';
@@ -128,7 +131,7 @@ export function useQuoteForm() {
         end_window: prev.end_window > '19:00' ? '19:00' : prev.end_window,
       }));
     }
-  }, [formData.pickup_preference, formData.location_type, formData.event_date]);
+  }, [formData.pickup_preference, formData.location_type, formData.event_date, isInitialized]);
 
   useEffect(() => {
     async function geocodeAddress() {

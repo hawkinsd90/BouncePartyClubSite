@@ -51,6 +51,38 @@ export function CartSection({ cart, eventDate, eventEndDate, onUpdateItem, onRem
       });
     }
   }
+
+  async function setEventEssentialQuantity(index: number, newQty: number): Promise<void> {
+    const item = cart[index];
+    if (!isEventEssentialProductCartItem(item) && !isEventEssentialBundleCartItem(item)) return;
+    if (!Number.isFinite(newQty) || !Number.isInteger(newQty) || newQty < 1) return;
+    if (newQty === item.qty) return;
+    const nextCart = cart.map((cartItem, cartIndex) => cartIndex === index ? { ...cartItem, qty: newQty } : cartItem);
+    setQuantityChecks(prev => new Set(prev).add(index));
+    setQuantityErrors(prev => ({ ...prev, [index]: '' }));
+    try {
+      if (eventDate && eventEndDate) {
+        const eventEssentialCart = nextCart.filter((cartItem) => isEventEssentialProductCartItem(cartItem) || isEventEssentialBundleCartItem(cartItem));
+        const requested = expandCartToProductQuantities(eventEssentialCart);
+        const result = await checkProductAvailability(requested, eventDate, eventEndDate, null);
+        const blocked = result.error || requested.some((request) => {
+          const availability = result.data?.find((entry) => entry.product_id === request.product_id);
+          return !availability || !availability.is_allowed;
+        });
+        if (blocked) {
+          setQuantityErrors(prev => ({ ...prev, [index]: result.error?.message || 'That quantity is not available for the selected dates.' }));
+          return;
+        }
+      }
+      onUpdateItem(index, { qty: newQty });
+    } finally {
+      setQuantityChecks(prev => {
+        const next = new Set(prev);
+        next.delete(index);
+        return next;
+      });
+    }
+  }
   // Map issues by cartIndex. Identity (itemType + itemId) is validated at
   // render time so a stale issue can never appear beside a different line
   // after an add/remove shifts indices.
@@ -149,7 +181,33 @@ export function CartSection({ cart, eventDate, eventEndDate, onUpdateItem, onRem
                       >
                         <Minus className="w-3 h-3" />
                       </button>
-                      <span className="min-w-5 text-center text-sm font-semibold text-slate-900">{item.qty}</span>
+                      <input
+                        type="text"
+                        inputMode="numeric"
+                        defaultValue={item.qty}
+                        key={`${index}-${item.qty}`}
+                        onBlur={(e) => {
+                          const n = Number(e.target.value.trim());
+                          if (Number.isFinite(n) && Number.isInteger(n) && n >= 1) {
+                            void setEventEssentialQuantity(index, n);
+                          } else {
+                            e.target.value = String(item.qty);
+                          }
+                        }}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') {
+                            const n = Number((e.target as HTMLInputElement).value.trim());
+                            if (Number.isFinite(n) && Number.isInteger(n) && n >= 1) {
+                              void setEventEssentialQuantity(index, n);
+                            } else {
+                              (e.target as HTMLInputElement).value = String(item.qty);
+                            }
+                          }
+                        }}
+                        disabled={quantityChecks.has(index)}
+                        className="w-12 px-1 py-0.5 text-center text-sm font-semibold text-slate-900 border border-slate-300 rounded focus:outline-none focus:border-blue-500 disabled:opacity-50"
+                        aria-label={`Quantity for ${item.item_type === 'event_essential_bundle' ? item.bundle_name : item.product_name}`}
+                      />
                       <button
                         type="button"
                         onClick={() => void increaseEventEssentialQuantity(index)}
