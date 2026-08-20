@@ -23,8 +23,25 @@ import { sendOrderEditNotifications } from '../../lib/orderNotificationService';
 import { SimpleConfirmModal } from '../common/SimpleConfirmModal';
 import { ORDER_STATUS } from '../../lib/constants/statuses';
 import { showToast } from '../../lib/notifications';
-import { loadGeneratorCategoryProductIds, lookupAllGeneratorProducts } from '../../lib/generatorUnified';
-import type { GeneratorProductConfiguration } from '../../lib/generatorUnified';
+import { loadGeneratorCategoryProductIds } from '../../lib/generatorUnified';
+import {
+  resolveAdminGeneratorIncrease,
+  decideAdminGeneratorDecrease,
+  type AdminGeneratorStagedItem,
+} from '../../lib/adminGeneratorResolution';
+import {
+  fetchAdminInventoryProducts,
+  fetchAdminProductPricing,
+  fetchAdminProductCategories,
+  fetchAdminProductBundlesWithConfiguration,
+} from '../../lib/queries/products';
+import type {
+  ResolverProductConfig,
+  ResolverBundleConfig,
+  ResolverCategory,
+  ResolverUnitConfig,
+  InflatableEligibilityMode,
+} from '../../lib/eventEssentialsPricingTypes';
 
 interface OrderDetailModalProps {
   order: any;
@@ -85,10 +102,14 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
     pickup_preference: order.pickup_preference || 'next_day',
   });
   const [stagedItems, setStagedItems] = useState<StagedItem[]>([]);
-  const [generatorProductIds, setGeneratorProductIds] = useState<Set<string>>(new Set());
+  const [generatorProductIdsState, setGeneratorProductIdsState] = useState<{ status: 'loading' | 'ready' | 'failed'; ids: Set<string> }>({ status: 'loading', ids: new Set() });
 
   useEffect(() => {
-    loadGeneratorCategoryProductIds().then(setGeneratorProductIds).catch(() => setGeneratorProductIds(new Set()));
+    let cancelled = false;
+    loadGeneratorCategoryProductIds()
+      .then((ids) => { if (!cancelled) setGeneratorProductIdsState({ status: 'ready', ids }); })
+      .catch(() => { if (!cancelled) setGeneratorProductIdsState({ status: 'failed', ids: new Set() }); });
+    return () => { cancelled = true; };
   }, []);
   const [discounts, setDiscounts] = useState<any[]>([]);
   const [customFees, setCustomFees] = useState<any[]>([]);
@@ -758,6 +779,8 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
     setManualDirty(true);
   }, []);
 
+  const generatorProductIds = generatorProductIdsState.ids;
+
   const visibleGeneratorQty = useMemo(() => {
     const directEeQty = stagedItems
       .filter((item) => !item.is_deleted && !!item.product_id && generatorProductIds.has(item.product_id))
@@ -767,21 +790,30 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
 
   const handleGeneratorQtyChange = useCallback(async (requestedTotal: number): Promise<void> => {
     const requestedQty = Math.max(0, Number.isFinite(requestedTotal) ? Math.trunc(requestedTotal) : 0);
+
+    if (generatorProductIdsState.status !== 'ready') {
+      showToast('Generator product catalog is still loading. Please try again in a moment.', 'error');
+      return;
+    }
+
     const directItems = stagedItems.filter((item) => !item.is_deleted && !!item.product_id && generatorProductIds.has(item.product_id));
     const directQty = directItems.reduce((sum, item) => sum + item.qty, 0);
     const currentTotal = (editedOrder.generator_qty ?? 0) + directQty;
 
     if (requestedQty === currentTotal) return;
 
+    // DECREASE
     if (requestedQty < currentTotal) {
-      let remaining = currentTotal - requestedQty;
-      let nextLegacyQty = editedOrder.generator_qty ?? 0;
+      const decision = decideAdminGeneratorDecrease({
+        current: { legacyQty: editedOrder.generator_qty ?? 0, directEeQty: directQty },
+        requestedTotal: requestedQty,
+      });
+
+      if (decision.removeQty <= 0) return;
+
       const directByNewest = [...directItems].reverse();
-      const directReduction = Math.min(remaining, directQty);
-      remaining -= directReduction;
-      const legacyReduction = Math.min(nextLegacyQty, remaining);
-      nextLegacyQty -= legacyReduction;
-      let remainingDirectReduction = directReduction;
+      let remainingDirectReduction = Math.min(decision.removeQty, directQty);
+
       setStagedItems((previous) => {
         const directIds = new Set(directByNewest.map((item) => item.id || item.client_id));
         return previous.map((item) => {
@@ -793,65 +825,150 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
           return nextQty > 0 ? { ...item, qty: nextQty, is_updated: true } : { ...item, qty: 0, is_deleted: true, is_updated: true };
         });
       });
-      setEditedOrder((previous: any) => ({ ...previous, generator_qty: nextLegacyQty }));
+
+      setEditedOrder((previous: any) => ({ ...previous, generator_qty: decision.newLegacyQty }));
       setManualDirty(true);
       return;
     }
 
+    // INCREASE
     const additionalQty = requestedQty - currentTotal;
-    const generatorResult = await lookupAllGeneratorProducts();
-    if (generatorResult.status === 'configuration_failed') {
-      showToast('Unable to verify Generator availability. Please try again.', 'error');
+
+    // Load full catalog config for the pricing resolver.
+    let productConfigs: Record<string, ResolverProductConfig> = {};
+    let bundleConfigs: Record<string, ResolverBundleConfig> = {};
+    let categoryMap: Record<string, ResolverCategory> = {};
+    let unitMap: Record<string, ResolverUnitConfig> = {};
+
+    try {
+      const [catsRes, prodsRes, pricingRes, bundlesRes] = await Promise.all([
+        fetchAdminProductCategories(),
+        fetchAdminInventoryProducts(),
+        fetchAdminProductPricing(),
+        fetchAdminProductBundlesWithConfiguration(),
+      ]);
+
+      if (catsRes.error || prodsRes.error || pricingRes.error || bundlesRes.error) {
+        showToast('Unable to load product catalog for Generator pricing. Please try again.', 'error');
+        return;
+      }
+
+      const allProducts = prodsRes.data || [];
+      const allPricing = pricingRes.data || [];
+      const allCats = catsRes.data || [];
+      const allBundles = bundlesRes.data || [];
+
+      const pricingByProductId = new Map<string, any>();
+      for (const p of allPricing) pricingByProductId.set(p.product_id, p);
+
+      for (const p of allProducts) {
+        const pc = pricingByProductId.get(p.id);
+        if (!pc) continue;
+        if (typeof p.category_id !== 'string' || !p.category_id) continue;
+        productConfigs[p.id] = {
+          id: p.id,
+          categoryId: p.category_id,
+          standalonePriceCents: pc.standalone_price_cents ?? null,
+          addonPriceCents: pc.addon_price_cents ?? null,
+          standaloneEnabled: pc.standalone_enabled === true,
+          addonEnabled: pc.addon_enabled === true,
+          addonQualifyingThresholdCents: pc.addon_qualifying_threshold_cents ?? null,
+        };
+      }
+
+      for (const b of allBundles) {
+        const comps = b.product_bundle_components || [];
+        const containedCategoryIds = Array.from(new Set(
+          comps.map((c: any) => c.inventory_products?.category_id).filter((id: any): id is string => typeof id === 'string' && id !== '')
+        ));
+        bundleConfigs[b.id] = {
+          id: b.id,
+          standalonePriceCents: b.standalone_price_cents ?? null,
+          addonPriceCents: b.addon_price_cents ?? null,
+          standaloneEnabled: b.standalone_enabled === true,
+          addonEnabled: b.addon_enabled === true,
+          addonQualifyingThresholdCents: b.addon_qualifying_threshold_cents ?? null,
+          inflatableEligibilityMode: (b.inflatable_eligibility_mode || 'none') as InflatableEligibilityMode,
+          excludedCategoryIds: (b.product_bundle_excluded_categories || []).map((e: any) => e.category_id),
+          eligibleUnitIds: (b.package_inflatable_eligibility || []).map((e: any) => e.unit_id),
+          inflatableComponents: (b.package_inflatable_components || []).map((c: any) => ({
+            unitId: c.unit_id,
+            quantityPerBundle: c.quantity_per_bundle,
+            selectionMode: c.selection_mode,
+          })),
+          containedProductCategoryIds: containedCategoryIds,
+        };
+      }
+
+      for (const c of allCats) categoryMap[c.id] = { id: c.id };
+      for (const u of availableUnits) unitMap[u.id] = { id: u.id, active: true };
+    } catch {
+      showToast('Unable to load product catalog for Generator pricing. Please try again.', 'error');
       return;
     }
 
-    let qualifyingProduct: GeneratorProductConfiguration | null = null;
-    if (generatorResult.status === 'configured') {
-      const candidates = generatorResult.products
-        .filter((product) => product.standalone_enabled && product.standalone_price_cents !== null)
-        .sort((a, b) => (b.standalone_price_cents ?? 0) - (a.standalone_price_cents ?? 0));
-      for (const candidate of candidates) {
-        const availability = await checkProductAvailability(
-          [{ product_id: candidate.product_id, quantity: additionalQty }],
-          editedOrder.event_date,
-          editedOrder.event_end_date,
-          null,
-        );
-        if (availability.error) {
-          showToast('Unable to verify Generator availability. Please try again.', 'error');
-          return;
-        }
-        const available = availability.data?.some((entry) => entry.product_id === candidate.product_id && entry.is_allowed === true);
-        if (available) {
-          qualifyingProduct = candidate;
-          break;
-        }
-      }
+    const resolution = await resolveAdminGeneratorIncrease({
+      current: { legacyQty: editedOrder.generator_qty ?? 0, directEeQty: directQty },
+      requestedTotal: requestedQty,
+      stagedItems: stagedItems as AdminGeneratorStagedItem[],
+      eventDate: editedOrder.event_date,
+      eventEndDate: editedOrder.event_end_date,
+      orderId: order.id,
+      productConfigs,
+      bundleConfigs,
+      categories: categoryMap,
+      units: unitMap,
+    });
+
+    if (resolution.status === 'fail_closed') {
+      showToast(resolution.reason || 'Unable to verify Generator availability. Please try again.', 'error');
+      return;
     }
 
-    if (qualifyingProduct) {
+    if (resolution.status === 'ee') {
+      const { product, resolvedUnitPriceCents, resolvedPricingContext } = resolution.candidate;
+
       setStagedItems((previous) => {
-        const existing = previous.find((item) => !item.is_deleted && item.product_id === qualifyingProduct?.product_id && !item.bundle_id);
-        if (existing) {
-          return previous.map((item) => item === existing ? { ...item, qty: item.qty + additionalQty, is_updated: !item.is_new } : item);
+        // CASE A: same product_id, same resolved price, same resolved context → increase existing row.
+        const exactMatch = previous.find(
+          (item) =>
+            !item.is_deleted &&
+            item.product_id === product.product_id &&
+            !item.bundle_id &&
+            item.unit_price_cents === resolvedUnitPriceCents &&
+            (item.pricing_context || 'standalone') === resolvedPricingContext,
+        );
+
+        if (exactMatch) {
+          return previous.map((item) =>
+            item === exactMatch
+              ? { ...item, qty: item.qty + additionalQty, is_updated: !item.is_new }
+              : item,
+          );
         }
+
+        // CASE B: same product_id but different price/context → new staged row (historical frozen).
         return [...previous, {
           client_id: `new-generator-${Date.now()}-${Math.random().toString(36).slice(2)}`,
-          product_id: qualifyingProduct.product_id,
-          product_name: qualifyingProduct.product_name,
-          item_name: qualifyingProduct.product_name,
+          product_id: product.product_id,
+          product_name: product.product_name,
+          item_name: product.product_name,
           qty: additionalQty,
-          unit_price_cents: qualifyingProduct.standalone_price_cents ?? 0,
-          pricing_context: 'standalone',
+          unit_price_cents: resolvedUnitPriceCents,
+          pricing_context: resolvedPricingContext,
           is_new: true,
           is_deleted: false,
         }];
       });
-    } else {
-      setEditedOrder((previous: any) => ({ ...previous, generator_qty: (previous.generator_qty ?? 0) + additionalQty }));
+
+      setManualDirty(true);
+      return;
     }
+
+    // Legacy fallback (no_candidate) or explicit legacy.
+    setEditedOrder((previous: any) => ({ ...previous, generator_qty: (previous.generator_qty ?? 0) + additionalQty }));
     setManualDirty(true);
-  }, [editedOrder.event_date, editedOrder.event_end_date, editedOrder.generator_qty, generatorProductIds, stagedItems]);
+  }, [editedOrder.event_date, editedOrder.event_end_date, editedOrder.generator_qty, generatorProductIdsState, generatorProductIds, stagedItems, order.id, availableUnits]);
 
   const handleAddressSelect = useCallback((result: any) => {
     setEditedOrder((prev: any) => ({

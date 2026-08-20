@@ -14,6 +14,22 @@
 // return a 'fail_closed' outcome rather than silently falling back to legacy.
 
 import type { GeneratorProductConfiguration } from './generatorUnified';
+import { lookupAllGeneratorProducts } from './generatorUnified';
+import { resolveEventEssentialsPricing } from './eventEssentialsPricing';
+import type {
+  ResolverInput,
+  ResolverInputLine,
+  ResolverProductConfig,
+  ResolverBundleConfig,
+  ResolverCategory,
+  ResolverUnitConfig,
+  ResolverOutputLine,
+} from './eventEssentialsPricingTypes';
+import {
+  buildEventEssentialAvailabilityRequestFromOrderItems,
+  validateAvailabilityResult,
+} from './eeOrderItemAvailability';
+import { checkProductAvailability } from './queries/products';
 
 export interface CurrentGeneratorRepresentation {
   /** Legacy generator_qty on the order (historical standalone). */
@@ -147,4 +163,206 @@ export function decideAdminGeneratorDecrease(input: {
  */
 export function computeVisibleGeneratorQty(current: CurrentGeneratorRepresentation): number {
   return current.legacyQty + current.directEeQty;
+}
+
+// ---------------------------------------------------------------------------
+// Full async increase resolution: candidate discovery + pricing + availability
+// ---------------------------------------------------------------------------
+
+export interface GeneratorCandidateResolution {
+  product: GeneratorProductConfiguration;
+  resolvedUnitPriceCents: number;
+  resolvedPricingContext: string;
+}
+
+export type GeneratorIncreaseResolution =
+  | { status: 'ee'; candidate: GeneratorCandidateResolution }
+  | { status: 'legacy' }
+  | { status: 'no_candidate' }
+  | { status: 'fail_closed'; reason: string };
+
+export interface AdminGeneratorStagedItem {
+  product_id?: string;
+  bundle_id?: string;
+  unit_id?: string;
+  qty: number;
+  unit_price_cents: number;
+  pricing_context?: string;
+  component_snapshot?: { components: Array<{ product_id: string; quantity_per_bundle: number }> } | null;
+  is_deleted?: boolean;
+}
+
+/**
+ * Resolve an Admin-requested increase in standalone Generator quantity.
+ *
+ * 1. Discover ALL active Generator-category products (not just slug='generator').
+ * 2. For each candidate, use the existing Event Essentials pricing resolver
+ *    with the complete edited-order context (inflatables, direct EE, packages,
+ *    saved prices) to resolve the candidate's REAL current price and context
+ *    (standalone OR addon).
+ * 3. For each successfully-resolved candidate, check the COMPLETE resulting
+ *    inventory requirement (all non-deleted direct EE + all package contents
+ *    + candidate's additional qty), aggregated, using excludeOrderId = order.id.
+ * 4. Select the highest-resolved-price available candidate (product_id asc tie-break).
+ * 5. Legacy fallback only when: no active Generator products exist, OR all
+ *    valid candidates were loaded+priced+checked and none can satisfy.
+ * 6. Technical failures (query/config/pricing/availability errors) fail closed.
+ */
+export async function resolveAdminGeneratorIncrease(input: {
+  current: CurrentGeneratorRepresentation;
+  requestedTotal: number;
+  stagedItems: AdminGeneratorStagedItem[];
+  eventDate: string;
+  eventEndDate: string;
+  orderId: string;
+  productConfigs: Record<string, ResolverProductConfig>;
+  bundleConfigs: Record<string, ResolverBundleConfig>;
+  categories: Record<string, ResolverCategory>;
+  units: Record<string, ResolverUnitConfig>;
+}): Promise<GeneratorIncreaseResolution> {
+  const { current, requestedTotal, stagedItems, eventDate, eventEndDate, orderId, productConfigs, bundleConfigs, categories, units } = input;
+
+  const existingStandalone = current.legacyQty + current.directEeQty;
+  const additionalQty = Math.max(0, requestedTotal - existingStandalone);
+
+  if (additionalQty <= 0) {
+    return { status: 'no_candidate' };
+  }
+
+  // 1. Discover all active Generator-category products.
+  const generatorResult = await lookupAllGeneratorProducts();
+  if (generatorResult.status === 'configuration_failed') {
+    return { status: 'fail_closed', reason: generatorResult.error };
+  }
+  if (generatorResult.status === 'not_found') {
+    return { status: 'legacy' };
+  }
+
+  const generatorProducts = generatorResult.products;
+
+  // 2. Build resolver context lines from staged items (excluding deleted).
+  const contextLines: ResolverInputLine[] = stagedItems
+    .filter((item) => !item.is_deleted)
+    .map((item) => {
+      if (item.unit_id) {
+        return {
+          resolverKey: `staged-unit-${item.unit_id}`,
+          itemType: 'inflatable' as const,
+          qty: item.qty,
+          unitId: item.unit_id,
+          selectedUnitPriceCents: item.unit_price_cents,
+        };
+      }
+      if (item.bundle_id) {
+        return {
+          resolverKey: `staged-bundle-${item.bundle_id}`,
+          itemType: 'event_essential_bundle' as const,
+          qty: item.qty,
+          bundleId: item.bundle_id,
+          savedUnitPriceCents: item.unit_price_cents,
+        };
+      }
+      return {
+        resolverKey: `staged-product-${item.product_id}`,
+        itemType: 'event_essential_product' as const,
+        qty: item.qty,
+        productId: item.product_id,
+        savedUnitPriceCents: item.unit_price_cents,
+      };
+    });
+
+  // 3. For each candidate: resolve pricing, then check complete availability.
+  const resolvedCandidates: GeneratorCandidateResolution[] = [];
+
+  for (const product of generatorProducts) {
+    // Skip products without a valid product config (no pricing).
+    const cfg = productConfigs[product.product_id];
+    if (!cfg) continue;
+
+    const candidateKey = `generator-candidate-${product.product_id}`;
+    const candidateLine: ResolverInputLine = {
+      resolverKey: candidateKey,
+      itemType: 'event_essential_product',
+      qty: additionalQty,
+      productId: product.product_id,
+    };
+
+    const resolverInput: ResolverInput = {
+      lines: [...contextLines, candidateLine],
+      productConfigs,
+      bundleConfigs,
+      categories,
+      units,
+    };
+
+    const result = resolveEventEssentialsPricing(resolverInput);
+    const candidateResult: ResolverOutputLine | undefined = result.lines.find(
+      (l) => l.resolverKey === candidateKey,
+    );
+
+    if (!candidateResult || !candidateResult.selectable || candidateResult.resolvedUnitPriceCents === null) {
+      // This candidate is not selectable for pricing reasons — skip, not a failure.
+      continue;
+    }
+
+    const resolvedPrice = candidateResult.resolvedUnitPriceCents;
+    const resolvedContext = candidateResult.resolvedPricingContext || 'standalone';
+
+    // 4. Build the COMPLETE resulting inventory requirement and check availability.
+    const resultingItems: AdminGeneratorStagedItem[] = [
+      ...stagedItems.filter((item) => !item.is_deleted),
+      {
+        product_id: product.product_id,
+        qty: additionalQty,
+        unit_price_cents: resolvedPrice,
+        pricing_context: resolvedContext,
+      },
+    ];
+
+    const expansion = buildEventEssentialAvailabilityRequestFromOrderItems(resultingItems);
+    if (expansion.status === 'invalid') {
+      return { status: 'fail_closed', reason: expansion.error };
+    }
+
+    const availability = await checkProductAvailability(
+      expansion.productQuantities,
+      eventDate,
+      eventEndDate,
+      orderId,
+    );
+
+    const validation = validateAvailabilityResult(
+      expansion.productQuantities.map((pq) => pq.product_id),
+      availability,
+    );
+
+    if (validation.status === 'invalid') {
+      return { status: 'fail_closed', reason: validation.error || 'Availability check failed.' };
+    }
+    if (validation.status === 'unavailable') {
+      // This candidate's resulting inventory is not available — skip.
+      continue;
+    }
+
+    // Available! Record as a resolved candidate.
+    resolvedCandidates.push({
+      product,
+      resolvedUnitPriceCents: resolvedPrice,
+      resolvedPricingContext: resolvedContext,
+    });
+  }
+
+  // 5. Select highest-resolved-price candidate (product_id ascending tie-break).
+  if (resolvedCandidates.length > 0) {
+    resolvedCandidates.sort((a, b) => {
+      if (b.resolvedUnitPriceCents !== a.resolvedUnitPriceCents) {
+        return b.resolvedUnitPriceCents - a.resolvedUnitPriceCents;
+      }
+      return a.product.product_id < b.product.product_id ? -1 : 1;
+    });
+    return { status: 'ee', candidate: resolvedCandidates[0] };
+  }
+
+  // 6. All valid candidates were loaded, priced, and checked — none available.
+  return { status: 'legacy' };
 }

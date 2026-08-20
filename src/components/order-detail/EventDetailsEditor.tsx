@@ -240,11 +240,7 @@ export function EventDetailsEditor({
                       }}
                       className="w-full px-3 py-2 border border-slate-300 rounded"
                     />
-                    {(editedOrder.generator_display_qty ?? editedOrder.generator_qty ?? 0) > 0 && (
-                      <p className="text-xs text-blue-600 mt-1">
-                        {(editedOrder.generator_display_qty ?? editedOrder.generator_qty ?? 0)} × {formatCurrency(pricingRules?.generator_fee_single_cents || 0)} = {formatCurrency((pricingRules?.generator_fee_single_cents || 0) * (editedOrder.generator_display_qty ?? editedOrder.generator_qty ?? 0))}
-                      </p>
-                    )}
+
                   </div>
                 </div>
               </div>
@@ -319,11 +315,7 @@ export function EventDetailsEditor({
                   }}
                   className={inputClass}
                 />
-                {(editedOrder.generator_qty ?? 0) > 0 && (
-                  <p className="text-xs text-blue-600 mt-1 break-words">
-                    {(editedOrder.generator_qty ?? 0)} × {formatCurrency(pricingRules?.generator_fee_single_cents || 0)} = {formatCurrency((pricingRules?.generator_fee_single_cents || 0) * (editedOrder.generator_display_qty ?? editedOrder.generator_qty ?? 0))}
-                  </p>
-                )}
+
               </div>
             </>
           )}

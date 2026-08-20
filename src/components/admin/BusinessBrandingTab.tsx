@@ -159,7 +159,7 @@ export function BusinessBrandingTab() {
       const updates = [
         ...Object.entries(settings).map(([key, value]) => ({
           key,
-          value,
+          value: String(value),
         })),
         { key: 'home_address_line1', value: effectiveTravelAddress.line1 },
         { key: 'home_address_line2', value: effectiveTravelAddress.line2 },
@@ -169,7 +169,6 @@ export function BusinessBrandingTab() {
         { key: 'home_address_lat', value: effectiveTravelAddress.lat.toString() },
         { key: 'home_address_lng', value: effectiveTravelAddress.lng.toString() },
         { key: 'use_business_address_for_travel', value: useBusinessAddress.toString() },
-        { key: 'how_did_you_hear_enabled', value: settings.how_did_you_hear_enabled.toString() },
       ];
 
       for (const { key, value } of updates) {
