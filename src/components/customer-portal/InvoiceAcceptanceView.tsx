@@ -287,12 +287,24 @@ export function InvoiceAcceptanceView({
       const tipCents = getTipCents();
 
       // Check availability before proceeding
-      const { data: allOrderItems } = await supabase
+      const { data: allOrderItems, error: orderItemsError } = await supabase
         .from('order_items')
         .select('unit_id, product_id, bundle_id, qty, component_snapshot')
         .eq('order_id', order.id);
 
-      if (allOrderItems && allOrderItems.length > 0) {
+      if (orderItemsError) {
+        showToast('Sorry, we could not verify item availability. Please try again or contact us.', 'error');
+        setProcessing(false);
+        return;
+      }
+
+      if (!allOrderItems || allOrderItems.length === 0) {
+        showToast('Sorry, we could not verify item availability. Please try again or contact us.', 'error');
+        setProcessing(false);
+        return;
+      }
+
+      {
         // Check inflatable availability
         const inflatableItems = allOrderItems.filter((item: any) => item.unit_id);
         if (inflatableItems.length > 0) {

@@ -190,10 +190,15 @@ export function SimpleInvoiceDisplay({
                       {item.wet_or_dry === 'water' ? 'Water Mode' : 'Dry Mode'} × {item.qty}
                     </p>
                   )}
-                  {isEE && item.pricing_context && (
-                    <p className="text-xs text-slate-500">
-                      {item.pricing_context === 'addon' ? 'Add-on price' : 'Standalone price'}
-                    </p>
+                  {isEE && (
+                    <>
+                      <p className="text-sm text-slate-600">Qty: {item.qty}</p>
+                      {item.pricing_context && (
+                        <p className="text-xs text-slate-500">
+                          {item.pricing_context === 'addon' ? 'Add-on price' : 'Standalone price'}
+                        </p>
+                      )}
+                    </>
                   )}
                 </div>
                 <p className="font-semibold text-slate-900">

@@ -189,6 +189,14 @@ async function createOrder(
 }
 
 async function createOrderItems(orderId: string, cartItems: CartItem[], eeProductItems: EEProductItem[]) {
+  for (const item of eeProductItems) {
+    if (item.pricing_context !== 'standalone' && item.pricing_context !== 'addon') {
+      throw new Error(
+        `Cannot persist Event Essentials item "${item.item_name || item.product_name}": pricing_context is missing or invalid ("${item.pricing_context}").`
+      );
+    }
+  }
+
   const orderItems = [
     ...cartItems.map(item => ({
       order_id: orderId,
@@ -204,7 +212,7 @@ async function createOrderItems(orderId: string, cartItems: CartItem[], eeProduc
       item_name: item.item_name || item.product_name,
       qty: item.qty,
       unit_price_cents: item.unit_price_cents,
-      pricing_context: item.pricing_context || 'standalone',
+      pricing_context: item.pricing_context,
       component_snapshot: item.component_snapshot || null,
     })),
   ];

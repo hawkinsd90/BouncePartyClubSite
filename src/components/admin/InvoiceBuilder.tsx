@@ -79,7 +79,7 @@ export function InvoiceBuilder() {
   const [generatorProductIdsState, setGeneratorProductIdsState] = useState<{ status: 'loading' | 'ready' | 'failed'; ids: Set<string> }>({ status: 'loading', ids: new Set() });
   const [generatorResolutionPending, setGeneratorResolutionPending] = useState(false);
   const generatorResolutionIdRef = useRef(0);
-  const { orderSummary, calculatedPricing, calculatePricing } = usePricing();
+  const { orderSummary, calculatedPricing, pricingPending, lastPricedRevision, calculatePricing } = usePricing();
 
   // Load generator product IDs from the EE product catalog
   useEffect(() => {
@@ -97,7 +97,7 @@ export function InvoiceBuilder() {
         }
         const cats = catsRes.data || [];
         const products = prodsRes.data || [];
-        const generatorCat = cats.find((c: any) => c.name?.toLowerCase() === 'generators');
+        const generatorCat = cats.find((c: any) => c.slug === 'generators');
         if (!generatorCat) {
           setGeneratorProductIdsState({ status: 'ready', ids: new Set() });
           return;
@@ -141,6 +141,17 @@ export function InvoiceBuilder() {
     const currentTotal = (eventDetails.generator_qty ?? 0) + directQty;
 
     if (requestedQty === currentTotal) return;
+
+    // Capture the exact invoice context at resolution start so we can detect stale state.
+    const captureGeneratorContext = () => JSON.stringify({
+      cart: cartItems.map(i => ({ u: i.unit_id, q: i.qty, m: i.mode, p: i.adjusted_price_cents })),
+      ee: stagedEEItems.map(i => ({ p: i.product_id, b: i.bundle_id, q: i.qty, c: i.unit_price_cents, ctx: i.pricing_context, snap: i.component_snapshot, del: i.is_deleted })),
+      ed: eventDetails.event_date,
+      eed: eventDetails.event_end_date,
+      gq: eventDetails.generator_qty,
+    });
+    const startContextRev = captureGeneratorContext();
+    const contextStillCurrent = () => captureGeneratorContext() === startContextRev;
 
     // DECREASE
     if (requestedQty < currentTotal) {
@@ -258,11 +269,35 @@ export function InvoiceBuilder() {
       for (const u of units) unitMap[u.id] = { id: u.id, active: true };
 
       if (isStale()) return;
+      if (!contextStillCurrent()) {
+        if (!isStale()) showToast('Invoice details changed while Generator availability was being checked. Please select the Generator quantity again.', 'error');
+        return;
+      }
+
+      // Build complete resolver context: inflatables + EE items.
+      const completeStagedItems = [
+        ...cartItems.map(item => ({
+          unit_id: item.unit_id,
+          qty: item.qty,
+          wet_or_dry: item.mode,
+          unit_price_cents: item.adjusted_price_cents,
+          is_deleted: false,
+        })),
+        ...stagedEEItems.filter(i => !i.is_deleted).map(item => ({
+          product_id: item.product_id || undefined,
+          bundle_id: item.bundle_id || undefined,
+          qty: item.qty,
+          unit_price_cents: item.unit_price_cents,
+          pricing_context: item.pricing_context,
+          component_snapshot: item.component_snapshot,
+          is_deleted: false,
+        })),
+      ];
 
       const resolution = await resolveAdminGeneratorIncrease({
         current: { legacyQty: eventDetails.generator_qty ?? 0, directEeQty: directQty },
         requestedTotal: requestedQty,
-        stagedItems: stagedEEItems as any[],
+        stagedItems: completeStagedItems as any[],
         eventDate: eventDetails.event_date,
         eventEndDate: eventDetails.event_end_date,
         orderId: null,
@@ -273,6 +308,10 @@ export function InvoiceBuilder() {
       });
 
       if (isStale()) return;
+      if (!contextStillCurrent()) {
+        if (!isStale()) showToast('Invoice details changed while Generator availability was being checked. Please select the Generator quantity again.', 'error');
+        return;
+      }
 
       if (resolution.status === 'fail_closed') {
         showToast(resolution.reason || 'Unable to verify Generator availability. Please try again.', 'error');
@@ -327,7 +366,7 @@ export function InvoiceBuilder() {
     } finally {
       if (!isStale()) setGeneratorResolutionPending(false);
     }
-  }, [eventDetails.generator_qty, eventDetails.event_date, eventDetails.event_end_date, generatorProductIdsState, generatorProductIds, stagedEEItems, units, generatorFeeWaived, updateEventDetails]);
+  }, [eventDetails.generator_qty, eventDetails.event_date, eventDetails.event_end_date, generatorProductIdsState, generatorProductIds, stagedEEItems, cartItems, units, generatorFeeWaived, updateEventDetails]);
 
   const handleAddEEProduct = useCallback((item: any) => {
     setStagedEEItems(prev => [...prev, { ...item, client_id: item.client_id || `new-ee-${Date.now()}-${Math.random().toString(36).slice(2)}` }]);
@@ -346,6 +385,36 @@ export function InvoiceBuilder() {
       i.client_id === item.client_id ? { ...i, qty: Math.max(1, qty) } : i
     ));
   }, []);
+
+  // Compute a deterministic pricing revision string covering all inputs that affect pricing.
+  const pricingRevision = useMemo(() => JSON.stringify({
+    cart: cartItems.map(i => ({ u: i.unit_id, q: i.qty, m: i.mode, p: i.adjusted_price_cents })),
+    ee: stagedEEItems.map(i => ({ p: i.product_id, b: i.bundle_id, q: i.qty, c: i.unit_price_cents, ctx: i.pricing_context, snap: i.component_snapshot, del: i.is_deleted })),
+    ed: eventDetails.event_date,
+    eed: eventDetails.event_end_date,
+    lt: eventDetails.location_type,
+    s: eventDetails.surface,
+    pp: eventDetails.pickup_preference,
+    gq: eventDetails.generator_qty,
+    a1: eventDetails.address_line1,
+    c: eventDetails.city,
+    st: eventDetails.state,
+    z: eventDetails.zip,
+    lat: eventDetails.lat,
+    lng: eventDetails.lng,
+    d: discounts,
+    cf: customFees,
+    cdc: customDepositCents,
+    pr: pricingRules,
+    tw: taxWaived,
+    tfw: travelFeeWaived,
+    sdpw: sameDayPickupFeeWaived,
+    sfw: surfaceFeeWaived,
+    gfw: generatorFeeWaived,
+    sdwdw: sameDayWeekdayDeliveryFeeWaived,
+  }), [cartItems, stagedEEItems, eventDetails.event_date, eventDetails.event_end_date, eventDetails.location_type, eventDetails.surface, eventDetails.pickup_preference, eventDetails.generator_qty, eventDetails.address_line1, eventDetails.city, eventDetails.state, eventDetails.zip, eventDetails.lat, eventDetails.lng, discounts, customFees, customDepositCents, pricingRules, taxWaived, travelFeeWaived, sameDayPickupFeeWaived, surfaceFeeWaived, generatorFeeWaived, sameDayWeekdayDeliveryFeeWaived]);
+
+  const pricingIsCurrent = !pricingPending && !!calculatedPricing && lastPricedRevision === pricingRevision;
 
   // Calculate pricing whenever dependencies change
   useEffect(() => {
@@ -407,6 +476,7 @@ export function InvoiceBuilder() {
           generatorFeeWaived,
           sameDayWeekdayDeliveryFeeWaived,
         },
+        revision: pricingRevision,
       });
     }
   }, [
@@ -435,6 +505,7 @@ export function InvoiceBuilder() {
     generatorFeeWaived,
     sameDayWeekdayDeliveryFeeWaived,
     calculatePricing,
+    pricingRevision,
   ]);
 
   // Check availability whenever cart items or dates change
@@ -624,8 +695,9 @@ export function InvoiceBuilder() {
         }
       }
 
-      if (!calculatedPricing) {
-        showToast('Pricing calculation in progress. Please wait...', 'error');
+      if (!pricingIsCurrent) {
+        showToast('Pricing is being updated. Please wait for the current price to finish calculating.', 'error');
+        setSaving(false);
         return;
       }
 
@@ -841,7 +913,16 @@ export function InvoiceBuilder() {
           />
 
           <AddEventEssentialsSection
-            stagedItems={stagedEEItems}
+            stagedItems={[
+              ...cartItems.map(item => ({
+                unit_id: item.unit_id,
+                qty: item.qty,
+                wet_or_dry: item.mode,
+                unit_price_cents: item.adjusted_price_cents,
+                is_deleted: false,
+              })),
+              ...stagedEEItems,
+            ]}
             availableUnits={units}
             orderId={null}
             eventDate={eventDetails.event_date}
@@ -991,7 +1072,7 @@ export function InvoiceBuilder() {
           <div className="bg-white border border-slate-200 rounded-lg p-3 sm:p-4 lg:p-6 min-w-0">
             <button
               onClick={handleGenerateInvoice}
-              disabled={saving || (cartItems.length === 0 && stagedEEItems.filter(i => !i.is_deleted).length === 0) || availabilityIssues.length > 0 || generatorResolutionPending}
+              disabled={saving || (cartItems.length === 0 && stagedEEItems.filter(i => !i.is_deleted).length === 0) || availabilityIssues.length > 0 || generatorResolutionPending || checkingAvailability || !pricingIsCurrent}
               className="w-full bg-blue-600 hover:bg-blue-700 disabled:bg-slate-400 text-white font-semibold py-2.5 sm:py-3 px-4 sm:px-6 rounded-lg transition-colors flex items-center justify-center gap-2 text-sm sm:text-base"
             >
               <Send className="w-4 h-4 sm:w-5 sm:h-5 flex-shrink-0" />

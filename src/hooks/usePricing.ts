@@ -114,6 +114,8 @@ export function usePricing() {
   const [orderSummary, setOrderSummary] = useState<any>(null);
   const [calculatedPricing, setCalculatedPricing] = useState<CalculatedPricing | null>(null);
   const [pricingError, setPricingError] = useState<string | null>(null);
+  const [pricingPending, setPricingPending] = useState(false);
+  const [lastPricedRevision, setLastPricedRevision] = useState<string | null>(null);
   const pricingCalculationIdRef = useRef(0);
 
   const calculatePricing = useCallback(async ({
@@ -126,13 +128,15 @@ export function usePricing() {
     pricingRules,
     feeWaivers = {},
     existingOrder,
-  }: CalculatePricingParams) => {
+    revision,
+  }: CalculatePricingParams & { revision?: string }) => {
     // Clear stale pricing immediately so an old result is never treated as
     // current while a new calculation is in progress.
     const calculationId = ++pricingCalculationIdRef.current;
     const isLatest = () => calculationId === pricingCalculationIdRef.current;
     setCalculatedPricing(null);
     setPricingError(null);
+    setPricingPending(true);
     const {
       taxWaived = false,
       travelFeeWaived = false,
@@ -407,6 +411,8 @@ export function usePricing() {
         return { status: 'superseded' } as PricingCalculationResult;
       }
       if (isLatest()) setPricingError(null);
+      if (isLatest()) setPricingPending(false);
+      if (isLatest() && revision) setLastPricedRevision(revision);
       const rawDepositDueCents = customDepositCents !== null ? customDepositCents : calculatedDepositDueCents;
       const depositDueCents = Math.min(rawDepositDueCents, finalTotalCents);
       const balanceDueCents = Math.max(0, finalTotalCents - depositDueCents);
@@ -442,6 +448,8 @@ export function usePricing() {
 
       if (isLatest()) {
         setOrderSummary(summary);
+        setPricingPending(false);
+        if (revision) setLastPricedRevision(revision);
 
         setCalculatedPricing({
           subtotal_cents: subtotalWithEE,
@@ -474,6 +482,7 @@ export function usePricing() {
       if (isLatest()) {
         setCalculatedPricing(null);
         setPricingError('Unable to calculate pricing. Please review the order and try again.');
+        setPricingPending(false);
         return { status: 'failed' } as PricingCalculationResult;
       }
       return { status: 'superseded' } as PricingCalculationResult;
@@ -484,6 +493,8 @@ export function usePricing() {
     orderSummary,
     calculatedPricing,
     pricingError,
+    pricingPending,
+    lastPricedRevision,
     calculatePricing,
   };
 }
