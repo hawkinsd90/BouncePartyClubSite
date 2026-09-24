@@ -48,8 +48,6 @@ export interface StagedEEItem {
   is_deleted: boolean;
 }
 
-const GENERATORS_CATEGORY_SLUG = 'generators';
-
 export function AddEventEssentialsSection({
   stagedItems,
   availableUnits,
@@ -97,9 +95,7 @@ export function AddEventEssentialsSection({
 
       setAllProducts(prodsRes.data || []);
 
-      const generatorsCat = (catsRes.data || []).find((c: any) => c.slug === GENERATORS_CATEGORY_SLUG);
-      const generatorsCatId = generatorsCat?.id;
-      const filteredProducts = (prodsRes.data || []).filter((p: any) => p.category_id !== generatorsCatId && p.active);
+      const filteredProducts = (prodsRes.data || []).filter((p: any) => p.active);
       setProducts(filteredProducts);
 
       const allBundleData = bundlesRes.data || [];

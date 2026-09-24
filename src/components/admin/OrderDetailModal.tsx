@@ -1164,12 +1164,44 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
   }, [hasChanges, onClose]);
 
   const handleAddEEProduct = useCallback((item: StagedItem) => {
-    setStagedItems(prev => [...prev, { ...item, client_id: item.client_id || `new-ee-${Date.now()}-${Math.random().toString(36).slice(2)}` }]);
+    setStagedItems(prev => {
+      const exactMatch = prev.find((existing: StagedItem) =>
+        !existing.is_deleted &&
+        existing.product_id === item.product_id &&
+        !existing.bundle_id &&
+        existing.unit_price_cents === item.unit_price_cents &&
+        (existing.pricing_context || 'standalone') === (item.pricing_context || 'standalone')
+      );
+      if (exactMatch) {
+        return prev.map((existing: StagedItem) =>
+          existing === exactMatch
+            ? { ...existing, qty: existing.qty + item.qty, is_updated: true }
+            : existing
+        );
+      }
+      return [...prev, { ...item, client_id: item.client_id || `new-ee-${Date.now()}-${Math.random().toString(36).slice(2)}` }];
+    });
     setManualDirty(true);
   }, []);
 
   const handleAddEEBundle = useCallback((item: StagedItem) => {
-    setStagedItems(prev => [...prev, { ...item, client_id: item.client_id || `new-ee-${Date.now()}-${Math.random().toString(36).slice(2)}` }]);
+    setStagedItems(prev => {
+      const exactMatch = prev.find((existing: StagedItem) =>
+        !existing.is_deleted &&
+        existing.bundle_id === item.bundle_id &&
+        existing.unit_price_cents === item.unit_price_cents &&
+        (existing.pricing_context || 'standalone') === (item.pricing_context || 'standalone') &&
+        JSON.stringify(existing.component_snapshot || null) === JSON.stringify(item.component_snapshot || null)
+      );
+      if (exactMatch) {
+        return prev.map((existing: StagedItem) =>
+          existing === exactMatch
+            ? { ...existing, qty: existing.qty + item.qty, is_updated: true }
+            : existing
+        );
+      }
+      return [...prev, { ...item, client_id: item.client_id || `new-ee-${Date.now()}-${Math.random().toString(36).slice(2)}` }];
+    });
     setManualDirty(true);
   }, []);
 

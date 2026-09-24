@@ -106,7 +106,26 @@ export function formatOperationalEquipment(orderItems: any[]): OperationalEquipm
     });
   }
 
-  return result;
+  // Aggregate Event Essentials by name within this order so that direct
+  // products and package components with the same product name are summed
+  // into a single physical count. Inflatables are kept as-is.
+  const aggregated: OperationalEquipmentItem[] = [];
+  const eeMap = new Map<string, number>();
+  for (const item of result) {
+    if (item.kind === 'event_essential') {
+      const existing = eeMap.get(item.name);
+      if (existing !== undefined) {
+        aggregated[existing].qty += item.qty;
+      } else {
+        eeMap.set(item.name, aggregated.length);
+        aggregated.push({ ...item });
+      }
+    } else {
+      aggregated.push(item);
+    }
+  }
+
+  return aggregated;
 }
 
 export function formatOperationalEquipmentLabels(orderItems: any[]): string[] {
