@@ -215,7 +215,7 @@ export async function resolveAdminGeneratorIncrease(input: {
   stagedItems: AdminGeneratorStagedItem[];
   eventDate: string;
   eventEndDate: string;
-  orderId: string;
+  orderId: string | null;
   productConfigs: Record<string, ResolverProductConfig>;
   bundleConfigs: Record<string, ResolverBundleConfig>;
   categories: Record<string, ResolverCategory>;

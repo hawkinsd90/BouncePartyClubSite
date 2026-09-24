@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { Send, AlertCircle, Copy, Check } from 'lucide-react';
 import { OrderSummary } from '../order/OrderSummary';
 import { showToast } from '../../lib/notifications';
@@ -14,6 +14,7 @@ import { CustomerSelector } from '../invoice/CustomerSelector';
 import { NewCustomerForm } from '../invoice/NewCustomerForm';
 import { InvoiceSuccessMessage } from '../invoice/InvoiceSuccessMessage';
 import { AdminMessage } from '../order-detail/AdminMessage';
+import { AddEventEssentialsSection } from '../order-detail/AddEventEssentialsSection';
 import { useInvoiceData } from '../../hooks/useInvoiceData';
 import { usePricing } from '../../hooks/usePricing';
 import { useCartManagement } from '../../hooks/useCartManagement';
@@ -21,6 +22,28 @@ import { useCustomerManagement } from '../../hooks/useCustomerManagement';
 import { useEventDetails } from '../../hooks/useEventDetails';
 import { generateInvoice } from '../../lib/invoiceService';
 import { checkMultipleUnitsAvailability } from '../../lib/availability';
+import { resolveAdminGeneratorIncrease } from '../../lib/adminGeneratorResolution';
+import { fetchAdminProductCategories, fetchAdminInventoryProducts, fetchAdminProductPricing, fetchAdminProductBundlesWithConfiguration } from '../../lib/queries/products';
+import { checkProductAvailability } from '../../lib/queries/products';
+import {
+  buildEventEssentialAvailabilityRequestFromOrderItems,
+  validateAvailabilityResult,
+} from '../../lib/eeOrderItemAvailability';
+import type { ResolverProductConfig, ResolverBundleConfig, ResolverCategory, ResolverUnitConfig, InflatableEligibilityMode } from '../../lib/eventEssentialsPricingTypes';
+
+interface StagedEEItem {
+  client_id: string;
+  product_id: string | null;
+  bundle_id?: string | null;
+  item_name: string;
+  product_name: string;
+  qty: number;
+  unit_price_cents: number;
+  pricing_context: string;
+  component_snapshot?: any;
+  is_new?: boolean;
+  is_deleted?: boolean;
+}
 
 export function InvoiceBuilder() {
   const { customers, units, pricingRules, addCustomer } = useInvoiceData();
@@ -29,6 +52,7 @@ export function InvoiceBuilder() {
   const customerManagement = useCustomerManagement();
   const { eventDetails, updateEventDetails, resetEventDetails } = useEventDetails();
 
+  const [stagedEEItems, setStagedEEItems] = useState<StagedEEItem[]>([]);
   const [discounts, setDiscounts] = useState<any[]>([]);
   const [customFees, setCustomFees] = useState<any[]>([]);
   const [adminMessage, setAdminMessage] = useState('');
@@ -52,12 +76,282 @@ export function InvoiceBuilder() {
   const [requireCardOnFile, setRequireCardOnFile] = useState(true);
   const [availabilityIssues, setAvailabilityIssues] = useState<any[]>([]);
   const [checkingAvailability, setCheckingAvailability] = useState(false);
+  const [generatorProductIdsState, setGeneratorProductIdsState] = useState<{ status: 'loading' | 'ready' | 'failed'; ids: Set<string> }>({ status: 'loading', ids: new Set() });
+  const [generatorResolutionPending, setGeneratorResolutionPending] = useState(false);
+  const generatorResolutionIdRef = useRef(0);
   const { orderSummary, calculatedPricing, calculatePricing } = usePricing();
+
+  // Load generator product IDs from the EE product catalog
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const [catsRes, prodsRes] = await Promise.all([
+          fetchAdminProductCategories(),
+          fetchAdminInventoryProducts(),
+        ]);
+        if (cancelled) return;
+        if (catsRes.error || prodsRes.error) {
+          setGeneratorProductIdsState({ status: 'failed', ids: new Set() });
+          return;
+        }
+        const cats = catsRes.data || [];
+        const products = prodsRes.data || [];
+        const generatorCat = cats.find((c: any) => c.name?.toLowerCase() === 'generators');
+        if (!generatorCat) {
+          setGeneratorProductIdsState({ status: 'ready', ids: new Set() });
+          return;
+        }
+        const genProductIds = new Set(
+          products
+            .filter((p: any) => p.category_id === generatorCat.id && p.active !== false)
+            .map((p: any) => p.id)
+        );
+        setGeneratorProductIdsState({ status: 'ready', ids: genProductIds });
+      } catch {
+        if (!cancelled) setGeneratorProductIdsState({ status: 'failed', ids: new Set() });
+      }
+    })();
+    return () => { cancelled = true; };
+  }, []);
+
+  const generatorProductIds = generatorProductIdsState.ids;
+
+  const visibleGeneratorQty = useMemo(() => {
+    if (generatorProductIdsState.status !== 'ready') return null;
+    const directEeQty = stagedEEItems
+      .filter((item) => !item.is_deleted && !!item.product_id && generatorProductIds.has(item.product_id))
+      .reduce((sum, item) => sum + item.qty, 0);
+    return (eventDetails.generator_qty ?? 0) + directEeQty;
+  }, [eventDetails.generator_qty, generatorProductIds, generatorProductIdsState.status, stagedEEItems]);
+
+  const handleGeneratorQtyChange = useCallback(async (requestedTotal: number): Promise<void> => {
+    const requestedQty = Math.max(0, Number.isFinite(requestedTotal) ? Math.trunc(requestedTotal) : 0);
+
+    if (generatorProductIdsState.status !== 'ready') {
+      showToast('Generator product catalog is still loading. Please try again in moment.', 'error');
+      return;
+    }
+
+    const resolutionId = ++generatorResolutionIdRef.current;
+    const isStale = () => resolutionId !== generatorResolutionIdRef.current;
+
+    const directItems = stagedEEItems.filter((item) => !item.is_deleted && !!item.product_id && generatorProductIds.has(item.product_id));
+    const directQty = directItems.reduce((sum, item) => sum + item.qty, 0);
+    const currentTotal = (eventDetails.generator_qty ?? 0) + directQty;
+
+    if (requestedQty === currentTotal) return;
+
+    // DECREASE
+    if (requestedQty < currentTotal) {
+      const removeQty = currentTotal - requestedQty;
+      let remainingDirectReduction = Math.min(removeQty, directQty);
+      const directByNewest = [...directItems].sort((a, b) => {
+        const aIdx = stagedEEItems.indexOf(a);
+        const bIdx = stagedEEItems.indexOf(b);
+        return bIdx - aIdx;
+      });
+
+      setStagedEEItems((previous) => {
+        const orderedKeys = directByNewest.map((item) => item.client_id).filter((k): k is string => !!k);
+        const keySet = new Set(orderedKeys);
+        const reductionByKey = new Map<string, number>();
+        for (const key of orderedKeys) {
+          if (remainingDirectReduction <= 0) break;
+          const item = previous.find((i) => i.client_id === key && keySet.has(key));
+          if (!item) continue;
+          const reduction = Math.min(item.qty, remainingDirectReduction);
+          remainingDirectReduction -= reduction;
+          reductionByKey.set(key, reduction);
+        }
+
+        return previous.map((item) => {
+          if (!item.client_id || !reductionByKey.has(item.client_id)) return item;
+          const reduction = reductionByKey.get(item.client_id)!;
+          const nextQty = item.qty - reduction;
+          if (nextQty > 0) return { ...item, qty: nextQty };
+          return null;
+        }).filter((item): item is StagedEEItem => item !== null);
+      });
+
+      const newLegacyQty = Math.max(0, (eventDetails.generator_qty ?? 0) - Math.max(0, removeQty - directQty));
+      updateEventDetails({ generator_qty: newLegacyQty });
+      if (newLegacyQty === 0) {
+        setGeneratorFeeWaived(false);
+        setGeneratorFeeWaiveReason('');
+      }
+      return;
+    }
+
+    // INCREASE
+    const additionalQty = requestedQty - currentTotal;
+    setGeneratorResolutionPending(true);
+
+    try {
+      let productConfigs: Record<string, ResolverProductConfig> = {};
+      let bundleConfigs: Record<string, ResolverBundleConfig> = {};
+      let categoryMap: Record<string, ResolverCategory> = {};
+      let unitMap: Record<string, ResolverUnitConfig> = {};
+
+      const [catsRes, prodsRes, pricingRes, bundlesRes] = await Promise.all([
+        fetchAdminProductCategories(),
+        fetchAdminInventoryProducts(),
+        fetchAdminProductPricing(),
+        fetchAdminProductBundlesWithConfiguration(),
+      ]);
+
+      if (isStale()) return;
+
+      if (catsRes.error || prodsRes.error || pricingRes.error || bundlesRes.error) {
+        if (!isStale()) showToast('Unable to load product catalog for Generator pricing. Please try again.', 'error');
+        return;
+      }
+
+      const allProducts = prodsRes.data || [];
+      const allPricing = pricingRes.data || [];
+      const allCats = catsRes.data || [];
+      const allBundles = bundlesRes.data || [];
+
+      const pricingByProductId = new Map<string, any>();
+      for (const p of allPricing) pricingByProductId.set(p.product_id, p);
+
+      for (const p of allProducts) {
+        const pc = pricingByProductId.get(p.id);
+        if (!pc) continue;
+        if (typeof p.category_id !== 'string' || !p.category_id) continue;
+        productConfigs[p.id] = {
+          id: p.id,
+          categoryId: p.category_id,
+          standalonePriceCents: pc.standalone_price_cents ?? null,
+          addonPriceCents: pc.addon_price_cents ?? null,
+          standaloneEnabled: pc.standalone_enabled === true,
+          addonEnabled: pc.addon_enabled === true,
+          addonQualifyingThresholdCents: pc.addon_qualifying_threshold_cents ?? null,
+        };
+      }
+
+      for (const b of allBundles) {
+        const comps = b.product_bundle_components || [];
+        const containedCategoryIds = Array.from(new Set(
+          comps.map((c: any) => c.inventory_products?.category_id).filter((id: any): id is string => typeof id === 'string' && id !== '')
+        ));
+        bundleConfigs[b.id] = {
+          id: b.id,
+          standalonePriceCents: b.standalone_price_cents ?? null,
+          addonPriceCents: b.addon_price_cents ?? null,
+          standaloneEnabled: b.standalone_enabled === true,
+          addonEnabled: b.addon_enabled === true,
+          addonQualifyingThresholdCents: b.addon_qualifying_threshold_cents ?? null,
+          inflatableEligibilityMode: (b.inflatable_eligibility_mode || 'none') as InflatableEligibilityMode,
+          excludedCategoryIds: (b.product_bundle_excluded_categories || []).map((e: any) => e.category_id),
+          eligibleUnitIds: (b.package_inflatable_eligibility || []).map((e: any) => e.unit_id),
+          inflatableComponents: (b.package_inflatable_components || []).map((c: any) => ({
+            unitId: c.unit_id,
+            quantityPerBundle: c.quantity_per_bundle,
+            selectionMode: c.selection_mode,
+          })),
+          containedProductCategoryIds: containedCategoryIds,
+        };
+      }
+
+      for (const c of allCats) categoryMap[c.id] = { id: c.id };
+      for (const u of units) unitMap[u.id] = { id: u.id, active: true };
+
+      if (isStale()) return;
+
+      const resolution = await resolveAdminGeneratorIncrease({
+        current: { legacyQty: eventDetails.generator_qty ?? 0, directEeQty: directQty },
+        requestedTotal: requestedQty,
+        stagedItems: stagedEEItems as any[],
+        eventDate: eventDetails.event_date,
+        eventEndDate: eventDetails.event_end_date,
+        orderId: null,
+        productConfigs,
+        bundleConfigs,
+        categories: categoryMap,
+        units: unitMap,
+      });
+
+      if (isStale()) return;
+
+      if (resolution.status === 'fail_closed') {
+        showToast(resolution.reason || 'Unable to verify Generator availability. Please try again.', 'error');
+        return;
+      }
+
+      if (resolution.status === 'ee') {
+        const { product, resolvedUnitPriceCents, resolvedPricingContext } = resolution.candidate;
+
+        setStagedEEItems((previous) => {
+          const exactMatch = previous.find(
+            (item) =>
+              !item.is_deleted &&
+              item.product_id === product.product_id &&
+              !item.bundle_id &&
+              item.unit_price_cents === resolvedUnitPriceCents &&
+              (item.pricing_context || 'standalone') === resolvedPricingContext,
+          );
+
+          if (exactMatch) {
+            return previous.map((item) =>
+              item === exactMatch
+                ? { ...item, qty: item.qty + additionalQty }
+                : item,
+            );
+          }
+
+          return [...previous, {
+            client_id: `new-generator-${Date.now()}-${Math.random().toString(36).slice(2)}`,
+            product_id: product.product_id,
+            product_name: product.product_name,
+            item_name: product.product_name,
+            qty: additionalQty,
+            unit_price_cents: resolvedUnitPriceCents,
+            pricing_context: resolvedPricingContext,
+            is_new: true,
+            is_deleted: false,
+          }];
+        });
+        return;
+      }
+
+      // Legacy fallback
+      const existingLegacyQty = eventDetails.generator_qty ?? 0;
+      if (existingLegacyQty === 0 && generatorFeeWaived) {
+        setGeneratorFeeWaived(false);
+        setGeneratorFeeWaiveReason('');
+      }
+      updateEventDetails({ generator_qty: (eventDetails.generator_qty ?? 0) + additionalQty });
+    } catch {
+      if (!isStale()) showToast('Unable to load product catalog for Generator pricing. Please try again.', 'error');
+    } finally {
+      if (!isStale()) setGeneratorResolutionPending(false);
+    }
+  }, [eventDetails.generator_qty, eventDetails.event_date, eventDetails.event_end_date, generatorProductIdsState, generatorProductIds, stagedEEItems, units, generatorFeeWaived, updateEventDetails]);
+
+  const handleAddEEProduct = useCallback((item: any) => {
+    setStagedEEItems(prev => [...prev, { ...item, client_id: item.client_id || `new-ee-${Date.now()}-${Math.random().toString(36).slice(2)}` }]);
+  }, []);
+
+  const handleAddEEBundle = useCallback((item: any) => {
+    setStagedEEItems(prev => [...prev, { ...item, client_id: item.client_id || `new-ee-${Date.now()}-${Math.random().toString(36).slice(2)}` }]);
+  }, []);
+
+  const handleRemoveEEItem = useCallback((item: any) => {
+    setStagedEEItems(prev => prev.filter(i => i.client_id !== item.client_id));
+  }, []);
+
+  const handleUpdateEEQuantity = useCallback((item: any, qty: number) => {
+    setStagedEEItems(prev => prev.map(i =>
+      i.client_id === item.client_id ? { ...i, qty: Math.max(1, qty) } : i
+    ));
+  }, []);
 
   // Calculate pricing whenever dependencies change
   useEffect(() => {
+    const hasItems = cartItems.length > 0 || stagedEEItems.filter(i => !i.is_deleted).length > 0;
     if (
-      cartItems.length > 0 &&
+      hasItems &&
       pricingRules &&
       eventDetails.zip &&
       eventDetails.event_date &&
@@ -71,8 +365,22 @@ export function InvoiceBuilder() {
         unit_price_cents: item.adjusted_price_cents,
       }));
 
+      const eeProductItems = stagedEEItems.filter(i => !i.is_deleted).map(item => ({
+        product_id: item.product_id || '',
+        bundle_id: item.bundle_id,
+        item_name: item.item_name,
+        product_name: item.product_name,
+        qty: item.qty,
+        unit_price_cents: item.unit_price_cents,
+        pricing_context: item.pricing_context,
+        component_snapshot: item.component_snapshot,
+        is_new: item.is_new || false,
+        is_deleted: item.is_deleted || false,
+      }));
+
       calculatePricing({
         items,
+        eeProductItems,
         eventDetails: {
           event_date: eventDetails.event_date,
           event_end_date: eventDetails.event_end_date,
@@ -103,6 +411,7 @@ export function InvoiceBuilder() {
     }
   }, [
     cartItems,
+    stagedEEItems,
     eventDetails.event_date,
     eventDetails.event_end_date,
     eventDetails.location_type,
@@ -131,33 +440,79 @@ export function InvoiceBuilder() {
   // Check availability whenever cart items or dates change
   useEffect(() => {
     checkAvailability();
-  }, [cartItems, eventDetails.event_date, eventDetails.event_end_date]);
+  }, [cartItems, stagedEEItems, eventDetails.event_date, eventDetails.event_end_date]);
 
   async function checkAvailability() {
-    if (!eventDetails.event_date || !eventDetails.event_end_date || cartItems.length === 0) {
+    if (!eventDetails.event_date || !eventDetails.event_end_date) {
+      setAvailabilityIssues([]);
+      return;
+    }
+
+    const hasInflatables = cartItems.length > 0;
+    const activeEEItems = stagedEEItems.filter(i => !i.is_deleted);
+    if (!hasInflatables && activeEEItems.length === 0) {
       setAvailabilityIssues([]);
       return;
     }
 
     setCheckingAvailability(true);
     try {
-      const checks = cartItems.map(item => ({
-        unitId: item.unit_id,
-        eventStartDate: eventDetails.event_date,
-        eventEndDate: eventDetails.event_end_date,
-      }));
+      const issues: any[] = [];
 
-      const results = await checkMultipleUnitsAvailability(checks);
-      const issues = results
-        .filter(result => !result.isAvailable)
-        .map(result => {
-          const item = cartItems.find(i => i.unit_id === result.unitId);
-          return {
-            unitName: item?.unit_name || 'Unknown',
-            unitId: result.unitId,
-            conflicts: result.conflictingOrders,
-          };
-        });
+      // Check inflatable availability
+      if (hasInflatables) {
+        const checks = cartItems.map(item => ({
+          unitId: item.unit_id,
+          eventStartDate: eventDetails.event_date,
+          eventEndDate: eventDetails.event_end_date,
+        }));
+
+        const results = await checkMultipleUnitsAvailability(checks);
+        for (const result of results) {
+          if (!result.isAvailable) {
+            const item = cartItems.find(i => i.unit_id === result.unitId);
+            issues.push({
+              unitName: item?.unit_name || 'Unknown',
+              unitId: result.unitId,
+              conflicts: result.conflictingOrders,
+            });
+          }
+        }
+      }
+
+      // Check Event Essentials availability
+      if (activeEEItems.length > 0) {
+        const expansion = buildEventEssentialAvailabilityRequestFromOrderItems(
+          activeEEItems.map(item => ({
+            product_id: item.product_id,
+            bundle_id: item.bundle_id,
+            qty: item.qty,
+            component_snapshot: item.component_snapshot,
+          }))
+        );
+
+        if (expansion.status !== 'ready') {
+          issues.push({ unitName: 'Event Essentials', unitId: 'ee', conflicts: [] });
+        } else if (expansion.productQuantities.length > 0) {
+          try {
+            const eeResult = await checkProductAvailability(
+              expansion.productQuantities,
+              eventDetails.event_date,
+              eventDetails.event_end_date || eventDetails.event_date,
+              null,
+            );
+            const validation = validateAvailabilityResult(
+              expansion.productQuantities.map(item => item.product_id),
+              eeResult,
+            );
+            if (!validation.ok) {
+              issues.push({ unitName: 'Event Essentials', unitId: 'ee', conflicts: [] });
+            }
+          } catch {
+            issues.push({ unitName: 'Event Essentials', unitId: 'ee', conflicts: [] });
+          }
+        }
+      }
 
       setAvailabilityIssues(issues);
     } catch (error) {
@@ -187,8 +542,10 @@ export function InvoiceBuilder() {
   }
 
   async function handleGenerateInvoice() {
-    if (cartItems.length === 0) {
-      showToast('Please add at least one item to the cart', 'error');
+    const activeEEItems = stagedEEItems.filter(i => !i.is_deleted);
+    const hasItems = cartItems.length > 0 || activeEEItems.length > 0;
+    if (!hasItems) {
+      showToast('Please add at least one item to the invoice', 'error');
       return;
     }
 
@@ -199,28 +556,72 @@ export function InvoiceBuilder() {
 
     setSaving(true);
     try {
-      // Check availability before creating invoice
-      const availabilityChecks = cartItems.map(item => ({
-        unitId: item.unit_id,
-        eventStartDate: eventDetails.event_date,
-        eventEndDate: eventDetails.event_end_date,
-      }));
+      // Recheck inflatable availability before creating invoice
+      if (cartItems.length > 0) {
+        const availabilityChecks = cartItems.map(item => ({
+          unitId: item.unit_id,
+          eventStartDate: eventDetails.event_date,
+          eventEndDate: eventDetails.event_end_date,
+        }));
 
-      const availabilityResults = await checkMultipleUnitsAvailability(availabilityChecks);
-      const unavailableUnits = availabilityResults.filter(result => !result.isAvailable);
+        const availabilityResults = await checkMultipleUnitsAvailability(availabilityChecks);
+        const unavailableUnits = availabilityResults.filter(result => !result.isAvailable);
 
-      if (unavailableUnits.length > 0) {
-        const unitNames = unavailableUnits.map(u => {
-          const unit = units.find(unit => unit.id === u.unitId);
-          return unit?.name || 'Unknown unit';
-        }).join(', ');
+        if (unavailableUnits.length > 0) {
+          const unitNames = unavailableUnits.map(u => {
+            const unit = units.find(unit => unit.id === u.unitId);
+            return unit?.name || 'Unknown unit';
+          }).join(', ');
 
-        showToast(
-          `Cannot create invoice: The following units are not available for the selected dates: ${unitNames}. Please check the calendar for conflicts.`,
-          'error'
+          showToast(
+            `Cannot create invoice: The following units are not available for the selected dates: ${unitNames}. Please check the calendar for conflicts.`,
+            'error'
+          );
+          setSaving(false);
+          return;
+        }
+      }
+
+      // Recheck Event Essentials availability before creating invoice
+      if (activeEEItems.length > 0) {
+        const expansion = buildEventEssentialAvailabilityRequestFromOrderItems(
+          activeEEItems.map(item => ({
+            product_id: item.product_id,
+            bundle_id: item.bundle_id,
+            qty: item.qty,
+            component_snapshot: item.component_snapshot,
+          }))
         );
-        setSaving(false);
-        return;
+
+        if (expansion.status !== 'ready') {
+          showToast('Unable to verify Event Essentials availability. Please try again.', 'error');
+          setSaving(false);
+          return;
+        }
+
+        if (expansion.productQuantities.length > 0) {
+          const eeResult = await checkProductAvailability(
+            expansion.productQuantities,
+            eventDetails.event_date,
+            eventDetails.event_end_date || eventDetails.event_date,
+            null,
+          );
+
+          const validation = validateAvailabilityResult(
+            expansion.productQuantities.map(item => item.product_id),
+            eeResult,
+          );
+          if (!validation.ok) {
+            showToast(
+              validation.status === 'unavailable'
+                ? 'Cannot create invoice: One or more Event Essentials are not available for the selected dates.'
+                : 'Unable to verify Event Essentials availability. Please try again.',
+              'error'
+            );
+            setSaving(false);
+            return;
+          }
+        }
       }
 
       if (!calculatedPricing) {
@@ -239,6 +640,16 @@ export function InvoiceBuilder() {
         {
           customerId: customerManagement.selectedCustomer || null,
           cartItems,
+          eeProductItems: activeEEItems.map(item => ({
+            product_id: item.product_id,
+            bundle_id: item.bundle_id,
+            item_name: item.item_name,
+            product_name: item.product_name,
+            qty: item.qty,
+            unit_price_cents: item.unit_price_cents,
+            pricing_context: item.pricing_context,
+            component_snapshot: item.component_snapshot,
+          })),
           eventDetails: { ...eventDetails },
           priceBreakdown: {
             ...calculatedPricing,
@@ -270,6 +681,8 @@ export function InvoiceBuilder() {
           sameDayWeekdayDeliveryFeeWaived,
           sameDayWeekdayDeliveryFeeWaiveReason,
           requireCardOnFile,
+          generatorQty: eventDetails.generator_qty,
+          generatorFeeCents: calculatedPricing.generator_fee_cents,
         },
         customer
       );
@@ -283,6 +696,7 @@ export function InvoiceBuilder() {
       }
 
       clearCart();
+      setStagedEEItems([]);
       setDiscounts([]);
       setCustomFees([]);
       setCustomDepositCents(null);
@@ -349,9 +763,10 @@ export function InvoiceBuilder() {
           )}
 
           <EventDetailsEditor
-            editedOrder={eventDetails}
+            editedOrder={{ ...eventDetails, generator_display_qty: visibleGeneratorQty }}
             pricingRules={pricingRules}
             onOrderChange={updateEventDetails}
+            onGeneratorQtyChange={handleGeneratorQtyChange}
             onAddressSelect={result => {
               updateEventDetails({
                 address_line1: result.street,
@@ -362,6 +777,8 @@ export function InvoiceBuilder() {
                 lng: result.lng,
               });
             }}
+            generatorLoadState={generatorProductIdsState}
+            generatorResolutionPending={generatorResolutionPending}
             compact={true}
             showUntilEndOfDay={true}
           />
@@ -398,16 +815,39 @@ export function InvoiceBuilder() {
           )}
 
           <ItemsEditor
-            items={cartItems}
+            items={[...cartItems, ...stagedEEItems]}
             units={units}
-            onRemoveItem={removeItemFromCart}
+            onRemoveItem={(item) => {
+              if (item && (item.product_id || item.bundle_id)) {
+                handleRemoveEEItem(item);
+              } else {
+                const idx = cartItems.findIndex(ci => ci.unit_id === item.unit_id && ci.mode === item.mode);
+                if (idx >= 0) removeItemFromCart(idx);
+              }
+            }}
             onAddItem={addItemToCart}
-            onUpdateQuantity={updateItemQuantity}
-            onUpdatePrice={updateItemPrice}
+            onUpdateQuantity={(item, qty) => {
+              if (item && (item.product_id || item.bundle_id)) {
+                handleUpdateEEQuantity(item, qty);
+              } else {
+                const idx = cartItems.findIndex(ci => ci.unit_id === item.unit_id && ci.mode === item.mode);
+                if (idx >= 0) updateItemQuantity(idx, qty);
+              }
+            }}
             allowQuantityEdit={true}
             allowPriceEdit={false}
             title="Items"
-            removeByIndex={true}
+            removeByIndex={false}
+          />
+
+          <AddEventEssentialsSection
+            stagedItems={stagedEEItems}
+            availableUnits={units}
+            orderId={null}
+            eventDate={eventDetails.event_date}
+            eventEndDate={eventDetails.event_end_date || eventDetails.event_date}
+            onAddProduct={handleAddEEProduct}
+            onAddBundle={handleAddEEBundle}
           />
         </div>
 
@@ -551,7 +991,7 @@ export function InvoiceBuilder() {
           <div className="bg-white border border-slate-200 rounded-lg p-3 sm:p-4 lg:p-6 min-w-0">
             <button
               onClick={handleGenerateInvoice}
-              disabled={saving || cartItems.length === 0 || availabilityIssues.length > 0}
+              disabled={saving || (cartItems.length === 0 && stagedEEItems.filter(i => !i.is_deleted).length === 0) || availabilityIssues.length > 0 || generatorResolutionPending}
               className="w-full bg-blue-600 hover:bg-blue-700 disabled:bg-slate-400 text-white font-semibold py-2.5 sm:py-3 px-4 sm:px-6 rounded-lg transition-colors flex items-center justify-center gap-2 text-sm sm:text-base"
             >
               <Send className="w-4 h-4 sm:w-5 sm:h-5 flex-shrink-0" />

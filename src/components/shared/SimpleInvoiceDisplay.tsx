@@ -28,11 +28,18 @@ interface SimpleInvoiceDisplayProps {
   generatorQty?: number;
   orderItems: Array<{
     id?: string;
+    unit_id?: string | null;
     unit_name?: string;
     units?: { name: string };
-    wet_or_dry: string;
+    wet_or_dry?: string;
     qty: number;
     unit_price_cents: number;
+    product_id?: string | null;
+    bundle_id?: string | null;
+    item_name?: string | null;
+    product_name?: string | null;
+    pricing_context?: string | null;
+    component_snapshot?: any;
   }>;
   orderSummary: OrderSummaryDisplay | null;
   taxWaived?: boolean;
@@ -164,24 +171,50 @@ export function SimpleInvoiceDisplay({
       <div className="mb-8 print-section screen-only">
         <h2 className="text-xl font-bold text-slate-900 mb-4 print-section-title">Order Items</h2>
         <div className="space-y-3">
-          {orderItems.map((item, index) => (
+          {orderItems.map((item, index) => {
+            const isEE = !item.unit_id && !item.units && (item.product_id || item.bundle_id);
+            const isPackage = isEE && !!item.bundle_id;
+            const displayName = isEE
+              ? (item.item_name || item.product_name || 'Event Essential')
+              : (item.units?.name || item.unit_name || 'Unknown Unit');
+            return (
             <div
-              key={item.id || index}
-              className="flex justify-between items-center p-4 bg-slate-50 rounded-lg print-item"
+              key={item.id || `${item.unit_id || item.product_id || item.bundle_id}-${index}`}
+              className="p-4 bg-slate-50 rounded-lg print-item"
             >
-              <div>
-                <p className="font-medium text-slate-900">
-                  {item.units?.name || item.unit_name || 'Unknown Unit'}
-                </p>
-                <p className="text-sm text-slate-600 capitalize">
-                  {item.wet_or_dry === 'water' ? 'Water Mode' : 'Dry Mode'} × {item.qty}
+              <div className="flex justify-between items-start">
+                <div>
+                  <p className="font-medium text-slate-900">{displayName}</p>
+                  {!isEE && (
+                    <p className="text-sm text-slate-600 capitalize">
+                      {item.wet_or_dry === 'water' ? 'Water Mode' : 'Dry Mode'} × {item.qty}
+                    </p>
+                  )}
+                  {isEE && item.pricing_context && (
+                    <p className="text-xs text-slate-500">
+                      {item.pricing_context === 'addon' ? 'Add-on price' : 'Standalone price'}
+                    </p>
+                  )}
+                </div>
+                <p className="font-semibold text-slate-900">
+                  {formatCurrency(item.unit_price_cents * item.qty)}
                 </p>
               </div>
-              <p className="font-semibold text-slate-900">
-                {formatCurrency(item.unit_price_cents * item.qty)}
-              </p>
+              {isPackage && item.component_snapshot && Array.isArray(item.component_snapshot.components) && (
+                <div className="mt-2 text-xs text-slate-600">
+                  <p className="font-medium mb-1">Includes:</p>
+                  <ul className="list-disc list-inside space-y-0.5">
+                    {item.component_snapshot.components.map((comp: any, ci: number) => (
+                      <li key={ci}>
+                        {comp.product_name} ×{(comp.quantity_per_bundle || 1) * item.qty}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
             </div>
-          ))}
+            );
+          })}
         </div>
       </div>
 

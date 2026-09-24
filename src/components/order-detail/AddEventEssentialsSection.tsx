@@ -28,7 +28,7 @@ import {
 interface AddEventEssentialsSectionProps {
   stagedItems: any[];
   availableUnits: any[];
-  orderId: string;
+  orderId: string | null;
   eventDate: string;
   eventEndDate?: string;
   onAddProduct: (item: StagedEEItem) => void;

@@ -327,10 +327,14 @@ export function EventDetailsEditor({
                   <input
                     type="number"
                     min="0"
-                    value={editedOrder.generator_qty ?? 0}
+                    value={editedOrder.generator_display_qty ?? editedOrder.generator_qty ?? 0}
                     onChange={(e) => {
                       const qty = parseInt(e.target.value) || 0;
-                      onOrderChange({ generator_qty: qty });
+                      if (onGeneratorQtyChange) {
+                        void onGeneratorQtyChange(qty);
+                      } else {
+                        onOrderChange({ generator_qty: qty });
+                      }
                     }}
                     className={inputClass}
                   />
