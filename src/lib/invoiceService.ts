@@ -302,6 +302,15 @@ async function sendInvoiceToCustomer(
 }
 
 export async function generateInvoice(invoiceData: InvoiceData, customer: Customer | null) {
+  const eeItems = invoiceData.eeProductItems || [];
+  for (const item of eeItems) {
+    if (item.pricing_context !== 'standalone' && item.pricing_context !== 'addon') {
+      throw new Error(
+        `Cannot persist Event Essentials item "${item.item_name || item.product_name}": pricing_context is missing or invalid ("${item.pricing_context}").`
+      );
+    }
+  }
+
   const address = await createAddress(invoiceData.eventDetails);
 
   const order = await createOrder(

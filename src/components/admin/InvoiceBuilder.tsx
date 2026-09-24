@@ -79,6 +79,7 @@ export function InvoiceBuilder() {
   const [generatorProductIdsState, setGeneratorProductIdsState] = useState<{ status: 'loading' | 'ready' | 'failed'; ids: Set<string> }>({ status: 'loading', ids: new Set() });
   const [generatorResolutionPending, setGeneratorResolutionPending] = useState(false);
   const generatorResolutionIdRef = useRef(0);
+  const generatorContextRevisionRef = useRef('');
   const { orderSummary, calculatedPricing, pricingPending, lastPricedRevision, calculatePricing } = usePricing();
 
   // Load generator product IDs from the EE product catalog
@@ -142,16 +143,7 @@ export function InvoiceBuilder() {
 
     if (requestedQty === currentTotal) return;
 
-    // Capture the exact invoice context at resolution start so we can detect stale state.
-    const captureGeneratorContext = () => JSON.stringify({
-      cart: cartItems.map(i => ({ u: i.unit_id, q: i.qty, m: i.mode, p: i.adjusted_price_cents })),
-      ee: stagedEEItems.map(i => ({ p: i.product_id, b: i.bundle_id, q: i.qty, c: i.unit_price_cents, ctx: i.pricing_context, snap: i.component_snapshot, del: i.is_deleted })),
-      ed: eventDetails.event_date,
-      eed: eventDetails.event_end_date,
-      gq: eventDetails.generator_qty,
-    });
-    const startContextRev = captureGeneratorContext();
-    const contextStillCurrent = () => captureGeneratorContext() === startContextRev;
+    const startingContextRevision = generatorContextRevisionRef.current;
 
     // DECREASE
     if (requestedQty < currentTotal) {
@@ -269,7 +261,7 @@ export function InvoiceBuilder() {
       for (const u of units) unitMap[u.id] = { id: u.id, active: true };
 
       if (isStale()) return;
-      if (!contextStillCurrent()) {
+      if (startingContextRevision !== generatorContextRevisionRef.current) {
         if (!isStale()) showToast('Invoice details changed while Generator availability was being checked. Please select the Generator quantity again.', 'error');
         return;
       }
@@ -308,7 +300,7 @@ export function InvoiceBuilder() {
       });
 
       if (isStale()) return;
-      if (!contextStillCurrent()) {
+      if (startingContextRevision !== generatorContextRevisionRef.current) {
         if (!isStale()) showToast('Invoice details changed while Generator availability was being checked. Please select the Generator quantity again.', 'error');
         return;
       }
@@ -415,6 +407,20 @@ export function InvoiceBuilder() {
   }), [cartItems, stagedEEItems, eventDetails.event_date, eventDetails.event_end_date, eventDetails.location_type, eventDetails.surface, eventDetails.pickup_preference, eventDetails.generator_qty, eventDetails.address_line1, eventDetails.city, eventDetails.state, eventDetails.zip, eventDetails.lat, eventDetails.lng, discounts, customFees, customDepositCents, pricingRules, taxWaived, travelFeeWaived, sameDayPickupFeeWaived, surfaceFeeWaived, generatorFeeWaived, sameDayWeekdayDeliveryFeeWaived]);
 
   const pricingIsCurrent = !pricingPending && !!calculatedPricing && lastPricedRevision === pricingRevision;
+
+  // Deterministic Generator context revision — mirrored into a ref so async
+  // handlers can compare against the live value instead of a stale closure.
+  const generatorContextRevision = useMemo(() => JSON.stringify({
+    cart: cartItems.map(i => ({ u: i.unit_id, q: i.qty, m: i.mode, p: i.adjusted_price_cents })),
+    ee: stagedEEItems.map(i => ({ p: i.product_id, b: i.bundle_id, q: i.qty, c: i.unit_price_cents, ctx: i.pricing_context, snap: i.component_snapshot, del: i.is_deleted })),
+    ed: eventDetails.event_date,
+    eed: eventDetails.event_end_date,
+    gq: eventDetails.generator_qty,
+  }), [cartItems, stagedEEItems, eventDetails.event_date, eventDetails.event_end_date, eventDetails.generator_qty]);
+
+  useEffect(() => {
+    generatorContextRevisionRef.current = generatorContextRevision;
+  }, [generatorContextRevision]);
 
   // Calculate pricing whenever dependencies change
   useEffect(() => {

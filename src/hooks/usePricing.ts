@@ -250,8 +250,12 @@ export function usePricing() {
       const existingLegacyQty = existingOrder?.generator_qty ?? 0;
       const editedLegacyQty = eventDetails.generator_qty ?? 0;
       const legacyQtyChanged = existingOrder ? editedLegacyQty !== existingLegacyQty : false;
-      const generatorQtyForPricing = legacyQtyChanged ? editedLegacyQty : 0;
-      const hasGeneratorForPricing = legacyQtyChanged && editedLegacyQty > 0;
+      const generatorQtyForPricing = existingOrder
+        ? (legacyQtyChanged ? editedLegacyQty : 0)
+        : editedLegacyQty;
+      const hasGeneratorForPricing = existingOrder
+        ? (legacyQtyChanged && editedLegacyQty > 0)
+        : editedLegacyQty > 0;
 
       // Calculate pricing
       const priceBreakdown = calculatePrice({
@@ -406,6 +410,7 @@ export function usePricing() {
         if (isLatest()) {
           setCalculatedPricing(null);
           setPricingError(depositConfigError);
+          setPricingPending(false);
           return { status: 'failed' } as PricingCalculationResult;
         }
         return { status: 'superseded' } as PricingCalculationResult;
