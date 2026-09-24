@@ -1,6 +1,6 @@
 import { X, ClipboardList, Package as PackageIcon, Anchor, Boxes } from 'lucide-react';
 import { Task } from '../../hooks/useCalendarTasks';
-import { formatOperationalEquipment, aggregateEquipmentAcrossOrders, type OperationalEquipmentItem } from '../../lib/operationalEquipment';
+import { aggregateEquipmentAcrossOrders, type OperationalEquipmentItem } from '../../lib/operationalEquipment';
 
 interface EquipmentChecklistModalProps {
   isOpen: boolean;
@@ -45,11 +45,10 @@ export function EquipmentChecklistModal({ isOpen, tasks, onClose }: EquipmentChe
       equipment.needsSandbags = true;
     }
 
-    // Expand order items into operational equipment for Event Essentials
-    const rawItems = (task as any).rawOrderItems;
-    if (rawItems && Array.isArray(rawItems)) {
-      const expanded = formatOperationalEquipment(rawItems);
-      orderEquipmentLists.push({ items: expanded });
+    // Use pre-formatted equipment items (includes legacy generator_qty)
+    const rawEquipmentItems = (task as any).rawEquipmentItems;
+    if (rawEquipmentItems && Array.isArray(rawEquipmentItems)) {
+      orderEquipmentLists.push({ items: rawEquipmentItems });
     }
   });
 

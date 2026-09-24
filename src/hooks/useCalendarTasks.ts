@@ -3,7 +3,7 @@ import { supabase } from '../lib/supabase';
 import { formatOrderId } from '../lib/utils';
 import { format, startOfMonth, endOfMonth, parseISO, addDays } from 'date-fns';
 import { ORDER_STATUS } from '../lib/constants/statuses';
-import { formatOperationalEquipmentLabels } from '../lib/operationalEquipment';
+import { formatOperationalEquipment, type OperationalEquipmentItem } from '../lib/operationalEquipment';
 import { aggregateOrderEquipment, loadGeneratorCategoryProductIds } from '../lib/generatorUnified';
 
 export type PickupReadiness = 'projected' | 'blocked' | 'ready' | 'completed';
@@ -37,6 +37,7 @@ export interface Task {
   address: string;
   items: string[];
   rawOrderItems: any[];
+  rawEquipmentItems: OperationalEquipmentItem[];
   equipmentIds: string[];
   numInflatables: number;
   eventStartTime: string;
@@ -255,10 +256,11 @@ export function useCalendarTasks(currentMonth: Date) {
 
         const orderItemsForOrder = orderItems?.filter(item => item.order_id === order.id) || [];
 
-        const items = formatOperationalEquipmentLabels(orderItemsForOrder);
+        const legacyGeneratorQty = order.generator_qty || 0;
+        const equipmentItems = formatOperationalEquipment(orderItemsForOrder, legacyGeneratorQty);
+        const items = equipmentItems.map(e => e.kind === 'inflatable' ? `${e.name} (${e.wetOrDry})` : `${e.name} ×${e.qty}`);
         const equipmentIds = orderItemsForOrder.filter((i: any) => i.unit_id).map((i: any) => i.unit_id);
         const numInflatables = orderItemsForOrder.filter((i: any) => i.unit_id).reduce((s: number, i: any) => s + (i.qty || 1), 0);
-        const legacyGeneratorQty = order.generator_qty || 0;
         const { totalGeneratorQty } = aggregateOrderEquipment({
           orderItems: orderItemsForOrder,
           legacyGeneratorQty,
@@ -286,6 +288,7 @@ export function useCalendarTasks(currentMonth: Date) {
           address,
           items,
           rawOrderItems: orderItemsForOrder,
+          rawEquipmentItems: equipmentItems,
           equipmentIds,
           numInflatables,
           eventStartTime: order.start_window || 'TBD',
@@ -353,6 +356,7 @@ export function useCalendarTasks(currentMonth: Date) {
           address,
           items,
           rawOrderItems: orderItemsForOrder,
+          rawEquipmentItems: equipmentItems,
           equipmentIds,
           numInflatables,
           eventStartTime: order.start_window || 'TBD',
