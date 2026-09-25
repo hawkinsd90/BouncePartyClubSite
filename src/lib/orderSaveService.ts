@@ -68,9 +68,12 @@ export async function saveOrderChanges({
     changes.location_type = editedOrder.location_type;
     logs.push(['location_type', order.location_type, editedOrder.location_type]);
   }
-  if (editedOrder.surface !== order.surface) {
-    changes.surface = editedOrder.surface;
-    logs.push(['surface', order.surface, editedOrder.surface]);
+  // EE-only orders (no inflatables) must persist surface = null.
+  const hasInflatables = stagedItems.some(item => item.unit_id && !item.is_deleted);
+  const effectiveSurface = hasInflatables ? editedOrder.surface : null;
+  if (effectiveSurface !== order.surface) {
+    changes.surface = effectiveSurface;
+    logs.push(['surface', order.surface, effectiveSurface]);
   }
   if (editedOrder.generator_qty !== (order.generator_qty || 0)) {
     changes.generator_qty = editedOrder.generator_qty;
@@ -159,9 +162,10 @@ export async function saveOrderChanges({
     if (calculatedPricing.travel_chargeable_miles !== (parseFloat(order.travel_chargeable_miles) || null)) changes.travel_chargeable_miles = calculatedPricing.travel_chargeable_miles;
     if (calculatedPricing.travel_per_mile_cents !== (order.travel_per_mile_cents || null)) changes.travel_per_mile_cents = calculatedPricing.travel_per_mile_cents;
     if (calculatedPricing.travel_is_flat_fee !== (order.travel_is_flat_fee || false)) changes.travel_is_flat_fee = calculatedPricing.travel_is_flat_fee;
-    if (calculatedPricing.surface_fee_cents !== (order.surface_fee_cents || 0)) {
-      changes.surface_fee_cents = calculatedPricing.surface_fee_cents;
-      logs.push(['surface_fee', order.surface_fee_cents, calculatedPricing.surface_fee_cents]);
+    const effectiveSurfaceFeeCents = hasInflatables ? calculatedPricing.surface_fee_cents : 0;
+    if (effectiveSurfaceFeeCents !== (order.surface_fee_cents || 0)) {
+      changes.surface_fee_cents = effectiveSurfaceFeeCents;
+      logs.push(['surface_fee', order.surface_fee_cents, effectiveSurfaceFeeCents]);
     }
     if (calculatedPricing.same_day_pickup_fee_cents !== (order.same_day_pickup_fee_cents || 0)) {
       changes.same_day_pickup_fee_cents = calculatedPricing.same_day_pickup_fee_cents;

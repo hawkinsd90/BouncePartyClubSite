@@ -123,7 +123,8 @@ async function createOrder(
   requireCardOnFile: boolean = true,
   eeProductItems: EEProductItem[] = [],
   generatorQty: number = 0,
-  generatorFeeCents: number = 0
+  generatorFeeCents: number = 0,
+  hasInflatables: boolean = false
 ) {
   const { data, error } = await supabase
     .from('orders')
@@ -136,7 +137,9 @@ async function createOrder(
       end_window: eventDetails.end_window,
       until_end_of_day: eventDetails.until_end_of_day,
       location_type: eventDetails.location_type,
-      surface: eventDetails.surface,
+      surface: (eeProductItems || []).length > 0 && hasInflatables === false
+        ? null
+        : eventDetails.surface,
       generator_qty: generatorQty,
       pickup_preference: eventDetails.pickup_preference,
       same_day_responsibility_accepted: eventDetails.same_day_responsibility_accepted,
@@ -148,7 +151,7 @@ async function createOrder(
       travel_chargeable_miles: priceBreakdown?.travel_chargeable_miles || 0,
       travel_per_mile_cents: priceBreakdown?.travel_per_mile_cents || 0,
       travel_is_flat_fee: priceBreakdown?.travel_is_flat_fee || false,
-      surface_fee_cents: priceBreakdown?.surface_fee_cents || 0,
+      surface_fee_cents: hasInflatables ? (priceBreakdown?.surface_fee_cents || 0) : 0,
       same_day_pickup_fee_cents: priceBreakdown?.same_day_pickup_fee_cents || 0,
       same_day_weekday_delivery_fee_cents: priceBreakdown?.same_day_weekday_delivery_fee_cents || 0,
       generator_fee_cents: generatorFeeCents,
@@ -339,7 +342,8 @@ export async function generateInvoice(invoiceData: InvoiceData, customer: Custom
     invoiceData.requireCardOnFile !== false,
     invoiceData.eeProductItems || [],
     invoiceData.generatorQty || 0,
-    invoiceData.generatorFeeCents || 0
+    invoiceData.generatorFeeCents || 0,
+    (invoiceData.cartItems || []).length > 0
   );
 
   await createOrderItems(order.id, invoiceData.cartItems, invoiceData.eeProductItems || []);

@@ -47,6 +47,10 @@ export function useInvoiceData() {
           generator_fee_multiple_cents: r.generator_fee_multiple_cents,
           apply_taxes_by_default: r.apply_taxes_by_default,
           same_day_weekday_delivery_fee_cents: r.same_day_weekday_delivery_fee_cents,
+          ee_only_deposit_base_threshold_cents: r.ee_only_deposit_base_threshold_cents,
+          ee_only_deposit_base_cents: r.ee_only_deposit_base_cents,
+          ee_only_deposit_subtotal_step_cents: r.ee_only_deposit_subtotal_step_cents,
+          ee_only_deposit_step_cents: r.ee_only_deposit_step_cents,
         });
       }
     } finally {
