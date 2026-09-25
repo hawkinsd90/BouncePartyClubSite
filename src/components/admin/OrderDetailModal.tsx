@@ -358,14 +358,19 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
   }, [orderItems, order, discounts, customFees]);
 
   useEffect(() => {
+    // Reset all order-specific state when switching to a different order.
+    // This prevents stale items from a previous order being staged for the new one.
+    setOrderItems([]);
+    setStagedItems([]);
+    stagedInitializedForOrderId.current = null;
     loadOrderDetails();
     loadAdminSettings();
     setDepositOverrideState(initDepositOverrideState(order.custom_deposit_cents));
   }, [order.id]);
 
   // Initialize staged items from order items (inflatables and EE products).
-  // Uses an order-ID-keyed ref so switching to a different order initializes
-  // correctly, while never overwriting edits already made on the current order.
+  // Runs once per order, after loadOrderDetails populates orderItems.
+  // The ref guard prevents re-initialization after edits are made.
   useEffect(() => {
     if (orderItems.length > 0 && stagedInitializedForOrderId.current !== order.id) {
       stagedInitializedForOrderId.current = order.id;
