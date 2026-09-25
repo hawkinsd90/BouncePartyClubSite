@@ -368,15 +368,16 @@ export function usePricing() {
         hasInflatables,
         eventEssentialsSubtotalCents: eeSubtotalCents,
       });
-      // Historical freeze: when no explicit override and the equipment basis
-      // hasn't changed, keep the stored fee. Only recalculate when the basis
-      // actually changed or an override was entered this session.
+      // Historical freeze: when an existing order supplies a stored fee and the
+      // equipment basis hasn't changed, keep the stored fee. New orders (no
+      // stored fee supplied) always use the calculated fee. An explicit
+      // override always wins, including $0.
       const effectiveSetupFeeCents =
         customSetupFeeCents !== null
           ? customSetupFeeCents
-          : setupFeeBasisChanged
-            ? calculatedSetupFeeCents
-            : (storedSetupFeeCents ?? 0);
+          : storedSetupFeeCents !== null && !setupFeeBasisChanged
+            ? storedSetupFeeCents
+            : calculatedSetupFeeCents;
 
       // Calculate tax based on waived fees and apply_taxes_by_default setting
       const shouldApplyTaxesByDefault = pricingRules.apply_taxes_by_default ?? true;
