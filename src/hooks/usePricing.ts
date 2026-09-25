@@ -58,6 +58,8 @@ interface CalculatePricingParams {
   customFees: any[];
   customDepositCents: number | null;
   customSetupFeeCents: number | null;
+  storedSetupFeeCents?: number | null;
+  setupFeeBasisChanged?: boolean;
   pricingRules: PricingRules;
   feeWaivers?: FeeWaivers;
   existingOrder?: {
@@ -130,6 +132,8 @@ export function usePricing() {
     customFees,
     customDepositCents,
     customSetupFeeCents = null,
+    storedSetupFeeCents = null,
+    setupFeeBasisChanged = false,
     pricingRules,
     feeWaivers = {},
     existingOrder,
@@ -364,7 +368,15 @@ export function usePricing() {
         hasInflatables,
         eventEssentialsSubtotalCents: eeSubtotalCents,
       });
-      const effectiveSetupFeeCents = customSetupFeeCents !== null ? customSetupFeeCents : calculatedSetupFeeCents;
+      // Historical freeze: when no explicit override and the equipment basis
+      // hasn't changed, keep the stored fee. Only recalculate when the basis
+      // actually changed or an override was entered this session.
+      const effectiveSetupFeeCents =
+        customSetupFeeCents !== null
+          ? customSetupFeeCents
+          : setupFeeBasisChanged
+            ? calculatedSetupFeeCents
+            : (storedSetupFeeCents ?? 0);
 
       // Calculate tax based on waived fees and apply_taxes_by_default setting
       const shouldApplyTaxesByDefault = pricingRules.apply_taxes_by_default ?? true;

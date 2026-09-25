@@ -418,6 +418,33 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
     }
   }, [orderItems, order.id]);
 
+  // Track the original Setup Fee basis from verified staged items so we can
+  // detect whether the equipment basis actually changed during this edit.
+  // Reset when switching orders.
+  const originalSetupFeeBasisRef = useRef<string | null>(null);
+  useEffect(() => {
+    originalSetupFeeBasisRef.current = null;
+  }, [order.id]);
+
+  // Compute the current Setup Fee basis from the current staged items.
+  const currentSetupFeeBasis = useMemo(() => {
+    const active = stagedItems.filter(item => !item.is_deleted);
+    const hasInflatables = active.some(item => item.unit_id);
+    const eeSubtotal = active
+      .filter(item => !item.unit_id && (item.product_id || item.bundle_id))
+      .reduce((sum, item) => sum + item.unit_price_cents * item.qty, 0);
+    return JSON.stringify({ hasInflatables, eeSubtotal });
+  }, [stagedItems]);
+
+  // Initialize the original basis once, after staged items are verified.
+  useEffect(() => {
+    if (stagedInitializedForOrderId.current === order.id && originalSetupFeeBasisRef.current === null) {
+      originalSetupFeeBasisRef.current = currentSetupFeeBasis;
+    }
+  }, [stagedItems, order.id, currentSetupFeeBasis]);
+
+  const setupFeeBasisChanged = originalSetupFeeBasisRef.current !== null && originalSetupFeeBasisRef.current !== currentSetupFeeBasis;
+
   // Recalculate pricing whenever discounts, custom fees, staged items, or fee waivers change
   useEffect(() => {
     if (pricingRules && adminSettings && editedOrder && stagedItems.length > 0) {
@@ -648,6 +675,8 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
         customFees,
         customDepositCents,
         customSetupFeeCents,
+        storedSetupFeeCents: order.setup_fee_cents ?? 0,
+        setupFeeBasisChanged,
         pricingRules: pricingRules as any,
         feeWaivers: {
           taxWaived,
@@ -674,7 +703,7 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
         setPricingPending(false);
       }
     }
-  }, [order, editedOrder, stagedItems, discounts, customFees, customDepositCents, customSetupFeeCents, pricingRules, adminSettings, taxWaived, travelFeeWaived, sameDayPickupFeeWaived, surfaceFeeWaived, generatorFeeWaived, sameDayWeekdayDeliveryFeeWaived, calculatePricing]);
+  }, [order, editedOrder, stagedItems, discounts, customFees, customDepositCents, customSetupFeeCents, setupFeeBasisChanged, pricingRules, adminSettings, taxWaived, travelFeeWaived, sameDayPickupFeeWaived, surfaceFeeWaived, generatorFeeWaived, sameDayWeekdayDeliveryFeeWaived, calculatePricing]);
 
   async function loadOrderDetails(targetOrderId: string, requestId: number) {
     try {

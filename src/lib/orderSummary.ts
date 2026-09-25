@@ -215,7 +215,7 @@ async function calculateOriginalFees(order: any, discounts: OrderDiscount[], cus
     }, 0);
     const totalCustomFees = customFees.reduce((sum, fee) => sum + (fee.amount_cents || 0), 0);
     // Same-day pickup fee is NOT taxable (applied after tax)
-    const taxableAmount = subtotal + travelFeeCents + surfaceFeeCents + generatorFeeCents + totalCustomFees - discountTotal;
+    const taxableAmount = subtotal + travelFeeCents + surfaceFeeCents + generatorFeeCents + (order.setup_fee_cents || 0) + totalCustomFees - discountTotal;
     taxCents = Math.round(taxableAmount * 0.06);
   }
 
@@ -348,6 +348,7 @@ export async function loadOrderSummary(orderId: string): Promise<OrderSummaryDat
       event_date: order.event_date,
       event_end_date: order.event_end_date || undefined,
       same_day_weekday_delivery_fee_waived: order.same_day_weekday_delivery_fee_waived || false,
+      setup_fee_cents: order.setup_fee_cents || 0,
     };
   } catch (error) {
     console.error('Error loading order summary:', error);

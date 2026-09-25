@@ -65,16 +65,16 @@ export function composeUnifiedQuoteTotals(
     eventEssentialsSubtotalCents,
   });
 
-  // EE tax: same convention as inflatable engine — EE equipment is taxable.
+  // EE tax: same convention as inflatable engine — EE equipment + Setup Fee are taxable.
   // Same-day pickup fee is NOT taxable (matches inflatable engine behavior).
-  const eeTaxCents = input.taxApplied
-    ? Math.round(eventEssentialsSubtotalCents * TAX_RATE)
+  const eeAndSetupTaxCents = input.taxApplied
+    ? Math.round((eventEssentialsSubtotalCents + setupFeeCents) * TAX_RATE)
     : 0;
 
-  const taxCents = bd.tax_cents + eeTaxCents;
+  const taxCents = bd.tax_cents + eeAndSetupTaxCents;
 
   // Preserve the inflatable breakdown total exactly, then add EE subtotal + EE tax.
-  const totalCents = bd.total_cents + eventEssentialsSubtotalCents + eeTaxCents + setupFeeCents;
+  const totalCents = bd.total_cents + eventEssentialsSubtotalCents + eeAndSetupTaxCents + setupFeeCents;
 
   // For reporting: the taxable base that includes EE.
   const existingTaxableBase =

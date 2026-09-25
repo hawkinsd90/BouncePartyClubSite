@@ -200,6 +200,13 @@ export function QuoteSummarySection({ cart, priceBreakdown, totals, pricingConfi
               </div>
             )}
 
+            {totals.setupFeeCents > 0 && (
+              <div className="flex items-center justify-between text-xs sm:text-sm">
+                <span className="text-slate-600">Setup Fee</span>
+                <span className="font-semibold text-slate-800">{formatCurrency(totals.setupFeeCents)}</span>
+              </div>
+            )}
+
             {totals.taxCents > 0 && (
               <div className="flex items-center justify-between text-xs sm:text-sm">
                 <span className="text-slate-600">Tax (6%)</span>

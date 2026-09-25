@@ -149,7 +149,7 @@ export async function saveOrderChanges({
       changes.generator_fee_cents = calculatedPricing.generator_fee_cents;
       logs.push(['generator_fee', order.generator_fee_cents || 0, calculatedPricing.generator_fee_cents]);
     }
-    const effectiveSetupFeeCents = customSetupFeeCents !== null ? customSetupFeeCents : (calculatedPricing.setup_fee_cents || 0);
+    const effectiveSetupFeeCents = customSetupFeeCents !== null ? customSetupFeeCents : (calculatedPricing.setup_fee_cents ?? 0);
     if (effectiveSetupFeeCents !== (order.setup_fee_cents || 0)) {
       changes.setup_fee_cents = effectiveSetupFeeCents;
       logs.push(['setup_fee', order.setup_fee_cents || 0, effectiveSetupFeeCents]);
