@@ -104,6 +104,8 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
   });
   const [stagedItems, setStagedItems] = useState<StagedItem[]>([]);
   const stagedInitializedForOrderId = useRef<string | null>(null);
+  const orderLoadRequestIdRef = useRef(0);
+  const [loadedOrderItemsForOrderId, setLoadedOrderItemsForOrderId] = useState<string | null>(null);
   const [generatorProductIdsState, setGeneratorProductIdsState] = useState<{ status: 'loading' | 'ready' | 'failed'; ids: Set<string> }>({ status: 'loading', ids: new Set() });
 
   useEffect(() => {
@@ -360,19 +362,22 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
   useEffect(() => {
     // Reset all order-specific state when switching to a different order.
     // This prevents stale items from a previous order being staged for the new one.
+    const requestId = ++orderLoadRequestIdRef.current;
+    const targetOrderId = order.id;
     setOrderItems([]);
     setStagedItems([]);
+    setLoadedOrderItemsForOrderId(null);
     stagedInitializedForOrderId.current = null;
-    loadOrderDetails();
+    loadOrderDetails(targetOrderId, requestId);
     loadAdminSettings();
     setDepositOverrideState(initDepositOverrideState(order.custom_deposit_cents));
   }, [order.id]);
 
   // Initialize staged items from order items (inflatables and EE products).
-  // Runs once per order, after loadOrderDetails populates orderItems.
-  // The ref guard prevents re-initialization after edits are made.
+  // Runs once per order, after loadOrderDetails populates orderItems with
+  // verified ownership (loadedOrderItemsForOrderId matches order.id).
   useEffect(() => {
-    if (orderItems.length > 0 && stagedInitializedForOrderId.current !== order.id) {
+    if (orderItems.length > 0 && loadedOrderItemsForOrderId === order.id && stagedInitializedForOrderId.current !== order.id) {
       stagedInitializedForOrderId.current = order.id;
       const staged: StagedItem[] = orderItems.map(item => {
         if (item.unit_id && item.units?.name) {
@@ -664,17 +669,23 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
     }
   }, [order, editedOrder, stagedItems, discounts, customFees, customDepositCents, pricingRules, adminSettings, taxWaived, travelFeeWaived, sameDayPickupFeeWaived, surfaceFeeWaived, generatorFeeWaived, sameDayWeekdayDeliveryFeeWaived, calculatePricing]);
 
-  async function loadOrderDetails() {
+  async function loadOrderDetails(targetOrderId: string, requestId: number) {
     try {
       const [itemsRes, changelogRes, unitsRes, discountsRes, customFeesRes] = await Promise.all([
-        supabase.from('order_items').select('*, units(name, price_dry_cents, price_water_cents)').eq('order_id', order.id),
-        supabase.from('order_changelog').select('*').eq('order_id', order.id).order('created_at', { ascending: false }),
+        supabase.from('order_items').select('*, units(name, price_dry_cents, price_water_cents)').eq('order_id', targetOrderId),
+        supabase.from('order_changelog').select('*').eq('order_id', targetOrderId).order('created_at', { ascending: false }),
         supabase.from('units').select('*').eq('active', true).order('name'),
-        supabase.from('order_discounts').select('*').eq('order_id', order.id).order('created_at', { ascending: false }),
-        supabase.from('order_custom_fees').select('*').eq('order_id', order.id).order('created_at', { ascending: false }),
+        supabase.from('order_discounts').select('*').eq('order_id', targetOrderId).order('created_at', { ascending: false }),
+        supabase.from('order_custom_fees').select('*').eq('order_id', targetOrderId).order('created_at', { ascending: false }),
       ]);
 
-      if (itemsRes.data) setOrderItems(itemsRes.data);
+      // Request ownership: discard if a newer load was started or the order changed.
+      if (requestId !== orderLoadRequestIdRef.current) return;
+
+      if (itemsRes.data) {
+        setOrderItems(itemsRes.data);
+        setLoadedOrderItemsForOrderId(targetOrderId);
+      }
       if (changelogRes.data) setChangelog(changelogRes.data);
       if (unitsRes.data) setAvailableUnits(unitsRes.data);
       if (discountsRes.data) setDiscounts(discountsRes.data);
@@ -798,7 +809,8 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
           await sendOrderEditNotifications({ order, adminMessage });
         },
         onComplete: async () => {
-          await loadOrderDetails();
+          const requestId = ++orderLoadRequestIdRef.current;
+          await loadOrderDetails(order.id, requestId);
           setManualDirty(false);
           onUpdate();
           onClose();
@@ -1428,7 +1440,10 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
           )}
 
           {activeSection === 'notes' && (
-            <OrderNotesTab orderId={order.id} notes={notes} onNotesChanged={loadOrderDetails} />
+            <OrderNotesTab orderId={order.id} notes={notes} onNotesChanged={() => {
+            const requestId = ++orderLoadRequestIdRef.current;
+            void loadOrderDetails(order.id, requestId);
+          }} />
           )}
 
           {activeSection === 'changelog' && (
@@ -1450,7 +1465,8 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
         eventDate={editedOrder.event_date}
         eventEndDate={editedOrder.event_end_date}
         onStatusChanged={async () => {
-          await loadOrderDetails();
+          const requestId = ++orderLoadRequestIdRef.current;
+          await loadOrderDetails(order.id, requestId);
           onUpdate();
         }}
       />

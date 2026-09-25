@@ -98,6 +98,18 @@ export function AddEventEssentialsSection({
       const filteredProducts = (prodsRes.data || []).filter((p: any) => p.active);
       setProducts(filteredProducts);
 
+      // Diagnostic: verify Generator product and category are present at each stage.
+      const genProduct = (prodsRes.data || []).find((p: any) => p.id === '82a67261-2b54-4704-a8a0-4d346d0a8e60');
+      const genCategory = (catsRes.data || []).find((c: any) => c.id === 'd29347c8-78f7-48d6-aa01-c4d36f9912ea');
+      console.log('[AddEventEssentialsSection] loadData results:', {
+        totalProducts: (prodsRes.data || []).length,
+        totalCategories: (catsRes.data || []).length,
+        generatorProduct: genProduct ? { id: genProduct.id, name: genProduct.name, active: genProduct.active, category_id: genProduct.category_id } : 'NOT FOUND',
+        generatorCategory: genCategory ? { id: genCategory.id, name: genCategory.name, slug: genCategory.slug, active: genCategory.active } : 'NOT FOUND',
+        filteredProductIds: filteredProducts.map((p: any) => ({ id: p.id, name: p.name, category_id: p.category_id })),
+        categoryIds: Object.keys(catMap),
+      });
+
       const allBundleData = bundlesRes.data || [];
       setAllBundles(allBundleData);
       setBundles(allBundleData.filter((b: any) => b.active));
