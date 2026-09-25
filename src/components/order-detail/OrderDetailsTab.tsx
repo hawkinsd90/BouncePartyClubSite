@@ -30,6 +30,8 @@ interface OrderDetailsTabProps {
   hasChanges: boolean;
   calculatedPricing: any;
   customDepositCents: number | null;
+  customSetupFeeCents: number | null;
+  customSetupFeeInput: string;
   discounts: any[];
   customFees: any[];
   customDepositInput: string;
@@ -61,6 +63,9 @@ interface OrderDetailsTabProps {
   onDepositInputChange: (value: string) => void;
   onDepositApply: (amountCents: number) => void;
   onDepositClear: () => void;
+  onSetupFeeApply: (amountCents: number) => void;
+  onSetupFeeClear: () => void;
+  onSetupFeeInputChange: (value: string) => void;
   onAdminMessageChange: (value: string) => void;
   onTaxWaivedToggle: (reason: string) => void;
   onTravelFeeWaivedToggle: (reason: string) => void;
@@ -90,6 +95,8 @@ export function OrderDetailsTab({
   hasChanges,
   calculatedPricing,
   customDepositCents,
+  customSetupFeeCents,
+  customSetupFeeInput,
   discounts,
   customFees,
   customDepositInput,
@@ -121,6 +128,9 @@ export function OrderDetailsTab({
   onDepositInputChange,
   onDepositApply,
   onDepositClear,
+  onSetupFeeApply,
+  onSetupFeeClear,
+  onSetupFeeInputChange,
   onAdminMessageChange,
   onTaxWaivedToggle,
   onTravelFeeWaivedToggle,
@@ -419,6 +429,55 @@ export function OrderDetailsTab({
         onApply={onDepositApply}
         onClear={onDepositClear}
       />
+
+      {((calculatedPricing?.setup_fee_before_override_cents ?? 0) > 0 || customSetupFeeCents !== null || (order.setup_fee_cents ?? 0) > 0) && (
+        <div className="bg-slate-50 border border-slate-200 rounded-lg p-4 space-y-3">
+          <div className="flex items-center justify-between">
+            <span className="text-sm font-medium text-slate-700">Setup Fee</span>
+            <span className="text-sm font-semibold text-slate-900">
+              {formatCurrency((customSetupFeeCents !== null ? customSetupFeeCents : (calculatedPricing?.setup_fee_cents ?? order.setup_fee_cents)) || 0)}
+            </span>
+          </div>
+          <p className="text-xs text-slate-500">
+            Calculated: {formatCurrency(calculatedPricing?.setup_fee_before_override_cents ?? 0)}
+            {customSetupFeeCents !== null && customSetupFeeCents !== (calculatedPricing?.setup_fee_before_override_cents ?? 0) && (
+              <span className="text-blue-600 ml-2">(overridden)</span>
+            )}
+          </p>
+          <div className="flex gap-2">
+            <input
+              type="number"
+              value={customSetupFeeInput}
+              onChange={(e) => onSetupFeeInputChange(e.target.value)}
+              placeholder="Custom amount"
+              className="flex-1 px-3 py-1.5 text-sm border border-slate-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+              min="0"
+              step="0.01"
+            />
+            <button
+              type="button"
+              onClick={() => {
+                const dollars = parseFloat(customSetupFeeInput);
+                if (!isNaN(dollars) && dollars >= 0) {
+                  onSetupFeeApply(Math.round(dollars * 100));
+                }
+              }}
+              className="px-3 py-1.5 text-sm bg-blue-600 text-white rounded-md hover:bg-blue-700"
+            >
+              Apply
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                onSetupFeeClear();
+              }}
+              className="px-3 py-1.5 text-sm bg-slate-200 text-slate-700 rounded-md hover:bg-slate-300"
+            >
+              Reset
+            </button>
+          </div>
+        </div>
+      )}
 
       {newDepositDueCents === 0 && !order.stripe_payment_method_id && (
         <CardOnFileRequirement

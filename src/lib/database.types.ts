@@ -296,6 +296,7 @@ export interface Database {
           same_day_pickup_fee_cents: number
           generator_fee_cents: number
           generator_qty: number
+          setup_fee_cents: number
           tax_cents: number
           tax_waived: boolean
           tax_waive_reason: string | null

@@ -73,6 +73,8 @@ export function InvoiceBuilder() {
   const [sameDayWeekdayDeliveryFeeWaiveReason, setSameDayWeekdayDeliveryFeeWaiveReason] = useState('');
   const [customDepositCents, setCustomDepositCents] = useState<number | null>(null);
   const [customDepositInput, setCustomDepositInput] = useState('');
+  const [customSetupFeeCents, setCustomSetupFeeCents] = useState<number | null>(null);
+  const [customSetupFeeInput, setCustomSetupFeeInput] = useState('');
   const [requireCardOnFile, setRequireCardOnFile] = useState(true);
   const [availabilityIssues, setAvailabilityIssues] = useState<any[]>([]);
   const [checkingAvailability, setCheckingAvailability] = useState(false);
@@ -429,6 +431,7 @@ export function InvoiceBuilder() {
     d: discounts,
     cf: customFees,
     cdc: customDepositCents,
+    csf: customSetupFeeCents,
     pr: pricingRules,
     tw: taxWaived,
     tfw: travelFeeWaived,
@@ -436,7 +439,7 @@ export function InvoiceBuilder() {
     sfw: surfaceFeeWaived,
     gfw: generatorFeeWaived,
     sdwdw: sameDayWeekdayDeliveryFeeWaived,
-  }), [cartItems, stagedEEItems, eventDetails.event_date, eventDetails.event_end_date, eventDetails.location_type, eventDetails.surface, eventDetails.pickup_preference, eventDetails.generator_qty, eventDetails.address_line1, eventDetails.city, eventDetails.state, eventDetails.zip, eventDetails.lat, eventDetails.lng, discounts, customFees, customDepositCents, pricingRules, taxWaived, travelFeeWaived, sameDayPickupFeeWaived, surfaceFeeWaived, generatorFeeWaived, sameDayWeekdayDeliveryFeeWaived]);
+  }), [cartItems, stagedEEItems, eventDetails.event_date, eventDetails.event_end_date, eventDetails.location_type, eventDetails.surface, eventDetails.pickup_preference, eventDetails.generator_qty, eventDetails.address_line1, eventDetails.city, eventDetails.state, eventDetails.zip, eventDetails.lat, eventDetails.lng, discounts, customFees, customDepositCents, customSetupFeeCents, pricingRules, taxWaived, travelFeeWaived, sameDayPickupFeeWaived, surfaceFeeWaived, generatorFeeWaived, sameDayWeekdayDeliveryFeeWaived]);
 
   const pricingIsCurrent = !pricingPending && !!calculatedPricing && lastPricedRevision === pricingRevision;
 
@@ -505,6 +508,7 @@ export function InvoiceBuilder() {
         discounts,
         customFees,
         customDepositCents,
+        customSetupFeeCents,
         pricingRules,
         feeWaivers: {
           taxWaived,
@@ -535,6 +539,7 @@ export function InvoiceBuilder() {
     discounts,
     customFees,
     customDepositCents,
+    customSetupFeeCents,
     pricingRules,
     taxWaived,
     travelFeeWaived,
@@ -775,6 +780,7 @@ export function InvoiceBuilder() {
           depositRequired: calculatedPricing.deposit_due_cents,
           totalCents: calculatedPricing.total_cents,
           customDepositCents,
+          setupFeeCents: calculatedPricing.setup_fee_cents,
           discounts,
           customFees,
           adminMessage,
@@ -811,6 +817,8 @@ export function InvoiceBuilder() {
       setCustomFees([]);
       setCustomDepositCents(null);
       setCustomDepositInput('');
+      setCustomSetupFeeCents(null);
+      setCustomSetupFeeInput('');
       setAdminMessage('');
       setTaxWaived(false);
       setTaxWaiveReason('');
@@ -992,6 +1000,53 @@ export function InvoiceBuilder() {
             compact={true}
             showZeroHint={true}
           />
+
+          {((calculatedPricing?.setup_fee_before_override_cents || 0) > 0 || customSetupFeeCents !== null) && (
+            <div className="bg-slate-50 border border-slate-200 rounded-lg p-4 space-y-3">
+              <div className="flex items-center justify-between">
+                <span className="text-sm font-medium text-slate-700">Setup Fee</span>
+                <span className="text-sm font-semibold text-slate-900">
+                  ${(((customSetupFeeCents !== null ? customSetupFeeCents : calculatedPricing?.setup_fee_cents) || 0) / 100).toFixed(2)}
+                </span>
+              </div>
+              <p className="text-xs text-slate-500">
+                Calculated: ${((calculatedPricing?.setup_fee_before_override_cents || 0) / 100).toFixed(2)}
+              </p>
+              <div className="flex gap-2">
+                <input
+                  type="number"
+                  value={customSetupFeeInput}
+                  onChange={(e) => setCustomSetupFeeInput(e.target.value)}
+                  placeholder="Custom amount"
+                  className="flex-1 px-3 py-1.5 text-sm border border-slate-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  min="0"
+                  step="0.01"
+                />
+                <button
+                  type="button"
+                  onClick={() => {
+                    const dollars = parseFloat(customSetupFeeInput);
+                    if (!isNaN(dollars) && dollars >= 0) {
+                      setCustomSetupFeeCents(Math.round(dollars * 100));
+                    }
+                  }}
+                  className="px-3 py-1.5 text-sm bg-blue-600 text-white rounded-md hover:bg-blue-700"
+                >
+                  Apply
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setCustomSetupFeeCents(null);
+                    setCustomSetupFeeInput('');
+                  }}
+                  className="px-3 py-1.5 text-sm bg-slate-200 text-slate-700 rounded-md hover:bg-slate-300"
+                >
+                  Reset
+                </button>
+              </div>
+            </div>
+          )}
 
           {customDepositCents === 0 && (
             <CardOnFileRequirement

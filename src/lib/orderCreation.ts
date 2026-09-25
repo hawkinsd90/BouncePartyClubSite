@@ -324,6 +324,7 @@ export async function createOrderBeforePayment(data: OrderData): Promise<string>
       same_day_pickup_fee_cents: priceBreakdown.same_day_pickup_fee_cents || 0,
       same_day_weekday_delivery_fee_cents: priceBreakdown.same_day_weekday_delivery_fee_cents || 0,
       generator_fee_cents: 0,
+      setup_fee_cents: totalsWithEE.setupFeeCents,
       tax_cents: taxApplied ? taxCents : 0,
       tax_waived: false,
       tax_waive_reason: null,

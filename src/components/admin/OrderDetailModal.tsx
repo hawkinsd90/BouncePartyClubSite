@@ -131,6 +131,8 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
   const [depositOverrideState, setDepositOverrideState] = useState(() =>
     initDepositOverrideState(order.custom_deposit_cents),
   );
+  const [customSetupFeeCents, setCustomSetupFeeCents] = useState<number | null>(null);
+  const [customSetupFeeInput, setCustomSetupFeeInput] = useState('');
   const customDepositCents = depositOverrideState.customDepositCents;
   const customDepositInput = depositOverrideState.customDepositInput;
   const setCustomDepositCents = useCallback((cents: number | null) => {
@@ -198,6 +200,7 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
     discounts: discounts.map((d: any) => ({ id: d.id, amount_cents: d.amount_cents, percentage: d.percentage, is_new: d.is_new })),
     customFees: customFees.map((f: any) => ({ id: f.id, amount_cents: f.amount_cents, is_new: f.is_new })),
     customDepositCents,
+    customSetupFeeCents,
     location_type: editedOrder.location_type,
     surface: editedOrder.surface,
     generator_qty: editedOrder.generator_qty,
@@ -216,7 +219,7 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
     sameDayWeekdayDeliveryFeeWaived,
     pricingRules: pricingRules ?? null,
   }), [
-    stagedItems, discounts, customFees, customDepositCents,
+    stagedItems, discounts, customFees, customDepositCents, customSetupFeeCents,
     editedOrder.location_type, editedOrder.surface, editedOrder.generator_qty,
     editedOrder.address_line1, editedOrder.address_city, editedOrder.address_state,
     editedOrder.address_zip, editedOrder.pickup_preference,
@@ -294,12 +297,13 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
         same_day_weekday_delivery_fee_cents: order.same_day_weekday_delivery_fee_cents || 0,
         same_day_weekday_delivery_fee_waived: order.same_day_weekday_delivery_fee_waived || false,
         generator_fee_cents: order.generator_fee_cents || 0,
+        setup_fee_cents: order.setup_fee_cents || 0,
         generator_qty: order.generator_qty || 0,
         tax_cents: order.tax_cents || 0,
         tip_cents: order.tip_cents || 0,
         total_cents: (() => {
           const subtotal = order.subtotal_cents || 0;
-          const fees = (order.travel_fee_cents || 0) + (order.surface_fee_cents || 0) + (order.same_day_pickup_fee_cents || 0) + (order.same_day_weekday_delivery_fee_cents || 0) + (order.generator_fee_cents || 0);
+          const fees = (order.travel_fee_cents || 0) + (order.surface_fee_cents || 0) + (order.same_day_pickup_fee_cents || 0) + (order.same_day_weekday_delivery_fee_cents || 0) + (order.generator_fee_cents || 0) + (order.setup_fee_cents || 0);
           const totalCustomFees = customFees.filter(f => !f.is_new).reduce((sum: number, f: any) => sum + (f.amount_cents || 0), 0);
           const totalDiscounts = discounts.filter(d => !d.is_new).reduce((sum: number, d: any) => {
             if (d.percentage) return sum + Math.round(subtotal * (d.percentage / 100));
@@ -324,7 +328,7 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
         console.error('Error loading current order summary:', err);
         // Fallback: build summary from stored order fields without driving distance
         const subtotal = order.subtotal_cents || 0;
-        const fees = (order.travel_fee_cents || 0) + (order.surface_fee_cents || 0) + (order.same_day_pickup_fee_cents || 0) + (order.same_day_weekday_delivery_fee_cents || 0) + (order.generator_fee_cents || 0);
+        const fees = (order.travel_fee_cents || 0) + (order.surface_fee_cents || 0) + (order.same_day_pickup_fee_cents || 0) + (order.same_day_weekday_delivery_fee_cents || 0) + (order.generator_fee_cents || 0) + (order.setup_fee_cents || 0);
         const totalCustomFees = customFees.filter((f: any) => !f.is_new).reduce((sum: number, f: any) => sum + (f.amount_cents || 0), 0);
         const totalDiscounts = discounts.filter((d: any) => !d.is_new).reduce((sum: number, d: any) => {
           if (d.percentage) return sum + Math.round(subtotal * (d.percentage / 100));
@@ -342,6 +346,7 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
           same_day_weekday_delivery_fee_cents: order.same_day_weekday_delivery_fee_cents || 0,
           same_day_weekday_delivery_fee_waived: order.same_day_weekday_delivery_fee_waived || false,
           generator_fee_cents: order.generator_fee_cents || 0,
+          setup_fee_cents: order.setup_fee_cents || 0,
           generator_qty: order.generator_qty || 0,
           tax_cents: order.tax_cents || 0,
           tip_cents: order.tip_cents || 0,
@@ -432,6 +437,7 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
     discounts,
     customFees,
     customDepositCents,
+    customSetupFeeCents,
     stagedItems,
     editedOrder.location_type,
     editedOrder.surface,
@@ -641,6 +647,7 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
         discounts,
         customFees,
         customDepositCents,
+        customSetupFeeCents,
         pricingRules: pricingRules as any,
         feeWaivers: {
           taxWaived,
@@ -667,7 +674,7 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
         setPricingPending(false);
       }
     }
-  }, [order, editedOrder, stagedItems, discounts, customFees, customDepositCents, pricingRules, adminSettings, taxWaived, travelFeeWaived, sameDayPickupFeeWaived, surfaceFeeWaived, generatorFeeWaived, sameDayWeekdayDeliveryFeeWaived, calculatePricing]);
+  }, [order, editedOrder, stagedItems, discounts, customFees, customDepositCents, customSetupFeeCents, pricingRules, adminSettings, taxWaived, travelFeeWaived, sameDayPickupFeeWaived, surfaceFeeWaived, generatorFeeWaived, sameDayWeekdayDeliveryFeeWaived, calculatePricing]);
 
   async function loadOrderDetails(targetOrderId: string, requestId: number) {
     try {
@@ -787,6 +794,7 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
         customFees,
         calculatedPricing,
         customDepositCents,
+        customSetupFeeCents,
         adminMessage,
         adminOverrideApproval: order.status === ORDER_STATUS.DRAFT ? false : adminOverrideApproval,
         availabilityIssues: latestAvailabilityIssues,
@@ -1336,6 +1344,8 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
               hasChanges={hasChanges}
               calculatedPricing={calculatedPricing}
               customDepositCents={customDepositCents}
+              customSetupFeeCents={customSetupFeeCents}
+              customSetupFeeInput={customSetupFeeInput}
               discounts={discounts}
               customFees={customFees}
               customDepositInput={customDepositInput}
@@ -1366,6 +1376,16 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
                 setCustomDepositInput('');
                 setManualDirty(true);
               }}
+              onSetupFeeApply={(amountCents) => {
+                setCustomSetupFeeCents(amountCents);
+                setManualDirty(true);
+              }}
+              onSetupFeeClear={() => {
+                setCustomSetupFeeCents(null);
+                setCustomSetupFeeInput('');
+                setManualDirty(true);
+              }}
+              onSetupFeeInputChange={setCustomSetupFeeInput}
               onAdminMessageChange={(value) => {
                 setAdminMessage(value);
                 setManualDirty(true);

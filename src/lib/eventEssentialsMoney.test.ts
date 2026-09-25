@@ -347,7 +347,8 @@ function run() {
     ok('28e equipmentSubtotalCents = 9500', result.equipmentSubtotalCents === 9500);
     ok('28f depositCents = 5000', result.depositCents === 5000);
     ok('28g no depositError', !result.depositError);
-    ok('28h totalCents = 9500', result.totalCents === 9500);
+    ok('28h totalCents = 15000 (9500 EE + 5500 setup fee)', result.totalCents === 15000);
+    ok('28i setupFeeCents = 5500', result.setupFeeCents === 5500);
   }
 
   // 29. Inflatable-only output deep-equals pre-E4 fixture (no tax).

@@ -3,6 +3,7 @@ import { calculatePrice, calculateDrivingDistance, isSameDayWeekdayDelivery, typ
 import { formatOrderSummary, type OrderSummaryData } from '../lib/orderSummary';
 import { HOME_BASE } from '../lib/constants';
 import { calculateRequiredDepositCents, parseBookingDepositSettings } from '../lib/depositCalculation';
+import { calculateEventEssentialsSetupFeeCents } from '../lib/setupFeeCalculation';
 
 interface PricingItem {
   unit_id: string;
@@ -56,6 +57,7 @@ interface CalculatePricingParams {
   discounts: any[];
   customFees: any[];
   customDepositCents: number | null;
+  customSetupFeeCents: number | null;
   pricingRules: PricingRules;
   feeWaivers?: FeeWaivers;
   existingOrder?: {
@@ -103,6 +105,8 @@ interface CalculatedPricing {
   balance_due_cents: number;
   event_essentials_subtotal_cents: number;
   generator_fee_before_waiver_cents: number;
+  setup_fee_cents: number;
+  setup_fee_before_override_cents: number;
 }
 
 export type PricingCalculationResult =
@@ -125,6 +129,7 @@ export function usePricing() {
     discounts,
     customFees,
     customDepositCents,
+    customSetupFeeCents = null,
     pricingRules,
     feeWaivers = {},
     existingOrder,
@@ -352,6 +357,15 @@ export function usePricing() {
       const finalGeneratorFeeCents = generatorFeeWaived ? 0 : originalGeneratorFeeCents;
       const finalSameDayWeekdayDeliveryFeeCents = sameDayWeekdayDeliveryFeeWaived ? 0 : originalSameDayWeekdayDeliveryFeeCents;
 
+      // Setup Fee — EE-only orders with EE subtotal below threshold
+      const inflatableQuantity = activeItems.reduce((sum, item) => sum + item.qty, 0);
+      const hasInflatables = inflatableQuantity > 0;
+      const calculatedSetupFeeCents = calculateEventEssentialsSetupFeeCents({
+        hasInflatables,
+        eventEssentialsSubtotalCents: eeSubtotalCents,
+      });
+      const effectiveSetupFeeCents = customSetupFeeCents !== null ? customSetupFeeCents : calculatedSetupFeeCents;
+
       // Calculate tax based on waived fees and apply_taxes_by_default setting
       const shouldApplyTaxesByDefault = pricingRules.apply_taxes_by_default ?? true;
       const customFeesTotalCents = customFees.reduce((sum: number, f: any) => sum + (f.amount_cents || 0), 0);
@@ -360,7 +374,7 @@ export function usePricing() {
         if (d.percentage > 0) return sum + Math.round(subtotalWithEE * (d.percentage / 100));
         return sum;
       }, 0);
-      const taxableAmount = subtotalWithEE + finalTravelFeeCents + finalSurfaceFeeCents + finalGeneratorFeeCents + customFeesTotalCents - discountTotalCents;
+      const taxableAmount = subtotalWithEE + finalTravelFeeCents + finalSurfaceFeeCents + finalGeneratorFeeCents + effectiveSetupFeeCents + customFeesTotalCents - discountTotalCents;
 
       // Calculate the potential tax amount (always calculated for display purposes)
       const calculatedTaxCents = Math.round(taxableAmount * 0.06);
@@ -371,18 +385,16 @@ export function usePricing() {
       // - When apply_taxes_by_default is FALSE: taxWaived=false means don't apply (default), taxWaived=true means apply (override)
       let finalTaxCents: number;
       if (shouldApplyTaxesByDefault) {
-        // Taxes applied by default - taxWaived=true removes them
         finalTaxCents = taxWaived ? 0 : calculatedTaxCents;
       } else {
-        // Taxes NOT applied by default - taxWaived=true adds them (acts as override to apply)
         finalTaxCents = taxWaived ? calculatedTaxCents : 0;
       }
 
       // Calculate total with all waivers applied
-      const finalTotalCents = subtotalWithEE + finalTravelFeeCents + finalSurfaceFeeCents + finalSameDayPickupFeeCents + finalGeneratorFeeCents + finalSameDayWeekdayDeliveryFeeCents + customFeesTotalCents - discountTotalCents + finalTaxCents;
+      const finalTotalCents = subtotalWithEE + finalTravelFeeCents + finalSurfaceFeeCents + finalSameDayPickupFeeCents + finalGeneratorFeeCents + finalSameDayWeekdayDeliveryFeeCents + effectiveSetupFeeCents + customFeesTotalCents - discountTotalCents + finalTaxCents;
 
       // Calculate deposit — EE-only orders use EE deposit tier
-      const inflatableQuantity = activeItems.reduce((sum, item) => sum + item.qty, 0);
+      // Setup Fee is NOT included in the deposit basis
       let calculatedDepositDueCents: number = 0;
       let depositConfigError: string | null = null;
       if (inflatableQuantity === 0 && eeSubtotalCents > 0) {
@@ -447,6 +459,7 @@ export function usePricing() {
         event_date: eventDetails.event_date,
         event_end_date: eventDetails.event_end_date,
         same_day_weekday_delivery_fee_waived: sameDayWeekdayDeliveryFeeWaived || false,
+        setup_fee_cents: effectiveSetupFeeCents,
       };
 
       const summary = formatOrderSummary(orderData);
@@ -478,6 +491,8 @@ export function usePricing() {
           balance_due_cents: summary.balanceDue,
           event_essentials_subtotal_cents: eeSubtotalCents,
           generator_fee_before_waiver_cents: originalGeneratorFeeCents,
+          setup_fee_cents: effectiveSetupFeeCents,
+          setup_fee_before_override_cents: calculatedSetupFeeCents,
         });
         return { status: 'success' } as PricingCalculationResult;
       }

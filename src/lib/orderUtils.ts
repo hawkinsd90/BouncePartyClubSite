@@ -12,6 +12,7 @@ export function calculateStoredOrderTotal(order: {
   surface_fee_cents: number;
   same_day_pickup_fee_cents?: number | null;
   generator_fee_cents?: number | null;
+  setup_fee_cents?: number | null;
   tax_cents: number;
 }): number {
   return (
@@ -20,6 +21,7 @@ export function calculateStoredOrderTotal(order: {
     (order.surface_fee_cents || 0) +
     (order.same_day_pickup_fee_cents || 0) +
     (order.generator_fee_cents || 0) +
+    (order.setup_fee_cents || 0) +
     (order.tax_cents || 0)
   );
 }

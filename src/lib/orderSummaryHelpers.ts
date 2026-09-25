@@ -14,6 +14,7 @@ interface FeeInput {
   same_day_pickup_fee_waived?: boolean;
   same_day_weekday_delivery_fee_waived?: boolean;
   generator_fee_waived?: boolean;
+  setup_fee_cents?: number;
 }
 
 interface DiscountInput {
@@ -85,6 +86,10 @@ export function buildFeesList(fees: FeeInput): Array<{ name: string; amount: num
         ? `Generators (${fees.generator_qty}x)`
         : 'Generator';
     feesList.push({ name: generatorLabel, amount: fees.generator_fee_cents || 0 });
+  }
+
+  if (fees.setup_fee_cents && fees.setup_fee_cents > 0) {
+    feesList.push({ name: 'Setup Fee', amount: fees.setup_fee_cents });
   }
 
   return feesList;

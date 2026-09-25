@@ -13,6 +13,7 @@
 import type { PriceBreakdown } from './pricing';
 import { calculateEventEssentialsSubtotalCents } from './eventEssentialsMoney';
 import { calculateRequiredDepositCents, type EEOnlyDepositSettings } from './depositCalculation';
+import { calculateEventEssentialsSetupFeeCents } from './setupFeeCalculation';
 import { isInflatableCartItem } from './unifiedCart';
 import type { UnifiedCartItem } from '../types';
 
@@ -25,6 +26,7 @@ export interface UnifiedQuoteTotals {
   sameDayPickupFeeCents: number;
   sameDayWeekdayDeliveryFeeCents: number;
   generatorFeeCents: number;
+  setupFeeCents: number;
   taxableSubtotalCents: number;
   taxCents: number;
   totalCents: number;
@@ -56,6 +58,13 @@ export function composeUnifiedQuoteTotals(
   const sameDayWeekdayDeliveryFeeCents = bd.same_day_weekday_delivery_fee_cents;
   const generatorFeeCents = bd.generator_fee_cents;
 
+  const inflatableCount = input.cart.filter(isInflatableCartItem).reduce((sum, item) => sum + item.qty, 0);
+  const hasInflatables = inflatableCount > 0;
+  const setupFeeCents = calculateEventEssentialsSetupFeeCents({
+    hasInflatables,
+    eventEssentialsSubtotalCents,
+  });
+
   // EE tax: same convention as inflatable engine — EE equipment is taxable.
   // Same-day pickup fee is NOT taxable (matches inflatable engine behavior).
   const eeTaxCents = input.taxApplied
@@ -65,14 +74,13 @@ export function composeUnifiedQuoteTotals(
   const taxCents = bd.tax_cents + eeTaxCents;
 
   // Preserve the inflatable breakdown total exactly, then add EE subtotal + EE tax.
-  const totalCents = bd.total_cents + eventEssentialsSubtotalCents + eeTaxCents;
+  const totalCents = bd.total_cents + eventEssentialsSubtotalCents + eeTaxCents + setupFeeCents;
 
   // For reporting: the taxable base that includes EE.
   const existingTaxableBase =
     bd.subtotal_cents + travelFeeCents + surfaceFeeCents + generatorFeeCents;
-  const taxableSubtotalCents = existingTaxableBase + eventEssentialsSubtotalCents;
+  const taxableSubtotalCents = existingTaxableBase + eventEssentialsSubtotalCents + setupFeeCents;
 
-  const inflatableCount = input.cart.filter(isInflatableCartItem).reduce((sum, item) => sum + item.qty, 0);
   const depositResult = calculateRequiredDepositCents({
     inflatableQuantity: inflatableCount,
     eventEssentialsSubtotalCents,
@@ -92,6 +100,7 @@ export function composeUnifiedQuoteTotals(
       sameDayPickupFeeCents,
       sameDayWeekdayDeliveryFeeCents,
       generatorFeeCents,
+      setupFeeCents,
       taxableSubtotalCents,
       taxCents,
       totalCents,
@@ -112,6 +121,7 @@ export function composeUnifiedQuoteTotals(
     sameDayPickupFeeCents,
     sameDayWeekdayDeliveryFeeCents,
     generatorFeeCents,
+    setupFeeCents,
     taxableSubtotalCents,
     taxCents,
     totalCents,

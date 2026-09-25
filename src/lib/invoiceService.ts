@@ -82,6 +82,7 @@ interface InvoiceData {
   requireCardOnFile?: boolean;
   generatorQty?: number;
   generatorFeeCents?: number;
+  setupFeeCents?: number;
 }
 
 async function createAddress(eventDetails: EventDetails) {
@@ -124,7 +125,8 @@ async function createOrder(
   eeProductItems: EEProductItem[] = [],
   generatorQty: number = 0,
   generatorFeeCents: number = 0,
-  hasInflatables: boolean = false
+  hasInflatables: boolean = false,
+  setupFeeCents: number = 0
 ) {
   const { data, error } = await supabase
     .from('orders')
@@ -155,6 +157,7 @@ async function createOrder(
       same_day_pickup_fee_cents: priceBreakdown?.same_day_pickup_fee_cents || 0,
       same_day_weekday_delivery_fee_cents: priceBreakdown?.same_day_weekday_delivery_fee_cents || 0,
       generator_fee_cents: generatorFeeCents,
+      setup_fee_cents: setupFeeCents,
       event_essentials_subtotal_cents: (eeProductItems || [])
         .reduce((sum: number, item: EEProductItem) => sum + item.unit_price_cents * item.qty, 0),
       tax_cents: taxCents,
@@ -343,7 +346,8 @@ export async function generateInvoice(invoiceData: InvoiceData, customer: Custom
     invoiceData.eeProductItems || [],
     invoiceData.generatorQty || 0,
     invoiceData.generatorFeeCents || 0,
-    (invoiceData.cartItems || []).length > 0
+    (invoiceData.cartItems || []).length > 0,
+    invoiceData.setupFeeCents || 0
   );
 
   await createOrderItems(order.id, invoiceData.cartItems, invoiceData.eeProductItems || []);

@@ -110,6 +110,7 @@ export interface OrderSummaryData {
   same_day_pickup_fee_waived?: boolean;
   same_day_weekday_delivery_fee_waived?: boolean;
   generator_fee_waived?: boolean;
+  setup_fee_cents?: number;
 }
 
 export interface OrderSummaryDisplay {
@@ -363,9 +364,10 @@ export function calculateTotalFromOrder(order: any, discounts: OrderDiscount[], 
   const sameDayFee = order.same_day_pickup_fee_cents || 0;
   const sameDayWeekdayDeliveryFee = order.same_day_weekday_delivery_fee_cents || 0;
   const generatorFee = order.generator_fee_cents || 0;
+  const setupFee = order.setup_fee_cents || 0;
   const tax = order.tax_cents || 0;
 
-  const totalFees = travelFee + surfaceFee + sameDayFee + sameDayWeekdayDeliveryFee + generatorFee;
+  const totalFees = travelFee + surfaceFee + sameDayFee + sameDayWeekdayDeliveryFee + generatorFee + setupFee;
   const totalCustomFees = customFees.reduce((sum, fee) => sum + (fee.amount_cents || 0), 0);
 
   const discountTotal = discounts.reduce((sum, discount) => {
@@ -410,6 +412,7 @@ export function formatOrderSummary(data: OrderSummaryData): OrderSummaryDisplay 
       same_day_pickup_fee_waived: data.same_day_pickup_fee_waived,
       same_day_weekday_delivery_fee_waived: data.same_day_weekday_delivery_fee_waived,
       generator_fee_waived: data.generator_fee_waived,
+      setup_fee_cents: data.setup_fee_cents || 0,
     },
     discounts: data.discounts,
     customFees: data.customFees,

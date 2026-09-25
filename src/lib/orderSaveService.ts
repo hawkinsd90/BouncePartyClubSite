@@ -13,6 +13,7 @@ interface SaveOrderChangesParams {
   customFees: any[];
   calculatedPricing: any;
   customDepositCents: number | null;
+  customSetupFeeCents: number | null;
   adminMessage: string;
   adminOverrideApproval: boolean;
   availabilityIssues: any[];
@@ -37,7 +38,7 @@ interface SaveOrderChangesParams {
 
 export async function saveOrderChanges({
   order, editedOrder, stagedItems, discounts, customFees, calculatedPricing,
-  customDepositCents, adminMessage, adminOverrideApproval, availabilityIssues,
+  customDepositCents, customSetupFeeCents, adminMessage, adminOverrideApproval, availabilityIssues,
   taxWaived, taxWaiveReason, travelFeeWaived, travelFeeWaiveReason,
   sameDayPickupFeeWaived, sameDayPickupFeeWaiveReason, surfaceFeeWaived, surfaceFeeWaiveReason,
   generatorFeeWaived, generatorFeeWaiveReason, sameDayWeekdayDeliveryFeeWaived, sameDayWeekdayDeliveryFeeWaiveReason,
@@ -147,6 +148,11 @@ export async function saveOrderChanges({
     if (calculatedPricing.generator_fee_cents !== (order.generator_fee_cents || 0)) {
       changes.generator_fee_cents = calculatedPricing.generator_fee_cents;
       logs.push(['generator_fee', order.generator_fee_cents || 0, calculatedPricing.generator_fee_cents]);
+    }
+    const effectiveSetupFeeCents = customSetupFeeCents !== null ? customSetupFeeCents : (calculatedPricing.setup_fee_cents || 0);
+    if (effectiveSetupFeeCents !== (order.setup_fee_cents || 0)) {
+      changes.setup_fee_cents = effectiveSetupFeeCents;
+      logs.push(['setup_fee', order.setup_fee_cents || 0, effectiveSetupFeeCents]);
     }
     const eeSubtotal = calculatedPricing.event_essentials_subtotal_cents || 0;
     if (eeSubtotal !== (order.event_essentials_subtotal_cents || 0)) {
@@ -495,6 +501,7 @@ export async function saveOrderChanges({
     'travel_total_miles', 'travel_base_radius_miles', 'travel_chargeable_miles',
     'travel_per_mile_cents', 'travel_is_flat_fee', 'surface_fee_cents',
     'same_day_pickup_fee_cents', 'same_day_weekday_delivery_fee_cents', 'tax_cents',
+    'setup_fee_cents',
     'deposit_due_cents', 'balance_due_cents', 'deposit_catchup_cents',
     'tax_waived', 'tax_waive_reason', 'travel_fee_waived', 'travel_fee_waive_reason',
     'same_day_pickup_fee_waived', 'same_day_pickup_fee_waive_reason',
