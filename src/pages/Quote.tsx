@@ -147,6 +147,7 @@ export function Quote() {
       taxApplied: priceBreakdown.tax_applied ?? true,
       eeOnlyDepositSettings: parsed.eventEssentialsDepositSettings,
       inflatableDepositPerUnitCents: parsed.inflatableDepositPerUnitCents,
+      setupMinimumCents: pricingRules.event_essentials_setup_minimum_cents ?? 15000,
     });
   }, [priceBreakdown, pricingRules, cart]);
 
@@ -160,6 +161,7 @@ export function Quote() {
       taxApplied: priceBreakdown.tax_applied ?? true,
       eeOnlyDepositSettings: parsed.eventEssentialsDepositSettings,
       inflatableDepositPerUnitCents: parsed.inflatableDepositPerUnitCents,
+      setupMinimumCents: pricingRules.event_essentials_setup_minimum_cents ?? 15000,
     });
     return totals.depositError ?? null;
   }, [priceBreakdown, pricingRules, cart]);
@@ -549,6 +551,7 @@ export function Quote() {
         taxApplied: priceBreakdown.tax_applied ?? true,
         eeOnlyDepositSettings: parsedSettings.eventEssentialsDepositSettings,
         inflatableDepositPerUnitCents: parsedSettings.inflatableDepositPerUnitCents,
+        setupMinimumCents: pricingRules.event_essentials_setup_minimum_cents ?? 15000,
       });
       if (preTotals.depositError) {
         flushSync(() => {

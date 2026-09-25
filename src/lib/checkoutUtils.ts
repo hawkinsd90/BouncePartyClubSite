@@ -38,6 +38,7 @@ export function determineCheckoutRenderState(args: {
     taxApplied: args.priceBreakdown.tax_applied ?? true,
     eeOnlyDepositSettings: args.bookingDepositSettings.eventEssentialsDepositSettings,
     inflatableDepositPerUnitCents: args.bookingDepositSettings.inflatableDepositPerUnitCents,
+    setupMinimumCents: args.bookingDepositSettings.setupMinimumCents,
   });
   if (totals.depositError) {
     return { state: 'error', message: totals.depositError };

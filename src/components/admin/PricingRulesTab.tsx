@@ -22,6 +22,7 @@ interface PricingRules {
   ee_only_deposit_base_cents?: number;
   ee_only_deposit_subtotal_step_cents?: number;
   ee_only_deposit_step_cents?: number;
+  event_essentials_setup_minimum_cents?: number;
 }
 
 interface PricingRulesTabProps {
@@ -46,6 +47,7 @@ export function PricingRulesTab({ pricingRules: initialRules }: PricingRulesTabP
     eeBaseDeposit: '',
     eeStepSize: '',
     eeStepDeposit: '',
+    setupMinimum: '',
   });
   const [eeErrors, setEeErrors] = useState<Record<string, string>>({});
 
@@ -123,6 +125,7 @@ export function PricingRulesTab({ pricingRules: initialRules }: PricingRulesTabP
           ee_only_deposit_base_cents: eeValidation.settings!.ee_only_deposit_base_cents,
           ee_only_deposit_subtotal_step_cents: eeValidation.settings!.ee_only_deposit_subtotal_step_cents,
           ee_only_deposit_step_cents: eeValidation.settings!.ee_only_deposit_step_cents,
+          event_essentials_setup_minimum_cents: editedRules.event_essentials_setup_minimum_cents ?? 15000,
         })
         .eq('id', editedRules.id);
 
@@ -170,6 +173,7 @@ export function PricingRulesTab({ pricingRules: initialRules }: PricingRulesTabP
       eeBaseDeposit: ((editedRules.ee_only_deposit_base_cents || 5000) / 100).toFixed(2),
       eeStepSize: ((editedRules.ee_only_deposit_subtotal_step_cents || 10000) / 100).toFixed(2),
       eeStepDeposit: ((editedRules.ee_only_deposit_step_cents || 5000) / 100).toFixed(2),
+      setupMinimum: ((editedRules.event_essentials_setup_minimum_cents ?? 15000) / 100).toFixed(2),
     });
     setIsEditing(true);
   };
@@ -538,6 +542,36 @@ export function PricingRulesTab({ pricingRules: initialRules }: PricingRulesTabP
                 </span>
               </div>
             </div>
+          </div>
+        </div>
+
+        <div className="border-t-2 border-slate-200 pt-6 mt-6">
+          <label className="block text-lg font-bold text-slate-900 mb-2">
+            Event Essentials Setup Fee
+          </label>
+          <p className="text-xs text-slate-500 mb-4">
+            For Event Essentials-only orders below this amount, a Setup Fee is added to bring the Event Essentials equipment subtotal up to this minimum.
+          </p>
+
+          <div>
+            <label className="block text-sm font-medium text-slate-700 mb-2">
+              Event Essentials Setup Minimum (in dollars)
+            </label>
+            <input
+              type="text"
+              value={isEditing ? displayValues.setupMinimum : `${((editedRules.event_essentials_setup_minimum_cents ?? 15000) / 100).toFixed(2)}`}
+              onChange={(e) => {
+                const value = e.target.value;
+                const parsed = parseMoneyInput(value);
+                setDisplayValues({ ...displayValues, setupMinimum: value });
+                setEditedRules({ ...editedRules, event_essentials_setup_minimum_cents: parsed.ok ? (parsed.cents ?? 0) : (editedRules.event_essentials_setup_minimum_cents ?? 15000) });
+              }}
+              readOnly={!isEditing}
+              className={`w-full px-4 py-2 border border-slate-300 rounded-lg ${isEditing ? 'bg-white' : 'bg-slate-50'}`}
+            />
+            <p className="text-xs text-slate-500 mt-1">
+              Example: minimum $150 with EE subtotal $95 produces a $55 Setup Fee. Set to $0 to disable automatic Setup Fees.
+            </p>
           </div>
         </div>
 

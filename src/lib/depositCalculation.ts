@@ -157,6 +157,7 @@ export type BookingDepositSettingsResult =
       status: 'ready';
       inflatableDepositPerUnitCents: number;
       eventEssentialsDepositSettings: EEOnlyDepositSettings;
+      setupMinimumCents: number;
     }
   | {
       status: 'invalid';
@@ -228,6 +229,7 @@ export function parseBookingDepositSettings(
       eeOnlyDepositSubtotalStepCents: stepSize,
       eeOnlyDepositStepCents: stepDeposit,
     },
+    setupMinimumCents: pricingRulesRow.event_essentials_setup_minimum_cents ?? 15000,
   };
 }
 

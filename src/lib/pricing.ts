@@ -28,6 +28,7 @@ export interface PricingRules {
   ee_only_deposit_base_cents?: number;
   ee_only_deposit_subtotal_step_cents?: number;
   ee_only_deposit_step_cents?: number;
+  event_essentials_setup_minimum_cents?: number;
 }
 
 export interface CartItem {

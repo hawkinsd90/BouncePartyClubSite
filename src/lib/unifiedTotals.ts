@@ -41,6 +41,7 @@ export interface ComposeUnifiedQuoteTotalsInput {
   taxApplied: boolean;
   eeOnlyDepositSettings: EEOnlyDepositSettings;
   inflatableDepositPerUnitCents: number;
+  setupMinimumCents?: number;
 }
 
 const TAX_RATE = 0.06;
@@ -63,6 +64,7 @@ export function composeUnifiedQuoteTotals(
   const setupFeeCents = calculateEventEssentialsSetupFeeCents({
     hasInflatables,
     eventEssentialsSubtotalCents,
+    setupMinimumCents: input.setupMinimumCents,
   });
 
   // EE tax: same convention as inflatable engine — EE equipment + Setup Fee are taxable.

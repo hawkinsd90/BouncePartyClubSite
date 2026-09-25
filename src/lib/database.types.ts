@@ -659,6 +659,7 @@ export interface Database {
           ee_only_deposit_base_cents: number | null
           ee_only_deposit_subtotal_step_cents: number | null
           ee_only_deposit_step_cents: number | null
+          event_essentials_setup_minimum_cents: number | null
           created_at: string
           updated_at: string
         }

@@ -367,6 +367,7 @@ export function usePricing() {
       const calculatedSetupFeeCents = calculateEventEssentialsSetupFeeCents({
         hasInflatables,
         eventEssentialsSubtotalCents: eeSubtotalCents,
+        setupMinimumCents: pricingRules.event_essentials_setup_minimum_cents ?? 15000,
       });
       // Historical freeze: when an existing order supplies a stored fee and the
       // equipment basis hasn't changed, keep the stored fee. New orders (no

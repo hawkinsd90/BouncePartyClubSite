@@ -109,6 +109,7 @@ export function Checkout() {
         taxApplied: priceBreakdown.tax_applied ?? true,
         eeOnlyDepositSettings: bookingDepositSettings.eventEssentialsDepositSettings,
         inflatableDepositPerUnitCents: bookingDepositSettings.inflatableDepositPerUnitCents,
+        setupMinimumCents: bookingDepositSettings.setupMinimumCents,
       })
     : null;
 

@@ -191,6 +191,7 @@ export async function createOrderBeforePayment(data: OrderData): Promise<string>
     taxApplied,
     eeOnlyDepositSettings,
     inflatableDepositPerUnitCents,
+    setupMinimumCents: rowResult.row.event_essentials_setup_minimum_cents ?? 15000,
   });
 
   // Block before any database write if deposit configuration is invalid.
