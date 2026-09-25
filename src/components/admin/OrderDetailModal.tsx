@@ -103,6 +103,7 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
     pickup_preference: order.pickup_preference || 'next_day',
   });
   const [stagedItems, setStagedItems] = useState<StagedItem[]>([]);
+  const stagedInitializedForOrderId = useRef<string | null>(null);
   const [generatorProductIdsState, setGeneratorProductIdsState] = useState<{ status: 'loading' | 'ready' | 'failed'; ids: Set<string> }>({ status: 'loading', ids: new Set() });
 
   useEffect(() => {
@@ -362,9 +363,12 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
     setDepositOverrideState(initDepositOverrideState(order.custom_deposit_cents));
   }, [order.id]);
 
-  // Initialize staged items from order items (inflatables and EE products)
+  // Initialize staged items from order items (inflatables and EE products).
+  // Uses an order-ID-keyed ref so switching to a different order initializes
+  // correctly, while never overwriting edits already made on the current order.
   useEffect(() => {
-    if (orderItems.length > 0 && stagedItems.length === 0) {
+    if (orderItems.length > 0 && stagedInitializedForOrderId.current !== order.id) {
+      stagedInitializedForOrderId.current = order.id;
       const staged: StagedItem[] = orderItems.map(item => {
         if (item.unit_id && item.units?.name) {
           return {
@@ -397,7 +401,7 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
       });
       setStagedItems(staged);
     }
-  }, [orderItems]);
+  }, [orderItems, order.id]);
 
   // Recalculate pricing whenever discounts, custom fees, staged items, or fee waivers change
   useEffect(() => {

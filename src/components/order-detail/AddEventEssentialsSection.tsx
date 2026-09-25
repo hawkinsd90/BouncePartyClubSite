@@ -357,7 +357,7 @@ export function AddEventEssentialsSection({
     } finally {
       setAvailabilityChecking(false);
     }
-  }, [buildResolverInput, onAddProduct, stagedItems, eventDate, eventEndDate, orderId]);
+  }, [buildResolverInput, onAddProduct, stagedItems, eventDate, eventEndDate, orderId, productQtyInputs]);
 
   const handleAddBundle = useCallback(async (bundle: ProductBundleWithConfiguration) => {
     const qty = getBundleQty(bundle.id);
@@ -448,7 +448,7 @@ export function AddEventEssentialsSection({
     } finally {
       setAvailabilityChecking(false);
     }
-  }, [buildResolverInput, onAddBundle, stagedItems, eventDate, eventEndDate, orderId]);
+  }, [buildResolverInput, onAddBundle, stagedItems, eventDate, eventEndDate, orderId, bundleQtyInputs]);
 
   // Build the list of active categories that have at least one product in the picker.
   const activeCategoryIds = Array.from(new Set(products.map(p => p.category_id).filter(Boolean)));
