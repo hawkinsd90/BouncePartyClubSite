@@ -170,6 +170,7 @@ export async function createOrderBeforePayment(data: OrderData): Promise<string>
   // row, duplicate rows, or invalid settings.
   let eeOnlyDepositSettings: EEOnlyDepositSettings;
   let inflatableDepositPerUnitCents: number;
+  let setupMinimumCents: number;
   {
     const rowResult = await fetchSingletonPricingRulesRow();
     if (rowResult.status !== 'ready') {
@@ -182,6 +183,7 @@ export async function createOrderBeforePayment(data: OrderData): Promise<string>
     }
     inflatableDepositPerUnitCents = parsed.inflatableDepositPerUnitCents;
     eeOnlyDepositSettings = parsed.eventEssentialsDepositSettings;
+    setupMinimumCents = parsed.setupMinimumCents;
   }
 
   // Calculate unified totals with loaded deposit settings.
@@ -191,7 +193,7 @@ export async function createOrderBeforePayment(data: OrderData): Promise<string>
     taxApplied,
     eeOnlyDepositSettings,
     inflatableDepositPerUnitCents,
-    setupMinimumCents: rowResult.row.event_essentials_setup_minimum_cents ?? 15000,
+    setupMinimumCents,
   });
 
   // Block before any database write if deposit configuration is invalid.

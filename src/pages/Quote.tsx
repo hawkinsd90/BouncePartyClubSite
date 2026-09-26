@@ -118,6 +118,7 @@ export function Quote() {
       ee_only_deposit_base_cents: parsedSettings.eventEssentialsDepositSettings.eeOnlyDepositBaseCents,
       ee_only_deposit_subtotal_step_cents: parsedSettings.eventEssentialsDepositSettings.eeOnlyDepositSubtotalStepCents,
       ee_only_deposit_step_cents: parsedSettings.eventEssentialsDepositSettings.eeOnlyDepositStepCents,
+      event_essentials_setup_minimum_cents: parsedSettings.setupMinimumCents,
     } as PricingRules;
   }, []);
 
