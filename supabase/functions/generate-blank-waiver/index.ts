@@ -303,7 +303,7 @@ Deno.serve(async (req: Request) => {
     }
 
     // Signature block
-    ensureSpace(60);
+    ensureSpace(38);
     y += 4;
     doc.setDrawColor(0, 0, 0);
     doc.line(MARGIN, y, pageWidth - MARGIN, y);
