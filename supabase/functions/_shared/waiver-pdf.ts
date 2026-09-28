@@ -3,8 +3,8 @@
 // header/footer/section parsing stay visually identical across both PDFs.
 
 export const MARGIN = 20;
-export const LOGO_W = 36;
-export const LOGO_H = 18;
+export const LOGO_W = 30;
+export const LOGO_H = 15;
 export const FOOTER_RESERVE = 12; // mm reserved at page bottom for footer
 
 // Section numbers that require an initials field after their body text
@@ -80,27 +80,27 @@ export function renderPageHeader(
   const pageWidth = doc.internal.pageSize.getWidth();
   let y = startY;
 
-  doc.setFontSize(16);
+  doc.setFontSize(14);
   doc.setFont("helvetica", "bold");
   doc.setTextColor(0, 0, 0);
   doc.text("LIABILITY WAIVER AND RENTAL AGREEMENT", pageWidth / 2, y, { align: "center" });
-  y += 8;
+  y += 6;
 
   if (logoDataUrl) {
     doc.addImage(logoDataUrl, logoExt, (pageWidth - LOGO_W) / 2, y, LOGO_W, LOGO_H);
-    y += LOGO_H + 4;
+    y += LOGO_H + 2;
   }
 
-  doc.setFontSize(9);
+  doc.setFontSize(8);
   doc.setFont("helvetica", "normal");
   doc.setTextColor(0, 0, 0);
   doc.text(businessInfoLine, pageWidth / 2, y, { align: "center" });
-  y += 5;
+  y += 4;
 
-  y += 2;
+  y += 1;
   doc.setDrawColor(180, 180, 180);
   doc.line(MARGIN, y, pageWidth - MARGIN, y);
-  y += 7;
+  y += 5;
 
   return y;
 }

@@ -1,2 +1,116 @@
 [functions.generate-blank-waiver]
 verify_jwt = false
+
+[functions.generate-signed-waiver]
+verify_jwt = false
+
+[functions.get-waiver-status]
+verify_jwt = false
+
+[functions.save-signature]
+verify_jwt = false
+
+[functions.upload-physical-waiver]
+verify_jwt = true
+
+[functions.auth-email-hook]
+verify_jwt = false
+
+[functions.backfill-oauth-customers]
+verify_jwt = true
+
+[functions.backfill-payment-methods]
+verify_jwt = true
+
+[functions.calculate-route-mileage]
+verify_jwt = true
+
+[functions.charge-deposit]
+verify_jwt = true
+
+[functions.checkout-bridge]
+verify_jwt = false
+
+[functions.create-admin-user]
+verify_jwt = true
+
+[functions.customer-balance-payment]
+verify_jwt = false
+
+[functions.customer-cancel-order]
+verify_jwt = false
+
+[functions.fix-payment-method]
+verify_jwt = false
+
+[functions.get-payment-method]
+verify_jwt = true
+
+[functions.get-session-metadata]
+verify_jwt = false
+
+[functions.get-stripe-publishable-key]
+verify_jwt = false
+
+[functions.get-user-info]
+verify_jwt = true
+
+[functions.order-lifecycle]
+verify_jwt = false
+
+[functions.promote-media]
+verify_jwt = true
+
+[functions.reconcile-balance-payment]
+verify_jwt = false
+
+[functions.record-cash-payment]
+verify_jwt = true
+
+[functions.record-check-payment]
+verify_jwt = true
+
+[functions.record-consent]
+verify_jwt = true
+
+[functions.save-payment-method-from-session]
+verify_jwt = true
+
+[functions.save-pending-consent]
+verify_jwt = false
+
+[functions.save-signup-address]
+verify_jwt = false
+
+[functions.send-email]
+verify_jwt = true
+
+[functions.send-error-notification]
+verify_jwt = false
+
+[functions.send-invoice]
+verify_jwt = true
+
+[functions.send-sms-notification]
+verify_jwt = true
+
+[functions.stripe-charge]
+verify_jwt = true
+
+[functions.stripe-checkout]
+verify_jwt = true
+
+[functions.stripe-refund]
+verify_jwt = true
+
+[functions.stripe-webhook]
+verify_jwt = false
+
+[functions.sync-google-calendar]
+verify_jwt = true
+
+[functions.twilio-status-callback]
+verify_jwt = true
+
+[functions.twilio-webhook]
+verify_jwt = false

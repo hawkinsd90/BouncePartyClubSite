@@ -246,7 +246,7 @@ Deno.serve(async (req: Request) => {
     const pageWidth = doc.internal.pageSize.getWidth();
     const pageHeight = doc.internal.pageSize.getHeight();
     const maxWidth = pageWidth - 2 * MARGIN;
-    const contentMaxY = pageHeight - 18;
+    const contentMaxY = pageHeight - 15;
 
     // Render page 1 header; record where content starts
     let y = renderPageHeader(doc, MARGIN, logoDataUrl, logoExt, businessInfoLine);
@@ -270,19 +270,19 @@ Deno.serve(async (req: Request) => {
         y += 2;
       }
 
-      doc.setFontSize(9);
+      doc.setFontSize(8.5);
       doc.setFont("helvetica", "normal");
       doc.setTextColor(0, 0, 0);
 
       for (const para of block.paragraphs) {
         const lines = doc.splitTextToSize(para, maxWidth);
-        ensureSpace(lines.length * 4.5 + 4);
+        ensureSpace(lines.length * 4.1 + 3);
         for (const line of lines) {
           if (y > contentMaxY) addPage();
           doc.text(line, MARGIN, y);
-          y += 4.5;
+          y += 4.1;
         }
-        y += 3;
+        y += 2.5;
       }
 
       // Blank initials + date field after sections 6, 8, 9
@@ -303,18 +303,18 @@ Deno.serve(async (req: Request) => {
     }
 
     // Signature block
-    ensureSpace(38);
-    y += 4;
+    ensureSpace(28);
+    y += 2;
     doc.setDrawColor(0, 0, 0);
     doc.line(MARGIN, y, pageWidth - MARGIN, y);
-    y += 8;
+    y += 5;
 
-    doc.setFontSize(12);
+    doc.setFontSize(11);
     doc.setFont("helvetica", "bold");
     doc.text("SIGNATURE AND ACCEPTANCE", pageWidth / 2, y, { align: "center" });
-    y += 10;
+    y += 7;
 
-    doc.setFontSize(10);
+    doc.setFontSize(9);
     doc.setFont("helvetica", "normal");
     doc.text("Full Legal Name:", MARGIN, y);
     if (signerName !== "Unknown") {
@@ -324,7 +324,7 @@ Deno.serve(async (req: Request) => {
     } else {
       doc.line(MARGIN + 45, y + 1, pageWidth - MARGIN, y + 1);
     }
-    y += 10;
+    y += 7;
     doc.text("Signature:", MARGIN, y);
     doc.line(MARGIN + 30, y + 1, pageWidth - MARGIN - 50, y + 1);
     doc.text("Date:", pageWidth - MARGIN - 45, y);
