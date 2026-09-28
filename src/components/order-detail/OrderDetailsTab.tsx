@@ -42,6 +42,11 @@ interface OrderDetailsTabProps {
   generatorFeeWaiveReason?: string;
   sameDayWeekdayDeliveryFeeWaived: boolean;
   sameDayWeekdayDeliveryFeeWaiveReason?: string;
+  parksAcknowledgmentRequired: boolean;
+  parksAcknowledgmentCounty: string | null;
+  parksAcknowledgmentError: string | null;
+  parksAcknowledgmentResolving: boolean;
+  onParksAcknowledgmentToggle: () => void;
   depositCatchupMode: 'require' | 'waive';
   onDepositCatchupModeChange: (mode: 'require' | 'waive') => void;
   onOrderChange: (updates: any) => void;
@@ -93,6 +98,11 @@ export function OrderDetailsTab({
   generatorFeeWaiveReason,
   sameDayWeekdayDeliveryFeeWaived,
   sameDayWeekdayDeliveryFeeWaiveReason,
+  parksAcknowledgmentRequired,
+  parksAcknowledgmentCounty,
+  parksAcknowledgmentError,
+  parksAcknowledgmentResolving,
+  onParksAcknowledgmentToggle,
   depositCatchupMode,
   onDepositCatchupModeChange,
   onOrderChange,
@@ -405,6 +415,35 @@ export function OrderDetailsTab({
         value={adminMessage}
         onChange={onAdminMessageChange}
       />
+
+      <div className="bg-slate-50 border border-slate-200 rounded-lg p-4">
+        <h3 className="font-semibold text-slate-900 mb-3">Parks Acknowledgment</h3>
+        {parksAcknowledgmentError && (
+          <div className="bg-red-50 border border-red-200 rounded-lg p-3 mb-3">
+            <p className="text-sm text-red-800">{parksAcknowledgmentError}</p>
+          </div>
+        )}
+        <label className="flex items-center gap-2 cursor-pointer">
+          <input
+            type="checkbox"
+            checked={parksAcknowledgmentRequired}
+            onChange={onParksAcknowledgmentToggle}
+            disabled={parksAcknowledgmentResolving}
+            className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-2 focus:ring-blue-500"
+          />
+          <span className="text-sm font-medium text-slate-700">
+            {parksAcknowledgmentResolving ? 'Resolving county...' : 'Parks Acknowledgment'}
+          </span>
+        </label>
+        {parksAcknowledgmentRequired && parksAcknowledgmentCounty && (
+          <div className="mt-3 text-sm text-slate-600">
+            <p><span className="font-medium">County:</span> {parksAcknowledgmentCounty}</p>
+            <p className="mt-1 text-xs text-slate-500">
+              Section 15: {parksAcknowledgmentCounty.toUpperCase()} COUNTY PARKS ACKNOWLEDGMENT
+            </p>
+          </div>
+        )}
+      </div>
 
       <div className="bg-slate-50 border border-slate-200 rounded-lg p-4">
         <h3 className="font-semibold text-slate-900 mb-3">Order Status</h3>

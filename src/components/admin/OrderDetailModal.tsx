@@ -103,6 +103,10 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
   const [generatorFeeWaiveReason, setGeneratorFeeWaiveReason] = useState(order.generator_fee_waive_reason || '');
   const [sameDayWeekdayDeliveryFeeWaived, setSameDayWeekdayDeliveryFeeWaived] = useState(order.same_day_weekday_delivery_fee_waived || false);
   const [sameDayWeekdayDeliveryFeeWaiveReason, setSameDayWeekdayDeliveryFeeWaiveReason] = useState(order.same_day_weekday_delivery_fee_waive_reason || '');
+  const [parksAcknowledgmentRequired, setParksAcknowledgmentRequired] = useState(order.parks_acknowledgment_required || false);
+  const [parksAcknowledgmentCounty, setParksAcknowledgmentCounty] = useState(order.parks_acknowledgment_county || null);
+  const [parksAcknowledgmentError, setParksAcknowledgmentError] = useState<string | null>(null);
+  const [parksAcknowledgmentResolving, setParksAcknowledgmentResolving] = useState(false);
 
   const { orderSummary: updatedOrderSummary, calculatedPricing, calculatePricing } = usePricing();
   const { payments, pricingRules, reload: reloadOrderData } = useOrderDetails(order.id);
@@ -319,6 +323,73 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
     }
   }, [editedOrder.event_date, editedOrder.event_end_date, stagedItems]);
 
+  // Re-resolve county when the event address changes while Parks Acknowledgment is enabled
+  useEffect(() => {
+    if (!parksAcknowledgmentRequired) return;
+
+    const addressChanged =
+      editedOrder.address_line1 !== (order.addresses?.line1 || '') ||
+      editedOrder.address_city !== (order.addresses?.city || '') ||
+      editedOrder.address_state !== (order.addresses?.state || '') ||
+      editedOrder.address_zip !== (order.addresses?.zip || '');
+
+    if (!addressChanged) return;
+
+    // If county was captured from a new Google Places selection, use it directly
+    if (editedOrder.address_county) {
+      setParksAcknowledgmentCounty(editedOrder.address_county);
+      setParksAcknowledgmentError(null);
+      return;
+    }
+
+    // Otherwise reverse/forward geocode the new address
+    let cancelled = false;
+    setParksAcknowledgmentResolving(true);
+    (async () => {
+      try {
+        const { reverseGeocodeCounty, forwardGeocodeCounty } = await import('../../lib/addressService');
+        const lat = editedOrder.address_lat ?? null;
+        const lng = editedOrder.address_lng ?? null;
+        let county: string | null = null;
+
+        if (lat != null && lng != null && lat !== 0 && lng !== 0) {
+          county = await reverseGeocodeCounty(parseFloat(lat), parseFloat(lng));
+        }
+        if (!county) {
+          const line1 = editedOrder.address_line1 || '';
+          const city = editedOrder.address_city || '';
+          const state = editedOrder.address_state || '';
+          const zip = editedOrder.address_zip || '';
+          if (line1 && city && state) {
+            county = await forwardGeocodeCounty(line1, city, state, zip);
+          }
+        }
+
+        if (cancelled) return;
+
+        if (!county) {
+          setParksAcknowledgmentCounty(null);
+          setParksAcknowledgmentError(
+            'Unable to determine the county from the new event address. Parks Acknowledgment cannot be saved until the county is resolved.'
+          );
+        } else {
+          setParksAcknowledgmentCounty(county);
+          setParksAcknowledgmentError(null);
+        }
+      } catch {
+        if (cancelled) return;
+        setParksAcknowledgmentCounty(null);
+        setParksAcknowledgmentError(
+          'Unable to determine the county from the new event address. Parks Acknowledgment cannot be saved until the county is resolved.'
+        );
+      } finally {
+        if (!cancelled) setParksAcknowledgmentResolving(false);
+      }
+    })();
+
+    return () => { cancelled = true; };
+  }, [editedOrder.address_line1, editedOrder.address_city, editedOrder.address_state, editedOrder.address_zip, editedOrder.address_lat, editedOrder.address_lng, editedOrder.address_county, parksAcknowledgmentRequired, order.addresses]);
+
   async function loadAdminSettings() {
     try {
       const { data, error } = await supabase.from('admin_settings').select('*');
@@ -509,6 +580,8 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
         generatorFeeWaiveReason,
         sameDayWeekdayDeliveryFeeWaived,
         sameDayWeekdayDeliveryFeeWaiveReason,
+        parksAcknowledgmentRequired,
+        parksAcknowledgmentCounty,
         logChangeFn: logChange,
         sendNotificationsFn: async () => {
           await sendOrderEditNotifications({ order, adminMessage });
@@ -548,9 +621,71 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
       address_zip: result.zip,
       address_lat: result.lat || null,
       address_lng: result.lng || null,
+      address_county: result.county || null,
     }));
     setHasChanges(true);
   }, []);
+
+  const handleParksAcknowledgmentToggle = useCallback(async () => {
+    const newValue = !parksAcknowledgmentRequired;
+    setParksAcknowledgmentRequired(newValue);
+    setParksAcknowledgmentError(null);
+
+    if (!newValue) {
+      setParksAcknowledgmentCounty(null);
+      setHasChanges(true);
+      return;
+    }
+
+    // If county was already captured from a new Google Places selection, use it
+    if (editedOrder.address_county) {
+      setParksAcknowledgmentCounty(editedOrder.address_county);
+      setHasChanges(true);
+      return;
+    }
+
+    // Otherwise resolve county from the existing event address
+    setParksAcknowledgmentResolving(true);
+    try {
+      const { reverseGeocodeCounty, forwardGeocodeCounty } = await import('../../lib/addressService');
+      const lat = editedOrder.address_lat ?? order.addresses?.lat ?? null;
+      const lng = editedOrder.address_lng ?? order.addresses?.lng ?? null;
+      let county: string | null = null;
+
+      if (lat != null && lng != null && lat !== 0 && lng !== 0) {
+        county = await reverseGeocodeCounty(parseFloat(lat), parseFloat(lng));
+      }
+
+      if (!county) {
+        const line1 = editedOrder.address_line1 || order.addresses?.line1 || '';
+        const city = editedOrder.address_city || order.addresses?.city || '';
+        const state = editedOrder.address_state || order.addresses?.state || '';
+        const zip = editedOrder.address_zip || order.addresses?.zip || '';
+        if (line1 && city && state) {
+          county = await forwardGeocodeCounty(line1, city, state, zip);
+        }
+      }
+
+      if (!county) {
+        setParksAcknowledgmentRequired(false);
+        setParksAcknowledgmentCounty(null);
+        setParksAcknowledgmentError(
+          'Unable to determine the county from the event address. Parks Acknowledgment cannot be enabled until the county is resolved.'
+        );
+      } else {
+        setParksAcknowledgmentCounty(county);
+        setHasChanges(true);
+      }
+    } catch (err) {
+      setParksAcknowledgmentRequired(false);
+      setParksAcknowledgmentCounty(null);
+      setParksAcknowledgmentError(
+        'Unable to determine the county from the event address. Parks Acknowledgment cannot be enabled until the county is resolved.'
+      );
+    } finally {
+      setParksAcknowledgmentResolving(false);
+    }
+  }, [parksAcknowledgmentRequired, editedOrder, order]);
 
   const handleClose = useCallback(() => {
     if (hasChanges) {
@@ -725,6 +860,11 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
                 setSameDayWeekdayDeliveryFeeWaiveReason(reason);
                 setHasChanges(true);
               }}
+              parksAcknowledgmentRequired={parksAcknowledgmentRequired}
+              parksAcknowledgmentCounty={parksAcknowledgmentCounty}
+              parksAcknowledgmentError={parksAcknowledgmentError}
+              parksAcknowledgmentResolving={parksAcknowledgmentResolving}
+              onParksAcknowledgmentToggle={handleParksAcknowledgmentToggle}
               depositCatchupMode={depositCatchupMode}
               onDepositCatchupModeChange={setDepositCatchupMode}
               onStatusChange={initiateStatusChange}

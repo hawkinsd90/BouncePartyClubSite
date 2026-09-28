@@ -129,31 +129,22 @@ export const WAIVER_TEXT = generateWaiverText({
 
 // ---- Per-order custom waiver sections ----------------------------------------
 
-// Orders requiring a Wayne County / Wayne County Parks liability disclaimer.
-// Only these orders get the additional section appended to their waiver text.
-const WAYNE_COUNTY_ORDER_IDS = [
-  '4ae9723c-936f-4155-ad93-2e47ef844feb',
-];
+export function buildParksAcknowledgmentSection(countyName: string): string {
+  const countyUpper = countyName.toUpperCase();
+  return `15. ${countyUpper} COUNTY PARKS ACKNOWLEDGMENT
 
-export function isWayneCountyOrder(orderId: string): boolean {
-  return WAYNE_COUNTY_ORDER_IDS.includes(orderId);
+The inflatable equipment is provided, installed, and operated solely by Bounce Party Club LLC and not by ${countyName} County or ${countyName} County Parks.
+
+The renter acknowledges that ${countyName} County and ${countyName} County Parks are not responsible for the operation, supervision, maintenance, or use of the inflatable equipment.
+
+Nothing in this Agreement shall be construed as creating any duty or responsibility on the part of ${countyName} County or ${countyName} County Parks for the operation, supervision, maintenance, or use of the inflatable equipment.`;
 }
 
-export function buildWayneCountySection(): string {
-  return `15. WAYNE COUNTY PARKS ACKNOWLEDGMENT
-
-The inflatable equipment is provided, installed, and operated solely by Bounce Party Club LLC and not by Wayne County or Wayne County Parks.
-
-The renter acknowledges that Wayne County and Wayne County Parks are not responsible for the operation, supervision, maintenance, or use of the inflatable equipment.
-
-Nothing in this Agreement shall be construed as creating any duty or responsibility on the part of Wayne County or Wayne County Parks for the operation, supervision, maintenance, or use of the inflatable equipment.`;
-}
-
-// Append the Wayne County section (section 15) to the standard waiver text.
-export function generateWaiverTextWithWayneCounty(
+export function generateWaiverTextWithParksAcknowledgment(
   business: BusinessSettings,
+  countyName: string,
 ): string {
-  return `${generateWaiverText(business)}\n\n${buildWayneCountySection()}`;
+  return `${generateWaiverText(business)}\n\n${buildParksAcknowledgmentSection(countyName)}`;
 }
 
 export const INITIALS_REQUIRED = [

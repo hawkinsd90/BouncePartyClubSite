@@ -89,6 +89,93 @@ interface UpsertAddressParams {
   lng?: number | null;
 }
 
+/**
+ * Reverse-geocode lat/lng to obtain the county name.
+ * Uses the browser-side Google Maps Geocoder (already loaded by the app).
+ * Returns the county with any trailing " County" stripped, or null on failure.
+ */
+export async function reverseGeocodeCounty(lat: number, lng: number): Promise<string | null> {
+  if (typeof window === 'undefined') return null;
+
+  const g = (window as any).google;
+  if (!g?.maps?.Geocoder) {
+    console.warn('[addressService] Google Maps Geocoder unavailable for reverse geocode.');
+    return null;
+  }
+
+  return new Promise((resolve) => {
+    try {
+      const geocoder = new g.maps.Geocoder();
+      geocoder.geocode(
+        { location: { lat, lng } },
+        (results: any[], status: string) => {
+          if (status === 'OK' && results?.length) {
+            const countyComponent = results[0].address_components?.find(
+              (c: any) => c.types.includes('administrative_area_level_2')
+            );
+            const countyRaw = countyComponent?.long_name || '';
+            const county = countyRaw.replace(/\s+County$/i, '').trim();
+            resolve(county || null);
+          } else {
+            console.warn(`[addressService] Reverse geocode failed — status: ${status}.`);
+            resolve(null);
+          }
+        }
+      );
+    } catch (err) {
+      console.warn('[addressService] Reverse geocoder threw unexpectedly.', err);
+      resolve(null);
+    }
+  });
+}
+
+/**
+ * Forward-geocode an address string to obtain the county name.
+ * Uses the browser-side Google Maps Geocoder.
+ * Returns the county with any trailing " County" stripped, or null on failure.
+ */
+export async function forwardGeocodeCounty(
+  line1: string,
+  city: string,
+  state: string,
+  zip: string
+): Promise<string | null> {
+  if (typeof window === 'undefined') return null;
+
+  const g = (window as any).google;
+  if (!g?.maps?.Geocoder) {
+    console.warn('[addressService] Google Maps Geocoder unavailable for forward geocode.');
+    return null;
+  }
+
+  const address = `${line1}, ${city}, ${state} ${zip}`;
+
+  return new Promise((resolve) => {
+    try {
+      const geocoder = new g.maps.Geocoder();
+      geocoder.geocode(
+        { address, componentRestrictions: { country: 'us' } },
+        (results: any[], status: string) => {
+          if (status === 'OK' && results?.length) {
+            const countyComponent = results[0].address_components?.find(
+              (c: any) => c.types.includes('administrative_area_level_2')
+            );
+            const countyRaw = countyComponent?.long_name || '';
+            const county = countyRaw.replace(/\s+County$/i, '').trim();
+            resolve(county || null);
+          } else {
+            console.warn(`[addressService] Forward geocode failed for "${address}" — status: ${status}.`);
+            resolve(null);
+          }
+        }
+      );
+    } catch (err) {
+      console.warn('[addressService] Forward geocoder threw unexpectedly.', err);
+      resolve(null);
+    }
+  });
+}
+
 export async function upsertCanonicalAddress(params: UpsertAddressParams): Promise<{ id: string }> {
   let { customer_id, line1, line2, city, state, zip, lat, lng } = params;
   const key = buildAddressKey(line1, city, state, zip);

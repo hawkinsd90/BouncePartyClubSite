@@ -10,8 +10,7 @@ import {
   WAIVER_VERSION,
   INITIALS_REQUIRED,
   ELECTRONIC_CONSENT_TEXT,
-  isWayneCountyOrder,
-  generateWaiverTextWithWayneCounty,
+  generateWaiverTextWithParksAcknowledgment,
 } from '../lib/waiverContent';
 import { useBusinessSettings } from '../contexts/BusinessContext';
 
@@ -20,6 +19,8 @@ interface OrderData {
   customer_id: string;
   event_date: string;
   event_end_date: string | null;
+  parks_acknowledgment_required: boolean;
+  parks_acknowledgment_county: string | null;
   customer: {
     first_name: string;
     last_name: string;
@@ -75,10 +76,10 @@ export default function Sign() {
   const [effectiveWaiverText, setEffectiveWaiverText] = useState(WAIVER_TEXT);
   const businessSettings = useBusinessSettings();
 
-  // Build order-specific waiver text. For orders requiring a Wayne County
-  // liability disclaimer, append section 15 to the standard waiver text.
+  // Build order-specific waiver text. For orders requiring a Parks
+  // Acknowledgment section, append section 15 with the order's county.
   useEffect(() => {
-    if (orderId && isWayneCountyOrder(orderId)) {
+    if (order?.parks_acknowledgment_required && order?.parks_acknowledgment_county) {
       const fallbackSettings = {
         business_name: 'Bounce Party Club',
         business_name_short: 'Bounce Party Club',
@@ -90,12 +91,15 @@ export default function Sign() {
         business_license_number: '',
       };
       setEffectiveWaiverText(
-        generateWaiverTextWithWayneCounty(businessSettings ?? fallbackSettings),
+        generateWaiverTextWithParksAcknowledgment(
+          businessSettings ?? fallbackSettings,
+          order.parks_acknowledgment_county,
+        ),
       );
     } else {
       setEffectiveWaiverText(WAIVER_TEXT);
     }
-  }, [orderId, businessSettings]);
+  }, [order, businessSettings]);
 
   useEffect(() => {
     if (orderId) trackEvent('waiver_link_opened', { orderId });
@@ -116,6 +120,8 @@ export default function Sign() {
           event_end_date,
           waiver_signed_at,
           signed_waiver_url,
+          parks_acknowledgment_required,
+          parks_acknowledgment_county,
           customer:customers(*),
           address:addresses(*)
         `)

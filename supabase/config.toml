@@ -1,0 +1,2 @@
+[functions.generate-blank-waiver]
+verify_jwt = false
