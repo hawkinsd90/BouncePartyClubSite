@@ -29,6 +29,8 @@ interface SaveOrderChangesParams {
   generatorFeeWaiveReason?: string;
   sameDayWeekdayDeliveryFeeWaived?: boolean;
   sameDayWeekdayDeliveryFeeWaiveReason?: string;
+  parksAcknowledgmentRequired?: boolean;
+  parksAcknowledgmentCounty?: string | null;
   depositCatchupMode?: 'require' | 'waive';
   requireCardOnFile?: boolean;
   logChangeFn: (field: string, oldValue: any, newValue: any, action?: 'update' | 'add' | 'remove') => Promise<void>;
@@ -42,6 +44,8 @@ export async function saveOrderChanges({
   taxWaived, taxWaiveReason, travelFeeWaived, travelFeeWaiveReason,
   sameDayPickupFeeWaived, sameDayPickupFeeWaiveReason, surfaceFeeWaived, surfaceFeeWaiveReason,
   generatorFeeWaived, generatorFeeWaiveReason, sameDayWeekdayDeliveryFeeWaived, sameDayWeekdayDeliveryFeeWaiveReason,
+  parksAcknowledgmentRequired,
+  parksAcknowledgmentCounty,
   depositCatchupMode, requireCardOnFile, logChangeFn, sendNotificationsFn, onComplete,
 }: SaveOrderChangesParams): Promise<void> {
   if (availabilityIssues.length > 0) {
@@ -284,6 +288,24 @@ export async function saveOrderChanges({
   }
   if (sameDayWeekdayDeliveryFeeWaiveReason !== undefined && sameDayWeekdayDeliveryFeeWaiveReason !== (order.same_day_weekday_delivery_fee_waive_reason || '')) {
     changes.same_day_weekday_delivery_fee_waive_reason = sameDayWeekdayDeliveryFeeWaiveReason || null;
+  }
+
+  // Handle parks acknowledgment changes
+  if (parksAcknowledgmentRequired !== undefined && parksAcknowledgmentRequired !== (order.parks_acknowledgment_required || false)) {
+    changes.parks_acknowledgment_required = parksAcknowledgmentRequired;
+    logs.push(['parks_acknowledgment_required', order.parks_acknowledgment_required || false, parksAcknowledgmentRequired]);
+  }
+
+  if (parksAcknowledgmentRequired) {
+    if (parksAcknowledgmentCounty && parksAcknowledgmentCounty !== (order.parks_acknowledgment_county || null)) {
+      changes.parks_acknowledgment_county = parksAcknowledgmentCounty;
+      logs.push(['parks_acknowledgment_county', order.parks_acknowledgment_county || '', parksAcknowledgmentCounty]);
+    }
+  } else {
+    if (order.parks_acknowledgment_county) {
+      changes.parks_acknowledgment_county = null;
+      logs.push(['parks_acknowledgment_county', order.parks_acknowledgment_county, '']);
+    }
   }
 
   let shouldClearPayment = false;

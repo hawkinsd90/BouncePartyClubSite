@@ -18,14 +18,11 @@ const corsHeaders = {
   "Access-Control-Expose-Headers": "Content-Disposition",
 };
 
-// Order that requires the additional Wayne County / Wayne County Parks section.
-const WAYNE_COUNTY_ORDER_ID = "4ae9723c-936f-4155-ad93-2e47ef844feb";
-
 // IMPORTANT: This function must stay in sync with src/lib/waiverContent.ts generateWaiverText().
 // The digital signing flow stores a snapshot of that text at signing time. If these diverge,
 // the blank waiver shown to customers will not match what they ultimately sign electronically.
 // When updating either copy, update BOTH files.
-function generateWaiverText(businessName: string, businessLegalEntity: string, businessAddress: string, businessPhone: string, businessEmail: string, orderId: string): string {
+function generateWaiverText(businessName: string, businessLegalEntity: string, businessAddress: string, businessPhone: string, businessEmail: string, parksAcknowledgmentRequired: boolean, parksAcknowledgmentCounty: string | null): string {
   const baseText = `${businessLegalEntity}
 ${businessAddress} | ${businessPhone} | ${businessEmail}
 
@@ -130,22 +127,17 @@ If I am not the parent or legal guardian of participating minors, I affirm I hav
 
 ${businessName} does not provide medical or liability insurance for injuries sustained while using the equipment.`;
 
-  if (orderId === WAYNE_COUNTY_ORDER_ID) {
-    // NOTE: The section header must be UPPERCASE LETTERS AND SPACES ONLY.
-    // The frontend Sign page detects section headers with the regex
-    //   /^\d+\.\s+[A-Z\s]+$/
-    // and renders matching lines in bold. Punctuation like an em dash (—)
-    // would break that match and the header would render as normal text.
-    // "INDEPENDENT PROVIDER" is therefore placed in the first body paragraph.
+  if (parksAcknowledgmentRequired && parksAcknowledgmentCounty) {
+    const countyUpper = parksAcknowledgmentCounty.toUpperCase();
     return baseText + `
 
-15. WAYNE COUNTY PARKS ACKNOWLEDGMENT
+15. ${countyUpper} COUNTY PARKS ACKNOWLEDGMENT
 
-INDEPENDENT PROVIDER: The inflatable equipment is provided, installed, and operated solely by Bounce Party Club LLC and not by Wayne County or Wayne County Parks.
+The inflatable equipment is provided, installed, and operated solely by Bounce Party Club LLC and not by ${parksAcknowledgmentCounty} County or ${parksAcknowledgmentCounty} County Parks.
 
-The renter acknowledges that Wayne County and Wayne County Parks are not responsible for the operation, supervision, maintenance, or use of the inflatable equipment.
+The renter acknowledges that ${parksAcknowledgmentCounty} County and ${parksAcknowledgmentCounty} County Parks are not responsible for the operation, supervision, maintenance, or use of the inflatable equipment.
 
-Nothing in this Agreement shall be construed as creating any duty or responsibility on the part of Wayne County or Wayne County Parks for the operation, supervision, maintenance, or use of the inflatable equipment.`;
+Nothing in this Agreement shall be construed as creating any duty or responsibility on the part of ${parksAcknowledgmentCounty} County or ${parksAcknowledgmentCounty} County Parks for the operation, supervision, maintenance, or use of the inflatable equipment.`;
   }
 
   return baseText;
@@ -195,7 +187,7 @@ Deno.serve(async (req: Request) => {
 
     const { data: order, error: orderError } = await supabaseClient
       .from("orders")
-      .select("id, customers(first_name, last_name), addresses(line1, city, state), event_date")
+      .select("id, parks_acknowledgment_required, parks_acknowledgment_county, customers(first_name, last_name), addresses(line1, city, state), event_date")
       .eq("id", orderId)
       .maybeSingle();
 
@@ -227,7 +219,7 @@ Deno.serve(async (req: Request) => {
       [businessAddress, businessPhone, businessEmail].filter(Boolean).join(" | "),
     ].filter(Boolean).join("  ");
 
-    const waiverText = generateWaiverText(businessName, businessLegalEntity, businessAddress, businessPhone, businessEmail, orderId);
+    const waiverText = generateWaiverText(businessName, businessLegalEntity, businessAddress, businessPhone, businessEmail, order.parks_acknowledgment_required ?? false, order.parks_acknowledgment_county ?? null);
 
     const customer = order.customers as any;
     const address = order.addresses as any;
@@ -254,7 +246,7 @@ Deno.serve(async (req: Request) => {
     const pageWidth = doc.internal.pageSize.getWidth();
     const pageHeight = doc.internal.pageSize.getHeight();
     const maxWidth = pageWidth - 2 * MARGIN;
-    const contentMaxY = pageHeight - 18;
+    const contentMaxY = pageHeight - 15;
 
     // Render page 1 header; record where content starts
     let y = renderPageHeader(doc, MARGIN, logoDataUrl, logoExt, businessInfoLine);
@@ -278,19 +270,19 @@ Deno.serve(async (req: Request) => {
         y += 2;
       }
 
-      doc.setFontSize(9);
+      doc.setFontSize(8.5);
       doc.setFont("helvetica", "normal");
       doc.setTextColor(0, 0, 0);
 
       for (const para of block.paragraphs) {
         const lines = doc.splitTextToSize(para, maxWidth);
-        ensureSpace(lines.length * 4.5 + 4);
+        ensureSpace(lines.length * 4.1 + 3);
         for (const line of lines) {
           if (y > contentMaxY) addPage();
           doc.text(line, MARGIN, y);
-          y += 4.5;
+          y += 4.1;
         }
-        y += 3;
+        y += 2.5;
       }
 
       // Blank initials + date field after sections 6, 8, 9
@@ -311,18 +303,18 @@ Deno.serve(async (req: Request) => {
     }
 
     // Signature block
-    ensureSpace(60);
-    y += 4;
+    ensureSpace(28);
+    y += 2;
     doc.setDrawColor(0, 0, 0);
     doc.line(MARGIN, y, pageWidth - MARGIN, y);
-    y += 8;
+    y += 5;
 
-    doc.setFontSize(12);
+    doc.setFontSize(11);
     doc.setFont("helvetica", "bold");
     doc.text("SIGNATURE AND ACCEPTANCE", pageWidth / 2, y, { align: "center" });
-    y += 10;
+    y += 7;
 
-    doc.setFontSize(10);
+    doc.setFontSize(9);
     doc.setFont("helvetica", "normal");
     doc.text("Full Legal Name:", MARGIN, y);
     if (signerName !== "Unknown") {
@@ -332,7 +324,7 @@ Deno.serve(async (req: Request) => {
     } else {
       doc.line(MARGIN + 45, y + 1, pageWidth - MARGIN, y + 1);
     }
-    y += 10;
+    y += 7;
     doc.text("Signature:", MARGIN, y);
     doc.line(MARGIN + 30, y + 1, pageWidth - MARGIN - 50, y + 1);
     doc.text("Date:", pageWidth - MARGIN - 45, y);

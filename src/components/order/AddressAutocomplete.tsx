@@ -8,6 +8,7 @@ interface AddressResult {
   zip: string;
   lat: number;
   lng: number;
+  county?: string;
 }
 
 interface AddressAutocompleteProps {
@@ -96,6 +97,11 @@ export function AddressAutocomplete({
             )?.short_name || '';
           const zip =
             addressComponents.find((c: any) => c.types.includes('postal_code'))?.long_name || '';
+          const countyRaw =
+            addressComponents.find((c: any) =>
+              c.types.includes('administrative_area_level_2')
+            )?.long_name || '';
+          const county = countyRaw.replace(/\s+County$/i, '').trim() || '';
 
           const result: AddressResult = {
             formatted_address: place.formatted_address || '',
@@ -105,6 +111,7 @@ export function AddressAutocomplete({
             zip,
             lat: place.geometry.location.lat(),
             lng: place.geometry.location.lng(),
+            county: county || undefined,
           };
 
           // console.log('[AddressAutocomplete] Parsed address result:', result);
