@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
-import { X, Truck, MessageSquare, FileText, History, Save, CreditCard } from 'lucide-react';
+import { X, Save } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { format } from 'date-fns';
 import { checkMultipleUnitsAvailability } from '../../lib/availability';
@@ -15,6 +15,8 @@ import { OrderWorkflowTab } from '../order-detail/OrderWorkflowTab';
 import { OrderChangelogTab } from '../order-detail/OrderChangelogTab';
 import { OrderDetailsTab } from '../order-detail/OrderDetailsTab';
 import { PaymentsTab } from '../order-detail/PaymentsTab';
+import { OrderDetailTabNav, type OrderDetailSection } from './order-detail-modal/OrderDetailTabNav';
+import { GeneratorLegacyConfirmDialogs } from './order-detail-modal/GeneratorLegacyConfirmDialogs';
 import { usePricing } from '../../hooks/usePricing';
 import { useOrderDetails } from '../../hooks/useOrderDetails';
 import { saveOrderChanges } from '../../lib/orderSaveService';
@@ -80,7 +82,7 @@ export interface StagedItem {
 }
 
 export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalProps) {
-  const [activeSection, setActiveSection] = useState<'details' | 'workflow' | 'notes' | 'changelog' | 'payments'>('details');
+  const [activeSection, setActiveSection] = useState<OrderDetailSection>('details');
   const [orderItems, setOrderItems] = useState<any[]>([]);
   const [changelog, setChangelog] = useState<any[]>([]);
   const [notes] = useState<any[]>([]);
@@ -1453,44 +1455,7 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
           </div>
         </div>
 
-        <div className="px-3 md:px-6 py-3 md:py-4 border-b border-slate-200 bg-slate-50">
-          {/* Mobile Dropdown */}
-          <div className="md:hidden">
-            <select
-              value={activeSection}
-              onChange={(e) => setActiveSection(e.target.value as any)}
-              className="w-full px-3 py-2 bg-white border-2 border-slate-300 rounded-lg text-slate-900 font-medium focus:outline-none focus:border-blue-500"
-            >
-              <option value="details">Details</option>
-              <option value="workflow">Workflow</option>
-              <option value="payments">Payments</option>
-              <option value="notes">Notes</option>
-              <option value="changelog">Changelog</option>
-            </select>
-          </div>
-
-          {/* Desktop Tabs */}
-          <div className="hidden md:flex space-x-1">
-            {(['details', 'workflow', 'payments', 'notes', 'changelog'] as const).map(section => (
-              <button
-                key={section}
-                onClick={() => setActiveSection(section)}
-                className={`px-4 py-2 font-medium rounded-t-lg transition-colors ${
-                  activeSection === section
-                    ? 'bg-blue-50 text-blue-700 border-b-2 border-blue-700'
-                    : 'text-slate-600 hover:bg-slate-50'
-                }`}
-              >
-                {section === 'details' && <FileText className="w-4 h-4 inline mr-2" />}
-                {section === 'workflow' && <Truck className="w-4 h-4 inline mr-2" />}
-                {section === 'payments' && <CreditCard className="w-4 h-4 inline mr-2" />}
-                {section === 'notes' && <MessageSquare className="w-4 h-4 inline mr-2" />}
-                {section === 'changelog' && <History className="w-4 h-4 inline mr-2" />}
-                {section.charAt(0).toUpperCase() + section.slice(1)}
-              </button>
-            ))}
-          </div>
-        </div>
+        <OrderDetailTabNav activeSection={activeSection} onChange={setActiveSection} />
 
         <div className="px-3 md:px-6 py-4 md:py-6 max-h-[calc(100vh-200px)] md:max-h-[calc(100vh-300px)] overflow-y-auto">
           {activeSection === 'details' && (
@@ -1671,56 +1636,12 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
         variant="warning"
       />
 
-      {generatorLegacyConfirm && !generatorLegacyConfirm.isWaived && (
-        <SimpleConfirmModal
-          isOpen={true}
-          onClose={handleGeneratorLegacyCancel}
-          onConfirm={handleGeneratorLegacyConfirm}
-          title="Add Legacy Generator"
-          message={`No Event Essentials Generator is available for this order. ${generatorLegacyConfirm.additionalQty === 1 ? '1 additional legacy Generator will be added' : `${generatorLegacyConfirm.additionalQty} additional legacy Generators will be added`}, and the aggregate legacy Generator fee will be recalculated using the current pricing rules.`}
-          confirmText="Add Generator"
-          cancelText="Cancel"
-          variant="info"
-        />
-      )}
-
-      {generatorLegacyConfirm && generatorLegacyConfirm.isWaived && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-xl shadow-xl max-w-md w-full border-2 border-orange-600">
-            <div className="flex items-center justify-between p-6 border-b border-slate-200">
-              <h2 className="text-xl font-bold text-slate-900">Generator Fee Waiver</h2>
-            </div>
-            <div className="p-6">
-              <p className="text-slate-700 mb-6">
-                No Event Essentials Generator is available. The existing Generator fee is currently waived. {generatorLegacyConfirm!.additionalQty === 1 ? '1 additional legacy Generator will be added' : `${generatorLegacyConfirm!.additionalQty} additional legacy Generators will be added`}. Adding a legacy Generator requires an explicit choice about the waiver.
-              </p>
-              <div className="space-y-3">
-                <button
-                  type="button"
-                  onClick={handleGeneratorLegacyConfirm}
-                  className="w-full px-4 py-2 bg-orange-600 hover:bg-orange-700 text-white rounded-lg font-medium transition-colors"
-                >
-                  Keep Generator Fee Waived
-                </button>
-                <button
-                  type="button"
-                  onClick={handleGeneratorLegacyRemoveWaiver}
-                  className="w-full px-4 py-2 bg-slate-600 hover:bg-slate-700 text-white rounded-lg font-medium transition-colors"
-                >
-                  Remove Generator Fee Waiver
-                </button>
-                <button
-                  type="button"
-                  onClick={handleGeneratorLegacyCancel}
-                  className="w-full px-4 py-2 border border-slate-300 rounded-lg text-slate-700 font-medium hover:bg-slate-50 transition-colors"
-                >
-                  Cancel
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
+      <GeneratorLegacyConfirmDialogs
+        pending={generatorLegacyConfirm}
+        onConfirm={handleGeneratorLegacyConfirm}
+        onRemoveWaiver={handleGeneratorLegacyRemoveWaiver}
+        onCancel={handleGeneratorLegacyCancel}
+      />
     </div>
   );
 }
