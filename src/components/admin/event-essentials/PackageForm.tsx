@@ -32,25 +32,17 @@ import {
   type AdminImageUploadHandle,
   type UploadedImage,
 } from './AdminImageUpload';
-
-const MAX_INT = 2147483647;
-const QTY_REGEX = /^[0-9]+$/;
-
-interface EditableComponentRow {
-  product_id: string;
-  quantity_input: string;
-}
-
-interface EditableInflatableRow {
-  unit_id: string;
-  quantity_input: string;
-  selection_mode: PackageInflatableSelectionMode;
-}
-
-type PackageFormState = Omit<PackageAdminFormData, 'components' | 'inflatable_components'> & {
-  components: EditableComponentRow[];
-  inflatable_components: EditableInflatableRow[];
-};
+import {
+  MAX_INT,
+  QTY_REGEX,
+  deriveAvailable,
+  unitSupportsWater,
+  unitSupportsBoth,
+  unitStatus,
+  type EditableComponentRow,
+  type EditableInflatableRow,
+  type PackageFormState,
+} from './package-form/packageFormModel';
 
 interface PackageFormProps {
   bundle: ProductBundleWithConfiguration | null;
@@ -60,11 +52,6 @@ interface PackageFormProps {
   nextSortOrder: number;
   onClose: () => void;
   onSaved: () => void;
-}
-
-function deriveAvailable(bundle: ProductBundleWithConfiguration | null): boolean {
-  if (!bundle) return true;
-  return bundle.active && bundle.public_visible;
 }
 
 function initialFormData(
@@ -112,18 +99,6 @@ function initialFormData(
     eligible_unit_ids: [],
     inflatable_components: [],
   };
-}
-
-function unitSupportsWater(unit: AdminInflatableUnit): boolean {
-  return unit.price_water_cents !== null && unit.price_water_cents !== undefined;
-}
-
-function unitSupportsBoth(unit: AdminInflatableUnit): boolean {
-  return unitSupportsWater(unit) && unit.price_dry_cents !== null;
-}
-
-function unitStatus(unit: AdminInflatableUnit): string {
-  return unit.active ? '' : ' (Inactive)';
 }
 
 export function PackageForm({
