@@ -1,14 +1,11 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
-import { X, Save } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
-import { format } from 'date-fns';
 import { checkMultipleUnitsAvailability } from '../../lib/availability';
 import { buildEventEssentialAvailabilityRequestFromOrderItems, validateAvailabilityResult } from '../../lib/eeOrderItemAvailability';
 import { checkProductAvailability } from '../../lib/queries/products';
 import { formatOrderSummary, type OrderSummaryData } from '../../lib/orderSummary';
 import { calculateDrivingDistance } from '../../lib/pricing';
 import { HOME_BASE } from '../../lib/constants';
-import { formatOrderId } from '../../lib/utils';
 import { StatusChangeDialog } from '../order-detail/StatusChangeDialog';
 import { OrderNotesTab } from '../order-detail/OrderNotesTab';
 import { OrderWorkflowTab } from '../order-detail/OrderWorkflowTab';
@@ -16,6 +13,7 @@ import { OrderChangelogTab } from '../order-detail/OrderChangelogTab';
 import { OrderDetailsTab } from '../order-detail/OrderDetailsTab';
 import { PaymentsTab } from '../order-detail/PaymentsTab';
 import { OrderDetailTabNav, type OrderDetailSection } from './order-detail-modal/OrderDetailTabNav';
+import { OrderDetailHeader } from './order-detail-modal/OrderDetailHeader';
 import { GeneratorLegacyConfirmDialogs } from './order-detail-modal/GeneratorLegacyConfirmDialogs';
 import { usePricing } from '../../hooks/usePricing';
 import { useOrderDetails } from '../../hooks/useOrderDetails';
@@ -1411,49 +1409,19 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-0 md:p-4 overflow-y-auto">
       <div className="bg-white md:rounded-lg max-w-6xl w-full min-h-screen md:min-h-0 md:my-8">
-        <div className="sticky top-0 bg-white border-b border-slate-200 px-3 md:px-6 py-3 md:py-4 flex items-center justify-between md:rounded-t-lg z-10">
-          <div className="flex-1 min-w-0">
-            <h2 className="text-lg md:text-2xl font-bold text-slate-900 truncate">
-              Order #{formatOrderId(order.id)}
-            </h2>
-            <p className="text-xs md:text-sm text-slate-600 truncate">
-              {order.customers?.first_name} {order.customers?.last_name} • {format(new Date(order.event_date + 'T12:00:00'), 'MMM d, yyyy')}
-            </p>
-          </div>
-          <div className="flex items-center gap-1 md:gap-2 shrink-0">
-            {hasChanges && (
-              <>
-                {order.status !== ORDER_STATUS.DRAFT && (
-                  <label className="flex items-center gap-1.5 bg-amber-50 border border-amber-300 text-amber-900 px-2 md:px-3 py-1.5 md:py-2 rounded-lg text-xs md:text-sm font-medium cursor-pointer hover:bg-amber-100">
-                    <input
-                      type="checkbox"
-                      checked={adminOverrideApproval}
-                      onChange={(e) => setAdminOverrideApproval(e.target.checked)}
-                      className="w-3.5 h-3.5 md:w-4 md:h-4"
-                    />
-                    <span className="hidden lg:inline">Skip Customer Approval</span>
-                    <span className="lg:hidden">Skip Approval</span>
-                  </label>
-                )}
-                <button
-                  onClick={handleSaveChanges}
-                  disabled={saving || !pricingIsCurrent || generatorResolutionPending || generatorLegacyConfirm !== null}
-                  className="flex items-center gap-1 md:gap-2 bg-green-600 hover:bg-green-700 text-white px-2 md:px-4 py-1.5 md:py-2 rounded-lg text-sm md:text-base font-medium disabled:opacity-50"
-                >
-                  <Save className="w-3.5 h-3.5 md:w-4 md:h-4" />
-                  <span className="hidden sm:inline">{saving ? 'Saving...' : pricingPending ? 'Calculating...' : generatorResolutionPending ? 'Resolving...' : 'Save Changes'}</span>
-                  <span className="sm:hidden">{saving ? '...' : pricingPending ? '...' : generatorResolutionPending ? '...' : 'Save'}</span>
-                </button>
-              </>
-            )}
-            <button
-              onClick={handleClose}
-              className="text-slate-400 hover:text-slate-600 p-1"
-            >
-              <X className="w-5 h-5 md:w-6 md:h-6" />
-            </button>
-          </div>
-        </div>
+        <OrderDetailHeader
+          order={order}
+          hasChanges={hasChanges}
+          adminOverrideApproval={adminOverrideApproval}
+          onAdminOverrideApprovalChange={setAdminOverrideApproval}
+          saving={saving}
+          pricingPending={pricingPending}
+          pricingIsCurrent={pricingIsCurrent}
+          generatorResolutionPending={generatorResolutionPending}
+          generatorConfirmOpen={generatorLegacyConfirm !== null}
+          onSave={handleSaveChanges}
+          onClose={handleClose}
+        />
 
         <OrderDetailTabNav activeSection={activeSection} onChange={setActiveSection} />
 
