@@ -93,23 +93,23 @@ export function Layout() {
               </span>
             </Link>
 
-            <nav className="hidden md:flex items-center space-x-8">
+            <nav className="hidden md:flex min-w-0 flex-1 items-center justify-center space-x-4 lg:space-x-6 xl:space-x-8">
               <Link
                 to="/catalog"
-                className="text-slate-700 hover:text-blue-600 font-medium transition-colors"
+                className="whitespace-nowrap text-sm xl:text-base text-slate-700 hover:text-blue-600 font-medium transition-colors"
               >
                 Inflatables
               </Link>
               <Link
                 to="/contact"
-                className="text-slate-700 hover:text-blue-600 font-medium transition-colors"
+                className="whitespace-nowrap text-sm xl:text-base text-slate-700 hover:text-blue-600 font-medium transition-colors"
               >
                 Get Quote
               </Link>
               {eventEssentialsEnabled && (
                 <Link
                   to="/event-essentials"
-                  className="text-slate-700 hover:text-blue-600 font-medium transition-colors"
+                  className="whitespace-nowrap text-sm xl:text-base text-slate-700 hover:text-blue-600 font-medium transition-colors"
                 >
                   Party Add-Ons
                 </Link>
@@ -118,21 +118,21 @@ export function Layout() {
                 <Link
                   key={group.id}
                   to={`/event-essentials?categories=${group.category_slugs.join(',')}`}
-                  className="text-slate-700 hover:text-blue-600 font-medium transition-colors"
+                  className="whitespace-nowrap text-sm xl:text-base text-slate-700 hover:text-blue-600 font-medium transition-colors"
                 >
                   {group.title}
                 </Link>
               ))}
               <Link
                 to="/about"
-                className="text-slate-700 hover:text-blue-600 font-medium transition-colors"
+                className="whitespace-nowrap text-sm xl:text-base text-slate-700 hover:text-blue-600 font-medium transition-colors"
               >
                 About Us
               </Link>
               {user && (
                 <Link
                   to="/my-orders"
-                  className="text-slate-700 hover:text-blue-600 font-medium transition-colors"
+                  className="whitespace-nowrap text-sm xl:text-base text-slate-700 hover:text-blue-600 font-medium transition-colors"
                 >
                   My Orders
                 </Link>
@@ -140,7 +140,7 @@ export function Layout() {
               {isAdmin && (
                 <Link
                   to="/admin"
-                  className="text-slate-700 hover:text-blue-600 font-medium transition-colors"
+                  className="whitespace-nowrap text-sm xl:text-base text-slate-700 hover:text-blue-600 font-medium transition-colors"
                 >
                   Admin
                 </Link>
@@ -148,7 +148,7 @@ export function Layout() {
               {(isAdmin || hasRole('CREW')) && (
                 <Link
                   to="/crew"
-                  className="text-slate-700 hover:text-blue-600 font-medium transition-colors"
+                  className="whitespace-nowrap text-sm xl:text-base text-slate-700 hover:text-blue-600 font-medium transition-colors"
                 >
                   Crew
                 </Link>
@@ -158,7 +158,7 @@ export function Layout() {
             <div className="flex items-center space-x-2 sm:space-x-4">
               <a
                 href={`tel:${businessPhone.replace(/\D/g, '')}`}
-                className="hidden lg:flex items-center text-slate-600 hover:text-blue-600 transition-colors min-h-[44px]"
+                className="hidden xl:flex items-center text-slate-600 hover:text-blue-600 transition-colors min-h-[44px]"
               >
                 <Phone className="w-5 h-5 mr-2" />
                 <span className="font-medium">{businessPhone}</span>
@@ -166,7 +166,7 @@ export function Layout() {
               <div className="hidden md:flex items-center space-x-4">
                 {user ? (
                   <div className="flex items-center space-x-3">
-                    <span className="text-sm text-slate-600 font-medium">
+                    <span className="hidden xl:inline text-sm text-slate-600 font-medium">
                       {user.email}
                     </span>
                     <button
@@ -174,7 +174,7 @@ export function Layout() {
                       className="flex items-center text-slate-600 hover:text-blue-600 transition-colors min-h-[44px] px-2"
                     >
                       <LogOut className="w-5 h-5 mr-2" />
-                      <span className="font-medium">Sign Out</span>
+                      <span className="hidden xl:inline font-medium">Sign Out</span>
                     </button>
                   </div>
                 ) : (
@@ -183,7 +183,7 @@ export function Layout() {
                     className="flex items-center text-slate-600 hover:text-blue-600 transition-colors min-h-[44px] px-2"
                   >
                     <LogIn className="w-5 h-5 mr-2" />
-                    <span className="font-medium">Login</span>
+                    <span className="hidden xl:inline font-medium">Login</span>
                   </Link>
                 )}
               </div>

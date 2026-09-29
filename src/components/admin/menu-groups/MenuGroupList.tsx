@@ -1,10 +1,12 @@
-import { Plus, Pencil, Trash2, ChevronUp, ChevronDown } from 'lucide-react';
+import { Plus, Pencil, Trash2, ChevronUp, ChevronDown, AlertCircle } from 'lucide-react';
 import type { MenuGroup, AdminProductCategory } from './useMenuGroupsData';
 
 interface MenuGroupListProps {
   groups: MenuGroup[];
   categories: AdminProductCategory[];
   loading: boolean;
+  error: string | null;
+  onRetry: () => void;
   onCreate: () => void;
   onEdit: (group: MenuGroup) => void;
   onDelete: (id: string) => void;
@@ -15,6 +17,8 @@ export function MenuGroupList({
   groups,
   categories,
   loading,
+  error,
+  onRetry,
   onCreate,
   onEdit,
   onDelete,
@@ -49,7 +53,19 @@ export function MenuGroupList({
         inventory (more than 1 unit).
       </p>
 
-      {groups.length === 0 ? (
+      {error ? (
+        <div className="bg-red-50 border border-red-200 rounded-xl p-6 text-center">
+          <AlertCircle className="w-8 h-8 text-red-500 mx-auto mb-3" />
+          <p className="text-slate-800 font-medium mb-1">Unable to load Menu Groups.</p>
+          <p className="text-sm text-slate-500 mb-4">Please try again.</p>
+          <button
+            onClick={onRetry}
+            className="inline-flex items-center gap-1.5 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-lg text-sm transition-colors"
+          >
+            Retry
+          </button>
+        </div>
+      ) : groups.length === 0 ? (
         <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-8 text-center">
           <p className="text-slate-600 mb-1">No menu groups configured yet.</p>
           <p className="text-sm text-slate-500">

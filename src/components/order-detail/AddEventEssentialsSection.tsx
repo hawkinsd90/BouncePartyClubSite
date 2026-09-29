@@ -118,7 +118,7 @@ export function AddEventEssentialsSection({
       (pricingRes.data || []).forEach((p: any) => { pMap[p.product_id] = p; });
       setPricingConfigs(pMap);
     } catch (err: any) {
-      setError(err?.message || 'Failed to load Party Add-Ons catalog');
+      setError(err?.message || 'Failed to load Event Essentials catalog');
     } finally {
       setLoading(false);
     }
@@ -333,7 +333,7 @@ export function AddEventEssentialsSection({
       }
       const effectiveEndDate = eventEndDate || eventDate;
       if (!eventDate || !effectiveEndDate) {
-        setAvailabilityError('Please select the event dates before adding Party Add-Ons.');
+        setAvailabilityError('Please select the event dates before adding Event Essentials.');
         return;
       }
       const availResult = await checkProductAvailability(
@@ -425,7 +425,7 @@ export function AddEventEssentialsSection({
       }
       const effectiveEndDate = eventEndDate || eventDate;
       if (!eventDate || !effectiveEndDate) {
-        setAvailabilityError('Please select the event dates before adding Party Add-Ons.');
+        setAvailabilityError('Please select the event dates before adding Event Essentials.');
         return;
       }
       const availResult = await checkProductAvailability(
@@ -475,7 +475,7 @@ export function AddEventEssentialsSection({
 
   return (
     <div className="bg-white border border-slate-200 rounded-lg p-4 sm:p-6">
-      <h3 className="text-base sm:text-lg font-semibold text-slate-900 mb-4">Add Party Add-Ons</h3>
+      <h3 className="text-base sm:text-lg font-semibold text-slate-900 mb-4">Add Event Essentials</h3>
 
       {error && (
         <div className="mb-3 bg-red-50 border border-red-200 rounded-lg p-3">

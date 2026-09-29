@@ -4,7 +4,7 @@ import { MenuGroupList } from './MenuGroupList';
 import { MenuGroupForm } from './MenuGroupForm';
 
 export function MenuGroupsTab() {
-  const { groups, categories, loading, loadData, createGroup, updateGroup, deleteGroup, moveGroup } = useMenuGroupsData();
+  const { groups, categories, loading, error, loadData, saveGroup, deleteGroup, moveGroup } = useMenuGroupsData();
   const [showForm, setShowForm] = useState(false);
   const [editingGroup, setEditingGroup] = useState<MenuGroup | null>(null);
 
@@ -23,10 +23,13 @@ export function MenuGroupsTab() {
   }
 
   async function handleSave(title: string, categoryIds: string[], isEnabled: boolean) {
-    if (editingGroup) {
-      return updateGroup(editingGroup.id, title, categoryIds, isEnabled);
+    const id = editingGroup ? editingGroup.id : null;
+    const ok = await saveGroup(id, title, categoryIds, isEnabled);
+    if (ok) {
+      setShowForm(false);
+      setEditingGroup(null);
     }
-    return createGroup(title, categoryIds, isEnabled);
+    return ok;
   }
 
   return (
@@ -35,6 +38,8 @@ export function MenuGroupsTab() {
         groups={groups}
         categories={categories}
         loading={loading}
+        error={error}
+        onRetry={loadData}
         onCreate={handleCreate}
         onEdit={handleEdit}
         onDelete={deleteGroup}
