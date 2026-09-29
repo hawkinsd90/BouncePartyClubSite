@@ -130,7 +130,7 @@ export function SetupDetailsSection({ formData, onFormDataChange, generatorState
               </p>
               {directQty > 1 && (
                 <p className="text-xs text-slate-500 mt-2">
-                  {directQty} Generators in your cart. Adjust quantities on the Event Essentials page.
+                  {directQty} Generators in your cart. Adjust quantities on the Party Add-Ons page.
                 </p>
               )}
             </div>

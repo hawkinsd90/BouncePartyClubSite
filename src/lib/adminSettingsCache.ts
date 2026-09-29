@@ -178,6 +178,41 @@ export function clearAdminSettingsCache(key?: string) {
   }
 }
 
+// --- Public Menu Groups cache ---
+
+export interface PublicMenuGroup {
+  id: string;
+  title: string;
+  display_order: number;
+  category_slugs: string[];
+  qualifying_inventory_count: number;
+}
+
+let menuGroupsCache: { data: PublicMenuGroup[]; timestamp: number } | null = null;
+const MENU_GROUPS_CACHE_DURATION_MS = 5 * 60 * 1000;
+
+export async function getPublicMenuGroups(useCache = true): Promise<PublicMenuGroup[]> {
+  const now = Date.now();
+  if (useCache && menuGroupsCache && now - menuGroupsCache.timestamp < MENU_GROUPS_CACHE_DURATION_MS) {
+    return menuGroupsCache.data;
+  }
+
+  const { data, error } = await supabase.rpc('get_public_nav_menu_groups');
+
+  if (error || !data) {
+    console.error('Error fetching public menu groups:', error);
+    return [];
+  }
+
+  const result = (Array.isArray(data) ? data : []) as PublicMenuGroup[];
+  menuGroupsCache = { data: result, timestamp: now };
+  return result;
+}
+
+export function clearPublicMenuGroupsCache() {
+  menuGroupsCache = null;
+}
+
 export const ADMIN_SETTING_KEYS = {
   STRIPE_SECRET_KEY: 'stripe_secret_key',
   STRIPE_PUBLISHABLE_KEY: 'stripe_publishable_key',

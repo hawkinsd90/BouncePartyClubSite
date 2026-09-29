@@ -17,6 +17,7 @@ import { ChangelogTab } from '../components/admin/ChangelogTab';
 import { BusinessBrandingTab } from '../components/admin/BusinessBrandingTab';
 import { AddressCoordinateBackfill } from '../components/admin/AddressCoordinateBackfill';
 import { InventorySection } from '../components/admin/InventorySection';
+import { MenuGroupsTab } from '../components/admin/menu-groups/MenuGroupsTab';
 import { PricingSection } from '../components/admin/PricingSection';
 import { PerformanceAnalytics } from '../components/admin/PerformanceAnalytics';
 import { BusinessAnalytics } from '../components/admin/BusinessAnalytics';
@@ -387,6 +388,8 @@ function AdminDashboard() {
       )}
 
       {activeTab === 'inventory' && <InventorySection units={units as any} onRefetch={refetch} />}
+
+      {activeTab === 'menu_groups' && <MenuGroupsTab />}
 
       {activeTab === 'orders' && (
         <div className="bg-white rounded-2xl shadow-xl p-8 border-2 border-slate-100">

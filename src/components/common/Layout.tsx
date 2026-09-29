@@ -4,7 +4,7 @@ import { useAuth } from '../../contexts/AuthContext';
 import { SafeStorage } from '../../lib/safeStorage';
 import { useState, useEffect } from 'react';
 import { notifyError } from '../../lib/notifications';
-import { getPublicBusinessSettings } from '../../lib/adminSettingsCache';
+import { getPublicBusinessSettings, getPublicMenuGroups, type PublicMenuGroup } from '../../lib/adminSettingsCache';
 
 export function Layout() {
   const { user, isAdmin, hasRole, signOut } = useAuth();
@@ -17,6 +17,7 @@ export function Layout() {
   const [instagramUrl, setInstagramUrl] = useState('');
   const [facebookUrl, setFacebookUrl] = useState('');
   const [eventEssentialsEnabled, setEventEssentialsEnabled] = useState(false);
+  const [menuGroups, setMenuGroups] = useState<PublicMenuGroup[]>([]);
 
   useEffect(() => {
     getPublicBusinessSettings().then(settings => {
@@ -26,6 +27,13 @@ export function Layout() {
       if (settings.instagram_url) setInstagramUrl(settings.instagram_url);
       if (settings.facebook_url) setFacebookUrl(settings.facebook_url);
       setEventEssentialsEnabled(settings.event_essentials_page_enabled);
+      if (settings.event_essentials_page_enabled) {
+        getPublicMenuGroups().then(groups => {
+          setMenuGroups(groups.filter(g => g.qualifying_inventory_count > 1));
+        }).catch(err => {
+          console.error('Exception loading menu groups:', err);
+        });
+      }
     }).catch(err => {
       console.error('Exception loading business settings:', err);
     });
@@ -90,7 +98,7 @@ export function Layout() {
                 to="/catalog"
                 className="text-slate-700 hover:text-blue-600 font-medium transition-colors"
               >
-                Browse Inflatables
+                Inflatables
               </Link>
               <Link
                 to="/contact"
@@ -103,9 +111,18 @@ export function Layout() {
                   to="/event-essentials"
                   className="text-slate-700 hover:text-blue-600 font-medium transition-colors"
                 >
-                  Event Essentials
+                  Party Add-Ons
                 </Link>
               )}
+              {eventEssentialsEnabled && menuGroups.map((group) => (
+                <Link
+                  key={group.id}
+                  to={`/event-essentials?categories=${group.category_slugs.join(',')}`}
+                  className="text-slate-700 hover:text-blue-600 font-medium transition-colors"
+                >
+                  {group.title}
+                </Link>
+              ))}
               <Link
                 to="/about"
                 className="text-slate-700 hover:text-blue-600 font-medium transition-colors"
@@ -203,7 +220,7 @@ export function Layout() {
                 className="block text-slate-700 hover:text-blue-600 font-medium py-3 px-2 transition-colors text-base rounded-lg hover:bg-blue-50"
                 onClick={() => setMobileMenuOpen(false)}
               >
-                Browse Inflatables
+                Inflatables
               </Link>
               <Link
                 to="/contact"
@@ -218,9 +235,19 @@ export function Layout() {
                   className="block text-slate-700 hover:text-blue-600 font-medium py-3 px-2 transition-colors text-base rounded-lg hover:bg-blue-50"
                   onClick={() => setMobileMenuOpen(false)}
                 >
-                  Event Essentials
+                  Party Add-Ons
                 </Link>
               )}
+              {eventEssentialsEnabled && menuGroups.map((group) => (
+                <Link
+                  key={group.id}
+                  to={`/event-essentials?categories=${group.category_slugs.join(',')}`}
+                  className="block text-slate-700 hover:text-blue-600 font-medium py-3 px-2 transition-colors text-base rounded-lg hover:bg-blue-50"
+                  onClick={() => setMobileMenuOpen(false)}
+                >
+                  {group.title}
+                </Link>
+              ))}
               <Link
                 to="/about"
                 className="block text-slate-700 hover:text-blue-600 font-medium py-3 px-2 transition-colors text-base rounded-lg hover:bg-blue-50"
@@ -322,7 +349,7 @@ export function Layout() {
               <ul className="space-y-2 text-sm text-slate-400">
                 <li>
                   <Link to="/catalog" className="hover:text-white transition-colors">
-                    Browse Inflatables
+                    Inflatables
                   </Link>
                 </li>
                 <li>

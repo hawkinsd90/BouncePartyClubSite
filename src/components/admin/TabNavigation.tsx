@@ -6,6 +6,7 @@ export type AdminTab =
   | 'site_activity'
   | 'google_calendar'
   | 'inventory'
+  | 'menu_groups'
   | 'orders'
   | 'contacts'
   | 'invoices'
@@ -42,6 +43,7 @@ export function TabNavigation({ activeTab, onTabChange, pendingCount = 0 }: TabN
     { id: 'calculator', label: 'Travel Calculator' },
     { id: 'pricing', label: 'Pricing' },
     { id: 'inventory', label: 'Inventory' },
+    { id: 'menu_groups', label: 'Menu Groups' },
     { id: 'contacts', label: 'Contacts' },
     { id: 'branding', label: 'Business Branding' },
     { id: 'permissions', label: 'Permissions' },

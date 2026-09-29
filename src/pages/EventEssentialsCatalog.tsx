@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { notifyError } from '../lib/notifications';
 import { decideAddError } from '../lib/catalogAddError';
 import {
@@ -21,7 +21,6 @@ import {
   fetchProductBundlesWithAllComponents,
   fetchProductPricing,
   fetchProductCategories,
-  fetchInventoryProductsByCategory,
   fetchInventoryProducts,
   checkProductAvailability,
 } from '../lib/queries/products';
@@ -82,6 +81,7 @@ function formatPrice(cents: number | null | undefined): string {
 
 export function EventEssentialsCatalog() {
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
   const { cart, addToCart, removeEventEssentialProduct, removeEventEssentialBundle, applyEventEssentialsRepricedCart } = useQuoteCart();
   useEventEssentialsCartRepricing(cart, applyEventEssentialsRepricedCart);
 
@@ -89,14 +89,68 @@ export function EventEssentialsCatalog() {
   const [minOrderCents, setMinOrderCents] = useState<number | null>(null);
   const [bundles, setBundles] = useState<ProductBundleWithConfiguration[]>([]);
   const [categories, setCategories] = useState<ProductCategory[]>([]);
-  const [selectedCategoryKey, setSelectedCategoryKey] = useState<string>('all');
-  const [categoryProducts, setCategoryProducts] = useState<InventoryProduct[]>([]);
+  const [selectedCategoryKeys, setSelectedCategoryKeys] = useState<string[]>([]);
   const [allProducts, setAllProducts] = useState<InventoryProduct[]>([]);
   const [allPricing, setAllPricing] = useState<ProductPricing[]>([]);
   const [unitConfigs, setUnitConfigs] = useState<{ id: string; active: boolean }[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [loadingProducts, setLoadingProducts] = useState(false);
+
+  // Initialize category selection from URL ?categories=slug1,slug2
+  useEffect(() => {
+    const catsParam = searchParams.get('categories');
+    if (!catsParam) {
+      setSelectedCategoryKeys([]);
+      return;
+    }
+    const slugs = catsParam.split(',').map(s => s.trim()).filter(Boolean);
+    if (slugs.length === 0) {
+      setSelectedCategoryKeys([]);
+      return;
+    }
+    // Deduplicate slugs
+    const uniqueSlugs = [...new Set(slugs)];
+    // Resolve slugs to category IDs — only valid, active, public_visible categories
+    const slugMap = new Map(categories.map(c => [c.slug, c]));
+    const resolved: string[] = [];
+    for (const slug of uniqueSlugs) {
+      const cat = slugMap.get(slug);
+      if (cat && cat.active && cat.public_visible) {
+        resolved.push(cat.id);
+      }
+    }
+    setSelectedCategoryKeys(resolved);
+  }, [searchParams, categories]);
+
+  function toggleCategory(category: ProductCategory | null) {
+    if (category === null) {
+      // "All" clicked — clear selections and URL param
+      setSelectedCategoryKeys([]);
+      setSearchParams(prev => {
+        prev.delete('categories');
+        return prev;
+      });
+      return;
+    }
+    setSelectedCategoryKeys(prev => {
+      const next = prev.includes(category.id)
+        ? prev.filter(id => id !== category.id)
+        : [...prev, category.id];
+      // Update URL
+      const slugs = next
+        .map(id => categories.find(c => c.id === id)?.slug)
+        .filter(Boolean) as string[];
+      setSearchParams(prev => {
+        if (slugs.length === 0) {
+          prev.delete('categories');
+        } else {
+          prev.set('categories', slugs.join(','));
+        }
+        return prev;
+      });
+      return next;
+    });
+  }
 
   const [eventDate, setEventDate] = useState('');
   const [eventEndDate, setEventEndDate] = useState('');
@@ -172,13 +226,10 @@ export function EventEssentialsCatalog() {
         }
         setAllProducts(allProductsResult.data ?? []);
 
-        // Default to All — shows every qualifying public product across categories
-        setSelectedCategoryKey('all');
-
         setLoading(false);
       } catch {
         if (!cancelled) {
-          setError('Failed to load Event Essentials. Please try again later.');
+          setError('Failed to load Party Add-Ons. Please try again later.');
           setLoading(false);
         }
       }
@@ -261,47 +312,19 @@ export function EventEssentialsCatalog() {
 
   // Products to display based on the selected filter
   const displayProducts = useMemo(() => {
-    if (selectedCategoryKey === 'all') {
-      const validCategoryIds = new Set(
-        categories.filter((c) => c.active && c.public_visible).map((c) => c.id)
-      );
-      return allProducts.filter(
-        (p) =>
-          p.active &&
-          p.public_visible &&
-          p.category_id !== null &&
-          validCategoryIds.has(p.category_id),
-      );
-    }
-    return categoryProducts;
-  }, [selectedCategoryKey, allProducts, categories, categoryProducts]);
-
-  useEffect(() => {
-    if (selectedCategoryKey === 'all') {
-      setCategoryProducts([]);
-      setLoadingProducts(false);
-      return;
-    }
-
-    let cancelled = false;
-    setLoadingProducts(true);
-
-    async function loadProducts() {
-      const result = await fetchInventoryProductsByCategory(selectedCategoryKey);
-      if (cancelled) return;
-      if (result.error) {
-        setCategoryProducts([]);
-      } else {
-        setCategoryProducts(result.data ?? []);
-      }
-      setLoadingProducts(false);
-    }
-
-    loadProducts();
-    return () => {
-      cancelled = true;
-    };
-  }, [selectedCategoryKey]);
+    const validCategoryIds = new Set(
+      categories.filter((c) => c.active && c.public_visible).map((c) => c.id)
+    );
+    const base = allProducts.filter(
+      (p) =>
+        p.active &&
+        p.public_visible &&
+        p.category_id !== null &&
+        validCategoryIds.has(p.category_id),
+    );
+    if (selectedCategoryKeys.length === 0) return base;
+    return base.filter((p) => p.category_id && selectedCategoryKeys.includes(p.category_id));
+  }, [selectedCategoryKeys, allProducts, categories]);
 
   // --- E2: build resolver configuration maps and normalized cart lines once
   // per render. These are pure and depend only on loaded config + cart. ---
@@ -650,21 +673,19 @@ export function EventEssentialsCatalog() {
     0
   );
 
-  function getRelevantBundlesForCategory(category: ProductCategory | null): ProductBundleWithConfiguration[] {
-    // When All is selected, show all bundles — do not duplicate them per category.
-    if (!category) return bundles;
+  const selectedCategoryObjects = selectedCategoryKeys.length === 0
+    ? null
+    : categories.filter((c) => selectedCategoryKeys.includes(c.id));
+
+  const relevantBundles = useMemo(() => {
+    if (!selectedCategoryObjects || selectedCategoryObjects.length === 0) return bundles;
+    const selectedCatIds = new Set(selectedCategoryObjects.map((c) => c.id));
     return bundles.filter((bundle) =>
       bundle.product_bundle_components.some(
-        (comp) => comp.inventory_products?.category_id === category.id
+        (comp) => comp.inventory_products?.category_id && selectedCatIds.has(comp.inventory_products.category_id)
       )
     );
-  }
-
-  const relevantBundles = getRelevantBundlesForCategory(
-    selectedCategoryKey === 'all'
-      ? null
-      : categories.find((c) => c.id === selectedCategoryKey) ?? null
-  );
+  }, [bundles, selectedCategoryObjects]);
 
   if (!enabled && !loading) {
     return null;
@@ -700,7 +721,7 @@ export function EventEssentialsCatalog() {
     <div className="min-h-screen bg-slate-50">
       <div className="max-w-7xl mx-auto px-4 py-8 sm:py-12">
         <div className="mb-8">
-          <h1 className="text-3xl sm:text-4xl font-bold text-slate-900 mb-2">Event Essentials</h1>
+          <h1 className="text-3xl sm:text-4xl font-bold text-slate-900 mb-2">Party Add-Ons</h1>
           <p className="text-slate-600 text-sm sm:text-base">
             Add tables, chairs, and other essentials to complement your inflatable rental.
           </p>
@@ -748,7 +769,7 @@ export function EventEssentialsCatalog() {
                     Choose your event dates
                   </h4>
                   <p className="text-sm text-blue-700">
-                    Select a start and end date to check availability and add Event Essentials.
+                    Select a start and end date to check availability and add Party Add-Ons.
                   </p>
                 </div>
               )}
@@ -760,15 +781,15 @@ export function EventEssentialsCatalog() {
             </div>
 
             {/* Category Navigation */}
-            {(visibleCategories.length > 0 || selectedCategoryKey === 'all') && (
+            {(visibleCategories.length > 0 || selectedCategoryKeys.length === 0) && (
               <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-4 sm:p-6">
                 <div className="flex flex-wrap gap-2">
                   <button
                     key="all"
                     type="button"
-                    onClick={() => setSelectedCategoryKey('all')}
+                    onClick={() => toggleCategory(null)}
                     className={`flex items-center gap-1.5 px-4 py-2 rounded-full text-sm font-semibold transition-colors ${
-                      selectedCategoryKey === 'all'
+                      selectedCategoryKeys.length === 0
                         ? 'bg-blue-600 text-white'
                         : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
                     }`}
@@ -776,30 +797,29 @@ export function EventEssentialsCatalog() {
                     <LayoutGrid className="w-4 h-4" />
                     All
                   </button>
-                  {visibleCategories.map((category) => (
-                    <button
-                      key={category.id}
-                      type="button"
-                      onClick={() => setSelectedCategoryKey(category.id)}
-                      className={`px-4 py-2 rounded-full text-sm font-semibold transition-colors ${
-                        selectedCategoryKey === category.id
-                          ? 'bg-blue-600 text-white'
-                          : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
-                      }`}
-                    >
-                      {category.name}
-                    </button>
-                  ))}
+                  {visibleCategories.map((category) => {
+                    const isSelected = selectedCategoryKeys.includes(category.id);
+                    return (
+                      <button
+                        key={category.id}
+                        type="button"
+                        onClick={() => toggleCategory(category)}
+                        className={`px-4 py-2 rounded-full text-sm font-semibold transition-colors ${
+                          isSelected
+                            ? 'bg-blue-600 text-white'
+                            : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+                        }`}
+                      >
+                        {category.name}
+                      </button>
+                    );
+                  })}
                 </div>
               </div>
             )}
 
             {/* Individual Product Cards */}
-            {loadingProducts ? (
-              <div className="flex items-center justify-center py-12">
-                <Loader2 className="w-6 h-6 text-blue-600 animate-spin" />
-              </div>
-            ) : displayProducts.length === 0 ? (
+            {displayProducts.length === 0 ? (
               <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-8 text-center">
                 <Package className="w-12 h-12 text-slate-300 mx-auto mb-3" />
                 <p className="text-slate-600">No products are currently available in this category.</p>
@@ -1145,11 +1165,11 @@ export function EventEssentialsCatalog() {
           {/* Cart Summary Sidebar */}
           <div className="lg:col-span-1">
             <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-4 sm:p-6 lg:sticky lg:top-24">
-              <h2 className="text-lg font-bold text-slate-900 mb-4">Your Event Essentials</h2>
+              <h2 className="text-lg font-bold text-slate-900 mb-4">Your Party Add-Ons</h2>
 
               {eventEssentialsCartItems.length === 0 ? (
                 <p className="text-sm text-slate-500 text-center py-8">
-                  No Event Essentials in your cart yet.
+                  No Party Add-Ons in your cart yet.
                 </p>
               ) : (
                 <>

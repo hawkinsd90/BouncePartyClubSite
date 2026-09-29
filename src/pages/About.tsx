@@ -141,7 +141,7 @@ export function About() {
             href="/catalog"
             className="inline-block bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white font-semibold py-3 px-8 rounded-lg transition-all shadow-lg hover:shadow-xl transform hover:scale-105"
           >
-            Browse Inflatables
+            Inflatables
           </a>
         </div>
       </div>

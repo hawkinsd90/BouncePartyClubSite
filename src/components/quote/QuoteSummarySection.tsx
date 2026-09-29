@@ -94,7 +94,7 @@ export function QuoteSummarySection({ cart, priceBreakdown, totals, pricingConfi
 
         {eventEssentialsItems.length > 0 && (
           <div className="space-y-2 pt-2 border-t border-slate-200">
-            <p className="text-xs sm:text-sm font-semibold text-slate-700 mb-3 uppercase tracking-wide">Event Essentials:</p>
+            <p className="text-xs sm:text-sm font-semibold text-slate-700 mb-3 uppercase tracking-wide">Party Add-Ons:</p>
 
             {eventEssentialsItems.map((item, index) => {
               if (item.item_type === 'event_essential_bundle') {
@@ -152,7 +152,7 @@ export function QuoteSummarySection({ cart, priceBreakdown, totals, pricingConfi
             })}
 
             <div className="flex items-center justify-between pt-2 mt-2 border-t border-slate-100">
-              <span className="text-xs sm:text-sm font-semibold text-slate-700">Event Essentials subtotal</span>
+              <span className="text-xs sm:text-sm font-semibold text-slate-700">Party Add-Ons subtotal</span>
               <span className="text-sm sm:text-base font-bold text-slate-900">{formatCurrency(eventEssentialsSubtotalCents)}</span>
             </div>
           </div>

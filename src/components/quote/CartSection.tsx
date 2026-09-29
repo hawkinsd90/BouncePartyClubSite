@@ -95,14 +95,14 @@ export function CartSection({ cart, eventDate, eventEndDate, onUpdateItem, onRem
               onClick={() => navigate('/catalog')}
               className="inline-flex items-center gap-2 text-blue-600 hover:text-blue-700 font-semibold text-sm sm:text-base transition-colors"
             >
-              Browse Inflatables →
+              Inflatables →
             </button>
             <button
               type="button"
               onClick={() => navigate('/event-essentials')}
               className="inline-flex items-center gap-2 text-blue-600 hover:text-blue-700 font-semibold text-sm sm:text-base transition-colors"
             >
-              Browse Event Essentials →
+              Browse Party Add-Ons →
             </button>
           </div>
         </div>
@@ -397,7 +397,7 @@ export function CartSection({ cart, eventDate, eventEndDate, onUpdateItem, onRem
           onClick={() => navigate('/event-essentials')}
           className="w-full py-3 sm:py-3.5 border-2 border-dashed border-slate-300 rounded-lg sm:rounded-xl text-slate-600 hover:border-blue-500 hover:text-blue-600 hover:bg-blue-50 transition-all font-medium text-sm sm:text-base"
         >
-          + Add Event Essentials
+          + Add Party Add-Ons
         </button>
       </div>
     </div>
