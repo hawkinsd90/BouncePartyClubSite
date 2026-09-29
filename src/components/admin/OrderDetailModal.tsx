@@ -26,6 +26,11 @@ import {
   updateStagedItemQuantity,
 } from './order-detail-modal/stagedItemModel';
 import type { StagedItem } from './order-detail-modal/stagedItemModel';
+import {
+  sortDirectGeneratorItemsNewestFirst,
+  reduceDirectGeneratorItems,
+  applyGeneratorEeCandidate,
+} from './order-detail-modal/generatorStagedItems';
 import { usePricing } from '../../hooks/usePricing';
 import { useOrderDetails } from '../../hooks/useOrderDetails';
 import { saveOrderChanges } from '../../lib/orderSaveService';
@@ -840,50 +845,19 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
       // Newest-first ordering:
       // 1. Unsaved rows by descending stagedItems index (highest index = newest)
       // 2. Persisted rows by created_at descending, tie-broken by id descending
-      const directByNewest = [...directItems].sort((a, b) => {
-        const aNew = a.is_new ? 1 : 0;
-        const bNew = b.is_new ? 1 : 0;
-        if (aNew !== bNew) return bNew - aNew;
-        if (aNew && bNew) {
-          // Both unsaved: higher stagedItems index is newer.
-          // directItems is filtered from stagedItems so preserves relative order.
-          const aIdx = stagedItems.indexOf(a);
-          const bIdx = stagedItems.indexOf(b);
-          return bIdx - aIdx;
-        }
-        // Both persisted: created_at descending, then id descending.
-        const aTime = a.created_at ? new Date(a.created_at).getTime() : 0;
-        const bTime = b.created_at ? new Date(b.created_at).getTime() : 0;
-        if (aTime !== bTime) return bTime - aTime;
-        return (b.id || '').localeCompare(a.id || '');
-      });
+      const directByNewest = sortDirectGeneratorItemsNewestFirst(directItems, stagedItems);
       let remainingDirectReduction = Math.min(decision.removeQty, directQty);
 
       setStagedItems((previous) => {
-        const orderedKeys = directByNewest.map((item) => item.id || item.client_id).filter((k): k is string => !!k);
-        const keySet = new Set(orderedKeys);
-        const reductionByKey = new Map<string, number>();
-        for (const key of orderedKeys) {
-          if (remainingDirectReduction <= 0) break;
-          const item = previous.find((i) => (i.id || i.client_id) === key && keySet.has(key));
-          if (!item) continue;
-          const reduction = Math.min(item.qty, remainingDirectReduction);
-          remainingDirectReduction -= reduction;
-          reductionByKey.set(key, reduction);
-        }
+        const reduced = reduceDirectGeneratorItems(
+          previous,
+          directByNewest,
+          remainingDirectReduction,
+        );
 
-        return previous.map((item) => {
-          const key = item.id || item.client_id;
-          if (!key || !reductionByKey.has(key)) return item;
-          const reduction = reductionByKey.get(key)!;
-          const nextQty = item.qty - reduction;
-          if (nextQty > 0) {
-            return { ...item, qty: nextQty, is_updated: true };
-          }
-          // Persisted row → mark deleted; new unsaved row → remove from staged state.
-          if (item.is_new) return null;
-          return { ...item, qty: 0, is_deleted: true, is_updated: true };
-        }).filter((item): item is StagedItem => item !== null);
+        remainingDirectReduction = reduced.remainingBudget;
+
+        return reduced.next;
       });
 
       setEditedOrder((previous: any) => ({ ...previous, generator_qty: decision.newLegacyQty }));
@@ -1000,38 +974,16 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
       if (resolution.status === 'ee') {
         const { product, resolvedUnitPriceCents, resolvedPricingContext } = resolution.candidate;
 
-        setStagedItems((previous) => {
-          // CASE A: same product_id, same resolved price, same resolved context → increase existing row.
-          const exactMatch = previous.find(
-            (item) =>
-              !item.is_deleted &&
-              item.product_id === product.product_id &&
-              !item.bundle_id &&
-              item.unit_price_cents === resolvedUnitPriceCents &&
-              (item.pricing_context || 'standalone') === resolvedPricingContext,
-          );
-
-          if (exactMatch) {
-            return previous.map((item) =>
-              item === exactMatch
-                ? { ...item, qty: item.qty + additionalQty, is_updated: !item.is_new }
-                : item,
-            );
-          }
-
-          // CASE B: same product_id but different price/context → new staged row (historical frozen).
-          return [...previous, {
-            client_id: `new-generator-${Date.now()}-${Math.random().toString(36).slice(2)}`,
-            product_id: product.product_id,
-            product_name: product.product_name,
-            item_name: product.product_name,
-            qty: additionalQty,
-            unit_price_cents: resolvedUnitPriceCents,
-            pricing_context: resolvedPricingContext,
-            is_new: true,
-            is_deleted: false,
-          }];
-        });
+        setStagedItems((previous) =>
+          applyGeneratorEeCandidate(
+            previous,
+            product,
+            resolvedUnitPriceCents,
+            resolvedPricingContext,
+            additionalQty,
+            () => `new-generator-${Date.now()}-${Math.random().toString(36).slice(2)}`,
+          ),
+        );
 
         setManualDirty(true);
         return;
