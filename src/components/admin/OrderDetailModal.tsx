@@ -3,7 +3,7 @@ import { supabase } from '../../lib/supabase';
 import { checkMultipleUnitsAvailability } from '../../lib/availability';
 import { buildEventEssentialAvailabilityRequestFromOrderItems, validateAvailabilityResult } from '../../lib/eeOrderItemAvailability';
 import { checkProductAvailability } from '../../lib/queries/products';
-import { formatOrderSummary, type OrderSummaryData } from '../../lib/orderSummary';
+import { formatOrderSummary } from '../../lib/orderSummary';
 import { calculateDrivingDistance } from '../../lib/pricing';
 import { HOME_BASE } from '../../lib/constants';
 import { StatusChangeDialog } from '../order-detail/StatusChangeDialog';
@@ -14,6 +14,7 @@ import { OrderDetailsTab } from '../order-detail/OrderDetailsTab';
 import { PaymentsTab } from '../order-detail/PaymentsTab';
 import { OrderDetailTabNav, type OrderDetailSection } from './order-detail-modal/OrderDetailTabNav';
 import { OrderDetailHeader } from './order-detail-modal/OrderDetailHeader';
+import { buildCurrentOrderSummaryData } from './order-detail-modal/buildCurrentOrderSummaryData';
 import { GeneratorLegacyConfirmDialogs } from './order-detail-modal/GeneratorLegacyConfirmDialogs';
 import { usePricing } from '../../hooks/usePricing';
 import { useOrderDetails } from '../../hooks/useOrderDetails';
@@ -289,41 +290,14 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
         }
       }
 
-      const summaryData: OrderSummaryData = {
-        items: orderItems,
-        discounts: discounts.filter(d => !d.is_new),
-        customFees: customFees.filter(f => !f.is_new),
-        subtotal_cents: order.subtotal_cents,
-        travel_fee_cents: order.travel_fee_cents || 0,
-        travel_total_miles: travelMiles,
-        surface_fee_cents: order.surface_fee_cents || 0,
-        same_day_pickup_fee_cents: order.same_day_pickup_fee_cents || 0,
-        same_day_weekday_delivery_fee_cents: order.same_day_weekday_delivery_fee_cents || 0,
-        same_day_weekday_delivery_fee_waived: order.same_day_weekday_delivery_fee_waived || false,
-        generator_fee_cents: order.generator_fee_cents || 0,
-        setup_fee_cents: order.setup_fee_cents || 0,
-        generator_qty: order.generator_qty || 0,
-        tax_cents: order.tax_cents || 0,
-        tip_cents: order.tip_cents || 0,
-        total_cents: (() => {
-          const subtotal = order.subtotal_cents || 0;
-          const fees = (order.travel_fee_cents || 0) + (order.surface_fee_cents || 0) + (order.same_day_pickup_fee_cents || 0) + (order.same_day_weekday_delivery_fee_cents || 0) + (order.generator_fee_cents || 0) + (order.setup_fee_cents || 0);
-          const totalCustomFees = customFees.filter(f => !f.is_new).reduce((sum: number, f: any) => sum + (f.amount_cents || 0), 0);
-          const totalDiscounts = discounts.filter(d => !d.is_new).reduce((sum: number, d: any) => {
-            if (d.percentage) return sum + Math.round(subtotal * (d.percentage / 100));
-            return sum + (d.amount_cents || 0);
-          }, 0);
-          const tax = order.tax_cents || 0;
-          return subtotal + fees + totalCustomFees - totalDiscounts + tax;
-        })(),
-        deposit_due_cents: order.deposit_due_cents,
-        deposit_paid_cents: order.deposit_paid_cents || 0,
-        balance_due_cents: order.balance_due_cents,
-        custom_deposit_cents: order.custom_deposit_cents,
-        pickup_preference: order.pickup_preference,
-        event_date: order.event_date,
-        event_end_date: order.event_end_date,
-      };
+      const summaryData = buildCurrentOrderSummaryData({
+        order,
+        orderItems,
+        discounts,
+        customFees,
+        travelMiles,
+        subtotalCents: order.subtotal_cents,
+      });
       setCurrentOrderSummary(formatOrderSummary(summaryData));
     };
 
@@ -331,38 +305,14 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
       loadCurrentSummary().catch(err => {
         console.error('Error loading current order summary:', err);
         // Fallback: build summary from stored order fields without driving distance
-        const subtotal = order.subtotal_cents || 0;
-        const fees = (order.travel_fee_cents || 0) + (order.surface_fee_cents || 0) + (order.same_day_pickup_fee_cents || 0) + (order.same_day_weekday_delivery_fee_cents || 0) + (order.generator_fee_cents || 0) + (order.setup_fee_cents || 0);
-        const totalCustomFees = customFees.filter((f: any) => !f.is_new).reduce((sum: number, f: any) => sum + (f.amount_cents || 0), 0);
-        const totalDiscounts = discounts.filter((d: any) => !d.is_new).reduce((sum: number, d: any) => {
-          if (d.percentage) return sum + Math.round(subtotal * (d.percentage / 100));
-          return sum + (d.amount_cents || 0);
-        }, 0);
-        const fallbackSummary: OrderSummaryData = {
-          items: orderItems,
-          discounts: discounts.filter(d => !d.is_new),
-          customFees: customFees.filter(f => !f.is_new),
-          subtotal_cents: subtotal,
-          travel_fee_cents: order.travel_fee_cents || 0,
-          travel_total_miles: parseFloat(order.travel_total_miles) || 0,
-          surface_fee_cents: order.surface_fee_cents || 0,
-          same_day_pickup_fee_cents: order.same_day_pickup_fee_cents || 0,
-          same_day_weekday_delivery_fee_cents: order.same_day_weekday_delivery_fee_cents || 0,
-          same_day_weekday_delivery_fee_waived: order.same_day_weekday_delivery_fee_waived || false,
-          generator_fee_cents: order.generator_fee_cents || 0,
-          setup_fee_cents: order.setup_fee_cents || 0,
-          generator_qty: order.generator_qty || 0,
-          tax_cents: order.tax_cents || 0,
-          tip_cents: order.tip_cents || 0,
-          total_cents: subtotal + fees + totalCustomFees - totalDiscounts + (order.tax_cents || 0),
-          deposit_due_cents: order.deposit_due_cents,
-          deposit_paid_cents: order.deposit_paid_cents || 0,
-          balance_due_cents: order.balance_due_cents,
-          custom_deposit_cents: order.custom_deposit_cents,
-          pickup_preference: order.pickup_preference,
-          event_date: order.event_date,
-          event_end_date: order.event_end_date,
-        };
+        const fallbackSummary = buildCurrentOrderSummaryData({
+          order,
+          orderItems,
+          discounts,
+          customFees,
+          travelMiles: parseFloat(order.travel_total_miles) || 0,
+          subtotalCents: order.subtotal_cents || 0,
+        });
         setCurrentOrderSummary(formatOrderSummary(fallbackSummary));
       });
     }
