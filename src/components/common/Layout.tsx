@@ -77,7 +77,7 @@ export function Layout() {
           <div className="flex justify-between items-center h-16">
             <Link
               to="/"
-              className="flex items-center space-x-2 sm:space-x-3"
+              className="shrink-0 flex items-center space-x-2 sm:space-x-3"
               onClick={() => {
                 window.scrollTo({ top: 0, behavior: 'smooth' });
                 setMobileMenuOpen(false);
@@ -93,23 +93,23 @@ export function Layout() {
               </span>
             </Link>
 
-            <nav className="hidden md:flex min-w-0 flex-1 items-center justify-center space-x-4 lg:space-x-6 xl:space-x-8">
+            <nav className="hidden md:flex min-w-0 flex-1 items-center justify-start overflow-x-auto space-x-4 lg:space-x-6 xl:space-x-8">
               <Link
                 to="/catalog"
-                className="whitespace-nowrap text-sm xl:text-base text-slate-700 hover:text-blue-600 font-medium transition-colors"
+                className="shrink-0 whitespace-nowrap text-sm xl:text-base text-slate-700 hover:text-blue-600 font-medium transition-colors"
               >
                 Inflatables
               </Link>
               <Link
                 to="/contact"
-                className="whitespace-nowrap text-sm xl:text-base text-slate-700 hover:text-blue-600 font-medium transition-colors"
+                className="shrink-0 whitespace-nowrap text-sm xl:text-base text-slate-700 hover:text-blue-600 font-medium transition-colors"
               >
                 Get Quote
               </Link>
               {eventEssentialsEnabled && (
                 <Link
                   to="/event-essentials"
-                  className="whitespace-nowrap text-sm xl:text-base text-slate-700 hover:text-blue-600 font-medium transition-colors"
+                  className="shrink-0 whitespace-nowrap text-sm xl:text-base text-slate-700 hover:text-blue-600 font-medium transition-colors"
                 >
                   Party Add-Ons
                 </Link>
@@ -118,21 +118,21 @@ export function Layout() {
                 <Link
                   key={group.id}
                   to={`/event-essentials?categories=${group.category_slugs.join(',')}`}
-                  className="whitespace-nowrap text-sm xl:text-base text-slate-700 hover:text-blue-600 font-medium transition-colors"
+                  className="shrink-0 whitespace-nowrap text-sm xl:text-base text-slate-700 hover:text-blue-600 font-medium transition-colors"
                 >
                   {group.title}
                 </Link>
               ))}
               <Link
                 to="/about"
-                className="whitespace-nowrap text-sm xl:text-base text-slate-700 hover:text-blue-600 font-medium transition-colors"
+                className="shrink-0 whitespace-nowrap text-sm xl:text-base text-slate-700 hover:text-blue-600 font-medium transition-colors"
               >
                 About Us
               </Link>
               {user && (
                 <Link
                   to="/my-orders"
-                  className="whitespace-nowrap text-sm xl:text-base text-slate-700 hover:text-blue-600 font-medium transition-colors"
+                  className="shrink-0 whitespace-nowrap text-sm xl:text-base text-slate-700 hover:text-blue-600 font-medium transition-colors"
                 >
                   My Orders
                 </Link>
@@ -140,7 +140,7 @@ export function Layout() {
               {isAdmin && (
                 <Link
                   to="/admin"
-                  className="whitespace-nowrap text-sm xl:text-base text-slate-700 hover:text-blue-600 font-medium transition-colors"
+                  className="shrink-0 whitespace-nowrap text-sm xl:text-base text-slate-700 hover:text-blue-600 font-medium transition-colors"
                 >
                   Admin
                 </Link>
@@ -148,14 +148,14 @@ export function Layout() {
               {(isAdmin || hasRole('CREW')) && (
                 <Link
                   to="/crew"
-                  className="whitespace-nowrap text-sm xl:text-base text-slate-700 hover:text-blue-600 font-medium transition-colors"
+                  className="shrink-0 whitespace-nowrap text-sm xl:text-base text-slate-700 hover:text-blue-600 font-medium transition-colors"
                 >
                   Crew
                 </Link>
               )}
             </nav>
 
-            <div className="flex items-center space-x-2 sm:space-x-4">
+            <div className="shrink-0 flex items-center space-x-2 sm:space-x-4">
               <a
                 href={`tel:${businessPhone.replace(/\D/g, '')}`}
                 className="hidden xl:flex items-center text-slate-600 hover:text-blue-600 transition-colors min-h-[44px]"
