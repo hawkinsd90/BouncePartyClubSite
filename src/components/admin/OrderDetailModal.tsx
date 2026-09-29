@@ -17,6 +17,15 @@ import { OrderDetailHeader } from './order-detail-modal/OrderDetailHeader';
 import { buildCurrentOrderSummaryData } from './order-detail-modal/buildCurrentOrderSummaryData';
 import { buildInitialEditedOrder, hasOrderDetailChanges } from './order-detail-modal/editedOrderModel';
 import { GeneratorLegacyConfirmDialogs } from './order-detail-modal/GeneratorLegacyConfirmDialogs';
+import {
+  buildStagedItemsFromOrderItems,
+  buildNewInflatableItem,
+  removeStagedItem,
+  addEEProductToStagedItems,
+  addEEBundleToStagedItems,
+  updateStagedItemQuantity,
+} from './order-detail-modal/stagedItemModel';
+import type { StagedItem } from './order-detail-modal/stagedItemModel';
 import { usePricing } from '../../hooks/usePricing';
 import { useOrderDetails } from '../../hooks/useOrderDetails';
 import { saveOrderChanges } from '../../lib/orderSaveService';
@@ -51,35 +60,7 @@ interface OrderDetailModalProps {
   onUpdate: () => void;
 }
 
-export interface BundleComponentSnapshot {
-  bundle_name: string;
-  bundle_description?: string | null;
-  components: Array<{
-    product_id: string;
-    product_name: string;
-    quantity_per_bundle: number;
-  }>;
-}
-
-export interface StagedItem {
-  client_id?: string;
-  id?: string; // undefined for new items
-  unit_id?: string; // optional for EE products
-  unit_name?: string;
-  product_id?: string; // set for EE products
-  bundle_id?: string; // set for EE packages
-  product_name?: string;
-  item_name?: string;
-  qty: number;
-  wet_or_dry?: 'dry' | 'water';
-  unit_price_cents: number;
-  pricing_context?: string;
-  component_snapshot?: BundleComponentSnapshot | null;
-  created_at?: string;
-  is_new?: boolean;
-  is_deleted?: boolean;
-  is_updated?: boolean;
-}
+export type { StagedItem, BundleComponentSnapshot } from './order-detail-modal/stagedItemModel';
 
 export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalProps) {
   const [activeSection, setActiveSection] = useState<OrderDetailSection>('details');
@@ -324,36 +305,7 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
   useEffect(() => {
     if (orderItems.length > 0 && loadedOrderItemsForOrderId === order.id && stagedInitializedForOrderId.current !== order.id) {
       stagedInitializedForOrderId.current = order.id;
-      const staged: StagedItem[] = orderItems.map(item => {
-        if (item.unit_id && item.units?.name) {
-          return {
-            id: item.id,
-            unit_id: item.unit_id,
-            unit_name: item.units.name,
-            qty: item.qty,
-            wet_or_dry: item.wet_or_dry,
-            unit_price_cents: item.unit_price_cents,
-            created_at: item.created_at,
-            is_new: false,
-            is_deleted: false,
-          };
-        }
-        // EE product or package item
-        return {
-          id: item.id,
-          product_id: item.product_id,
-          bundle_id: item.bundle_id,
-          product_name: item.item_name || item.product_name || 'Event Essential',
-          item_name: item.item_name,
-          qty: item.qty,
-          unit_price_cents: item.unit_price_cents,
-          pricing_context: item.pricing_context,
-          component_snapshot: item.component_snapshot ?? null,
-          created_at: item.created_at,
-          is_new: false,
-          is_deleted: false,
-        };
-      });
+      const staged: StagedItem[] = buildStagedItemsFromOrderItems(orderItems);
       setStagedItems(staged);
     }
   }, [orderItems, order.id]);
@@ -741,43 +693,17 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
   }
 
   const stageAddItem = useCallback((unit: any, mode: 'dry' | 'water') => {
-    const price = mode === 'water' && unit.price_water_cents ? unit.price_water_cents : unit.price_dry_cents;
-
-    const newItem: StagedItem = {
-      client_id: `new-inflatable-${Date.now()}-${Math.random().toString(36).slice(2)}`,
-      unit_id: unit.id,
-      unit_name: unit.name,
-      qty: 1,
-      wet_or_dry: mode,
-      unit_price_cents: price,
-      is_new: true,
-      is_deleted: false,
-    };
+    const newItem = buildNewInflatableItem(
+      unit,
+      mode,
+      () => `new-inflatable-${Date.now()}-${Math.random().toString(36).slice(2)}`,
+    );
 
     setStagedItems(prev => [...prev, newItem]);
   }, []);
 
   const stageRemoveItem = useCallback((itemToRemove: StagedItem) => {
-    setStagedItems(prev => prev.map(item => {
-      const isMatch = item.id
-        ? item.id === itemToRemove.id
-        : item.client_id
-          ? item.client_id === itemToRemove.client_id
-          : item.unit_id
-            ? item.unit_id === itemToRemove.unit_id && item.wet_or_dry === itemToRemove.wet_or_dry
-            : item === itemToRemove;
-
-      if (isMatch) {
-        if (item.is_new) {
-          // Don't include new items (filter them out)
-          return null;
-        } else {
-          // Mark existing items as deleted
-          return { ...item, is_deleted: true };
-        }
-      }
-      return item;
-    }).filter((item): item is StagedItem => item !== null));
+    setStagedItems(prev => removeStagedItem(prev, itemToRemove));
   }, []);
 
   async function handleSaveChanges() {
@@ -1276,52 +1202,29 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
   }, [hasChanges, onClose]);
 
   const handleAddEEProduct = useCallback((item: StagedItem) => {
-    setStagedItems(prev => {
-      const exactMatch = prev.find((existing: StagedItem) =>
-        !existing.is_deleted &&
-        existing.product_id === item.product_id &&
-        !existing.bundle_id &&
-        existing.unit_price_cents === item.unit_price_cents &&
-        (existing.pricing_context || 'standalone') === (item.pricing_context || 'standalone')
-      );
-      if (exactMatch) {
-        return prev.map((existing: StagedItem) =>
-          existing === exactMatch
-            ? { ...existing, qty: existing.qty + item.qty, is_updated: true }
-            : existing
-        );
-      }
-      return [...prev, { ...item, client_id: item.client_id || `new-ee-${Date.now()}-${Math.random().toString(36).slice(2)}` }];
-    });
+    setStagedItems(prev =>
+      addEEProductToStagedItems(
+        prev,
+        item,
+        () => `new-ee-${Date.now()}-${Math.random().toString(36).slice(2)}`,
+      ),
+    );
     setManualDirty(true);
   }, []);
 
   const handleAddEEBundle = useCallback((item: StagedItem) => {
-    setStagedItems(prev => {
-      const exactMatch = prev.find((existing: StagedItem) =>
-        !existing.is_deleted &&
-        existing.bundle_id === item.bundle_id &&
-        existing.unit_price_cents === item.unit_price_cents &&
-        (existing.pricing_context || 'standalone') === (item.pricing_context || 'standalone') &&
-        JSON.stringify(existing.component_snapshot || null) === JSON.stringify(item.component_snapshot || null)
-      );
-      if (exactMatch) {
-        return prev.map((existing: StagedItem) =>
-          existing === exactMatch
-            ? { ...existing, qty: existing.qty + item.qty, is_updated: true }
-            : existing
-        );
-      }
-      return [...prev, { ...item, client_id: item.client_id || `new-ee-${Date.now()}-${Math.random().toString(36).slice(2)}` }];
-    });
+    setStagedItems(prev =>
+      addEEBundleToStagedItems(
+        prev,
+        item,
+        () => `new-ee-${Date.now()}-${Math.random().toString(36).slice(2)}`,
+      ),
+    );
     setManualDirty(true);
   }, []);
 
   const handleUpdateQuantity = useCallback((itemToUpdate: StagedItem, qty: number) => {
-    setStagedItems(prev => prev.map(item => {
-      const matches = item.id ? item.id === itemToUpdate.id : item.client_id === itemToUpdate.client_id;
-      return matches ? { ...item, qty: Math.max(1, qty), is_updated: true } : item;
-    }));
+    setStagedItems(prev => updateStagedItemQuantity(prev, itemToUpdate, qty));
     setManualDirty(true);
   }, []);
 
