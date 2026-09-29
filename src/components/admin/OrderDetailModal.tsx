@@ -15,6 +15,7 @@ import { PaymentsTab } from '../order-detail/PaymentsTab';
 import { OrderDetailTabNav, type OrderDetailSection } from './order-detail-modal/OrderDetailTabNav';
 import { OrderDetailHeader } from './order-detail-modal/OrderDetailHeader';
 import { buildCurrentOrderSummaryData } from './order-detail-modal/buildCurrentOrderSummaryData';
+import { buildInitialEditedOrder, hasOrderDetailChanges } from './order-detail-modal/editedOrderModel';
 import { GeneratorLegacyConfirmDialogs } from './order-detail-modal/GeneratorLegacyConfirmDialogs';
 import { usePricing } from '../../hooks/usePricing';
 import { useOrderDetails } from '../../hooks/useOrderDetails';
@@ -87,22 +88,7 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
   const [notes] = useState<any[]>([]);
   const [workflowEvents] = useState<any[]>([]);
   const [availableUnits, setAvailableUnits] = useState<any[]>([]);
-  const [editedOrder, setEditedOrder] = useState<any>({
-    location_type: order.location_type,
-    surface: order.surface,
-    can_stake: order.surface === 'grass',
-    generator_qty: order.generator_qty || 0,
-    start_window: order.start_window,
-    end_window: order.end_window,
-    event_date: order.event_date?.split('T')[0] || order.event_date,
-    event_end_date: (order.event_end_date || order.event_date)?.split('T')[0] || order.event_date,
-    address_line1: order.addresses?.line1 || '',
-    address_line2: order.addresses?.line2 || '',
-    address_city: order.addresses?.city || '',
-    address_state: order.addresses?.state || '',
-    address_zip: order.addresses?.zip || '',
-    pickup_preference: order.pickup_preference || 'next_day',
-  });
+  const [editedOrder, setEditedOrder] = useState<any>(() => buildInitialEditedOrder(order));
   const [stagedItems, setStagedItems] = useState<StagedItem[]>([]);
   const stagedInitializedForOrderId = useRef<string | null>(null);
   const orderLoadRequestIdRef = useRef(0);
@@ -442,24 +428,7 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
 
   // Check if any changes have been made
   useEffect(() => {
-    const orderChanged =
-      editedOrder.location_type !== order.location_type ||
-      editedOrder.surface !== order.surface ||
-      editedOrder.generator_qty !== (order.generator_qty || 0) ||
-      editedOrder.start_window !== order.start_window ||
-      editedOrder.end_window !== order.end_window ||
-      editedOrder.event_date !== order.event_date ||
-      editedOrder.event_end_date !== (order.event_end_date || order.event_date) ||
-      editedOrder.address_line1 !== (order.addresses?.line1 || '') ||
-      editedOrder.address_line2 !== (order.addresses?.line2 || '') ||
-      editedOrder.address_city !== (order.addresses?.city || '') ||
-      editedOrder.address_state !== (order.addresses?.state || '') ||
-      editedOrder.address_zip !== (order.addresses?.zip || '') ||
-      editedOrder.pickup_preference !== (order.pickup_preference || 'next_day');
-
-    const itemsChanged = stagedItems.some(item => item.is_new || item.is_deleted || item.is_updated);
-
-    setHasChanges(manualDirty || orderChanged || itemsChanged);
+    setHasChanges(manualDirty || hasOrderDetailChanges(editedOrder, order, stagedItems));
   }, [editedOrder, stagedItems, order, manualDirty]);
 
   // Handle multi-day logic: if dates are different, lock to next_day pickup
