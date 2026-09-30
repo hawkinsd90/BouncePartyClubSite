@@ -1,14 +1,10 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
-import { Send, AlertCircle, Copy, Check } from 'lucide-react';
 import { OrderSummary } from '../order/OrderSummary';
 import { showToast } from '../../lib/notifications';
 import { DiscountsManager } from '../order-detail/DiscountsManager';
 import { CardOnFileRequirement } from '../shared/CardOnFileRequirement';
 import { CustomFeesManager } from '../order-detail/CustomFeesManager';
 import { EventDetailsEditor } from '../order-detail/EventDetailsEditor';
-import { DepositOverride } from '../order-detail/DepositOverride';
-import { TaxWaiver } from '../order-detail/TaxWaiver';
-import { FeeWaiver } from '../shared/FeeWaiver';
 import { ItemsEditor } from '../shared/ItemsEditor';
 import { CustomerSelector } from '../invoice/CustomerSelector';
 import { NewCustomerForm } from '../invoice/NewCustomerForm';
@@ -29,6 +25,12 @@ import {
   buildEventEssentialAvailabilityRequestFromOrderItems,
   validateAvailabilityResult,
 } from '../../lib/eeOrderItemAvailability';
+import { InvoiceAvailabilityBanner } from './invoice-builder/InvoiceAvailabilityBanner';
+import { InvoiceFeeWaivers } from './invoice-builder/InvoiceFeeWaivers';
+import { InvoiceSetupFeeOverride } from './invoice-builder/InvoiceSetupFeeOverride';
+import { InvoiceDepositControls } from './invoice-builder/InvoiceDepositControls';
+import { InvoiceActions } from './invoice-builder/InvoiceActions';
+import { mapCartToStagedForResolver } from './invoice-builder/invoiceResolverItems';
 import type { ResolverProductConfig, ResolverBundleConfig, ResolverCategory, ResolverUnitConfig, InflatableEligibilityMode } from '../../lib/eventEssentialsPricingTypes';
 
 interface StagedEEItem {
@@ -270,13 +272,7 @@ export function InvoiceBuilder() {
 
       // Build complete resolver context: inflatables + EE items.
       const completeStagedItems = [
-        ...cartItems.map(item => ({
-          unit_id: item.unit_id,
-          qty: item.qty,
-          wet_or_dry: item.mode,
-          unit_price_cents: item.adjusted_price_cents,
-          is_deleted: false,
-        })),
+        ...mapCartToStagedForResolver(cartItems),
         ...stagedEEItems.filter(i => !i.is_deleted).map(item => ({
           product_id: item.product_id || undefined,
           bundle_id: item.bundle_id || undefined,
@@ -901,36 +897,10 @@ export function InvoiceBuilder() {
             showUntilEndOfDay={true}
           />
 
-          {checkingAvailability && (
-            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-              <p className="text-sm text-blue-900">Checking availability...</p>
-            </div>
-          )}
-
-          {availabilityIssues.length > 0 && (
-            <div className="bg-red-50 border border-red-200 rounded-lg p-4">
-              <div className="flex items-start gap-3">
-                <AlertCircle className="w-5 h-5 text-red-600 flex-shrink-0 mt-0.5" />
-                <div className="flex-1">
-                  <h4 className="font-semibold text-red-900 mb-2">Availability Conflicts</h4>
-                  <p className="text-sm text-red-800 mb-3">
-                    The following units are not available for the selected dates:
-                  </p>
-                  <ul className="space-y-2">
-                    {availabilityIssues.map((issue, index) => (
-                      <li key={index} className="text-sm">
-                        <span className="font-medium text-red-900">{issue.unitName}</span>
-                        <span className="text-red-700"> - Conflicts with {issue.conflicts.length} order(s)</span>
-                      </li>
-                    ))}
-                  </ul>
-                  <p className="text-xs text-red-700 mt-3">
-                    Please remove these items or select different dates to proceed.
-                  </p>
-                </div>
-              </div>
-            </div>
-          )}
+          <InvoiceAvailabilityBanner
+            checkingAvailability={checkingAvailability}
+            availabilityIssues={availabilityIssues}
+          />
 
           <ItemsEditor
             items={[...cartItems, ...stagedEEItems]}
@@ -960,13 +930,7 @@ export function InvoiceBuilder() {
 
           <AddEventEssentialsSection
             stagedItems={[
-              ...cartItems.map(item => ({
-                unit_id: item.unit_id,
-                qty: item.qty,
-                wet_or_dry: item.mode,
-                unit_price_cents: item.adjusted_price_cents,
-                is_deleted: false,
-              })),
+              ...mapCartToStagedForResolver(cartItems),
               ...stagedEEItems,
             ]}
             availableUnits={units}
@@ -983,70 +947,22 @@ export function InvoiceBuilder() {
 
           <CustomFeesManager customFees={customFees} onFeeChange={setCustomFees} onMarkChanges={() => {}} />
 
-          <DepositOverride
+          <InvoiceDepositControls
             calculatedDepositCents={calculatedPricing?.deposit_due_cents || 0}
             customDepositCents={customDepositCents}
             customDepositInput={customDepositInput}
-            onInputChange={setCustomDepositInput}
-            onApply={(amountCents) => {
-              setCustomDepositCents(amountCents);
-              if (amountCents > 0) setRequireCardOnFile(true);
-            }}
-            onClear={() => {
-              setCustomDepositCents(null);
-              setCustomDepositInput('');
-              setRequireCardOnFile(true);
-            }}
-            compact={true}
-            showZeroHint={true}
+            setCustomDepositInput={setCustomDepositInput}
+            setCustomDepositCents={setCustomDepositCents}
+            setRequireCardOnFile={setRequireCardOnFile}
           />
 
-          {((calculatedPricing?.setup_fee_before_override_cents || 0) > 0 || customSetupFeeCents !== null) && (
-            <div className="bg-slate-50 border border-slate-200 rounded-lg p-4 space-y-3">
-              <div className="flex items-center justify-between">
-                <span className="text-sm font-medium text-slate-700">Setup Fee</span>
-                <span className="text-sm font-semibold text-slate-900">
-                  ${(((customSetupFeeCents !== null ? customSetupFeeCents : calculatedPricing?.setup_fee_cents) || 0) / 100).toFixed(2)}
-                </span>
-              </div>
-              <p className="text-xs text-slate-500">
-                Calculated: ${((calculatedPricing?.setup_fee_before_override_cents || 0) / 100).toFixed(2)}
-              </p>
-              <div className="flex gap-2">
-                <input
-                  type="number"
-                  value={customSetupFeeInput}
-                  onChange={(e) => setCustomSetupFeeInput(e.target.value)}
-                  placeholder="Custom amount"
-                  className="flex-1 px-3 py-1.5 text-sm border border-slate-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  min="0"
-                  step="0.01"
-                />
-                <button
-                  type="button"
-                  onClick={() => {
-                    const dollars = parseFloat(customSetupFeeInput);
-                    if (!isNaN(dollars) && dollars >= 0) {
-                      setCustomSetupFeeCents(Math.round(dollars * 100));
-                    }
-                  }}
-                  className="px-3 py-1.5 text-sm bg-blue-600 text-white rounded-md hover:bg-blue-700"
-                >
-                  Apply
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setCustomSetupFeeCents(null);
-                    setCustomSetupFeeInput('');
-                  }}
-                  className="px-3 py-1.5 text-sm bg-slate-200 text-slate-700 rounded-md hover:bg-slate-300"
-                >
-                  Reset
-                </button>
-              </div>
-            </div>
-          )}
+          <InvoiceSetupFeeOverride
+            calculatedPricing={calculatedPricing}
+            customSetupFeeCents={customSetupFeeCents}
+            customSetupFeeInput={customSetupFeeInput}
+            setCustomSetupFeeCents={setCustomSetupFeeCents}
+            setCustomSetupFeeInput={setCustomSetupFeeInput}
+          />
 
           {customDepositCents === 0 && (
             <CardOnFileRequirement
@@ -1055,93 +971,34 @@ export function InvoiceBuilder() {
             />
           )}
 
-          <TaxWaiver
-            taxCents={calculatedPricing?.tax_cents || 0}
+          <InvoiceFeeWaivers
+            calculatedPricing={calculatedPricing}
+            pricingRules={pricingRules}
             taxWaived={taxWaived}
             taxWaiveReason={taxWaiveReason}
-            onToggle={(reason) => {
-              setTaxWaived(!taxWaived);
-              setTaxWaiveReason(reason);
-            }}
-            applyTaxesByDefault={pricingRules?.apply_taxes_by_default ?? true}
-            originalOrderTaxCents={0}
-            compact={true}
+            setTaxWaived={setTaxWaived}
+            setTaxWaiveReason={setTaxWaiveReason}
+            travelFeeWaived={travelFeeWaived}
+            travelFeeWaiveReason={travelFeeWaiveReason}
+            setTravelFeeWaived={setTravelFeeWaived}
+            setTravelFeeWaiveReason={setTravelFeeWaiveReason}
+            sameDayPickupFeeWaived={sameDayPickupFeeWaived}
+            sameDayPickupFeeWaiveReason={sameDayPickupFeeWaiveReason}
+            setSameDayPickupFeeWaived={setSameDayPickupFeeWaived}
+            setSameDayPickupFeeWaiveReason={setSameDayPickupFeeWaiveReason}
+            surfaceFeeWaived={surfaceFeeWaived}
+            surfaceFeeWaiveReason={surfaceFeeWaiveReason}
+            setSurfaceFeeWaived={setSurfaceFeeWaived}
+            setSurfaceFeeWaiveReason={setSurfaceFeeWaiveReason}
+            generatorFeeWaived={generatorFeeWaived}
+            generatorFeeWaiveReason={generatorFeeWaiveReason}
+            setGeneratorFeeWaived={setGeneratorFeeWaived}
+            setGeneratorFeeWaiveReason={setGeneratorFeeWaiveReason}
+            sameDayWeekdayDeliveryFeeWaived={sameDayWeekdayDeliveryFeeWaived}
+            sameDayWeekdayDeliveryFeeWaiveReason={sameDayWeekdayDeliveryFeeWaiveReason}
+            setSameDayWeekdayDeliveryFeeWaived={setSameDayWeekdayDeliveryFeeWaived}
+            setSameDayWeekdayDeliveryFeeWaiveReason={setSameDayWeekdayDeliveryFeeWaiveReason}
           />
-
-          {((calculatedPricing?.travel_fee_cents || 0) > 0 || travelFeeWaived) && (
-            <FeeWaiver
-              feeName="Travel Fee"
-              feeAmount={calculatedPricing?.travel_fee_cents || 0}
-              isWaived={travelFeeWaived}
-              waiveReason={travelFeeWaiveReason}
-              onToggle={(reason) => {
-                setTravelFeeWaived(!travelFeeWaived);
-                setTravelFeeWaiveReason(reason);
-              }}
-              color="orange"
-              compact={true}
-            />
-          )}
-
-          {((calculatedPricing?.same_day_pickup_fee_cents || 0) > 0 || sameDayPickupFeeWaived) && (
-            <FeeWaiver
-              feeName="Same Day Pickup Fee"
-              feeAmount={calculatedPricing?.same_day_pickup_fee_cents || 0}
-              isWaived={sameDayPickupFeeWaived}
-              waiveReason={sameDayPickupFeeWaiveReason}
-              onToggle={(reason) => {
-                setSameDayPickupFeeWaived(!sameDayPickupFeeWaived);
-                setSameDayPickupFeeWaiveReason(reason);
-              }}
-              color="blue"
-              compact={true}
-            />
-          )}
-
-          {((calculatedPricing?.surface_fee_cents || 0) > 0 || surfaceFeeWaived) && (
-            <FeeWaiver
-              feeName="Sandbags Fee"
-              feeAmount={calculatedPricing?.surface_fee_cents || 0}
-              isWaived={surfaceFeeWaived}
-              waiveReason={surfaceFeeWaiveReason}
-              onToggle={(reason) => {
-                setSurfaceFeeWaived(!surfaceFeeWaived);
-                setSurfaceFeeWaiveReason(reason);
-              }}
-              color="orange"
-              compact={true}
-            />
-          )}
-
-          {((calculatedPricing?.generator_fee_cents || 0) > 0 || generatorFeeWaived) && (
-            <FeeWaiver
-              feeName="Generator Fee"
-              feeAmount={calculatedPricing?.generator_fee_cents || 0}
-              isWaived={generatorFeeWaived}
-              waiveReason={generatorFeeWaiveReason}
-              onToggle={(reason) => {
-                setGeneratorFeeWaived(!generatorFeeWaived);
-                setGeneratorFeeWaiveReason(reason);
-              }}
-              color="blue"
-              compact={true}
-            />
-          )}
-
-          {((calculatedPricing?.same_day_weekday_delivery_fee_cents || 0) > 0 || sameDayWeekdayDeliveryFeeWaived) && (
-            <FeeWaiver
-              feeName="Same-Day Weekday Delivery Fee"
-              feeAmount={calculatedPricing?.same_day_weekday_delivery_fee_cents || 0}
-              isWaived={sameDayWeekdayDeliveryFeeWaived}
-              waiveReason={sameDayWeekdayDeliveryFeeWaiveReason}
-              onToggle={(reason) => {
-                setSameDayWeekdayDeliveryFeeWaived(!sameDayWeekdayDeliveryFeeWaived);
-                setSameDayWeekdayDeliveryFeeWaiveReason(reason);
-              }}
-              color="orange"
-              compact={true}
-            />
-          )}
 
 
           <AdminMessage value={adminMessage} onChange={setAdminMessage} compact={true} variant="invoice" />
@@ -1162,43 +1019,23 @@ export function InvoiceBuilder() {
             />
           )}
 
-          <div className="bg-white border border-slate-200 rounded-lg p-3 sm:p-4 lg:p-6 min-w-0">
-            <button
-              onClick={handleGenerateInvoice}
-              disabled={saving || (cartItems.length === 0 && stagedEEItems.filter(i => !i.is_deleted).length === 0) || availabilityIssues.length > 0 || generatorResolutionPending || checkingAvailability || !pricingIsCurrent}
-              className="w-full bg-blue-600 hover:bg-blue-700 disabled:bg-slate-400 text-white font-semibold py-2.5 sm:py-3 px-4 sm:px-6 rounded-lg transition-colors flex items-center justify-center gap-2 text-sm sm:text-base"
-            >
-              <Send className="w-4 h-4 sm:w-5 sm:h-5 flex-shrink-0" />
-              <span className="truncate">
-                {saving
-                  ? 'Generating...'
-                  : availabilityIssues.length > 0
-                    ? 'Resolve Availability Issues'
-                    : customerManagement.selectedCustomer
-                      ? 'Send Invoice to Customer'
-                      : 'Generate Shareable Link'}
-              </span>
-            </button>
-            <p className="text-xs text-slate-500 text-center mt-2">
-              {customerManagement.selectedCustomer
-                ? 'Invoice will be sent via email and SMS'
-                : 'A shareable link will be generated for you to send manually'}
-            </p>
-            {invoiceUrl && (
-              <button
-                onClick={() => {
-                  navigator.clipboard.writeText(invoiceUrl);
-                  setCopiedLink(true);
-                  setTimeout(() => setCopiedLink(false), 2000);
-                }}
-                title="Copy invoice link"
-                className="mt-2 w-full bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold py-2 px-3 rounded-lg transition-colors flex items-center justify-center gap-1.5 text-sm"
-              >
-                {copiedLink ? <Check className="w-4 h-4 text-green-600" /> : <Copy className="w-4 h-4" />}
-                {copiedLink ? 'Copied!' : 'Copy Link'}
-              </button>
-            )}
-          </div>
+          <InvoiceActions
+            saving={saving}
+            hasNoActiveItems={cartItems.length === 0 && stagedEEItems.filter(i => !i.is_deleted).length === 0}
+            hasAvailabilityIssues={availabilityIssues.length > 0}
+            generatorResolutionPending={generatorResolutionPending}
+            checkingAvailability={checkingAvailability}
+            pricingIsCurrent={pricingIsCurrent}
+            hasSelectedCustomer={!!customerManagement.selectedCustomer}
+            invoiceUrl={invoiceUrl}
+            copiedLink={copiedLink}
+            onGenerate={handleGenerateInvoice}
+            onCopyLink={() => {
+              navigator.clipboard.writeText(invoiceUrl);
+              setCopiedLink(true);
+              setTimeout(() => setCopiedLink(false), 2000);
+            }}
+          />
         </div>
       </div>
     </div>
