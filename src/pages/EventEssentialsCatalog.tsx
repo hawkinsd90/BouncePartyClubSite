@@ -3,17 +3,10 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import { notifyError } from '../lib/notifications';
 import { decideAddError } from '../lib/catalogAddError';
 import {
-  Package,
-  Calendar,
   ShoppingCart,
-  AlertCircle,
-  Loader2,
   Plus,
   Minus,
-  ImageOff,
   Tag,
-  LayoutGrid,
-  Trash2,
 } from 'lucide-react';
 import { getPublicBusinessSettings } from '../lib/adminSettingsCache';
 import { SafeStorage } from '../lib/safeStorage';
@@ -60,6 +53,14 @@ import type {
   UnifiedCartItem,
 } from '../types';
 import type { QuoteFormData } from '../hooks/useQuoteForm';
+import { EventDatesCard } from '../components/event-essentials-catalog/EventDatesCard';
+import { CatalogCategoryTabs } from '../components/event-essentials-catalog/CatalogCategoryTabs';
+import { CatalogCartSidebar } from '../components/event-essentials-catalog/CatalogCartSidebar';
+import { CatalogLoadingView, CatalogErrorView, CatalogEmptyProducts } from '../components/event-essentials-catalog/CatalogStateViews';
+import { ProductImage } from '../components/event-essentials-catalog/ProductImage';
+import { RemoveFromCartRow } from '../components/event-essentials-catalog/RemoveFromCartRow';
+import { CatalogAvailabilityStatus } from '../components/event-essentials-catalog/CatalogAvailabilityStatus';
+import { sumInCartQty, deriveAvailabilityStatus } from '../components/event-essentials-catalog/catalogCardModel';
 
 const FORM_STORAGE_KEY = 'bpc_quote_form';
 
@@ -692,29 +693,11 @@ export function EventEssentialsCatalog() {
   }
 
   if (loading) {
-    return (
-      <div className="min-h-screen bg-slate-50 flex items-center justify-center">
-        <Loader2 className="w-8 h-8 text-blue-600 animate-spin" />
-      </div>
-    );
+    return <CatalogLoadingView />;
   }
 
   if (error) {
-    return (
-      <div className="min-h-screen bg-slate-50 flex items-center justify-center px-4">
-        <div className="max-w-md text-center">
-          <AlertCircle className="w-12 h-12 text-red-500 mx-auto mb-4" />
-          <p className="text-slate-700 mb-4">{error}</p>
-          <button
-            type="button"
-            onClick={() => window.location.reload()}
-            className="text-blue-600 hover:text-blue-700 font-semibold"
-          >
-            Try Again
-          </button>
-        </div>
-      </div>
-    );
+    return <CatalogErrorView error={error} />;
   }
 
   return (
@@ -730,100 +713,27 @@ export function EventEssentialsCatalog() {
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 lg:gap-8">
           <div className="lg:col-span-2 space-y-6">
             {/* Event Date Selector */}
-            <div className={`bg-white rounded-xl shadow-sm border-2 p-4 sm:p-6 transition-colors ${
-              (!datesValid) ? 'border-blue-400 ring-2 ring-blue-100' : 'border-slate-200'
-            }`}>
-              <div className="flex items-center gap-3 mb-4">
-                <Calendar className="w-5 h-5 text-blue-600" />
-                <h2 className="text-lg font-bold text-slate-900">Event Dates</h2>
-              </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label htmlFor="event-date" className="block text-xs font-medium text-slate-700 mb-1">
-                    Start Date
-                  </label>
-                  <input
-                    id="event-date"
-                    type="date"
-                    value={eventDate}
-                    onChange={(e) => handleDateChange(e.target.value)}
-                    className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                  />
-                </div>
-                <div>
-                  <label htmlFor="event-end-date" className="block text-xs font-medium text-slate-700 mb-1">
-                    End Date
-                  </label>
-                  <input
-                    id="event-end-date"
-                    type="date"
-                    value={eventEndDate}
-                    onChange={(e) => handleEndDateChange(e.target.value)}
-                    className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                  />
-                </div>
-              </div>
-              {!datesValid && (
-                <div className="mt-4 p-4 rounded-lg bg-blue-50 border-2 border-blue-300">
-                  <h4 className="text-sm font-bold text-blue-900 mb-1">
-                    Choose your event dates
-                  </h4>
-                  <p className="text-sm text-blue-700">
-                    Select a start and end date to check availability and add Party Add-Ons.
-                  </p>
-                </div>
-              )}
-              {addError && (
-                <p className="mt-3 text-sm text-red-700 bg-red-50 border border-red-200 rounded-lg px-3 py-2">
-                  {addError}
-                </p>
-              )}
-            </div>
+            <EventDatesCard
+              eventDate={eventDate}
+              eventEndDate={eventEndDate}
+              datesValid={datesValid}
+              addError={addError}
+              onStartDateChange={handleDateChange}
+              onEndDateChange={handleEndDateChange}
+            />
 
             {/* Category Navigation */}
             {(visibleCategories.length > 0 || selectedCategoryKeys.length === 0) && (
-              <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-4 sm:p-6">
-                <div className="flex flex-wrap gap-2">
-                  <button
-                    key="all"
-                    type="button"
-                    onClick={() => toggleCategory(null)}
-                    className={`flex items-center gap-1.5 px-4 py-2 rounded-full text-sm font-semibold transition-colors ${
-                      selectedCategoryKeys.length === 0
-                        ? 'bg-blue-600 text-white'
-                        : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
-                    }`}
-                  >
-                    <LayoutGrid className="w-4 h-4" />
-                    All
-                  </button>
-                  {visibleCategories.map((category) => {
-                    const isSelected = selectedCategoryKeys.includes(category.id);
-                    return (
-                      <button
-                        key={category.id}
-                        type="button"
-                        onClick={() => toggleCategory(category)}
-                        className={`px-4 py-2 rounded-full text-sm font-semibold transition-colors ${
-                          isSelected
-                            ? 'bg-blue-600 text-white'
-                            : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
-                        }`}
-                      >
-                        {category.name}
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
+              <CatalogCategoryTabs
+                visibleCategories={visibleCategories}
+                selectedCategoryKeys={selectedCategoryKeys}
+                onToggle={toggleCategory}
+              />
             )}
 
             {/* Individual Product Cards */}
             {displayProducts.length === 0 ? (
-              <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-8 text-center">
-                <Package className="w-12 h-12 text-slate-300 mx-auto mb-3" />
-                <p className="text-slate-600">No products are currently available in this category.</p>
-              </div>
+              <CatalogEmptyProducts />
             ) : (
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 {displayProducts.map((product) => {
@@ -838,15 +748,10 @@ export function EventEssentialsCatalog() {
                   const hasResolvedPrice = vm.resolvedPriceCents !== null;
                   const message = qualificationMessage(vm);
 
-                  const inCartQty = cart.reduce<number>((sum, item) => {
-                    if (
-                      isEventEssentialProductCartItem(item) &&
-                      item.product_id === product.id
-                    ) {
-                      return sum + item.qty;
-                    }
-                    return sum;
-                  }, 0);
+                  const inCartQty = sumInCartQty(cart, (item) =>
+                    isEventEssentialProductCartItem(item) &&
+                    item.product_id === product.id
+                  );
 
                   function handleRemoveProduct() {
                     removeEventEssentialProduct(product.id);
@@ -868,32 +773,7 @@ export function EventEssentialsCatalog() {
                       }`}
                     >
                       {/* Product image or placeholder */}
-                      <div className="mb-3 aspect-video rounded-lg bg-slate-100 flex items-center justify-center overflow-hidden">
-                        {product.image_url ? (
-                          <img
-                            src={product.image_url}
-                            alt={product.name}
-                            className="w-full h-full object-cover"
-                            onError={(e) => {
-                              const target = e.currentTarget;
-                              target.style.display = 'none';
-                              target.nextElementSibling?.classList.remove('hidden');
-                            }}
-                          />
-                        ) : null}
-                        {(!product.image_url) && (
-                          <div className="flex flex-col items-center justify-center text-slate-400">
-                            <ImageOff className="w-8 h-8 mb-1" />
-                            <span className="text-xs">No image</span>
-                          </div>
-                        )}
-                        {product.image_url && (
-                          <div className="hidden flex-col items-center justify-center text-slate-400">
-                            <ImageOff className="w-8 h-8 mb-1" />
-                            <span className="text-xs">No image</span>
-                          </div>
-                        )}
-                      </div>
+                      <ProductImage imageUrl={product.image_url} alt={product.name} />
 
                       <h3 className="text-base font-bold text-slate-900 mb-1">{product.name}</h3>
                       {product.description && (
@@ -930,28 +810,16 @@ export function EventEssentialsCatalog() {
                       )}
 
                       {/* Availability status */}
-                      {!datesValid ? (
-                        <p className="text-xs text-slate-500 mb-3">Select dates to check availability.</p>
-                      ) : hasAvailError ? (
-                        <p className="text-xs text-amber-700 mb-3">
-                          Availability unavailable — please try again.
-                        </p>
-                      ) : checkingAvailability ? (
-                        <p className="text-xs text-slate-400 flex items-center gap-1.5 mb-3">
-                          <Loader2 className="w-3 h-3 animate-spin" />
-                          Checking availability...
-                        </p>
-                      ) : avail ? (
-                        <p className="text-xs text-slate-600 mb-3">
-                          {inCartQty > 0 && maxAddable > 0
-                            ? `${inCartQty} in cart · ${maxAddable} more available to add`
-                            : inCartQty > 0 && maxAddable === 0
-                              ? `${inCartQty} in cart · No more available for selected dates`
-                              : maxAddable > 0
-                                ? `${maxAddable} available to add`
-                                : 'None available for selected dates'}
-                        </p>
-                      ) : null}
+                      <CatalogAvailabilityStatus
+                        status={deriveAvailabilityStatus({
+                          datesValid,
+                          hasAvailError,
+                          checkingAvailability,
+                          hasAvail: !!avail,
+                          inCartQty,
+                          maxAddable,
+                        })}
+                      />
 
                       {/* Quantity selector and Add button */}
                       <div className="flex items-center justify-between gap-3 mt-auto">
@@ -994,19 +862,7 @@ export function EventEssentialsCatalog() {
                       </div>
 
                       {inCartQty > 0 && (
-                        <div className="mt-3 pt-3 border-t border-slate-100">
-                          <p className="text-xs font-medium text-slate-600 mb-2">
-                            In cart: {inCartQty}
-                          </p>
-                          <button
-                            type="button"
-                            onClick={handleRemoveProduct}
-                            className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-red-50 hover:bg-red-100 text-red-700 font-medium rounded-lg text-xs transition-colors"
-                          >
-                            <Trash2 className="w-3.5 h-3.5" />
-                            Remove from Cart
-                          </button>
-                        </div>
+                        <RemoveFromCartRow inCartQty={inCartQty} onRemove={handleRemoveProduct} />
                       )}
                     </div>
                   );
@@ -1035,15 +891,10 @@ export function EventEssentialsCatalog() {
                     hasResolvedPrice &&
                     qty > 0;
 
-                  const inCartQty = cart.reduce<number>((sum, item) => {
-                    if (
-                      isEventEssentialBundleCartItem(item) &&
-                      item.bundle_id === bundle.id
-                    ) {
-                      return sum + item.qty;
-                    }
-                    return sum;
-                  }, 0);
+                  const inCartQty = sumInCartQty(cart, (item) =>
+                    isEventEssentialBundleCartItem(item) &&
+                    item.bundle_id === bundle.id
+                  );
 
                   function handleRemoveBundle() {
                     removeEventEssentialBundle(bundle.id);
@@ -1141,19 +992,7 @@ export function EventEssentialsCatalog() {
                       </div>
 
                       {inCartQty > 0 && (
-                        <div className="mt-3 pt-3 border-t border-slate-100">
-                          <p className="text-xs font-medium text-slate-600 mb-2">
-                            In cart: {inCartQty}
-                          </p>
-                          <button
-                            type="button"
-                            onClick={handleRemoveBundle}
-                            className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-red-50 hover:bg-red-100 text-red-700 font-medium rounded-lg text-xs transition-colors"
-                          >
-                            <Trash2 className="w-3.5 h-3.5" />
-                            Remove from Cart
-                          </button>
-                        </div>
+                        <RemoveFromCartRow inCartQty={inCartQty} onRemove={handleRemoveBundle} />
                       )}
                     </div>
                   );
@@ -1163,74 +1002,12 @@ export function EventEssentialsCatalog() {
           </div>
 
           {/* Cart Summary Sidebar */}
-          <div className="lg:col-span-1">
-            <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-4 sm:p-6 lg:sticky lg:top-24">
-              <h2 className="text-lg font-bold text-slate-900 mb-4">Your Party Add-Ons</h2>
-
-              {eventEssentialsCartItems.length === 0 ? (
-                <p className="text-sm text-slate-500 text-center py-8">
-                  No Party Add-Ons in your cart yet.
-                </p>
-              ) : (
-                <>
-                  <div className="space-y-3 mb-4">
-                    {eventEssentialsCartItems.map((item, index) => {
-                      const lineTotal = item.unit_price_cents * item.qty;
-
-                      return (
-                        <div key={index} className="flex items-start justify-between gap-2 text-sm">
-                          <div className="flex-1 min-w-0">
-                            <div className="flex items-center gap-2 flex-wrap">
-                              <span className="text-slate-700 font-medium break-words">
-                                {isEventEssentialBundleCartItem(item)
-                                  ? item.bundle_name
-                                  : item.product_name}
-                              </span>
-                              {item.pricing_context === 'addon' && (
-                                <span className="px-1.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
-                                  Add-on
-                                </span>
-                              )}
-                            </div>
-                            <span className="text-xs text-slate-500">
-                              {item.qty} × {formatPrice(item.unit_price_cents)}
-                            </span>
-                          </div>
-                          <span className="font-semibold text-slate-900 flex-shrink-0">
-                            {formatPrice(lineTotal)}
-                          </span>
-                        </div>
-                      );
-                    })}
-                  </div>
-
-                  <div className="flex items-center justify-between pt-3 border-t border-slate-200 mb-4">
-                    <span className="font-semibold text-slate-700 text-sm">Subtotal</span>
-                    <span className="text-lg font-bold text-blue-700">
-                      {formatPrice(eventEssentialsSubtotalCents)}
-                    </span>
-                  </div>
-
-                  {minOrderCents != null && minOrderCents > 0 && eventEssentialsSubtotalCents < minOrderCents && (
-                    <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg mb-4">
-                      <p className="text-xs text-amber-800">
-                        Minimum order: {formatPrice(minOrderCents)}. Add{' '}
-                        {formatPrice(minOrderCents - eventEssentialsSubtotalCents)} more.
-                      </p>
-                    </div>
-                  )}
-                </>
-              )}
-
-              <button
-                type="button"
-                onClick={() => navigate('/quote')}
-                className="w-full py-3 bg-slate-100 hover:bg-slate-200 text-slate-800 font-semibold rounded-lg text-sm transition-colors"
-              >
-                View Full Quote →
-              </button>
-            </div>
-          </div>
+          <CatalogCartSidebar
+            items={eventEssentialsCartItems}
+            subtotalCents={eventEssentialsSubtotalCents}
+            minOrderCents={minOrderCents}
+            onViewQuote={() => navigate('/quote')}
+          />
         </div>
       </div>
     </div>

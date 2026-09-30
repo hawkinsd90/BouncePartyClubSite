@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { Plus, Package, ShoppingBag, Minus, X } from 'lucide-react';
+import { Plus, Package, ShoppingBag, Minus } from 'lucide-react';
 import { formatCurrency } from '../../lib/pricing';
 import { resolveEventEssentialsPricing } from '../../lib/eventEssentialsPricing';
 import type {
@@ -24,6 +24,7 @@ import {
   buildEventEssentialAvailabilityRequestFromOrderItems,
   validateAvailabilityResult,
 } from '../../lib/eeOrderItemAvailability';
+import { PickerBanners, PickerSpinners, PickerHeader, PickerCategoryPills } from './add-event-essentials/PickerChrome';
 
 interface AddEventEssentialsSectionProps {
   stagedItems: any[];
@@ -477,17 +478,7 @@ export function AddEventEssentialsSection({
     <div className="bg-white border border-slate-200 rounded-lg p-4 sm:p-6">
       <h3 className="text-base sm:text-lg font-semibold text-slate-900 mb-4">Add Event Essentials</h3>
 
-      {error && (
-        <div className="mb-3 bg-red-50 border border-red-200 rounded-lg p-3">
-          <p className="text-sm text-red-700">{error}</p>
-        </div>
-      )}
-
-      {availabilityError && (
-        <div className="mb-3 bg-amber-50 border border-amber-200 rounded-lg p-3">
-          <p className="text-sm text-amber-800">{availabilityError}</p>
-        </div>
-      )}
+      <PickerBanners error={error} availabilityError={availabilityError} />
 
       <div className="flex flex-col sm:flex-row gap-2">
         <button
@@ -510,59 +501,18 @@ export function AddEventEssentialsSection({
         </button>
       </div>
 
-      {loading && (
-        <div className="mt-3 flex items-center gap-2 text-sm text-slate-600">
-          <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-slate-600"></div>
-          Loading catalog...
-        </div>
-      )}
-
-      {availabilityChecking && (
-        <div className="mt-3 flex items-center gap-2 text-sm text-slate-600">
-          <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-slate-600"></div>
-          Checking availability...
-        </div>
-      )}
+      <PickerSpinners loading={loading} availabilityChecking={availabilityChecking} />
 
       {showProducts && !loading && (
         <div className="mt-4 border-t border-slate-200 pt-4">
-          <div className="flex items-center justify-between mb-3">
-            <h4 className="font-medium text-slate-900">Available Products</h4>
-            <button
-              onClick={() => setShowProducts(false)}
-              className="flex items-center gap-1 text-xs text-slate-500 hover:text-slate-700"
-            >
-              <X className="w-3 h-3" />
-              Done
-            </button>
-          </div>
+          <PickerHeader title="Available Products" onDone={() => setShowProducts(false)} />
 
           {sortedCategories.length > 0 && (
-            <div className="flex flex-wrap gap-1.5 mb-3">
-              <button
-                onClick={() => setSelectedCategoryId(null)}
-                className={`px-3 py-1 rounded-full text-xs font-medium transition-colors ${
-                  selectedCategoryId === null
-                    ? 'bg-slate-800 text-white'
-                    : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
-                }`}
-              >
-                All
-              </button>
-              {sortedCategories.map(cat => (
-                <button
-                  key={cat.id}
-                  onClick={() => setSelectedCategoryId(cat.id)}
-                  className={`px-3 py-1 rounded-full text-xs font-medium transition-colors ${
-                    selectedCategoryId === cat.id
-                      ? 'bg-slate-800 text-white'
-                      : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
-                  }`}
-                >
-                  {cat.name}
-                </button>
-              ))}
-            </div>
+            <PickerCategoryPills
+              categories={sortedCategories}
+              selectedCategoryId={selectedCategoryId}
+              onSelect={setSelectedCategoryId}
+            />
           )}
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3 max-h-80 overflow-y-auto">
@@ -634,16 +584,7 @@ export function AddEventEssentialsSection({
 
       {showBundles && !loading && (
         <div className="mt-4 border-t border-slate-200 pt-4">
-          <div className="flex items-center justify-between mb-3">
-            <h4 className="font-medium text-slate-900">Available Packages</h4>
-            <button
-              onClick={() => setShowBundles(false)}
-              className="flex items-center gap-1 text-xs text-slate-500 hover:text-slate-700"
-            >
-              <X className="w-3 h-3" />
-              Done
-            </button>
-          </div>
+          <PickerHeader title="Available Packages" onDone={() => setShowBundles(false)} />
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3 max-h-80 overflow-y-auto">
             {bundles.length > 0 ? bundles.map(bundle => {
               const qty = getBundleQty(bundle.id);
