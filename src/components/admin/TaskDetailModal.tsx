@@ -2,18 +2,25 @@ import { useState, useEffect } from 'react';
 import { format } from 'date-fns';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '../../lib/supabase';
-import { X, ChevronUp, ChevronDown, AlertTriangle, RefreshCw, ExternalLink, ArrowLeft, CheckCircle2 } from 'lucide-react';
 import { formatCurrency } from '../../lib/pricing';
 import { createShortPortalLink } from '../../lib/utils';
 import { decideActionRequiredSms, decideEnRouteReminders } from '../../lib/notificationDecision';
 import { showAlert, showConfirm, showModal } from '../common/CustomModal';
 import { getCurrentLocation, calculateETA } from '../../lib/googleMaps';
 import { Task } from '../../hooks/useCalendarTasks';
-import { getStopNumber, isTaskActiveRouteStop } from '../../lib/calendarUtils';
+import { getStopNumber } from '../../lib/calendarUtils';
 import { TaskDetailCustomerInfo } from './task-detail/TaskDetailCustomerInfo';
 import { TaskDetailOrderManagement } from './task-detail/TaskDetailOrderManagement';
 import { TaskDetailActions } from './task-detail/TaskDetailActions';
 import { PickupCompletionSummary, CompletionSummaryData } from './task-detail/PickupCompletionSummary';
+import { TaskDetailHeader } from './task-detail/TaskDetailHeader';
+import { TaskDetailMobileActionBar } from './task-detail/TaskDetailMobileActionBar';
+import { TaskDetailCompletedBanner } from './task-detail/TaskDetailCompletedBanner';
+import { TaskDetailDateWarning } from './task-detail/TaskDetailDateWarning';
+import { TaskDetailEquipmentCard } from './task-detail/TaskDetailEquipmentCard';
+import { TaskDetailNotesCard } from './task-detail/TaskDetailNotesCard';
+import { TaskDetailPhotosGrid } from './task-detail/TaskDetailPhotosGrid';
+import { getRoutePool } from './task-detail/taskRoutePool';
 
 export type { Task };
 
@@ -76,22 +83,8 @@ export function TaskDetailModal({ task, allTasks, onClose, onUpdate, onRefresh, 
   // Use shared route-stop logic so stop numbers match DayView/TaskCard exactly.
   // Only active (non-excluded, non-completed) route stops are counted.
   const stopNumber = getStopNumber(task, allTasks);
-  const activeRouteStops = allTasks.filter(
-    t => t.type === task.type && isTaskActiveRouteStop(t) && t.taskStatus?.sortOrder != null
-  );
-  // Fall back to all active stops of same type when no route order is saved yet
-  const activeStopsCount = activeRouteStops.length > 0
-    ? activeRouteStops.length
-    : allTasks.filter(t => t.type === task.type && isTaskActiveRouteStop(t)).length;
-
-  // Move-up/down arrows operate on the same pool getStopNumber uses: active route stops only,
-  // filtered to those with a saved sort_order when the route has been committed to DB.
-  const activeRoutePool = allTasks.filter(
-    t => t.type === task.type && isTaskActiveRouteStop(t) && t.taskStatus?.sortOrder != null
-  );
-  const tasksOfSameType = (activeRoutePool.length > 0 ? activeRoutePool : allTasks.filter(
-    t => t.type === task.type && isTaskActiveRouteStop(t)
-  )).sort((a, b) => (a.taskStatus?.sortOrder ?? 0) - (b.taskStatus?.sortOrder ?? 0));
+  // Route-pool derivation (stop count + the pool the move-up/down arrows use) lives in getRoutePool.
+  const { activeStopsCount, tasksOfSameType } = getRoutePool(task, allTasks);
   const currentIndex = tasksOfSameType.findIndex(t => t.id === task.id);
   const canMoveUp = stopNumber > 0 && currentIndex > 0;
   const canMoveDown = stopNumber > 0 && currentIndex !== -1 && currentIndex < tasksOfSameType.length - 1;
@@ -902,138 +895,61 @@ export function TaskDetailModal({ task, allTasks, onClose, onUpdate, onRefresh, 
       <div className="bg-white rounded-xl shadow-2xl w-full max-w-2xl my-2 sm:my-4 mx-2 sm:mx-4 max-h-[calc(100vh-16px)] sm:max-h-[95vh] overflow-y-auto flex flex-col">
 
         {/* Sticky header */}
-        <div className="sticky top-0 bg-white border-b border-slate-200 px-4 sm:px-6 py-3 sm:py-4 z-10 flex-shrink-0">
-          {onBack && (
-            <button onClick={onBack} className="flex items-center gap-1 text-blue-600 hover:text-blue-700 font-medium text-sm mb-3 -ml-1 px-1 py-1 hover:bg-blue-50 rounded-lg transition-colors">
-              <ArrowLeft className="w-4 h-4" />
-              <span>Back to day view</span>
-            </button>
-          )}
-          <div className="flex justify-between items-start">
-            <div className="flex-1 min-w-0">
-              <div className="flex items-center gap-2 mb-2 flex-wrap">
-                <h2 className="text-lg sm:text-2xl font-bold text-slate-900">
-                  {isDropOff ? 'Delivery' : 'Pickup'}
-                </h2>
-                <span className={`text-xs px-2 py-1 rounded-full font-semibold ${statusColor}`}>
-                  {currentStatus.toUpperCase()}
-                </span>
-              </div>
-              <button onClick={() => { onClose(); navigate(`/admin?tab=orders&subtab=single_order&orderId=${task.orderId}`); }} className="text-sm text-blue-600 hover:text-blue-700 hover:underline flex items-center gap-1">
-                Order #{task.orderNumber}
-                <ExternalLink className="w-3 h-3" />
-              </button>
-              <div className="flex items-center gap-2 mt-2 flex-wrap">
-                <div className="flex gap-2">
-                  <button onClick={() => handleReorder('up')} disabled={!canMoveUp} className="p-1 hover:bg-slate-100 rounded disabled:opacity-30 disabled:cursor-not-allowed" title="Move up in route"><ChevronUp className="w-4 h-4" /></button>
-                  <button onClick={() => handleReorder('down')} disabled={!canMoveDown} className="p-1 hover:bg-slate-100 rounded disabled:opacity-30 disabled:cursor-not-allowed" title="Move down in route"><ChevronDown className="w-4 h-4" /></button>
-                </div>
-                {stopNumber > 0 && (
-                  <span className="text-xs text-slate-500">Stop #{stopNumber} of {activeStopsCount}</span>
-                )}
-                <button onClick={async () => { setRefreshing(true); setLastUpdated(new Date()); await refresh(); setTimeout(() => setRefreshing(false), 500); }} disabled={refreshing} className="ml-auto flex items-center gap-1 text-xs text-blue-600 hover:text-blue-700 px-2 py-1 rounded hover:bg-blue-50 disabled:opacity-50">
-                  <RefreshCw className={`w-3 h-3 ${refreshing ? 'animate-spin' : ''}`} />
-                  <span className="hidden sm:inline">{refreshing ? 'Refreshing...' : `Updated ${Math.floor((Date.now() - lastUpdated.getTime()) / 1000)}s ago`}</span>
-                </button>
-              </div>
-            </div>
-            <button onClick={onClose} className="p-2 hover:bg-slate-100 rounded-lg transition-colors flex-shrink-0"><X className="w-6 h-6" /></button>
-          </div>
-        </div>
+        <TaskDetailHeader
+          isDropOff={isDropOff}
+          currentStatus={currentStatus}
+          statusColor={statusColor}
+          orderNumber={task.orderNumber}
+          canMoveUp={canMoveUp}
+          canMoveDown={canMoveDown}
+          stopNumber={stopNumber}
+          activeStopsCount={activeStopsCount}
+          refreshing={refreshing}
+          lastUpdated={lastUpdated}
+          onBack={onBack}
+          onClose={onClose}
+          onOpenOrder={() => { onClose(); navigate(`/admin?tab=orders&subtab=single_order&orderId=${task.orderId}`); }}
+          onReorder={handleReorder}
+          onRefreshClick={async () => { setRefreshing(true); setLastUpdated(new Date()); await refresh(); setTimeout(() => setRefreshing(false), 500); }}
+        />
 
         {/* Mobile action bar */}
         {isToday && currentStatus !== 'completed' && (
-          <div className="sm:hidden sticky top-[60px] bg-white border-b border-slate-200 px-4 py-3 z-10 flex-shrink-0">
-            <div className="grid grid-cols-2 gap-2">
-              <button onClick={handleEnRoute} disabled={processing} className="flex items-center justify-center gap-1.5 bg-blue-600 hover:bg-blue-700 disabled:bg-slate-300 text-white font-semibold py-2.5 px-3 rounded-lg transition-colors text-sm">En Route</button>
-              <button onClick={handleArrived} disabled={processing} className="flex items-center justify-center gap-1.5 bg-yellow-600 hover:bg-yellow-700 disabled:bg-slate-300 text-white font-semibold py-2.5 px-3 rounded-lg transition-colors text-sm">Arrived</button>
-              {isDropOff ? (
-                <>
-                  <button onClick={() => handleImageUpload(false)} disabled={uploadingImages} className="flex items-center justify-center gap-1.5 bg-green-600 hover:bg-green-700 disabled:bg-slate-300 text-white font-semibold py-2.5 px-3 rounded-lg transition-colors text-sm">Photos</button>
-                  <button onClick={handleDropOffComplete} disabled={processing} className="flex items-center justify-center gap-1.5 bg-slate-600 hover:bg-slate-700 disabled:bg-slate-300 text-white font-semibold py-2.5 px-3 rounded-lg transition-colors text-sm">Leaving</button>
-                </>
-              ) : (
-                <button onClick={handlePickupComplete} disabled={processing} className="flex items-center justify-center gap-1.5 bg-green-600 hover:bg-green-700 disabled:bg-slate-300 text-white font-semibold py-2.5 px-3 rounded-lg transition-colors text-sm col-span-2">Complete Pickup</button>
-              )}
-            </div>
-          </div>
+          <TaskDetailMobileActionBar
+            isDropOff={isDropOff}
+            processing={processing}
+            uploadingImages={uploadingImages}
+            onEnRoute={handleEnRoute}
+            onArrived={handleArrived}
+            onImageUpload={handleImageUpload}
+            onDropOffComplete={handleDropOffComplete}
+            onPickupComplete={handlePickupComplete}
+          />
         )}
 
         <div className="p-4 sm:p-6 space-y-6">
           {/* Completed banner */}
           {currentStatus === 'completed' && (
-            <div className="bg-green-600 rounded-xl p-5 flex items-center gap-4 shadow-lg">
-              <div className="bg-white bg-opacity-20 rounded-full p-2 flex-shrink-0">
-                <CheckCircle2 className="w-8 h-8 text-white" />
-              </div>
-              <div className="flex-1 min-w-0">
-                <p className="text-white font-bold text-lg leading-tight">
-                  {isDropOff ? 'Delivery Complete' : 'Pickup Complete'}
-                </p>
-                <p className="text-green-100 text-sm mt-0.5">
-                  This task has been marked as completed.
-                  {task.taskStatus?.completedTime && (
-                    <span> Completed at {new Date(task.taskStatus.completedTime).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}.</span>
-                  )}
-                </p>
-              </div>
-            </div>
+            <TaskDetailCompletedBanner isDropOff={isDropOff} completedTime={task.taskStatus?.completedTime} />
           )}
 
           {/* Date warning */}
           {!isToday && (
-            <div className={`rounded-lg p-4 border-2 ${isFuture ? 'bg-amber-50 border-amber-400' : 'bg-slate-100 border-slate-400'}`}>
-              <div className="flex items-start gap-3">
-                <AlertTriangle className={`w-5 h-5 mt-0.5 flex-shrink-0 ${isFuture ? 'text-amber-600' : 'text-slate-600'}`} />
-                <div className="flex-1">
-                  <h3 className={`font-bold ${isFuture ? 'text-amber-900' : 'text-slate-900'} mb-1`}>
-                    {isFuture ? 'Future Task Warning' : 'Past Task Warning'}
-                  </h3>
-                  <p className={`text-sm ${isFuture ? 'text-amber-800' : 'text-slate-700'}`}>
-                    {isFuture
-                      ? `This task is scheduled for ${task.date.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })}, not today. Taking delivery actions now may cause confusion.`
-                      : `This task was scheduled for ${task.date.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })} (past date).`}
-                  </p>
-                  {isFuture && (
-                    <label className="flex items-center gap-2 mt-3 cursor-pointer select-none">
-                      <input
-                        type="checkbox"
-                        checked={futureTaskOverride}
-                        onChange={(e) => setFutureTaskOverride(e.target.checked)}
-                        className="w-4 h-4 rounded border-amber-400 text-amber-600 focus:ring-amber-500"
-                      />
-                      <span className="text-sm font-semibold text-amber-900">
-                        I need to perform delivery actions early (e.g. pre-drop before a busy day)
-                      </span>
-                    </label>
-                  )}
-                </div>
-              </div>
-            </div>
+            <TaskDetailDateWarning
+              isFuture={isFuture}
+              date={task.date}
+              futureTaskOverride={futureTaskOverride}
+              onOverrideChange={setFutureTaskOverride}
+            />
           )}
 
           <TaskDetailCustomerInfo task={task} onRefund={handleRefund} refunding={refunding} />
 
           {/* Equipment */}
-          <div className="bg-slate-50 rounded-lg p-4">
-            <h3 className="font-bold text-slate-900 mb-3">Equipment</h3>
-            <ul className="space-y-1 text-sm">
-              {task.items.map((item, idx) => (
-                <li key={idx} className="flex items-start gap-2">
-                  <span className={isDropOff ? 'text-green-600' : 'text-orange-600'}>•</span>
-                  {item}
-                </li>
-              ))}
-            </ul>
-          </div>
+          <TaskDetailEquipmentCard items={task.items} isDropOff={isDropOff} />
 
           {/* Notes */}
-          {task.notes && (
-            <div className="bg-amber-50 border border-amber-200 rounded-lg p-4">
-              <h3 className="font-bold text-amber-900 mb-2">Special Notes</h3>
-              <p className="text-sm text-amber-900 whitespace-pre-wrap">{task.notes}</p>
-            </div>
-          )}
+          {task.notes && <TaskDetailNotesCard notes={task.notes} />}
 
           <TaskDetailOrderManagement
             task={task}
@@ -1065,29 +981,10 @@ export function TaskDetailModal({ task, allTasks, onClose, onUpdate, onRefresh, 
 
           {/* Photos */}
           {(task.taskStatus?.deliveryImages?.length || task.taskStatus?.damageImages?.length) ? (
-            <div className="border-t border-slate-200 pt-6">
-              <h3 className="font-bold text-slate-900 mb-4">Photos</h3>
-              {task.taskStatus.deliveryImages && task.taskStatus.deliveryImages.length > 0 && (
-                <div className="mb-4">
-                  <h4 className="font-semibold text-sm text-slate-700 mb-2">Delivery Photos</h4>
-                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-                    {task.taskStatus.deliveryImages.map((url, idx) => (
-                      <img key={idx} src={url} alt={`Delivery ${idx + 1}`} className="w-full h-24 object-cover rounded-lg border border-slate-200" />
-                    ))}
-                  </div>
-                </div>
-              )}
-              {task.taskStatus.damageImages && task.taskStatus.damageImages.length > 0 && (
-                <div>
-                  <h4 className="font-semibold text-sm text-slate-700 mb-2">Damage Photos</h4>
-                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-                    {task.taskStatus.damageImages.map((url, idx) => (
-                      <img key={idx} src={url} alt={`Damage ${idx + 1}`} className="w-full h-24 object-cover rounded-lg border border-red-200" />
-                    ))}
-                  </div>
-                </div>
-              )}
-            </div>
+            <TaskDetailPhotosGrid
+              deliveryImages={task.taskStatus.deliveryImages}
+              damageImages={task.taskStatus.damageImages}
+            />
           ) : null}
         </div>
       </div>
