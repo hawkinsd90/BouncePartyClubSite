@@ -31,6 +31,7 @@ import {
   reduceDirectGeneratorItems,
   applyGeneratorEeCandidate,
 } from './order-detail-modal/generatorStagedItems';
+import { buildGeneratorResolverCatalog } from './order-detail-modal/generatorResolverCatalog';
 import { usePricing } from '../../hooks/usePricing';
 import { useOrderDetails } from '../../hooks/useOrderDetails';
 import { saveOrderChanges } from '../../lib/orderSaveService';
@@ -51,13 +52,6 @@ import {
   fetchAdminProductCategories,
   fetchAdminProductBundlesWithConfiguration,
 } from '../../lib/queries/products';
-import type {
-  ResolverProductConfig,
-  ResolverBundleConfig,
-  ResolverCategory,
-  ResolverUnitConfig,
-  InflatableEligibilityMode,
-} from '../../lib/eventEssentialsPricingTypes';
 
 interface OrderDetailModalProps {
   order: any;
@@ -875,11 +869,6 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
 
     try {
       // Load full catalog config for the pricing resolver.
-      let productConfigs: Record<string, ResolverProductConfig> = {};
-      let bundleConfigs: Record<string, ResolverBundleConfig> = {};
-      let categoryMap: Record<string, ResolverCategory> = {};
-      let unitMap: Record<string, ResolverUnitConfig> = {};
-
       const [catsRes, prodsRes, pricingRes, bundlesRes] = await Promise.all([
         fetchAdminProductCategories(),
         fetchAdminInventoryProducts(),
@@ -899,50 +888,13 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
       const allCats = catsRes.data || [];
       const allBundles = bundlesRes.data || [];
 
-      const pricingByProductId = new Map<string, any>();
-      for (const p of allPricing) pricingByProductId.set(p.product_id, p);
-
-      for (const p of allProducts) {
-        const pc = pricingByProductId.get(p.id);
-        if (!pc) continue;
-        if (typeof p.category_id !== 'string' || !p.category_id) continue;
-        productConfigs[p.id] = {
-          id: p.id,
-          categoryId: p.category_id,
-          standalonePriceCents: pc.standalone_price_cents ?? null,
-          addonPriceCents: pc.addon_price_cents ?? null,
-          standaloneEnabled: pc.standalone_enabled === true,
-          addonEnabled: pc.addon_enabled === true,
-          addonQualifyingThresholdCents: pc.addon_qualifying_threshold_cents ?? null,
-        };
-      }
-
-      for (const b of allBundles) {
-        const comps = b.product_bundle_components || [];
-        const containedCategoryIds = Array.from(new Set(
-          comps.map((c: any) => c.inventory_products?.category_id).filter((id: any): id is string => typeof id === 'string' && id !== '')
-        ));
-        bundleConfigs[b.id] = {
-          id: b.id,
-          standalonePriceCents: b.standalone_price_cents ?? null,
-          addonPriceCents: b.addon_price_cents ?? null,
-          standaloneEnabled: b.standalone_enabled === true,
-          addonEnabled: b.addon_enabled === true,
-          addonQualifyingThresholdCents: b.addon_qualifying_threshold_cents ?? null,
-          inflatableEligibilityMode: (b.inflatable_eligibility_mode || 'none') as InflatableEligibilityMode,
-          excludedCategoryIds: (b.product_bundle_excluded_categories || []).map((e: any) => e.category_id),
-          eligibleUnitIds: (b.package_inflatable_eligibility || []).map((e: any) => e.unit_id),
-          inflatableComponents: (b.package_inflatable_components || []).map((c: any) => ({
-            unitId: c.unit_id,
-            quantityPerBundle: c.quantity_per_bundle,
-            selectionMode: c.selection_mode,
-          })),
-          containedProductCategoryIds: containedCategoryIds,
-        };
-      }
-
-      for (const c of allCats) categoryMap[c.id] = { id: c.id };
-      for (const u of availableUnits) unitMap[u.id] = { id: u.id, active: true };
+      const catalog = buildGeneratorResolverCatalog({
+        productRows: allProducts,
+        pricingRows: allPricing,
+        categoryRows: allCats,
+        bundleRows: allBundles,
+        unitRows: availableUnits,
+      });
 
       if (isInvalid()) return;
 
@@ -953,10 +905,10 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
         eventDate: editedOrder.event_date,
         eventEndDate: editedOrder.event_end_date,
         orderId: order.id,
-        productConfigs,
-        bundleConfigs,
-        categories: categoryMap,
-        units: unitMap,
+        productConfigs: catalog.productConfigs,
+        bundleConfigs: catalog.bundleConfigs,
+        categories: catalog.categories,
+        units: catalog.units,
       });
 
       if (isInvalid()) {
