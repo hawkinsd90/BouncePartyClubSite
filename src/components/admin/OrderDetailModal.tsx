@@ -32,6 +32,7 @@ import {
   applyGeneratorEeCandidate,
 } from './order-detail-modal/generatorStagedItems';
 import { buildGeneratorResolverCatalog } from './order-detail-modal/generatorResolverCatalog';
+import { buildOrderDetailPricingRevision, buildGeneratorContextRevision } from './order-detail-modal/orderDetailRevisions';
 import { usePricing } from '../../hooks/usePricing';
 import { useOrderDetails } from '../../hooks/useOrderDetails';
 import { saveOrderChanges } from '../../lib/orderSaveService';
@@ -161,34 +162,31 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
   // dependency changes, even before the 300ms debounce fires.
   // Uses the full deterministic JSON string (no lossy hash) so two different
   // pricing inputs can never collapse to the same revision.
-  const currentPricingRevision = useMemo(() => JSON.stringify({
-    stagedItems: stagedItems.map(i => ({
-      unit_id: i.unit_id, product_id: i.product_id, bundle_id: i.bundle_id,
-      qty: i.qty, wet_or_dry: i.wet_or_dry, unit_price_cents: i.unit_price_cents,
-      pricing_context: i.pricing_context, component_snapshot: i.component_snapshot,
-      is_new: i.is_new, is_deleted: i.is_deleted, is_updated: i.is_updated,
-    })),
-    discounts: discounts.map((d: any) => ({ id: d.id, amount_cents: d.amount_cents, percentage: d.percentage, is_new: d.is_new })),
-    customFees: customFees.map((f: any) => ({ id: f.id, amount_cents: f.amount_cents, is_new: f.is_new })),
+  const currentPricingRevision = useMemo(() => buildOrderDetailPricingRevision({
+    stagedItems,
+    discounts,
+    customFees,
     customDepositCents,
     customSetupFeeCents,
-    location_type: editedOrder.location_type,
-    surface: editedOrder.surface,
-    generator_qty: editedOrder.generator_qty,
-    address_line1: editedOrder.address_line1,
-    address_city: editedOrder.address_city,
-    address_state: editedOrder.address_state,
-    address_zip: editedOrder.address_zip,
-    pickup_preference: editedOrder.pickup_preference,
-    event_date: editedOrder.event_date,
-    event_end_date: editedOrder.event_end_date,
+    editedOrder: {
+      location_type: editedOrder.location_type,
+      surface: editedOrder.surface,
+      generator_qty: editedOrder.generator_qty,
+      address_line1: editedOrder.address_line1,
+      address_city: editedOrder.address_city,
+      address_state: editedOrder.address_state,
+      address_zip: editedOrder.address_zip,
+      pickup_preference: editedOrder.pickup_preference,
+      event_date: editedOrder.event_date,
+      event_end_date: editedOrder.event_end_date,
+    },
     taxWaived,
     travelFeeWaived,
     sameDayPickupFeeWaived,
     surfaceFeeWaived,
     generatorFeeWaived,
     sameDayWeekdayDeliveryFeeWaived,
-    pricingRules: pricingRules ?? null,
+    pricingRules,
   }), [
     stagedItems, discounts, customFees, customDepositCents, customSetupFeeCents,
     editedOrder.location_type, editedOrder.surface, editedOrder.generator_qty,
@@ -212,16 +210,11 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
   // Generator-resolution context signature — represents the inputs that affect
   // Generator pricing or availability. If any of these change while a Generator
   // resolution is running, the resolution is invalidated.
-  const currentGeneratorContextRevision = useMemo(() => JSON.stringify({
-    stagedItems: stagedItems.map(i => ({
-      unit_id: i.unit_id, product_id: i.product_id, bundle_id: i.bundle_id,
-      qty: i.qty, wet_or_dry: i.wet_or_dry, unit_price_cents: i.unit_price_cents,
-      pricing_context: i.pricing_context, component_snapshot: i.component_snapshot,
-      is_deleted: i.is_deleted,
-    })),
-    event_date: editedOrder.event_date,
-    event_end_date: editedOrder.event_end_date,
-    generator_qty: editedOrder.generator_qty,
+  const currentGeneratorContextRevision = useMemo(() => buildGeneratorContextRevision({
+    stagedItems,
+    eventDate: editedOrder.event_date,
+    eventEndDate: editedOrder.event_end_date,
+    generatorQty: editedOrder.generator_qty,
     generatorFeeWaived,
   }), [
     stagedItems, editedOrder.event_date, editedOrder.event_end_date,
