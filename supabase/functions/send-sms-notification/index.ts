@@ -75,6 +75,9 @@ Deno.serve(async (req: Request) => {
   // Set once the Twilio-error branch has recorded its own failure, so the outer catch (which that branch
   // reaches by throwing) does not record the same failed SMS attempt a second time.
   let failureAlreadyRecorded = false;
+  // Same idea for the admin fallback email: set when the Twilio-error branch has attempted it, so the outer
+  // catch does not send a second one. It means "attempted", not "delivered" (the fallback is best effort).
+  let fallbackAlreadyAttempted = false;
 
   try {
     requestBody = await req.json();
@@ -321,6 +324,7 @@ Deno.serve(async (req: Request) => {
       });
 
       if (!requestBody.skipFallback) {
+        fallbackAlreadyAttempted = true;
         await sendAdminEmailFallback(supabase, toPhone || 'unknown', messageBody || '', errorMsg);
       }
 
@@ -379,7 +383,7 @@ Deno.serve(async (req: Request) => {
         });
       }
 
-      if (!skipFallback) {
+      if (!skipFallback && !fallbackAlreadyAttempted) {
         await sendAdminEmailFallback(supabase, to, messageBody, errorMsg);
       }
     }

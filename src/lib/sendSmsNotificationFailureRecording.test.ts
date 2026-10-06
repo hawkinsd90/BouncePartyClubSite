@@ -67,6 +67,8 @@ interface Scenario {
   order?: any;
   adminEmail?: string | null;
   adminPhone?: string | null;
+  // The admin fallback email request (a fetch to send-email) rejects.
+  fallbackFetch?: 'throws';
 }
 
 const TWILIO_SETTINGS = [
@@ -120,6 +122,7 @@ async function run(sc: Scenario) {
       return { ok: true, status: 201, json: async () => ({ sid: 'SM123', status: 'queued' }) };
     }
     fallbackCalls.push({ url, body: init?.body ? JSON.parse(init.body) : null });
+    if (sc.fallbackFetch === 'throws') throw new TypeError('fallback endpoint down');
     return { ok: true, status: 200, json: async () => ({}) };
   };
   const handler = loadHandler({ SUPABASE_URL: 'https://x.supabase.test', SUPABASE_SERVICE_ROLE_KEY: 'svc' }, () => supabaseFake, fetchFake);
@@ -165,8 +168,12 @@ const templateData = { template: { message_template: 'Thanks {name}' }, order: {
     eq('non-OK: HTTP failure response preserved', [r.status, r.body], [500, { error: "Twilio API error (21211): Invalid 'To' Phone Number" }]);
     eq('non-OK: no success tracking', r.successCalls.length, 0);
     eq('non-OK: no sms_conversations row', r.conversationInserts.length, 0);
-    // Known, separate issue (not part of this fix): the admin email fallback is still sent from both layers.
-    eq('non-OK: admin fallback email behavior unchanged (known separate issue)', r.fallbackCalls.length, 2);
+    // One failed SMS attempt sends exactly one admin fallback email (previously the inner provider-error branch
+    // and the outer catch each sent one).
+    eq('non-OK: EXACTLY ONE admin fallback email for one failed SMS attempt', r.fallbackCalls.length, 1);
+    eq('non-OK: failure RPC count stays one alongside the single fallback', [r.failureCalls.length, r.fallbackCalls.length], [1, 1]);
+    eq('non-OK: the fallback email request', [r.fallbackCalls[0].url, r.fallbackCalls[0].body.to, r.fallbackCalls[0].body.subject, r.fallbackCalls[0].body.skipFallback], ['https://x.supabase.test/functions/v1/send-email', 'admin@example.test', '[SMS SYSTEM FAILURE] Action Required', true]);
+    eq('non-OK: the fallback names the normalized recipient and the Twilio error', [r.fallbackCalls[0].body.html.includes('+15555550123'), r.fallbackCalls[0].body.html.includes("Twilio API error (21211): Invalid 'To' Phone Number")], [true, true]);
   }
   {
     const r = await run({ body: { ...EXPLICIT, skipFallback: true }, twilio: 'non-ok' });
@@ -179,6 +186,10 @@ const templateData = { template: { message_template: 'Thanks {name}' }, order: {
     eq('template non-OK: exactly one failure RPC', r.failureCalls.length, 1);
     eq('template non-OK: payload uses the order phone and rendered message', [r.failureCalls[0].args.p_recipient, r.failureCalls[0].args.p_message_preview, r.failureCalls[0].args.p_context], ['+15555550199', 'Thanks Ann', { orderId: 'ord-1', twilioCode: 21211 }]);
     eq('template non-OK: response', r.status, 500);
+    eq('template non-OK: exactly one admin fallback (the inner branch; the outer catch has no explicit recipient)', r.fallbackCalls.length, 1);
+    eq('template non-OK: fallback uses the order phone and rendered message', [r.fallbackCalls[0].body.html.includes('+15555550199'), r.fallbackCalls[0].body.html.includes('Thanks Ann')], [true, true]);
+    const rt = await run({ body: { ...TEMPLATE, skipFallback: true }, twilio: 'non-ok', ...templateData });
+    eq('template non-OK + skipFallback: one failure RPC, no fallback', [rt.failureCalls.length, rt.fallbackCalls.length], [1, 0]);
   }
 
   // ---- Twilio fetch throws ----
@@ -190,10 +201,15 @@ const templateData = { template: { message_template: 'Thanks {name}' }, order: {
       p_type: 'sms', p_recipient: '5555550123', p_subject: null, p_message_preview: 'Hello there', p_error: 'network down', p_context: { orderId: 'ord-1' },
     });
     eq('fetch throws: HTTP response preserved', [r.status, r.body], [500, { error: 'network down' }]);
+    eq('fetch throws: exactly one admin fallback (from the outer catch)', r.fallbackCalls.length, 1);
+    eq('fetch throws: the fallback uses the raw request recipient and the network error', [r.fallbackCalls[0].body.html.includes('5555550123'), r.fallbackCalls[0].body.html.includes('network down')], [true, true]);
+    const rs = await run({ body: { ...EXPLICIT, skipFallback: true }, twilio: 'throws' });
+    eq('fetch throws + skipFallback: one failure RPC, no fallback', [rs.failureCalls.length, rs.fallbackCalls.length], [1, 0]);
   }
   {
     const r = await run({ body: TEMPLATE, twilio: 'throws', ...templateData });
     eq('fetch throws via template: no failure RPC (outer catch has no to/message), response preserved', [r.failureCalls.length, r.status, r.body], [0, 500, { error: 'network down' }]);
+    eq('fetch throws via template: no admin fallback either (outer catch has no explicit recipient)', r.fallbackCalls.length, 0);
   }
 
   // ---- Twilio non-OK with an unreadable error body ----
@@ -201,6 +217,7 @@ const templateData = { template: { message_template: 'Thanks {name}' }, order: {
     const r = await run({ body: EXPLICIT, twilio: 'non-ok-bad-json' });
     eq('non-OK with unreadable body: exactly one failure RPC (outer catch)', r.failureCalls.length, 1);
     eq('non-OK with unreadable body: response', [r.status, r.body], [500, { error: 'Unexpected token <' }]);
+    eq('non-OK with unreadable body: exactly one admin fallback (outer catch; the inner branch never ran)', r.fallbackCalls.length, 1);
   }
 
   // ---- Failure recording itself fails ----
@@ -208,15 +225,32 @@ const templateData = { template: { message_template: 'Thanks {name}' }, order: {
     const r = await run({ body: EXPLICIT, twilio: 'non-ok', failureRpc: 'returns-error' });
     eq('RPC returns an error: still exactly one attempt (no retry in the outer layer)', r.failureCalls.length, 1);
     eq('RPC returns an error: the Twilio failure remains the primary response', [r.status, r.body], [500, { error: "Twilio API error (21211): Invalid 'To' Phone Number" }]);
+    eq('RPC returns an error: still exactly one fallback', r.fallbackCalls.length, 1);
+  }
+
+  // ---- The fallback email request itself fails: best effort, never retried, never changes the response ----
+  {
+    const r = await run({ body: EXPLICIT, twilio: 'non-ok', fallbackFetch: 'throws' });
+    eq('fallback request rejects: one attempt, no retry from the outer catch', r.fallbackCalls.length, 1);
+    eq('fallback request rejects: Twilio failure remains the primary response', [r.status, r.body], [500, { error: "Twilio API error (21211): Invalid 'To' Phone Number" }]);
+    eq('fallback request rejects: still one failure RPC', r.failureCalls.length, 1);
+    const r2 = await run({ body: EXPLICIT, twilio: 'throws', fallbackFetch: 'throws' });
+    eq('network error + fallback rejects: one attempt and the network error response', [r2.fallbackCalls.length, r2.status, r2.body], [1, 500, { error: 'network down' }]);
   }
 
   // ---- Pre-send failures (behavior pinned) ----
   {
     const r = await run({ body: EXPLICIT, settings: [] });
     eq('missing Twilio config: one failure RPC, 400, no Twilio call', [r.failureCalls.length, r.status, r.twilioCalls.length], [1, 400, 0]);
+    eq('missing Twilio config: exactly one admin fallback', r.fallbackCalls.length, 1);
     eq('missing Twilio config: payload', [r.failureCalls[0].args.p_error, r.failureCalls[0].args.p_context], ['Twilio not configured. Please add credentials in Admin > Settings.', { orderId: 'ord-1' }]);
     const r2 = await run({ body: EXPLICIT, settings: [{ key: 'twilio_account_sid', value: 'AC' }, { key: 'twilio_auth_token', value: '  ' }, { key: 'twilio_from_number', value: '+1555' }] });
     eq('incomplete Twilio config: one failure RPC, 400', [r2.failureCalls.length, r2.status, r2.body.error], [1, 400, 'Incomplete Twilio configuration. Please check Admin > Settings.']);
+    eq('incomplete Twilio config: exactly one admin fallback', r2.fallbackCalls.length, 1);
+    const r2s = await run({ body: { ...EXPLICIT, skipFallback: true }, settings: [] });
+    eq('missing config + skipFallback: one failure RPC, 400, no fallback', [r2s.failureCalls.length, r2s.status, r2s.fallbackCalls.length], [1, 400, 0]);
+    const r2t = await run({ body: { ...EXPLICIT, skipFallback: true }, settings: [{ key: 'twilio_account_sid', value: 'AC' }, { key: 'twilio_auth_token', value: '  ' }, { key: 'twilio_from_number', value: '+1555' }] });
+    eq('incomplete config + skipFallback: no fallback', r2t.fallbackCalls.length, 0);
     const r3 = await run({ body: { orderId: 'ord-1' } });
     eq('missing to/message: 400 and no failure RPC', [r3.status, r3.failureCalls.length], [400, 0]);
     const r4 = await run({ body: TEMPLATE, template: null, order: null });
