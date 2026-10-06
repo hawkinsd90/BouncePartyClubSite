@@ -1,5 +1,4 @@
 // Differential tests for InvoiceBuilder's adoption of the existing tested modules:
-//   - generatorResolverCatalog     (the admin resolver catalog transform)
 //   - stagedItemModel              (Event Essentials add / bundle / remove / quantity)
 //   - generatorStagedItems         (Generator decrease ordering/reduction, EE candidate apply)
 //   - decideAdminGeneratorDecrease (Generator decrease decision)
@@ -27,14 +26,6 @@
 // decideAdminGeneratorDecrease lives in a module that imports the Supabase client and
 // cannot be loaded under Node, so `decideDecrease` below is a verbatim copy of it.
 
-import { buildGeneratorResolverCatalog } from '../order-detail-modal/generatorResolverCatalog';
-import type {
-  CatalogProductRow,
-  CatalogPricingRow,
-  CatalogCategoryRow,
-  CatalogBundleRow,
-  CatalogUnitRow,
-} from '../order-detail-modal/generatorResolverCatalog';
 import {
   addEEProductToStagedItems,
   addEEBundleToStagedItems,
@@ -71,170 +62,13 @@ function rng(seed: number) {
 }
 
 // ======================================================================
-// Oracle 1: InvoiceBuilder's old inline catalog transform (verbatim)
+// The catalog-transform differential that used to live here (InvoiceBuilder's old inline
+// copy vs the shared admin builder) proved the Batch 1 adoption. It is superseded by
+// src/lib/eventEssentialsResolverConfig.test.ts, which compares the old admin builder (and
+// the old customer and AddEventEssentialsSection builders) against the single canonical
+// builder, including the intentional all-or-nothing contained-category change.
 // ======================================================================
 /* eslint-disable @typescript-eslint/no-explicit-any */
-function oracleCatalog(allProducts: any[], allPricing: any[], allCats: any[], allBundles: any[], units: any[]) {
-  const productConfigs: Record<string, unknown> = {};
-  const bundleConfigs: Record<string, unknown> = {};
-  const categoryMap: Record<string, unknown> = {};
-  const unitMap: Record<string, unknown> = {};
-
-  const pricingByProductId = new Map<string, any>();
-  for (const p of allPricing) pricingByProductId.set(p.product_id, p);
-
-  for (const p of allProducts) {
-    const pc = pricingByProductId.get(p.id);
-    if (!pc) continue;
-    if (typeof p.category_id !== 'string' || !p.category_id) continue;
-    productConfigs[p.id] = {
-      id: p.id,
-      categoryId: p.category_id,
-      standalonePriceCents: pc.standalone_price_cents ?? null,
-      addonPriceCents: pc.addon_price_cents ?? null,
-      standaloneEnabled: pc.standalone_enabled === true,
-      addonEnabled: pc.addon_enabled === true,
-      addonQualifyingThresholdCents: pc.addon_qualifying_threshold_cents ?? null,
-    };
-  }
-
-  for (const b of allBundles) {
-    const comps = b.product_bundle_components || [];
-    const containedCategoryIds = Array.from(new Set(
-      comps.map((c: any) => c.inventory_products?.category_id).filter((id: any): id is string => typeof id === 'string' && id !== '')
-    ));
-    bundleConfigs[b.id] = {
-      id: b.id,
-      standalonePriceCents: b.standalone_price_cents ?? null,
-      addonPriceCents: b.addon_price_cents ?? null,
-      standaloneEnabled: b.standalone_enabled === true,
-      addonEnabled: b.addon_enabled === true,
-      addonQualifyingThresholdCents: b.addon_qualifying_threshold_cents ?? null,
-      inflatableEligibilityMode: (b.inflatable_eligibility_mode || 'none'),
-      excludedCategoryIds: (b.product_bundle_excluded_categories || []).map((e: any) => e.category_id),
-      eligibleUnitIds: (b.package_inflatable_eligibility || []).map((e: any) => e.unit_id),
-      inflatableComponents: (b.package_inflatable_components || []).map((c: any) => ({
-        unitId: c.unit_id,
-        quantityPerBundle: c.quantity_per_bundle,
-        selectionMode: c.selection_mode,
-      })),
-      containedProductCategoryIds: containedCategoryIds,
-    };
-  }
-
-  for (const c of allCats) categoryMap[c.id] = { id: c.id };
-  for (const u of units) unitMap[u.id] = { id: u.id, active: true };
-
-  return { productConfigs, bundleConfigs, categories: categoryMap, units: unitMap };
-}
-
-// The adoption: InvoiceBuilder now calls the shared builder with the same normalized rows.
-function adoptedCatalog(allProducts: any[], allPricing: any[], allCats: any[], allBundles: any[], units: any[]) {
-  return buildGeneratorResolverCatalog({
-    productRows: allProducts as CatalogProductRow[],
-    pricingRows: allPricing as CatalogPricingRow[],
-    categoryRows: allCats as CatalogCategoryRow[],
-    bundleRows: allBundles as CatalogBundleRow[],
-    unitRows: units as CatalogUnitRow[],
-  });
-}
-
-function bothOutcomes(fn: () => unknown): { value?: string; error?: string } {
-  try { return { value: JSON.stringify(fn()) }; } catch (e) { return { error: (e as Error).constructor.name }; }
-}
-
-function compareCatalog(label: string, products: any[], pricing: any[], cats: any[], bundles: any[], units: any[]) {
-  const before = JSON.stringify([products, pricing, cats, bundles, units]);
-  const o = bothOutcomes(() => oracleCatalog(products, pricing, cats, bundles, units));
-  const a = bothOutcomes(() => adoptedCatalog(products, pricing, cats, bundles, units));
-  eq(`catalog ${label}`, a, o);
-  eq(`catalog ${label}: inputs not mutated`, JSON.stringify([products, pricing, cats, bundles, units]), before);
-}
-
-// ---- Fixed scenarios
-compareCatalog('empty', [], [], [], [], []);
-compareCatalog('product with pricing',
-  [{ id: 'p1', category_id: 'c1' }],
-  [{ product_id: 'p1', standalone_price_cents: 1000, addon_price_cents: 500, standalone_enabled: true, addon_enabled: true, addon_qualifying_threshold_cents: 15000 }],
-  [{ id: 'c1' }], [], []);
-compareCatalog('product without pricing', [{ id: 'p1', category_id: 'c1' }], [], [{ id: 'c1' }], [], []);
-compareCatalog('product with null/empty/missing/non-string category',
-  [{ id: 'a', category_id: null }, { id: 'b', category_id: '' }, { id: 'c' }, { id: 'd', category_id: 5 }, { id: 'e', category_id: 'c1' }],
-  ['a', 'b', 'c', 'd', 'e'].map((id) => ({ product_id: id, standalone_price_cents: 1, standalone_enabled: true })),
-  [{ id: 'c1' }], [], []);
-compareCatalog('zero prices kept; only literal true enables',
-  [{ id: 'p1', category_id: 'c1' }],
-  [{ product_id: 'p1', standalone_price_cents: 0, addon_price_cents: 0, standalone_enabled: 'true', addon_enabled: 1, addon_qualifying_threshold_cents: 0 }],
-  [], [], []);
-compareCatalog('undefined price fields',
-  [{ id: 'p1', category_id: 'c1' }], [{ product_id: 'p1' }], [], [], []);
-compareCatalog('duplicate pricing rows: last wins; duplicate product/category/unit ids overwrite',
-  [{ id: 'p1', category_id: 'c1' }, { id: 'p1', category_id: 'c2' }],
-  [{ product_id: 'p1', standalone_price_cents: 1 }, { product_id: 'p1', standalone_price_cents: 2 }],
-  [{ id: 'c1' }, { id: 'c1', name: 'later' }], [], [{ id: 'u1' }, { id: 'u1', active: false }]);
-compareCatalog('units always active regardless of row',
-  [], [], [], [], [{ id: 'u1', active: false }, { id: 'u2' }]);
-compareCatalog('bundle empty components',
-  [], [], [],
-  [{ id: 'b1', standalone_price_cents: 100, standalone_enabled: true, product_bundle_components: [] }], []);
-compareCatalog('bundle null relations',
-  [], [], [],
-  [{ id: 'b1', product_bundle_components: null, product_bundle_excluded_categories: null, package_inflatable_eligibility: null, package_inflatable_components: null }], []);
-compareCatalog('bundle contained categories: dedupe, first-seen order, drops empty/null/non-string/missing product',
-  [], [], [],
-  [{ id: 'b1', product_bundle_components: [
-    { inventory_products: { category_id: 'c2' } }, { inventory_products: { category_id: 'c1' } }, { inventory_products: { category_id: 'c2' } },
-    { inventory_products: { category_id: '' } }, { inventory_products: { category_id: null } }, { inventory_products: null }, {}, { inventory_products: { category_id: 7 } },
-  ] }], []);
-compareCatalog('bundle excluded categories and eligible units are raw',
-  [], [], [],
-  [{ id: 'b1', product_bundle_excluded_categories: [{ category_id: 'x' }, { category_id: 'x' }, { category_id: null }], package_inflatable_eligibility: [{ unit_id: 'u1' }, { unit_id: 'u1' }, {}] }], []);
-for (const mode of ['none', 'any', 'selected', '', null, undefined, 'weird']) {
-  compareCatalog(`bundle eligibility mode ${String(mode)}`, [], [], [], [{ id: 'b1', inflatable_eligibility_mode: mode }], []);
-}
-compareCatalog('bundle inflatable components',
-  [], [], [],
-  [{ id: 'b1', package_inflatable_components: [{ unit_id: 'u1', quantity_per_bundle: 2, selection_mode: 'specific', extra: 1 }, { unit_id: 'u2', quantity_per_bundle: 0, selection_mode: 'any' }] }], []);
-compareCatalog('categories', [], [], [{ id: 'c1' }, { id: 'c2', slug: 'x' }], [], []);
-// Malformed rows throw the same error type in both
-compareCatalog('null in excluded categories element throws', [], [], [], [{ id: 'b1', product_bundle_excluded_categories: [null] }], []);
-compareCatalog('null pricing row throws', [{ id: 'p1', category_id: 'c1' }], [null], [], [], []);
-compareCatalog('null bundle row throws', [], [], [], [null], []);
-
-// ---- Seeded random datasets
-{
-  const r = rng(12345);
-  const pick = <T,>(xs: T[]): T => xs[Math.floor(r() * xs.length)];
-  for (let round = 0; round < 60; round++) {
-    const cats = Array.from({ length: Math.floor(r() * 4) }, (_, i) => ({ id: `c${i}` }));
-    const catIds: unknown[] = [...cats.map((c) => c.id), null, '', undefined, 3];
-    const products = Array.from({ length: Math.floor(r() * 6) }, (_, i) => ({ id: `p${i}`, category_id: pick(catIds), active: r() > 0.3 }));
-    const pricing = products.filter(() => r() > 0.25).map((p) => ({
-      product_id: p.id,
-      standalone_price_cents: pick([null, undefined, 0, 500, 12345]),
-      addon_price_cents: pick([null, undefined, 0, 300]),
-      standalone_enabled: pick([true, false, null, undefined, 'true']),
-      addon_enabled: pick([true, false, null, undefined, 1]),
-      addon_qualifying_threshold_cents: pick([null, undefined, 0, 15000]),
-    }));
-    if (r() > 0.7 && pricing.length) pricing.push({ ...pricing[0], standalone_price_cents: 777 });
-    const bundles = Array.from({ length: Math.floor(r() * 4) }, (_, i) => ({
-      id: `b${i}`,
-      standalone_price_cents: pick([null, undefined, 0, 9900]),
-      addon_price_cents: pick([null, undefined, 4900]),
-      standalone_enabled: pick([true, false, undefined]),
-      addon_enabled: pick([true, false, null]),
-      addon_qualifying_threshold_cents: pick([null, 20000]),
-      inflatable_eligibility_mode: pick(['none', 'any', 'selected', '', null, undefined, 'x']),
-      product_bundle_components: pick([null, undefined, [], Array.from({ length: 1 + Math.floor(r() * 3) }, () => ({ inventory_products: pick([null, { category_id: pick(catIds) }, undefined]) }))]),
-      product_bundle_excluded_categories: pick([null, undefined, [], [{ category_id: 'c0' }, { category_id: 'c1' }]]),
-      package_inflatable_eligibility: pick([null, undefined, [], [{ unit_id: 'u0' }, { unit_id: 'u1' }]]),
-      package_inflatable_components: pick([null, undefined, [], [{ unit_id: 'u0', quantity_per_bundle: 1, selection_mode: 'any' }]]),
-    }));
-    const units = Array.from({ length: Math.floor(r() * 4) }, (_, i) => ({ id: `u${i}`, active: r() > 0.5 }));
-    compareCatalog(`random ${round}`, products, pricing, cats, bundles, units);
-  }
-}
 
 // ======================================================================
 // Oracles 2: InvoiceBuilder's old inline staged Event Essentials handlers (verbatim)

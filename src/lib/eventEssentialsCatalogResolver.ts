@@ -20,10 +20,6 @@ import type {
 } from './eventEssentialsPricingTypes';
 import type {
   InflatableCartItem,
-  InventoryProduct,
-  ProductBundleWithConfiguration,
-  ProductCategory,
-  ProductPricing,
   UnifiedCartItem,
 } from '../types';
 import {
@@ -33,14 +29,62 @@ import {
 } from './unifiedCart';
 
 // ---------------------------------------------------------------------------
-// Configuration map builders (pure; from DB query rows).
+// Canonical configuration map builders (pure; from DB query rows).
+//
+// This is the ONE implementation of Event Essentials resolver configuration. It is
+// used by the customer catalog, the cart repricing hook and the Generator checkbox
+// (customer), and, through the thin generatorResolverCatalog adapter, by the Order
+// Detail modal, the Invoice Builder and AddEventEssentialsSection (admin).
+//
+// The parameter types below are structural row types (only the fields the builders
+// read), so full query rows and the admin flows' narrower rows are both accepted.
 // ---------------------------------------------------------------------------
 
+export interface CatalogProductRow {
+  id: string;
+  category_id?: string | null;
+}
+
+export interface CatalogPricingRow {
+  product_id: string;
+  standalone_price_cents?: number | null;
+  addon_price_cents?: number | null;
+  standalone_enabled?: boolean | null;
+  addon_enabled?: boolean | null;
+  addon_qualifying_threshold_cents?: number | null;
+}
+
+export interface CatalogCategoryRow {
+  id: string;
+}
+
+export interface CatalogBundleRow {
+  id: string;
+  standalone_price_cents?: number | null;
+  addon_price_cents?: number | null;
+  standalone_enabled?: boolean | null;
+  addon_enabled?: boolean | null;
+  addon_qualifying_threshold_cents?: number | null;
+  inflatable_eligibility_mode?: string | null;
+  product_bundle_components?: Array<{
+    inventory_products?: { category_id?: string | null } | null;
+  }> | null;
+  product_bundle_excluded_categories?: Array<{ category_id: string }> | null;
+  package_inflatable_eligibility?: Array<{ unit_id: string }> | null;
+  package_inflatable_components?: Array<{
+    selection_mode: ResolverBundleConfig['inflatableComponents'][number]['selectionMode'];
+  }> | null;
+}
+
+// Prices and thresholds use `?? null` (0 is kept, undefined becomes null); the enabled
+// flags use `=== true` (only a literal true enables). Products without a pricing row, or
+// without a non-empty string category_id, produce no config. For duplicate ids the LAST
+// pricing row wins and later duplicate products overwrite earlier ones.
 export function buildProductConfigMap(
-  products: InventoryProduct[],
-  pricing: ProductPricing[],
+  products: CatalogProductRow[],
+  pricing: CatalogPricingRow[],
 ): Record<string, ResolverProductConfig> {
-  const pricingByProductId = new Map<string, ProductPricing>();
+  const pricingByProductId = new Map<string, CatalogPricingRow>();
   for (const p of pricing) pricingByProductId.set(p.product_id, p);
 
   const map: Record<string, ResolverProductConfig> = {};
@@ -51,18 +95,24 @@ export function buildProductConfigMap(
     map[product.id] = {
       id: product.id,
       categoryId: product.category_id,
-      standalonePriceCents: p.standalone_price_cents,
-      addonPriceCents: p.addon_price_cents,
-      standaloneEnabled: p.standalone_enabled,
-      addonEnabled: p.addon_enabled,
-      addonQualifyingThresholdCents: p.addon_qualifying_threshold_cents,
+      standalonePriceCents: p.standalone_price_cents ?? null,
+      addonPriceCents: p.addon_price_cents ?? null,
+      standaloneEnabled: p.standalone_enabled === true,
+      addonEnabled: p.addon_enabled === true,
+      addonQualifyingThresholdCents: p.addon_qualifying_threshold_cents ?? null,
     };
   }
   return map;
 }
 
+// CANONICAL CONTAINED-CATEGORY RULE (all-or-nothing). If ANY product component of the
+// package does not resolve to a valid non-empty (after trim) category id, the package
+// reports NO contained categories at all, and so contributes nothing toward the add-on
+// qualification of other products (see productQualifyingSubtotal in
+// eventEssentialsPricing.ts). Valid ids are trimmed and de-duplicated in first-seen order.
+// Used by customer AND admin flows.
 function extractContainedProductCategoryIds(
-  bundle: ProductBundleWithConfiguration,
+  bundle: CatalogBundleRow,
 ): string[] {
   const components = bundle.product_bundle_components ?? [];
 
@@ -86,22 +136,25 @@ function extractContainedProductCategoryIds(
   return [...new Set(ids)];
 }
 
+// Inflatable components carry only the selection mode (the one field the resolver
+// reads). Excluded category ids and eligible unit ids are raw maps (no filtering,
+// trimming or de-duplication). An unexpected eligibility mode becomes 'none'.
 export function buildBundleConfigMap(
-  bundles: ProductBundleWithConfiguration[],
+  bundles: CatalogBundleRow[],
 ): Record<string, ResolverBundleConfig> {
   const map: Record<string, ResolverBundleConfig> = {};
   for (const bundle of bundles) {
     map[bundle.id] = {
       id: bundle.id,
-      standalonePriceCents: bundle.standalone_price_cents,
-      addonPriceCents: bundle.addon_price_cents,
-      standaloneEnabled: bundle.standalone_enabled,
-      addonEnabled: bundle.addon_enabled,
-      addonQualifyingThresholdCents: bundle.addon_qualifying_threshold_cents,
+      standalonePriceCents: bundle.standalone_price_cents ?? null,
+      addonPriceCents: bundle.addon_price_cents ?? null,
+      standaloneEnabled: bundle.standalone_enabled === true,
+      addonEnabled: bundle.addon_enabled === true,
+      addonQualifyingThresholdCents: bundle.addon_qualifying_threshold_cents ?? null,
       inflatableEligibilityMode:
         (bundle.inflatable_eligibility_mode === 'none' ||
-          bundle.inflatable_eligibility_mode === 'any' ||
-          bundle.inflatable_eligibility_mode === 'selected')
+        bundle.inflatable_eligibility_mode === 'any' ||
+        bundle.inflatable_eligibility_mode === 'selected')
           ? bundle.inflatable_eligibility_mode
           : 'none',
       excludedCategoryIds: (bundle.product_bundle_excluded_categories ?? []).map(
@@ -118,13 +171,16 @@ export function buildBundleConfigMap(
 }
 
 export function buildCategoryMap(
-  categories: ProductCategory[],
+  categories: CatalogCategoryRow[],
 ): Record<string, ResolverCategory> {
   const map: Record<string, ResolverCategory> = {};
   for (const c of categories) map[c.id] = { id: c.id };
   return map;
 }
 
+// Customer rows carry their own `active` flag and it is preserved. Admin flows load
+// active-only units and map each to `active: true` in their adapter
+// (generatorResolverCatalog), so admin unit visibility is not broadened here.
 export function buildUnitMap(
   units: { id: string; active: boolean }[],
 ): Record<string, ResolverUnitConfig> {

@@ -44,7 +44,10 @@ const legacyGenPath = path.resolve('src/components/order-detail/LegacyGeneratorE
 ok('LegacyGeneratorEditor.tsx file removed', !fs.existsSync(legacyGenPath));
 
 // 7. The actual schema fields ARE referenced in AddEventEssentialsSection
-ok('AddEventEssentialsSection uses standalone_price_cents', addEESource.includes('standalone_price_cents'));
+// Since High-Value Batch 2 the resolver config is built by the shared builder, so the invariant is
+// checked where the field now lives: AEES must delegate to it, and it must use the real schema field.
+ok('AddEventEssentialsSection builds its resolver config through the shared builder', addEESource.includes('buildGeneratorResolverCatalog'));
+ok('The shared resolver config builder uses standalone_price_cents', readSource('src/lib/eventEssentialsCatalogResolver.ts').includes('standalone_price_cents'));
 // AddEventEssentialsSection uses helper functions, not direct table names —
 // verify it imports from the existing query helpers rather than hand-writing queries.
 ok('AddEventEssentialsSection imports from queries/products', addEESource.includes('queries/products'));

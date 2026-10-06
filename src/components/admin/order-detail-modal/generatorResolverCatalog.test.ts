@@ -1,14 +1,24 @@
-// Differential characterization tests for generatorResolverCatalog.
+// Differential characterization tests for generatorResolverCatalog (the thin admin adapter over
+// the canonical Event Essentials resolver configuration builders).
 //
-// The oracle below is a verbatim copy of the transformation that lived inline in
-// OrderDetailModal.handleGeneratorQtyChange before the extraction (from
-// `pricingByProductId` through the unit map). It never calls the helper. Only the
-// `any` annotations were replaced with the row types.
+// The oracle below is an independent copy of the transformation SPECIFICATION. It started as a
+// verbatim copy of the code that lived inline in OrderDetailModal.handleGeneratorQtyChange and
+// was updated, deliberately and only where listed, when admin adopted the canonical rules
+// (High-Value Batch 2). It never calls the helper.
 //
-// These tests pin CURRENT behavior, including oddities (see generatorResolverCatalog.ts):
-// last-duplicate-wins, `||` for the eligibility mode, strict `=== true`, unit
-// `active` forced to true, raw passthrough of malformed ids, and TypeErrors for
-// null elements. They are not a statement of desired behavior.
+// INTENTIONAL CHANGES vs the pre-Batch-2 admin behavior (each is asserted below and labeled):
+//  1. Contained category ids: all-or-nothing. If ANY component lacks a valid non-empty category,
+//     the whole list is empty (the package contributes nothing toward add-on qualification).
+//     Valid ids are now trimmed. This is the approved business decision (Policy A) and matches
+//     the customer resolver and the documented pricing-engine contract.
+//  2. An eligibility mode other than none/any/selected becomes 'none' (was passed through).
+//     Unreachable from the database (CHECK constraint) but now explicit.
+//  3. Inflatable components carry only { selectionMode } (was { unitId, quantityPerBundle,
+//     selectionMode }). The resolver reads only selectionMode, so the extra keys were unused.
+//
+// Everything else is unchanged: last-duplicate-wins, `?? null`, strict `=== true`, unit
+// `active` forced to true, raw passthrough of excluded/eligible ids, and TypeErrors for null
+// elements. These tests pin that behavior; they are not a statement of desired behavior.
 
 import { buildGeneratorResolverCatalog } from './generatorResolverCatalog';
 import type {
@@ -90,10 +100,17 @@ function oracle({ allProducts, allPricing, allCats, allBundles, availableUnits }
   }
 
   for (const b of allBundles) {
+    // Canonical all-or-nothing contained-category rule (Policy A).
     const comps = b.product_bundle_components || [];
-    const containedCategoryIds = Array.from(new Set(
-      comps.map((c) => c.inventory_products?.category_id).filter((id): id is string => typeof id === 'string' && id !== '')
-    ));
+    const containedCategoryIds: string[] = [];
+    let allValid = comps.length > 0;
+    for (const c of comps) {
+      const raw = c.inventory_products?.category_id;
+      const id = typeof raw === 'string' ? raw.trim() : '';
+      if (!id) { allValid = false; break; }
+      if (!containedCategoryIds.includes(id)) containedCategoryIds.push(id);
+    }
+    const contained = allValid ? containedCategoryIds : [];
     bundleConfigs[b.id] = {
       id: b.id,
       standalonePriceCents: b.standalone_price_cents ?? null,
@@ -101,15 +118,13 @@ function oracle({ allProducts, allPricing, allCats, allBundles, availableUnits }
       standaloneEnabled: b.standalone_enabled === true,
       addonEnabled: b.addon_enabled === true,
       addonQualifyingThresholdCents: b.addon_qualifying_threshold_cents ?? null,
-      inflatableEligibilityMode: (b.inflatable_eligibility_mode || 'none') as InflatableEligibilityMode,
+      inflatableEligibilityMode: ((b.inflatable_eligibility_mode === 'none' || b.inflatable_eligibility_mode === 'any' || b.inflatable_eligibility_mode === 'selected') ? b.inflatable_eligibility_mode : 'none') as InflatableEligibilityMode,
       excludedCategoryIds: (b.product_bundle_excluded_categories || []).map((e) => e.category_id),
       eligibleUnitIds: (b.package_inflatable_eligibility || []).map((e) => e.unit_id),
       inflatableComponents: (b.package_inflatable_components || []).map((c) => ({
-        unitId: c.unit_id,
-        quantityPerBundle: c.quantity_per_bundle,
         selectionMode: c.selection_mode,
       })),
-      containedProductCategoryIds: containedCategoryIds,
+      containedProductCategoryIds: contained,
     };
   }
 
@@ -234,7 +249,7 @@ function checkThrows(label: string, over: Partial<Inputs>) {
     id: 'b1', standalonePriceCents: 9000, addonPriceCents: 4000, standaloneEnabled: true, addonEnabled: true,
     addonQualifyingThresholdCents: 3000, inflatableEligibilityMode: 'selected',
     excludedCategoryIds: ['x1'], eligibleUnitIds: ['u1'],
-    inflatableComponents: [{ unitId: 'u1', quantityPerBundle: 2, selectionMode: 'dry' }],
+    inflatableComponents: [{ selectionMode: 'dry' }],
     containedProductCategoryIds: ['c1', 'c2'],
   }));
   ok('bundle config has exactly the 11 expected keys', same(Object.keys(normal).sort(), [
@@ -255,15 +270,15 @@ function checkThrows(label: string, over: Partial<Inputs>) {
   ok("bundle 'true' does NOT enable (strict)", bflags('true').standaloneEnabled === false && bflags('true').addonEnabled === false);
   ok('bundle 1 does NOT enable (strict)', bflags(1).standaloneEnabled === false && bflags(1).addonEnabled === false);
 
-  // Eligibility mode (|| 'none')
+  // Eligibility mode (whitelist none/any/selected, anything else becomes 'none')
   const mode = (v: unknown) => check(`mode ${String(v)}`, { allBundles: [bundle({ inflatable_eligibility_mode: v })] }).bundleConfigs.b1.inflatableEligibilityMode;
   ok("mode 'none' stays 'none'", mode('none') === 'none');
   ok("mode 'any' stays 'any'", mode('any') === 'any');
   ok("mode 'selected' stays 'selected'", mode('selected') === 'selected');
-  ok("an empty string becomes 'none' (|| not ??)", mode('') === 'none');
+  ok("an empty string becomes 'none'", mode('') === 'none');
   ok("null becomes 'none'", mode(null) === 'none');
   ok("undefined becomes 'none'", mode(undefined) === 'none');
-  ok('an unexpected truthy string passes through unvalidated', (mode('weird') as string) === 'weird');
+  ok("INTENTIONAL CHANGE (canonical): an unexpected truthy string becomes 'none' (was passed through)", mode('weird') === 'none');
 
   // Collections missing / null
   const missing = check('missing collections', { allBundles: [cast<CatalogBundleRow>({ id: 'b9' })] }).bundleConfigs.b9;
@@ -271,21 +286,21 @@ function checkThrows(label: string, over: Partial<Inputs>) {
   const nullColl = check('null collections', { allBundles: [bundle({ product_bundle_components: null, product_bundle_excluded_categories: null, package_inflatable_eligibility: null, package_inflatable_components: null })] }).bundleConfigs.b1;
   ok('null collections produce empty arrays', same([nullColl.excludedCategoryIds, nullColl.eligibleUnitIds, nullColl.inflatableComponents, nullColl.containedProductCategoryIds], [[], [], [], []]));
 
-  // Contained categories
+  // Contained categories: canonical ALL-OR-NOTHING rule (INTENTIONAL CHANGE, Policy A).
   const contained = (comps: unknown[]) => check('contained categories', { allBundles: [bundle({ product_bundle_components: comps })] }).bundleConfigs.b1.containedProductCategoryIds;
   ok('contained categories: normal values in order', same(contained([comp('c1'), comp('c2')]), ['c1', 'c2']));
-  ok('contained categories: a missing inventory_products is ignored', same(contained([{}, comp('c1')]), ['c1']));
-  ok('contained categories: a null inventory_products is ignored', same(contained([{ inventory_products: null }, comp('c1')]), ['c1']));
-  ok('contained categories: a missing category is ignored', same(contained([{ inventory_products: {} }, comp('c1')]), ['c1']));
-  ok('contained categories: a null category is ignored', same(contained([comp(null), comp('c1')]), ['c1']));
-  ok('contained categories: a non-string category is ignored', same(contained([comp(5), comp({}), comp('c1')]), ['c1']));
-  ok('contained categories: an empty-string category is ignored', same(contained([comp(''), comp('c1')]), ['c1']));
+  ok('INTENTIONAL CHANGE: a missing inventory_products voids the whole list (was ignored)', same(contained([{}, comp('c1')]), []));
+  ok('INTENTIONAL CHANGE: a null inventory_products voids the whole list (was ignored)', same(contained([{ inventory_products: null }, comp('c1')]), []));
+  ok('INTENTIONAL CHANGE: a missing category voids the whole list (was ignored)', same(contained([{ inventory_products: {} }, comp('c1')]), []));
+  ok('INTENTIONAL CHANGE: a null category voids the whole list (was ignored)', same(contained([comp(null), comp('c1')]), []));
+  ok('INTENTIONAL CHANGE: a non-string category voids the whole list (was ignored)', same(contained([comp(5), comp({}), comp('c1')]), []));
+  ok('INTENTIONAL CHANGE: an empty-string category voids the whole list (was ignored)', same(contained([comp(''), comp('c1')]), []));
   ok('contained categories: duplicates are removed keeping the first occurrence', same(contained([comp('c1'), comp('c2'), comp('c1')]), ['c1', 'c2']));
   ok('contained categories: first-seen order is kept (not sorted)', same(contained([comp('z'), comp('a'), comp('z'), comp('m')]), ['z', 'a', 'm']));
-  ok('contained categories: strings are not trimmed', same(contained([comp(' a '), comp('a')]), [' a ', 'a']));
-  ok('contained categories: a whitespace-only id is kept (only the empty string is dropped)', same(contained([comp('  '), comp('c1')]), ['  ', 'c1']));
+  ok('INTENTIONAL CHANGE: valid ids are now trimmed and de-duplicated after trimming (was untrimmed)', same(contained([comp(' a '), comp('a')]), ['a']));
+  ok('INTENTIONAL CHANGE: a whitespace-only id voids the whole list (was kept as an id)', same(contained([comp('  '), comp('c1')]), []));
+  ok('contained categories: a void list stays void even when the bad component is last', same(contained([comp('c1'), comp('c2'), comp(null)]), []));
   ok('contained categories: an empty components list gives an empty list', same(contained([]), []));
-  checkThrows('null component element', { allBundles: [bundle({ product_bundle_components: [null] })] });
 
   // Excluded categories: raw map, no filtering/dedupe
   const excl = (v: unknown[]) => check('excluded categories', { allBundles: [bundle({ product_bundle_excluded_categories: v })] }).bundleConfigs.b1.excludedCategoryIds;
@@ -301,13 +316,12 @@ function checkThrows(label: string, over: Partial<Inputs>) {
   ok('eligible units: a null id is preserved', same(elig([{ unit_id: null }, { unit_id: 'u2' }]), [null, 'u2']));
   checkThrows('null eligibility element', { allBundles: [bundle({ package_inflatable_eligibility: [null] })] });
 
-  // Inflatable components: exact three-key runtime shape
+  // Inflatable components: canonical shape carries only the selection mode (INTENTIONAL CHANGE: was three keys)
   const comps = (v: unknown[]) => check('inflatable components', { allBundles: [bundle({ package_inflatable_components: v })] }).bundleConfigs.b1.inflatableComponents;
   const c1 = comps([{ unit_id: 'u1', quantity_per_bundle: 3, selection_mode: 'water' }]);
-  ok('inflatable component runtime object has exactly unitId, quantityPerBundle, selectionMode',
-    same(Object.keys(c1[0]).sort(), ['quantityPerBundle', 'selectionMode', 'unitId']) && same(c1[0], { unitId: 'u1', quantityPerBundle: 3, selectionMode: 'water' }));
-  ok('inflatable component quantity 0 is kept', (comps([{ unit_id: 'u1', quantity_per_bundle: 0, selection_mode: 'dry' }])[0] as unknown as Record<string, unknown>).quantityPerBundle === 0);
-  ok('inflatable component negative quantity is kept', (comps([{ unit_id: 'u1', quantity_per_bundle: -2, selection_mode: 'dry' }])[0] as unknown as Record<string, unknown>).quantityPerBundle === -2);
+  ok('INTENTIONAL CHANGE: an inflatable component runtime object has exactly { selectionMode } (the extra unitId/quantityPerBundle keys are no longer emitted)',
+    same(Object.keys(c1[0]).sort(), ['selectionMode']) && same(c1[0], { selectionMode: 'water' }));
+  ok('component quantity and unit fields are not copied', !('quantityPerBundle' in comps([{ unit_id: 'u1', quantity_per_bundle: 0, selection_mode: 'dry' }])[0]) && !('unitId' in comps([{ unit_id: 'u1', quantity_per_bundle: -2, selection_mode: 'dry' }])[0]));
   const noMode = comps([{ unit_id: 'u1', quantity_per_bundle: 1 }])[0];
   ok('a missing selection mode is emitted as an own key with an undefined value', Object.keys(noMode).includes('selectionMode') && noMode.selectionMode === undefined);
   ok('inflatable components keep their order and length', comps([{ unit_id: 'b', quantity_per_bundle: 1, selection_mode: 'dry' }, { unit_id: 'a', quantity_per_bundle: 1, selection_mode: 'dry' }]).length === 2);

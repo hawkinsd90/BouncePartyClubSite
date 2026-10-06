@@ -5,12 +5,9 @@ import { resolveEventEssentialsPricing } from '../../lib/eventEssentialsPricing'
 import type {
   ResolverInput,
   ResolverInputLine,
-  ResolverProductConfig,
-  ResolverBundleConfig,
-  ResolverCategory,
-  ResolverUnitConfig,
-  InflatableEligibilityMode,
 } from '../../lib/eventEssentialsPricingTypes';
+import { buildGeneratorResolverCatalog } from '../admin/order-detail-modal/generatorResolverCatalog';
+import { buildBundleSnapshot } from '../../lib/unifiedCart';
 import type { BundleComponentSnapshot } from '../admin/OrderDetailModal';
 import {
   loadAdminResolverCatalogRows,
@@ -124,60 +121,13 @@ export function AddEventEssentialsSection({
   }, [showProducts, showBundles, loadData]);
 
   const buildResolverInput = useCallback((): ResolverInput => {
-    const productConfigs: Record<string, ResolverProductConfig> = {};
-    for (const p of allProducts) {
-      const pc = pricingConfigs[p.id];
-      if (!pc) continue;
-      productConfigs[p.id] = {
-        id: p.id,
-        categoryId: p.category_id,
-        standalonePriceCents: pc.standalone_price_cents ?? null,
-        addonPriceCents: pc.addon_price_cents ?? null,
-        standaloneEnabled: pc.standalone_enabled === true,
-        addonEnabled: pc.addon_enabled === true,
-        addonQualifyingThresholdCents: pc.addon_qualifying_threshold_cents ?? null,
-      };
-    }
-
-    const bundleConfigs: Record<string, ResolverBundleConfig> = {};
-    for (const b of allBundles) {
-      const comps = b.product_bundle_components || [];
-      const containedCategoryIds = Array.from(new Set(
-        comps
-          .map((c: any) => c.inventory_products?.category_id)
-          .filter((id: any): id is string => typeof id === 'string' && id !== '')
-      ));
-      bundleConfigs[b.id] = {
-        id: b.id,
-        standalonePriceCents: b.standalone_price_cents ?? null,
-        addonPriceCents: b.addon_price_cents ?? null,
-        standaloneEnabled: b.standalone_enabled === true,
-        addonEnabled: b.addon_enabled === true,
-        addonQualifyingThresholdCents: b.addon_qualifying_threshold_cents ?? null,
-        inflatableEligibilityMode: (b.inflatable_eligibility_mode || 'none') as InflatableEligibilityMode,
-        excludedCategoryIds: (b.product_bundle_excluded_categories || []).map((e: any) => e.category_id),
-        eligibleUnitIds: (b.package_inflatable_eligibility || []).map((e: any) => e.unit_id),
-        inflatableComponents: (b.package_inflatable_components || []).map((c: any) => ({
-          unitId: c.unit_id,
-          quantityPerBundle: c.quantity_per_bundle,
-          selectionMode: c.selection_mode,
-        })),
-        containedProductCategoryIds: containedCategoryIds,
-      };
-    }
-
-    const catMap: Record<string, ResolverCategory> = {};
-    for (const id of Object.keys(categories)) {
-      catMap[id] = { id };
-    }
-
-    const unitsMap: Record<string, ResolverUnitConfig> = {};
-    for (const u of availableUnits) {
-      unitsMap[u.id] = {
-        id: u.id,
-        active: true,
-      };
-    }
+    const catalog = buildGeneratorResolverCatalog({
+      productRows: allProducts,
+      pricingRows: Object.values(pricingConfigs),
+      categoryRows: Object.values(categories),
+      bundleRows: allBundles,
+      unitRows: availableUnits,
+    });
 
     const lines: ResolverInputLine[] = stagedItems
       .filter((item: any) => !item.is_deleted)
@@ -212,10 +162,10 @@ export function AddEventEssentialsSection({
 
     return {
       lines,
-      productConfigs,
-      bundleConfigs,
-      categories: catMap,
-      units: unitsMap,
+      productConfigs: catalog.productConfigs,
+      bundleConfigs: catalog.bundleConfigs,
+      categories: catalog.categories,
+      units: catalog.units,
     };
   }, [allProducts, allBundles, pricingConfigs, categories, availableUnits, stagedItems]);
 
@@ -389,16 +339,7 @@ export function AddEventEssentialsSection({
         return;
       }
 
-      const comps = bundle.product_bundle_components || [];
-      const snapshot: BundleComponentSnapshot = {
-        bundle_name: bundle.name,
-        bundle_description: bundle.description || null,
-        components: comps.map((c: any) => ({
-          product_id: c.product_id,
-          product_name: c.inventory_products?.name || 'Unknown Product',
-          quantity_per_bundle: c.quantity_per_bundle,
-        })),
-      };
+      const snapshot: BundleComponentSnapshot = buildBundleSnapshot(bundle);
 
       // Availability check: build the COMPLETE resulting staged requirement.
       const projectedItems = [
