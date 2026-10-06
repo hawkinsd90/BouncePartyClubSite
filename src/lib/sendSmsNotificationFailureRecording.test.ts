@@ -59,7 +59,11 @@ interface Scenario {
   body: any;
   rawBody?: string;
   // Twilio behavior
-  twilio?: 'ok' | 'non-ok' | 'throws' | 'non-ok-bad-json';
+  twilio?: 'ok' | 'non-ok' | 'throws' | 'non-ok-bad-json' | 'ok-bad-json';
+  // record_notification_success behavior
+  successRpc?: 'ok' | 'returns-error' | 'throws';
+  // sms_conversations insert behavior
+  conversationInsert?: 'ok' | 'returns-error' | 'throws';
   // record_notification_failure behavior
   failureRpc?: 'ok' | 'returns-error' | 'throws';
   settings?: Array<{ key: string; value: string }>;
@@ -99,13 +103,24 @@ async function run(sc: Scenario) {
         eq: (_k: string, v: any) => { filter = v; return b; },
         in: () => b,
         maybeSingle: () => Promise.resolve({ data: tableData(table, 'single', filter), error: null }),
-        insert: (payload: any) => { if (table === 'sms_conversations') conversationInserts.push(payload); return Promise.resolve({ error: null }); },
+        insert: (payload: any) => {
+          if (table === 'sms_conversations') {
+            conversationInserts.push(payload);
+            if (sc.conversationInsert === 'throws') return Promise.reject(new Error('db unavailable'));
+            if (sc.conversationInsert === 'returns-error') return Promise.resolve({ error: { message: 'insert rejected' } });
+          }
+          return Promise.resolve({ error: null });
+        },
         then: (res: any, rej: any) => Promise.resolve({ data: tableData(table, 'list'), error: null }).then(res, rej),
       };
       return b;
     },
     rpc(name: string, args: any) {
       rpcCalls.push({ name, args });
+      if (name === 'record_notification_success') {
+        if (sc.successRpc === 'throws') return Promise.reject(new Error('success rpc unreachable'));
+        if (sc.successRpc === 'returns-error') return Promise.resolve({ data: null, error: { message: 'success rpc rejected' } });
+      }
       if (name === 'record_notification_failure') {
         if (sc.failureRpc === 'throws') return Promise.reject(new Error('rpc unreachable'));
         if (sc.failureRpc === 'returns-error') return Promise.resolve({ data: null, error: { message: 'rpc rejected' } });
@@ -119,6 +134,7 @@ async function run(sc: Scenario) {
       if (sc.twilio === 'throws') throw new TypeError('network down');
       if (sc.twilio === 'non-ok') return { ok: false, status: 400, json: async () => ({ code: 21211, message: "Invalid 'To' Phone Number", more_info: 'x' }) };
       if (sc.twilio === 'non-ok-bad-json') return { ok: false, status: 502, json: async () => { throw new SyntaxError('Unexpected token <'); } };
+      if (sc.twilio === 'ok-bad-json') return { ok: true, status: 201, json: async () => { throw new SyntaxError('Unexpected end of JSON input'); } };
       return { ok: true, status: 201, json: async () => ({ sid: 'SM123', status: 'queued' }) };
     }
     fallbackCalls.push({ url, body: init?.body ? JSON.parse(init.body) : null });
@@ -127,7 +143,8 @@ async function run(sc: Scenario) {
   };
   const handler = loadHandler({ SUPABASE_URL: 'https://x.supabase.test', SUPABASE_SERVICE_ROLE_KEY: 'svc' }, () => supabaseFake, fetchFake);
   const realErr = console.error; const realWarn = console.warn; const realLog = console.log;
-  console.error = () => {}; console.warn = () => {}; console.log = () => {};
+  const consoleErrors: any[][] = [];
+  console.error = (...a: any[]) => { consoleErrors.push(a); }; console.warn = () => {}; console.log = () => {};
   let status = 0; let body: any = null; let threw: any = null;
   try {
     const res = await handler(new Request('https://x.test/fn', { method: 'POST', body: sc.rawBody ?? JSON.stringify(sc.body) }));
@@ -135,7 +152,7 @@ async function run(sc: Scenario) {
   } catch (e) { threw = e; } finally { console.error = realErr; console.warn = realWarn; console.log = realLog; }
   const failureCalls = rpcCalls.filter(c => c.name === 'record_notification_failure');
   const successCalls = rpcCalls.filter(c => c.name === 'record_notification_success');
-  return { status, body, threw, rpcCalls, failureCalls, successCalls, twilioCalls, fallbackCalls, conversationInserts };
+  return { status, body, threw, rpcCalls, failureCalls, successCalls, twilioCalls, fallbackCalls, conversationInserts, consoleErrors };
 }
 
 const EXPLICIT = { to: '5555550123', message: 'Hello there', orderId: 'ord-1' };
@@ -150,7 +167,7 @@ const templateData = { template: { message_template: 'Thanks {name}' }, order: {
     eq('success: Twilio called once', r.twilioCalls.length, 1);
     eq('success: zero failure RPCs', r.failureCalls.length, 0);
     eq('success: record_notification_success exactly once', r.successCalls.length, 1);
-    eq('success: success RPC argument', r.successCalls[0].args, { p_type: 'sms' });
+    eq('success: success RPC argument', r.successCalls[0]?.args, { p_type: 'sms' });
     eq('success: sms_conversations persisted once', r.conversationInserts.length, 1);
     eq('success: no admin fallback', r.fallbackCalls.length, 0);
     eq('success: Twilio request normalizes the number and carries the message', String(r.twilioCalls[0].init.body).includes('To=%2B15555550123') && String(r.twilioCalls[0].init.body).includes('Body=Hello+there'), true);
@@ -259,6 +276,82 @@ const templateData = { template: { message_template: 'Thanks {name}' }, order: {
     eq('malformed JSON: 500 and no failure RPC', [r5.status, r5.failureCalls.length], [500, 0]);
     const r6 = await run({ body: { ...TEMPLATE, templateKey: 'booking_received_admin' }, ...templateData, adminPhone: null });
     eq('admin phone not configured: 500 and no failure RPC', [r6.status, r6.failureCalls.length], [500, 0]);
+  }
+
+  // ---- Post-acceptance bookkeeping: once Twilio returns 2xx the SMS is accepted ----
+  // Twilio non-2xx = SMS failure; Twilio 2xx = SMS accepted; anything failing afterward is local bookkeeping
+  // and must never be reported as an SMS failure.
+  const ACCEPTED_BODY = { success: true, messageSid: 'SM123', status: 'queued' };
+  const NULL_SID_BODY = { success: true, messageSid: null, status: null };
+  const accepted = (r: any, label: string, expectBody: any) => {
+    eq(label + ': HTTP 200 success', [r.status, r.body], [200, expectBody]);
+    eq(label + ': Twilio called exactly once (no resend)', r.twilioCalls.length, 1);
+    eq(label + ': zero failure RPCs', r.failureCalls.length, 0);
+    eq(label + ': zero admin fallback emails', r.fallbackCalls.length, 0);
+  };
+  const loggedWith = (r: any, text: string) => r.consoleErrors.some((e: any[]) => String(e[0]).includes(text));
+  const bookkeepingLogs = (r: any) => r.consoleErrors.filter((e: any[]) => String(e[0]).includes('[send-sms-notification]')).length;
+  for (const variant of ['explicit', 'template'] as const) {
+    const base: any = variant === 'explicit' ? { body: EXPLICIT } : { body: TEMPLATE, ...templateData };
+    const tag = 'accepted (' + variant + ')';
+    // A. normal accepted SMS
+    {
+      const r = await run({ ...base, twilio: 'ok' });
+      accepted(r, tag + ' normal', ACCEPTED_BODY);
+      eq(tag + ' normal: success RPC once and one conversation row', [r.successCalls.length, r.conversationInserts.length], [1, 1]);
+      eq(tag + ' normal: success RPC argument', r.successCalls[0]?.args, { p_type: 'sms' });
+      eq(tag + ' normal: conversation row keeps the real SID and status', [r.conversationInserts[0]?.twilio_message_sid, r.conversationInserts[0]?.status], ['SM123', 'queued']);
+      eq(tag + ' normal: nothing logged as an error', r.consoleErrors.length, 0);
+    }
+    // B. malformed Twilio success body
+    {
+      const r = await run({ ...base, twilio: 'ok-bad-json' });
+      accepted(r, tag + ' malformed body', NULL_SID_BODY);
+      eq(tag + ' malformed body: success RPC still attempted once', r.successCalls.length, 1);
+      eq(tag + ' malformed body: conversation insert still attempted with null SID and status', [r.conversationInserts.length, r.conversationInserts[0]?.twilio_message_sid, r.conversationInserts[0]?.status], [1, null, null]);
+      eq(tag + ' malformed body: same payload otherwise', [r.conversationInserts[0]?.direction, r.conversationInserts[0]?.from_phone, r.conversationInserts[0]?.order_id], ['outbound', '+15550001111', 'ord-1']);
+      eq(tag + ' malformed body: parsing problem console-logged', bookkeepingLogs(r), 1);
+    }
+    // C. success RPC returns {error}
+    {
+      const r = await run({ ...base, twilio: 'ok', successRpc: 'returns-error' });
+      accepted(r, tag + ' success RPC returns error', ACCEPTED_BODY);
+      eq(tag + ' success RPC returns error: conversation still written', r.conversationInserts.length, 1);
+      eq(tag + ' success RPC returns error: logged as a returned error', [bookkeepingLogs(r), loggedWith(r, 'record_notification_success failed after')], [1, true]);
+    }
+    // D. success RPC rejects
+    {
+      const r = await run({ ...base, twilio: 'ok', successRpc: 'throws' });
+      accepted(r, tag + ' success RPC rejects', ACCEPTED_BODY);
+      eq(tag + ' success RPC rejects: conversation still written', r.conversationInserts.length, 1);
+      eq(tag + ' success RPC rejects: logged as a thrown error', [bookkeepingLogs(r), loggedWith(r, 'record_notification_success threw after')], [1, true]);
+    }
+    // E. conversation insert returns {error}
+    {
+      const r = await run({ ...base, twilio: 'ok', conversationInsert: 'returns-error' });
+      accepted(r, tag + ' conversation returns error', ACCEPTED_BODY);
+      eq(tag + ' conversation returns error: success RPC still ran', r.successCalls.length, 1);
+      eq(tag + ' conversation returns error: logged as a returned error', [bookkeepingLogs(r), loggedWith(r, 'sms_conversations insert failed after')], [1, true]);
+    }
+    // F. conversation insert rejects
+    {
+      const r = await run({ ...base, twilio: 'ok', conversationInsert: 'throws' });
+      accepted(r, tag + ' conversation rejects', ACCEPTED_BODY);
+      eq(tag + ' conversation rejects: success RPC still ran', r.successCalls.length, 1);
+      eq(tag + ' conversation rejects: logged as a thrown error', [bookkeepingLogs(r), loggedWith(r, 'sms_conversations insert threw after')], [1, true]);
+    }
+    // G. several bookkeeping failures together
+    {
+      const r = await run({ ...base, twilio: 'ok', successRpc: 'throws', conversationInsert: 'throws' });
+      accepted(r, tag + ' both bookkeeping steps reject', ACCEPTED_BODY);
+      eq(tag + ' both bookkeeping steps reject: both attempted', [r.successCalls.length, r.conversationInserts.length], [1, 1]);
+      eq(tag + ' both bookkeeping steps reject: both logged', bookkeepingLogs(r), 2);
+      const r2 = await run({ ...base, twilio: 'ok-bad-json', successRpc: 'throws', conversationInsert: 'returns-error' });
+      accepted(r2, tag + ' bad body + success RPC rejects + conversation error', NULL_SID_BODY);
+      eq(tag + ' everything degraded: all steps still attempted and logged', [r2.successCalls.length, r2.conversationInserts.length, bookkeepingLogs(r2)], [1, 1, 3]);
+      const r3 = await run({ ...base, body: { ...base.body, skipFallback: true }, twilio: 'ok', successRpc: 'throws', conversationInsert: 'throws' });
+      accepted(r3, tag + ' with skipFallback', ACCEPTED_BODY);
+    }
   }
 
   console.log(`send-sms-notification failure recording tests: ${passed} passed, ${failed} failed`);

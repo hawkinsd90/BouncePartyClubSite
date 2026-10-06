@@ -331,26 +331,47 @@ Deno.serve(async (req: Request) => {
       throw new Error(errorMsg);
     }
 
-    const data = await twilioResponse.json();
-    // console.log("[send-sms-notification] Twilio response:", { sid: data.sid, status: data.status });
+    // Twilio returned 2xx: the SMS is accepted. Nothing below may turn it into an SMS-send failure, so each
+    // step is non-fatal and only logged. An unreadable success body leaves the SID and status null.
+    let data: { sid?: string; status?: string } | null = null;
+    try {
+      data = await twilioResponse.json();
+    } catch (parseError) {
+      console.error("[send-sms-notification] Twilio accepted the SMS but its response body could not be parsed (non-fatal):", parseError);
+    }
+    // console.log("[send-sms-notification] Twilio response:", { sid: data?.sid, status: data?.status });
 
-    await supabase.rpc('record_notification_success', { p_type: 'sms' });
+    try {
+      const { error: successRpcError } = await supabase.rpc('record_notification_success', { p_type: 'sms' });
+      if (successRpcError) {
+        console.error("[send-sms-notification] record_notification_success failed after Twilio accepted the SMS (non-fatal):", successRpcError);
+      }
+    } catch (successRpcErr) {
+      console.error("[send-sms-notification] record_notification_success threw after Twilio accepted the SMS (non-fatal):", successRpcErr);
+    }
 
-    await supabase.from("sms_conversations").insert({
-      order_id: orderId || null,
-      from_phone: twilioConfig.fromNumber,
-      to_phone: toPhone,
-      message_body: messageBody,
-      direction: "outbound",
-      twilio_message_sid: data.sid,
-      status: data.status,
-    });
+    try {
+      const { error: conversationError } = await supabase.from("sms_conversations").insert({
+        order_id: orderId || null,
+        from_phone: twilioConfig.fromNumber,
+        to_phone: toPhone,
+        message_body: messageBody,
+        direction: "outbound",
+        twilio_message_sid: data ? data.sid : null,
+        status: data ? data.status : null,
+      });
+      if (conversationError) {
+        console.error("[send-sms-notification] sms_conversations insert failed after Twilio accepted the SMS (non-fatal):", conversationError);
+      }
+    } catch (conversationErr) {
+      console.error("[send-sms-notification] sms_conversations insert threw after Twilio accepted the SMS (non-fatal):", conversationErr);
+    }
 
     return new Response(
       JSON.stringify({
         success: true,
-        messageSid: data.sid,
-        status: data.status,
+        messageSid: data ? data.sid : null,
+        status: data ? data.status : null,
       }),
       {
         status: 200,
