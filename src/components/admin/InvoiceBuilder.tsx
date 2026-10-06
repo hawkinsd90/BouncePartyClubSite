@@ -18,8 +18,8 @@ import { useCustomerManagement } from '../../hooks/useCustomerManagement';
 import { useEventDetails } from '../../hooks/useEventDetails';
 import { generateInvoice } from '../../lib/invoiceService';
 import { checkMultipleUnitsAvailability } from '../../lib/availability';
-import { resolveAdminGeneratorIncrease } from '../../lib/adminGeneratorResolution';
-import { fetchAdminProductCategories, fetchAdminInventoryProducts, fetchAdminProductPricing, fetchAdminProductBundlesWithConfiguration } from '../../lib/queries/products';
+import { resolveAdminGeneratorIncrease, decideAdminGeneratorDecrease } from '../../lib/adminGeneratorResolution';
+import { fetchAdminProductCategories, fetchAdminInventoryProducts, loadAdminResolverCatalogRows } from '../../lib/queries/products';
 import { checkProductAvailability } from '../../lib/queries/products';
 import {
   buildEventEssentialAvailabilityRequestFromOrderItems,
@@ -31,7 +31,19 @@ import { InvoiceSetupFeeOverride } from './invoice-builder/InvoiceSetupFeeOverri
 import { InvoiceDepositControls } from './invoice-builder/InvoiceDepositControls';
 import { InvoiceActions } from './invoice-builder/InvoiceActions';
 import { mapCartToStagedForResolver } from './invoice-builder/invoiceResolverItems';
-import type { ResolverProductConfig, ResolverBundleConfig, ResolverCategory, ResolverUnitConfig, InflatableEligibilityMode } from '../../lib/eventEssentialsPricingTypes';
+import { buildGeneratorResolverCatalog } from './order-detail-modal/generatorResolverCatalog';
+import {
+  addEEProductToStagedItems,
+  addEEBundleToStagedItems,
+  removeStagedItem,
+  updateStagedItemQuantity,
+  type StagedItem,
+} from './order-detail-modal/stagedItemModel';
+import {
+  sortDirectGeneratorItemsNewestFirst,
+  reduceDirectGeneratorItems,
+  applyGeneratorEeCandidate,
+} from './order-detail-modal/generatorStagedItems';
 
 interface StagedEEItem {
   client_id: string;
@@ -151,39 +163,28 @@ export function InvoiceBuilder() {
 
     // DECREASE
     if (requestedQty < currentTotal) {
-      const removeQty = currentTotal - requestedQty;
-      let remainingDirectReduction = Math.min(removeQty, directQty);
-      const directByNewest = [...directItems].sort((a, b) => {
-        const aIdx = stagedEEItems.indexOf(a);
-        const bIdx = stagedEEItems.indexOf(b);
-        return bIdx - aIdx;
+      const decision = decideAdminGeneratorDecrease({
+        current: { legacyQty: eventDetails.generator_qty ?? 0, directEeQty: directQty },
+        requestedTotal: requestedQty,
       });
+
+      const directByNewest = sortDirectGeneratorItemsNewestFirst(directItems as StagedItem[], stagedEEItems as StagedItem[]);
+      let remainingDirectReduction = Math.min(decision.removeQty, directQty);
 
       setStagedEEItems((previous) => {
-        const orderedKeys = directByNewest.map((item) => item.client_id).filter((k): k is string => !!k);
-        const keySet = new Set(orderedKeys);
-        const reductionByKey = new Map<string, number>();
-        for (const key of orderedKeys) {
-          if (remainingDirectReduction <= 0) break;
-          const item = previous.find((i) => i.client_id === key && keySet.has(key));
-          if (!item) continue;
-          const reduction = Math.min(item.qty, remainingDirectReduction);
-          remainingDirectReduction -= reduction;
-          reductionByKey.set(key, reduction);
-        }
+        const reduced = reduceDirectGeneratorItems(
+          previous as StagedItem[],
+          directByNewest,
+          remainingDirectReduction,
+        );
 
-        return previous.map((item) => {
-          if (!item.client_id || !reductionByKey.has(item.client_id)) return item;
-          const reduction = reductionByKey.get(item.client_id)!;
-          const nextQty = item.qty - reduction;
-          if (nextQty > 0) return { ...item, qty: nextQty };
-          return null;
-        }).filter((item): item is StagedEEItem => item !== null);
+        remainingDirectReduction = reduced.remainingBudget;
+
+        return reduced.next as StagedEEItem[];
       });
 
-      const newLegacyQty = Math.max(0, (eventDetails.generator_qty ?? 0) - Math.max(0, removeQty - directQty));
-      updateEventDetails({ generator_qty: newLegacyQty });
-      if (newLegacyQty === 0) {
+      updateEventDetails({ generator_qty: decision.newLegacyQty });
+      if (decision.newLegacyQty === 0) {
         setGeneratorFeeWaived(false);
         setGeneratorFeeWaiveReason('');
       }
@@ -195,17 +196,7 @@ export function InvoiceBuilder() {
     setGeneratorResolutionPending(true);
 
     try {
-      let productConfigs: Record<string, ResolverProductConfig> = {};
-      let bundleConfigs: Record<string, ResolverBundleConfig> = {};
-      let categoryMap: Record<string, ResolverCategory> = {};
-      let unitMap: Record<string, ResolverUnitConfig> = {};
-
-      const [catsRes, prodsRes, pricingRes, bundlesRes] = await Promise.all([
-        fetchAdminProductCategories(),
-        fetchAdminInventoryProducts(),
-        fetchAdminProductPricing(),
-        fetchAdminProductBundlesWithConfiguration(),
-      ]);
+      const { catsRes, prodsRes, pricingRes, bundlesRes } = await loadAdminResolverCatalogRows();
 
       if (isStale()) return;
 
@@ -219,50 +210,13 @@ export function InvoiceBuilder() {
       const allCats = catsRes.data || [];
       const allBundles = bundlesRes.data || [];
 
-      const pricingByProductId = new Map<string, any>();
-      for (const p of allPricing) pricingByProductId.set(p.product_id, p);
-
-      for (const p of allProducts) {
-        const pc = pricingByProductId.get(p.id);
-        if (!pc) continue;
-        if (typeof p.category_id !== 'string' || !p.category_id) continue;
-        productConfigs[p.id] = {
-          id: p.id,
-          categoryId: p.category_id,
-          standalonePriceCents: pc.standalone_price_cents ?? null,
-          addonPriceCents: pc.addon_price_cents ?? null,
-          standaloneEnabled: pc.standalone_enabled === true,
-          addonEnabled: pc.addon_enabled === true,
-          addonQualifyingThresholdCents: pc.addon_qualifying_threshold_cents ?? null,
-        };
-      }
-
-      for (const b of allBundles) {
-        const comps = b.product_bundle_components || [];
-        const containedCategoryIds = Array.from(new Set(
-          comps.map((c: any) => c.inventory_products?.category_id).filter((id: any): id is string => typeof id === 'string' && id !== '')
-        ));
-        bundleConfigs[b.id] = {
-          id: b.id,
-          standalonePriceCents: b.standalone_price_cents ?? null,
-          addonPriceCents: b.addon_price_cents ?? null,
-          standaloneEnabled: b.standalone_enabled === true,
-          addonEnabled: b.addon_enabled === true,
-          addonQualifyingThresholdCents: b.addon_qualifying_threshold_cents ?? null,
-          inflatableEligibilityMode: (b.inflatable_eligibility_mode || 'none') as InflatableEligibilityMode,
-          excludedCategoryIds: (b.product_bundle_excluded_categories || []).map((e: any) => e.category_id),
-          eligibleUnitIds: (b.package_inflatable_eligibility || []).map((e: any) => e.unit_id),
-          inflatableComponents: (b.package_inflatable_components || []).map((c: any) => ({
-            unitId: c.unit_id,
-            quantityPerBundle: c.quantity_per_bundle,
-            selectionMode: c.selection_mode,
-          })),
-          containedProductCategoryIds: containedCategoryIds,
-        };
-      }
-
-      for (const c of allCats) categoryMap[c.id] = { id: c.id };
-      for (const u of units) unitMap[u.id] = { id: u.id, active: true };
+      const catalog = buildGeneratorResolverCatalog({
+        productRows: allProducts,
+        pricingRows: allPricing,
+        categoryRows: allCats,
+        bundleRows: allBundles,
+        unitRows: units,
+      });
 
       if (isStale()) return;
       if (startingContextRevision !== generatorContextRevisionRef.current) {
@@ -291,10 +245,10 @@ export function InvoiceBuilder() {
         eventDate: eventDetails.event_date,
         eventEndDate: eventDetails.event_end_date,
         orderId: null,
-        productConfigs,
-        bundleConfigs,
-        categories: categoryMap,
-        units: unitMap,
+        productConfigs: catalog.productConfigs,
+        bundleConfigs: catalog.bundleConfigs,
+        categories: catalog.categories,
+        units: catalog.units,
       });
 
       if (isStale()) return;
@@ -311,36 +265,16 @@ export function InvoiceBuilder() {
       if (resolution.status === 'ee') {
         const { product, resolvedUnitPriceCents, resolvedPricingContext } = resolution.candidate;
 
-        setStagedEEItems((previous) => {
-          const exactMatch = previous.find(
-            (item) =>
-              !item.is_deleted &&
-              item.product_id === product.product_id &&
-              !item.bundle_id &&
-              item.unit_price_cents === resolvedUnitPriceCents &&
-              (item.pricing_context || 'standalone') === resolvedPricingContext,
-          );
-
-          if (exactMatch) {
-            return previous.map((item) =>
-              item === exactMatch
-                ? { ...item, qty: item.qty + additionalQty }
-                : item,
-            );
-          }
-
-          return [...previous, {
-            client_id: `new-generator-${Date.now()}-${Math.random().toString(36).slice(2)}`,
-            product_id: product.product_id,
-            product_name: product.product_name,
-            item_name: product.product_name,
-            qty: additionalQty,
-            unit_price_cents: resolvedUnitPriceCents,
-            pricing_context: resolvedPricingContext,
-            is_new: true,
-            is_deleted: false,
-          }];
-        });
+        setStagedEEItems((previous) =>
+          applyGeneratorEeCandidate(
+            previous as StagedItem[],
+            product,
+            resolvedUnitPriceCents,
+            resolvedPricingContext,
+            additionalQty,
+            () => `new-generator-${Date.now()}-${Math.random().toString(36).slice(2)}`,
+          ) as StagedEEItem[],
+        );
         return;
       }
 
@@ -359,53 +293,19 @@ export function InvoiceBuilder() {
   }, [eventDetails.generator_qty, eventDetails.event_date, eventDetails.event_end_date, generatorProductIdsState, generatorProductIds, stagedEEItems, cartItems, units, generatorFeeWaived, updateEventDetails]);
 
   const handleAddEEProduct = useCallback((item: any) => {
-    setStagedEEItems(prev => {
-      const exactMatch = prev.find((existing) =>
-        !existing.is_deleted &&
-        existing.product_id === item.product_id &&
-        !existing.bundle_id &&
-        existing.unit_price_cents === item.unit_price_cents &&
-        (existing.pricing_context || 'standalone') === (item.pricing_context || 'standalone')
-      );
-      if (exactMatch) {
-        return prev.map((existing) =>
-          existing === exactMatch
-            ? { ...existing, qty: existing.qty + item.qty }
-            : existing
-        );
-      }
-      return [...prev, { ...item, client_id: item.client_id || `new-ee-${Date.now()}-${Math.random().toString(36).slice(2)}` }];
-    });
+    setStagedEEItems(prev => addEEProductToStagedItems(prev as StagedItem[], item, () => `new-ee-${Date.now()}-${Math.random().toString(36).slice(2)}`) as StagedEEItem[]);
   }, []);
 
   const handleAddEEBundle = useCallback((item: any) => {
-    setStagedEEItems(prev => {
-      const exactMatch = prev.find((existing) =>
-        !existing.is_deleted &&
-        existing.bundle_id === item.bundle_id &&
-        existing.unit_price_cents === item.unit_price_cents &&
-        (existing.pricing_context || 'standalone') === (item.pricing_context || 'standalone') &&
-        JSON.stringify(existing.component_snapshot || null) === JSON.stringify(item.component_snapshot || null)
-      );
-      if (exactMatch) {
-        return prev.map((existing) =>
-          existing === exactMatch
-            ? { ...existing, qty: existing.qty + item.qty }
-            : existing
-        );
-      }
-      return [...prev, { ...item, client_id: item.client_id || `new-ee-${Date.now()}-${Math.random().toString(36).slice(2)}` }];
-    });
+    setStagedEEItems(prev => addEEBundleToStagedItems(prev as StagedItem[], item, () => `new-ee-${Date.now()}-${Math.random().toString(36).slice(2)}`) as StagedEEItem[]);
   }, []);
 
   const handleRemoveEEItem = useCallback((item: any) => {
-    setStagedEEItems(prev => prev.filter(i => i.client_id !== item.client_id));
+    setStagedEEItems(prev => removeStagedItem(prev as StagedItem[], item) as StagedEEItem[]);
   }, []);
 
   const handleUpdateEEQuantity = useCallback((item: any, qty: number) => {
-    setStagedEEItems(prev => prev.map(i =>
-      i.client_id === item.client_id ? { ...i, qty: Math.max(1, qty) } : i
-    ));
+    setStagedEEItems(prev => updateStagedItemQuantity(prev as StagedItem[], item, qty) as StagedEEItem[]);
   }, []);
 
   // Compute a deterministic pricing revision string covering all inputs that affect pricing.

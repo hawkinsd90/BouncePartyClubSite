@@ -1,6 +1,7 @@
 import { supabase } from '../supabase';
 import { executeQuery, type QueryOptions, type QueryResult } from './base';
 import { handleError } from '../errorHandling';
+import { loadAdminResolverCatalogRowsWith } from './adminResolverCatalogRows';
 import type { Json } from '../database.types';
 import type {
   InventoryProduct,
@@ -851,6 +852,17 @@ export async function fetchAdminProductBundlesWithConfiguration(
         }>,
     { context: 'fetchAdminProductBundlesWithConfiguration', ...options },
   );
+}
+
+// The four admin catalog queries the Event Essentials resolver needs, loaded in parallel.
+// Returns the raw results unchanged; each caller keeps its own error handling.
+export function loadAdminResolverCatalogRows() {
+  return loadAdminResolverCatalogRowsWith({
+    fetchCategories: () => fetchAdminProductCategories(),
+    fetchProducts: () => fetchAdminInventoryProducts(),
+    fetchPricing: () => fetchAdminProductPricing(),
+    fetchBundles: () => fetchAdminProductBundlesWithConfiguration(),
+  });
 }
 
 export async function fetchProductBundlesWithAllComponents(

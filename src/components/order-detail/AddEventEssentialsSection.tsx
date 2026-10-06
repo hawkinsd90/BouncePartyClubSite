@@ -13,10 +13,7 @@ import type {
 } from '../../lib/eventEssentialsPricingTypes';
 import type { BundleComponentSnapshot } from '../admin/OrderDetailModal';
 import {
-  fetchAdminInventoryProducts,
-  fetchAdminProductPricing,
-  fetchAdminProductCategories,
-  fetchAdminProductBundlesWithConfiguration,
+  loadAdminResolverCatalogRows,
   checkProductAvailability,
 } from '../../lib/queries/products';
 import type { ProductBundleWithConfiguration } from '../../types';
@@ -78,12 +75,7 @@ export function AddEventEssentialsSection({
     setLoading(true);
     setError(null);
     try {
-      const [catsRes, prodsRes, pricingRes, bundlesRes] = await Promise.all([
-        fetchAdminProductCategories(),
-        fetchAdminInventoryProducts(),
-        fetchAdminProductPricing(),
-        fetchAdminProductBundlesWithConfiguration(),
-      ]);
+      const { catsRes, prodsRes, pricingRes, bundlesRes } = await loadAdminResolverCatalogRows();
 
       if (catsRes.error) throw new Error(catsRes.error.message);
       if (prodsRes.error) throw new Error(prodsRes.error.message);

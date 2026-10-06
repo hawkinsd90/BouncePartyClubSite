@@ -47,12 +47,7 @@ import {
   decideAdminGeneratorDecrease,
   type AdminGeneratorStagedItem,
 } from '../../lib/adminGeneratorResolution';
-import {
-  fetchAdminInventoryProducts,
-  fetchAdminProductPricing,
-  fetchAdminProductCategories,
-  fetchAdminProductBundlesWithConfiguration,
-} from '../../lib/queries/products';
+import { loadAdminResolverCatalogRows } from '../../lib/queries/products';
 
 interface OrderDetailModalProps {
   order: any;
@@ -862,12 +857,7 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
 
     try {
       // Load full catalog config for the pricing resolver.
-      const [catsRes, prodsRes, pricingRes, bundlesRes] = await Promise.all([
-        fetchAdminProductCategories(),
-        fetchAdminInventoryProducts(),
-        fetchAdminProductPricing(),
-        fetchAdminProductBundlesWithConfiguration(),
-      ]);
+      const { catsRes, prodsRes, pricingRes, bundlesRes } = await loadAdminResolverCatalogRows();
 
       if (isInvalid()) return;
 
