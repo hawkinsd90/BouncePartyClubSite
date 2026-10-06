@@ -108,26 +108,15 @@ export async function createOrderBeforePayment(data: OrderData): Promise<string>
       item.item_type === 'event_essential_product' || item.item_type === 'event_essential_bundle',
   );
   if (eeCartItems.length > 0) {
-    const { buildEventEssentialAvailabilityRequestFromOrderItems, validateAvailabilityResult } = await import('./eeOrderItemAvailability');
-    const { checkProductAvailability } = await import('./queries/products');
-    const expansion = buildEventEssentialAvailabilityRequestFromOrderItems(eeCartItems);
-    if (expansion.status === 'invalid') {
-      throw new Error(`Cannot create order: ${expansion.error}`);
-    }
-    if (expansion.productQuantities.length > 0) {
-      const availabilityResult = await checkProductAvailability(
-        expansion.productQuantities,
-        quoteData.event_date,
-        quoteData.event_end_date || quoteData.event_date,
-        undefined,
-      );
-      const validation = validateAvailabilityResult(
-        expansion.productQuantities.map((q) => q.product_id),
-        availabilityResult,
-      );
-      if (!validation.ok) {
-        throw new Error(`Cannot create order: ${validation.error}`);
-      }
+    const { checkEventEssentialsAvailability } = await import('./queries/products');
+    const eeCheck = await checkEventEssentialsAvailability({
+      items: eeCartItems,
+      eventDate: quoteData.event_date,
+      eventEndDate: quoteData.event_end_date || quoteData.event_date,
+      excludeOrderId: undefined,
+    });
+    if (!eeCheck.ok) {
+      throw new Error(`Cannot create order: ${eeCheck.error}`);
     }
   }
 

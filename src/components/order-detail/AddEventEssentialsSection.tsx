@@ -11,13 +11,9 @@ import { buildBundleSnapshot } from '../../lib/unifiedCart';
 import type { BundleComponentSnapshot } from '../admin/OrderDetailModal';
 import {
   loadAdminResolverCatalogRows,
-  checkProductAvailability,
+  checkEventEssentialsAvailability,
 } from '../../lib/queries/products';
 import type { ProductBundleWithConfiguration } from '../../types';
-import {
-  buildEventEssentialAvailabilityRequestFromOrderItems,
-  validateAvailabilityResult,
-} from '../../lib/eeOrderItemAvailability';
 import { PickerBanners, PickerSpinners, PickerHeader, PickerCategoryPills } from './add-event-essentials/PickerChrome';
 
 interface AddEventEssentialsSectionProps {
@@ -269,28 +265,21 @@ export function AddEventEssentialsSection({
           component_snapshot: null,
         },
       ];
-      const expansion = buildEventEssentialAvailabilityRequestFromOrderItems(projectedItems);
-      if (expansion.status !== 'ready') {
-        setAvailabilityError('Unable to verify availability. Please try again.');
-        return;
-      }
-      const effectiveEndDate = eventEndDate || eventDate;
-      if (!eventDate || !effectiveEndDate) {
-        setAvailabilityError('Please select the event dates before adding Event Essentials.');
-        return;
-      }
-      const availResult = await checkProductAvailability(
-        expansion.productQuantities,
+      const eeCheck = await checkEventEssentialsAvailability({
+        items: projectedItems,
         eventDate,
-        effectiveEndDate,
-        orderId,
-      );
-      const validation = validateAvailabilityResult(
-        expansion.productQuantities.map(p => p.product_id),
-        availResult,
-      );
-      if (!validation.ok) {
-        setAvailabilityError(validation.error || 'That quantity is not available for the selected dates.');
+        eventEndDate: eventEndDate || eventDate,
+        excludeOrderId: orderId,
+        requireDates: true,
+      });
+      if (!eeCheck.ok) {
+        if (eeCheck.kind === 'invalid_requirement') {
+          setAvailabilityError('Unable to verify availability. Please try again.');
+        } else if (eeCheck.kind === 'missing_dates') {
+          setAvailabilityError('Please select the event dates before adding Event Essentials.');
+        } else {
+          setAvailabilityError(eeCheck.error || 'That quantity is not available for the selected dates.');
+        }
         return;
       }
 
@@ -352,28 +341,21 @@ export function AddEventEssentialsSection({
           component_snapshot: snapshot,
         },
       ];
-      const expansion = buildEventEssentialAvailabilityRequestFromOrderItems(projectedItems);
-      if (expansion.status !== 'ready') {
-        setAvailabilityError('Unable to verify availability. Please try again.');
-        return;
-      }
-      const effectiveEndDate = eventEndDate || eventDate;
-      if (!eventDate || !effectiveEndDate) {
-        setAvailabilityError('Please select the event dates before adding Event Essentials.');
-        return;
-      }
-      const availResult = await checkProductAvailability(
-        expansion.productQuantities,
+      const eeCheck = await checkEventEssentialsAvailability({
+        items: projectedItems,
         eventDate,
-        effectiveEndDate,
-        orderId,
-      );
-      const validation = validateAvailabilityResult(
-        expansion.productQuantities.map(p => p.product_id),
-        availResult,
-      );
-      if (!validation.ok) {
-        setAvailabilityError(validation.error || 'That quantity is not available for the selected dates.');
+        eventEndDate: eventEndDate || eventDate,
+        excludeOrderId: orderId,
+        requireDates: true,
+      });
+      if (!eeCheck.ok) {
+        if (eeCheck.kind === 'invalid_requirement') {
+          setAvailabilityError('Unable to verify availability. Please try again.');
+        } else if (eeCheck.kind === 'missing_dates') {
+          setAvailabilityError('Please select the event dates before adding Event Essentials.');
+        } else {
+          setAvailabilityError(eeCheck.error || 'That quantity is not available for the selected dates.');
+        }
         return;
       }
 

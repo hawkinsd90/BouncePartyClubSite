@@ -16,11 +16,7 @@ import { CustomerInfoForm } from './CustomerInfoForm';
 import { CancelOrderModal } from './CancelOrderModal';
 import { showToast } from '../../lib/notifications';
 import { checkMultipleUnitsAvailability } from '../../lib/availability';
-import { checkProductAvailability } from '../../lib/queries/products';
-import {
-  buildEventEssentialAvailabilityRequestFromOrderItems,
-  validateAvailabilityResult,
-} from '../../lib/eeOrderItemAvailability';
+import { checkEventEssentialsAvailability } from '../../lib/queries/products';
 import { sendNotificationToCustomer } from '../../lib/notificationService';
 import { enterConfirmed } from '../../lib/orderLifecycle';
 import { ORDER_STATUS } from '../../lib/constants/statuses';
@@ -227,31 +223,17 @@ export function InvoiceAcceptanceView({
         // Check Event Essentials availability
         const eeItems = allOrderItems.filter((item: any) => !item.unit_id && (item.product_id || item.bundle_id));
         if (eeItems.length > 0) {
-          const expansion = buildEventEssentialAvailabilityRequestFromOrderItems(eeItems);
-          if (expansion.status === 'ready' && expansion.productQuantities.length > 0) {
-            const eeResult = await checkProductAvailability(
-              expansion.productQuantities,
-              order.event_date,
-              order.event_end_date || order.event_date,
-              order.id,
-            );
-            const validation = validateAvailabilityResult(
-              expansion.productQuantities.map(item => item.product_id),
-              eeResult,
-            );
-            if (!validation.ok) {
-              showToast(
-                validation.status === 'unavailable'
-                  ? 'Sorry, one or more Event Essentials in your order are no longer available for your event date. Please contact us to reschedule.'
-                  : 'Sorry, we could not verify item availability. Please contact us to reschedule.',
-                'error'
-              );
-              setProcessing(false);
-              return;
-            }
-          } else if (expansion.status === 'invalid') {
+          const eeCheck = await checkEventEssentialsAvailability({
+            items: eeItems,
+            eventDate: order.event_date,
+            eventEndDate: order.event_end_date || order.event_date,
+            excludeOrderId: order.id,
+          });
+          if (!eeCheck.ok) {
             showToast(
-              'Sorry, we could not verify item availability. Please contact us to reschedule.',
+              eeCheck.kind === 'unavailable'
+                ? 'Sorry, one or more Event Essentials in your order are no longer available for your event date. Please contact us to reschedule.'
+                : 'Sorry, we could not verify item availability. Please contact us to reschedule.',
               'error'
             );
             setProcessing(false);

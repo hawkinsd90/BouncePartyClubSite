@@ -12,10 +12,6 @@ import { logGroupedTransactions } from './transactionReceiptService';
 import { enterConfirmed } from './orderLifecycle';
 import { getAdminSetting, ADMIN_SETTING_KEYS } from './adminSettingsCache';
 import { calculateTotalFromOrder } from './orderSummary';
-import {
-  buildEventEssentialAvailabilityRequestFromOrderItems,
-  validateAvailabilityResult,
-} from './eeOrderItemAvailability';
 
 const BUSINESS_PHONE_FALLBACK = '(313) 889-3860';
 
@@ -456,24 +452,18 @@ export async function rejectOrder(
 }
 
 async function checkEEProductAvailability(orderItems: any[], orderData: any, orderId: string) {
-  const expansion = buildEventEssentialAvailabilityRequestFromOrderItems(orderItems);
-  if (expansion.status === 'invalid') {
-    throw new Error(expansion.error);
-  }
-  if (expansion.productQuantities.length === 0) return;
-  const { checkProductAvailability } = await import('./queries/products');
-  const result = await checkProductAvailability(
-    expansion.productQuantities,
-    orderData.event_date,
-    orderData.event_end_date || orderData.event_date,
-    orderId,
-  );
-  const validation = validateAvailabilityResult(
-    expansion.productQuantities.map((q) => q.product_id),
-    result,
-  );
-  if (!validation.ok) {
-    throw new Error(`Cannot approve order: ${validation.error}`);
+  const { checkEventEssentialsAvailability } = await import('./queries/products');
+  const check = await checkEventEssentialsAvailability({
+    items: orderItems,
+    eventDate: orderData.event_date,
+    eventEndDate: orderData.event_end_date || orderData.event_date,
+    excludeOrderId: orderId,
+  });
+  if (!check.ok) {
+    if (check.kind === 'invalid_requirement') {
+      throw new Error(check.error);
+    }
+    throw new Error(`Cannot approve order: ${check.error}`);
   }
 }
 

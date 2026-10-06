@@ -1,8 +1,7 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { supabase } from '../../lib/supabase';
 import { checkMultipleUnitsAvailability } from '../../lib/availability';
-import { buildEventEssentialAvailabilityRequestFromOrderItems, validateAvailabilityResult } from '../../lib/eeOrderItemAvailability';
-import { checkProductAvailability } from '../../lib/queries/products';
+import { checkEventEssentialsAvailability } from '../../lib/queries/products';
 import { formatOrderSummary } from '../../lib/orderSummary';
 import { calculateDrivingDistance } from '../../lib/pricing';
 import { HOME_BASE } from '../../lib/constants';
@@ -518,26 +517,19 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
       // Event Essentials availability check — append to same finalIssues array
       const eeItems = stagedItems.filter(item => !item.is_deleted && !item.unit_id && (item.product_id || item.bundle_id));
       if (eeItems.length > 0) {
-        const expansion = buildEventEssentialAvailabilityRequestFromOrderItems(eeItems);
-        if (expansion.status === 'invalid') {
-          finalIssues.push({ unitName: 'Event Essentials', error: expansion.error });
-        } else if (expansion.productQuantities.length > 0) {
-          const eeResult = await checkProductAvailability(
-            expansion.productQuantities,
-            editedOrder.event_date,
-            editedOrder.event_end_date,
-            order.id,
-          );
-          if (eeResult.error) {
-            finalIssues.push({ unitName: 'Event Essentials', error: eeResult.error });
+        const eeCheck = await checkEventEssentialsAvailability({
+          items: eeItems,
+          eventDate: editedOrder.event_date,
+          eventEndDate: editedOrder.event_end_date,
+          excludeOrderId: order.id,
+        });
+        if (!eeCheck.ok) {
+          if (eeCheck.kind === 'invalid_requirement') {
+            finalIssues.push({ unitName: 'Event Essentials', error: eeCheck.error });
+          } else if (eeCheck.kind === 'unverifiable' && eeCheck.queryError) {
+            finalIssues.push({ unitName: 'Event Essentials', error: eeCheck.queryError });
           } else {
-            const validation = validateAvailabilityResult(
-              expansion.productQuantities.map(pq => pq.product_id),
-              { data: eeResult.data, error: null },
-            );
-            if (!validation.ok) {
-              finalIssues.push({ unitName: 'Event Essentials', error: validation.error || 'Event Essentials availability check failed' });
-            }
+            finalIssues.push({ unitName: 'Event Essentials', error: eeCheck.error || 'Event Essentials availability check failed' });
           }
         }
       }

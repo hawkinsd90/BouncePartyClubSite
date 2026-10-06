@@ -183,3 +183,94 @@ export function validateAvailabilityResult(
   }
   return { ok: true, status: 'ok' };
 }
+
+// ---------------------------------------------------------------------------
+// Shared availability core: expand -> (dates) -> query -> validate.
+//
+// Ten Event Essentials flows used to repeat this sequence by hand (invoice builder x2,
+// order detail, customer approval modal, invoice acceptance, add-Event-Essentials picker x2,
+// admin Generator resolution, order approval, order creation). This function owns ONLY the
+// sequence and returns neutral data. Each caller keeps what is feature-specific:
+// - which items it projects and how it resolves its dates (the `end || start` fallback is
+//   NOT shared: the order detail modal and Generator resolution pass the end date as-is),
+// - the order id to exclude (null / undefined for none),
+// - every message, toast, issue row, thrown error and state setter,
+// - every loading flag, request id, stale guard and try/catch.
+//
+// Nothing here catches: a rejected or throwing query propagates to the caller exactly as the
+// inline sequence did. An empty requirement skips the query and is ok (callers that never
+// guarded for it always include a validated candidate, so their expansion is never empty).
+// `requireDates` (opt-in) returns missing_dates AFTER the expansion check, matching the
+// picker's order of checks; other callers pass their dates straight to the query as before.
+//
+// The query is injected so this module stays pure and Node-testable; the bound version used
+// by the app is checkEventEssentialsAvailability in queries/products.ts.
+// ---------------------------------------------------------------------------
+
+export interface EventEssentialsAvailabilityQueryResult {
+  data?: unknown[] | null;
+  error?: string | null;
+}
+
+export type EventEssentialsAvailabilityQuery = (
+  requestedItems: Array<{ product_id: string; quantity: number }>,
+  startDate: string,
+  endDate: string,
+  excludeOrderId?: string | null,
+) => Promise<EventEssentialsAvailabilityQueryResult>;
+
+export type EventEssentialsAvailabilityCheck =
+  | { ok: true; productQuantities: Array<{ product_id: string; quantity: number }> }
+  // The items could not be expanded into a product requirement.
+  | { ok: false; kind: 'invalid_requirement'; error: string }
+  // requireDates was set and a date was missing (never returned unless requested).
+  | { ok: false; kind: 'missing_dates'; error: string }
+  // The query failed, returned nothing, or returned a malformed/incomplete result.
+  // `error` is validateAvailabilityResult's message; `queryError` is the raw query error
+  // (null when the query itself did not report one).
+  | { ok: false; kind: 'unverifiable'; error: string | undefined; queryError: string | null }
+  // The query succeeded and at least one requested product is not allowed.
+  | { ok: false; kind: 'unavailable'; error: string | undefined };
+
+export async function checkEventEssentialsAvailabilityWith(
+  query: EventEssentialsAvailabilityQuery,
+  input: {
+    items: unknown[];
+    eventDate: string;
+    eventEndDate: string;
+    excludeOrderId?: string | null;
+    requireDates?: boolean;
+  },
+): Promise<EventEssentialsAvailabilityCheck> {
+  const expansion = buildEventEssentialAvailabilityRequestFromOrderItems(input.items);
+  if (expansion.status !== 'ready') {
+    return { ok: false, kind: 'invalid_requirement', error: expansion.error };
+  }
+
+  if (input.requireDates && (!input.eventDate || !input.eventEndDate)) {
+    return { ok: false, kind: 'missing_dates', error: 'Event dates are required to check availability.' };
+  }
+
+  if (expansion.productQuantities.length === 0) {
+    return { ok: true, productQuantities: expansion.productQuantities };
+  }
+
+  const result = await query(
+    expansion.productQuantities,
+    input.eventDate,
+    input.eventEndDate,
+    input.excludeOrderId,
+  );
+
+  const validation = validateAvailabilityResult(
+    expansion.productQuantities.map((item) => item.product_id),
+    result,
+  );
+  if (validation.ok) {
+    return { ok: true, productQuantities: expansion.productQuantities };
+  }
+  if (validation.status === 'unavailable') {
+    return { ok: false, kind: 'unavailable', error: validation.error };
+  }
+  return { ok: false, kind: 'unverifiable', error: validation.error, queryError: result.error || null };
+}

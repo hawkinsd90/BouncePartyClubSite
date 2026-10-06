@@ -2,6 +2,7 @@ import { supabase } from '../supabase';
 import { executeQuery, type QueryOptions, type QueryResult } from './base';
 import { handleError } from '../errorHandling';
 import { loadAdminResolverCatalogRowsWith } from './adminResolverCatalogRows';
+import { checkEventEssentialsAvailabilityWith } from '../eeOrderItemAvailability';
 import type { Json } from '../database.types';
 import type {
   InventoryProduct,
@@ -378,6 +379,18 @@ export async function checkProductAvailability(
         p_exclude_order_id: excludeOrderId ?? null,
       } as any),
     { context: 'checkProductAvailability', ...options }
+  );
+}
+
+// Shared Event Essentials availability check (expand, query, validate). The caller owns
+// its dates, order exclusion, messages, state and guards; see eeOrderItemAvailability.ts.
+export function checkEventEssentialsAvailability(
+  input: Parameters<typeof checkEventEssentialsAvailabilityWith>[1],
+) {
+  return checkEventEssentialsAvailabilityWith(
+    (requestedItems, startDate, endDate, excludeOrderId) =>
+      checkProductAvailability(requestedItems, startDate, endDate, excludeOrderId),
+    input,
   );
 }
 

@@ -12,11 +12,7 @@ import { formatOrderId } from '../../lib/utils';
 import { format } from 'date-fns';
 import { formatCurrency } from '../../lib/pricing';
 import { checkMultipleUnitsAvailability } from '../../lib/availability';
-import { checkProductAvailability } from '../../lib/queries/products';
-import {
-  buildEventEssentialAvailabilityRequestFromOrderItems,
-  validateAvailabilityResult,
-} from '../../lib/eeOrderItemAvailability';
+import { checkEventEssentialsAvailability } from '../../lib/queries/products';
 import { enterConfirmed } from '../../lib/orderLifecycle';
 import { ORDER_STATUS } from '../../lib/constants/statuses';
 import { COMPANY_PHONE } from '../../lib/emailTemplateBase';
@@ -115,29 +111,22 @@ export function ApprovalModal({
 
     // 2. Event Essentials availability — direct products + package components.
     if (eeItems.length > 0) {
-      const expansion = buildEventEssentialAvailabilityRequestFromOrderItems(eeItems);
-      if (expansion.status === 'invalid') {
-        showToast(
-          'Unable to verify Event Essentials availability. Please try again or contact us for assistance.',
-          'error'
-        );
-        return false;
-      }
-      if (expansion.productQuantities.length > 0) {
-        const availabilityResult = await checkProductAvailability(
-          expansion.productQuantities,
-          order.event_date,
-          order.event_end_date || order.event_date,
-          order.id,
-        );
-        const validation = validateAvailabilityResult(
-          expansion.productQuantities.map((q) => q.product_id),
-          availabilityResult,
-        );
-        if (!validation.ok) {
-          showToast(validation.error || 'One or more Event Essentials items are no longer available for your event date.', 'error');
+      const eeCheck = await checkEventEssentialsAvailability({
+        items: eeItems,
+        eventDate: order.event_date,
+        eventEndDate: order.event_end_date || order.event_date,
+        excludeOrderId: order.id,
+      });
+      if (!eeCheck.ok) {
+        if (eeCheck.kind === 'invalid_requirement') {
+          showToast(
+            'Unable to verify Event Essentials availability. Please try again or contact us for assistance.',
+            'error'
+          );
           return false;
         }
+        showToast(eeCheck.error || 'One or more Event Essentials items are no longer available for your event date.', 'error');
+        return false;
       }
     }
 

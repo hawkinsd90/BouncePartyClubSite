@@ -19,12 +19,7 @@ import { useEventDetails } from '../../hooks/useEventDetails';
 import { generateInvoice } from '../../lib/invoiceService';
 import { checkMultipleUnitsAvailability } from '../../lib/availability';
 import { resolveAdminGeneratorIncrease, decideAdminGeneratorDecrease } from '../../lib/adminGeneratorResolution';
-import { fetchAdminProductCategories, fetchAdminInventoryProducts, loadAdminResolverCatalogRows } from '../../lib/queries/products';
-import { checkProductAvailability } from '../../lib/queries/products';
-import {
-  buildEventEssentialAvailabilityRequestFromOrderItems,
-  validateAvailabilityResult,
-} from '../../lib/eeOrderItemAvailability';
+import { fetchAdminProductCategories, fetchAdminInventoryProducts, loadAdminResolverCatalogRows, checkEventEssentialsAvailability } from '../../lib/queries/products';
 import { InvoiceAvailabilityBanner } from './invoice-builder/InvoiceAvailabilityBanner';
 import { InvoiceFeeWaivers } from './invoice-builder/InvoiceFeeWaivers';
 import { InvoiceSetupFeeOverride } from './invoice-builder/InvoiceSetupFeeOverride';
@@ -492,35 +487,23 @@ export function InvoiceBuilder() {
 
       // Check Event Essentials availability
       if (activeEEItems.length > 0) {
-        const expansion = buildEventEssentialAvailabilityRequestFromOrderItems(
-          activeEEItems.map(item => ({
-            product_id: item.product_id,
-            bundle_id: item.bundle_id,
-            qty: item.qty,
-            component_snapshot: item.component_snapshot,
-          }))
-        );
-
-        if (expansion.status !== 'ready') {
-          issues.push({ unitName: 'Event Essentials', unitId: 'ee', conflicts: [] });
-        } else if (expansion.productQuantities.length > 0) {
-          try {
-            const eeResult = await checkProductAvailability(
-              expansion.productQuantities,
-              eventDetails.event_date,
-              eventDetails.event_end_date || eventDetails.event_date,
-              null,
-            );
-            const validation = validateAvailabilityResult(
-              expansion.productQuantities.map(item => item.product_id),
-              eeResult,
-            );
-            if (!validation.ok) {
-              issues.push({ unitName: 'Event Essentials', unitId: 'ee', conflicts: [] });
-            }
-          } catch {
+        try {
+          const eeCheck = await checkEventEssentialsAvailability({
+            items: activeEEItems.map(item => ({
+              product_id: item.product_id,
+              bundle_id: item.bundle_id,
+              qty: item.qty,
+              component_snapshot: item.component_snapshot,
+            })),
+            eventDate: eventDetails.event_date,
+            eventEndDate: eventDetails.event_end_date || eventDetails.event_date,
+            excludeOrderId: null,
+          });
+          if (!eeCheck.ok) {
             issues.push({ unitName: 'Event Essentials', unitId: 'ee', conflicts: [] });
           }
+        } catch {
+          issues.push({ unitName: 'Event Essentials', unitId: 'ee', conflicts: [] });
         }
       }
 
@@ -594,43 +577,27 @@ export function InvoiceBuilder() {
 
       // Recheck Event Essentials availability before creating invoice
       if (activeEEItems.length > 0) {
-        const expansion = buildEventEssentialAvailabilityRequestFromOrderItems(
-          activeEEItems.map(item => ({
+        const eeCheck = await checkEventEssentialsAvailability({
+          items: activeEEItems.map(item => ({
             product_id: item.product_id,
             bundle_id: item.bundle_id,
             qty: item.qty,
             component_snapshot: item.component_snapshot,
-          }))
-        );
+          })),
+          eventDate: eventDetails.event_date,
+          eventEndDate: eventDetails.event_end_date || eventDetails.event_date,
+          excludeOrderId: null,
+        });
 
-        if (expansion.status !== 'ready') {
-          showToast('Unable to verify Event Essentials availability. Please try again.', 'error');
+        if (!eeCheck.ok) {
+          showToast(
+            eeCheck.kind === 'unavailable'
+              ? 'Cannot create invoice: One or more Event Essentials are not available for the selected dates.'
+              : 'Unable to verify Event Essentials availability. Please try again.',
+            'error'
+          );
           setSaving(false);
           return;
-        }
-
-        if (expansion.productQuantities.length > 0) {
-          const eeResult = await checkProductAvailability(
-            expansion.productQuantities,
-            eventDetails.event_date,
-            eventDetails.event_end_date || eventDetails.event_date,
-            null,
-          );
-
-          const validation = validateAvailabilityResult(
-            expansion.productQuantities.map(item => item.product_id),
-            eeResult,
-          );
-          if (!validation.ok) {
-            showToast(
-              validation.status === 'unavailable'
-                ? 'Cannot create invoice: One or more Event Essentials are not available for the selected dates.'
-                : 'Unable to verify Event Essentials availability. Please try again.',
-              'error'
-            );
-            setSaving(false);
-            return;
-          }
         }
       }
 

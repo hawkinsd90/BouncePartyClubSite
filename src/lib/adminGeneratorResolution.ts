@@ -25,11 +25,7 @@ import type {
   ResolverUnitConfig,
   ResolverOutputLine,
 } from './eventEssentialsPricingTypes';
-import {
-  buildEventEssentialAvailabilityRequestFromOrderItems,
-  validateAvailabilityResult,
-} from './eeOrderItemAvailability';
-import { checkProductAvailability } from './queries/products';
+import { checkEventEssentialsAvailability } from './queries/products';
 
 export interface CurrentGeneratorRepresentation {
   /** Legacy generator_qty on the order (historical standalone). */
@@ -340,27 +336,20 @@ export async function resolveAdminGeneratorIncrease(input: {
       },
     ];
 
-    const expansion = buildEventEssentialAvailabilityRequestFromOrderItems(resultingItems);
-    if (expansion.status === 'invalid') {
-      return { status: 'fail_closed', reason: expansion.error };
-    }
-
-    const availability = await checkProductAvailability(
-      expansion.productQuantities,
+    const eeCheck = await checkEventEssentialsAvailability({
+      items: resultingItems,
       eventDate,
       eventEndDate,
-      orderId,
-    );
+      excludeOrderId: orderId,
+    });
 
-    const validation = validateAvailabilityResult(
-      expansion.productQuantities.map((pq) => pq.product_id),
-      availability,
-    );
-
-    if (validation.status === 'invalid') {
-      return { status: 'fail_closed', reason: validation.error || 'Availability check failed.' };
-    }
-    if (validation.status === 'unavailable') {
+    if (!eeCheck.ok) {
+      if (eeCheck.kind === 'invalid_requirement') {
+        return { status: 'fail_closed', reason: eeCheck.error };
+      }
+      if (eeCheck.kind === 'unverifiable') {
+        return { status: 'fail_closed', reason: eeCheck.error || 'Availability check failed.' };
+      }
       // This candidate's resulting inventory is not available — skip.
       continue;
     }
