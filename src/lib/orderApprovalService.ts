@@ -557,18 +557,20 @@ export async function sendApprovalConfirmationNotifications(
 
     if (!linkResult.success) {
       console.error('[orderApprovalService] Short-link failed, skipping all confirmation notifications:', linkResult.error);
-      const failureRows: any[] = [];
+      const failureContext = { orderId: orderWithItems.id, messageType: 'booking_confirmation', source: 'orderApprovalService' };
+      const failureRows: Array<{ notification_type: 'email' | 'sms'; intended_recipient: string; subject: string; error_message: string; context: typeof failureContext }> = [];
       if (hasEmail) {
         result.emailSent = false;
-        failureRows.push({ order_id: orderWithItems.id, channel: 'email', message_type: 'booking_confirmation', error_message: linkResult.error, created_at: new Date().toISOString() });
+        failureRows.push({ notification_type: 'email', intended_recipient: customer.email, subject: 'Booking confirmation not sent', error_message: linkResult.error, context: failureContext });
       }
       if (hasPhone) {
         result.smsSent = false;
-        failureRows.push({ order_id: orderWithItems.id, channel: 'sms', message_type: 'booking_confirmation', error_message: linkResult.error, created_at: new Date().toISOString() });
+        failureRows.push({ notification_type: 'sms', intended_recipient: customer.phone, subject: 'Booking confirmation not sent', error_message: linkResult.error, context: failureContext });
       }
       if (failureRows.length > 0) {
         try {
-          await sb.from('notification_failures' as any).insert(failureRows);
+          const { error: logError } = await sb.from('notification_failures').insert(failureRows);
+          if (logError) console.error('[orderApprovalService] Failed to log notification failure:', logError);
         } catch (logErr) {
           console.error('[orderApprovalService] Failed to log notification failure:', logErr);
         }
@@ -603,14 +605,6 @@ export async function sendApprovalConfirmationNotifications(
         result.emailSent = false;
         const errMsg = (emailErr as any)?.message || 'Email send failed';
         result.errors.push(`Email: ${errMsg}`);
-        try {
-          await sb.from('notification_failures' as any).insert({
-            order_id: orderWithItems.id, channel: 'email', message_type: 'booking_confirmation',
-            error_message: errMsg, created_at: new Date().toISOString(),
-          });
-        } catch (logErr) {
-          console.error('[orderApprovalService] Failed to log email failure:', logErr);
-        }
       }
     }
 
@@ -622,28 +616,12 @@ export async function sendApprovalConfirmationNotifications(
         result.smsSent = smsOk;
         if (!smsOk) {
           result.errors.push('SMS: send returned false');
-          try {
-            await sb.from('notification_failures' as any).insert({
-              order_id: orderWithItems.id, channel: 'sms', message_type: 'booking_confirmation',
-              error_message: 'SMS send returned false', created_at: new Date().toISOString(),
-            });
-          } catch (logErr) {
-            console.error('[orderApprovalService] Failed to log SMS failure:', logErr);
-          }
         }
       } catch (smsErr: any) {
         console.error('[orderApprovalService] SMS send failed:', smsErr);
         result.smsSent = false;
         const errMsg = (smsErr as any)?.message || 'SMS send failed';
         result.errors.push(`SMS: ${errMsg}`);
-        try {
-          await sb.from('notification_failures' as any).insert({
-            order_id: orderWithItems.id, channel: 'sms', message_type: 'booking_confirmation',
-            error_message: errMsg, created_at: new Date().toISOString(),
-          });
-        } catch (logErr) {
-          console.error('[orderApprovalService] Failed to log SMS failure:', logErr);
-        }
       }
     }
 
@@ -687,18 +665,20 @@ export async function sendCardDeclinedNotifications(
 
     if (!linkResult.success) {
       console.error('[orderApprovalService] Short-link failed, skipping decline notifications:', linkResult.error);
-      const failureRows: any[] = [];
+      const failureContext = { orderId, messageType: 'card_declined', source: 'orderApprovalService' };
+      const failureRows: Array<{ notification_type: 'email' | 'sms'; intended_recipient: string; subject: string; error_message: string; context: typeof failureContext }> = [];
       if (hasEmail) {
         result.emailSent = false;
-        failureRows.push({ order_id: orderId, channel: 'email', message_type: 'card_declined', error_message: linkResult.error, created_at: new Date().toISOString() });
+        failureRows.push({ notification_type: 'email', intended_recipient: customer.email, subject: 'Payment declined notification not sent', error_message: linkResult.error, context: failureContext });
       }
       if (hasPhone) {
         result.smsSent = false;
-        failureRows.push({ order_id: orderId, channel: 'sms', message_type: 'card_declined', error_message: linkResult.error, created_at: new Date().toISOString() });
+        failureRows.push({ notification_type: 'sms', intended_recipient: customer.phone, subject: 'Payment declined notification not sent', error_message: linkResult.error, context: failureContext });
       }
       if (failureRows.length > 0) {
         try {
-          await sb.from('notification_failures' as any).insert(failureRows);
+          const { error: logError } = await sb.from('notification_failures').insert(failureRows);
+          if (logError) console.error('[orderApprovalService] Failed to log notification failure:', logError);
         } catch (logErr) {
           console.error('[orderApprovalService] Failed to log notification failure:', logErr);
         }
@@ -725,14 +705,6 @@ export async function sendCardDeclinedNotifications(
         result.emailSent = false;
         const errMsg = (emailErr as any)?.message || 'Email send failed';
         result.errors.push(`Email: ${errMsg}`);
-        try {
-          await sb.from('notification_failures' as any).insert({
-            order_id: orderId, channel: 'email', message_type: 'card_declined',
-            error_message: errMsg, created_at: new Date().toISOString(),
-          });
-        } catch (logErr) {
-          console.error('[orderApprovalService] Failed to log email failure:', logErr);
-        }
       }
     }
 
@@ -745,28 +717,12 @@ export async function sendCardDeclinedNotifications(
         result.smsSent = smsOk;
         if (!smsOk) {
           result.errors.push('SMS: send returned false');
-          try {
-            await sb.from('notification_failures' as any).insert({
-              order_id: orderId, channel: 'sms', message_type: 'card_declined',
-              error_message: 'SMS send returned false', created_at: new Date().toISOString(),
-            });
-          } catch (logErr) {
-            console.error('[orderApprovalService] Failed to log SMS failure:', logErr);
-          }
         }
       } catch (smsErr: any) {
         console.error('[orderApprovalService] Decline SMS send failed:', smsErr);
         result.smsSent = false;
         const errMsg = (smsErr as any)?.message || 'SMS send failed';
         result.errors.push(`SMS: ${errMsg}`);
-        try {
-          await sb.from('notification_failures' as any).insert({
-            order_id: orderId, channel: 'sms', message_type: 'card_declined',
-            error_message: errMsg, created_at: new Date().toISOString(),
-          });
-        } catch (logErr) {
-          console.error('[orderApprovalService] Failed to log SMS failure:', logErr);
-        }
       }
     }
 

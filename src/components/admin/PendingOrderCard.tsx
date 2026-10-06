@@ -289,16 +289,21 @@ const PendingOrderCardInner = forwardRef<PendingOrderCardRef, {
               });
 
               if (decision.failureRecord) {
-                try {
-                  await supabase.from('notification_failures' as any).insert({
-                    order_id: order.id,
-                    channel: decision.failureRecord.channel,
-                    message_type: decision.failureRecord.message_type,
-                    error_message: decision.failureRecord.error,
-                    created_at: new Date().toISOString(),
-                  });
-                } catch (logErr) {
-                  console.error('[PendingOrderCard] Failed to log notification failure:', logErr);
+                // Only a short-link failure is recorded here; an SMS send failure is already
+                // recorded by the send-sms-notification edge function.
+                if (!portalLinkResult.success && order.customers?.phone?.trim()) {
+                  try {
+                    const { error: logError } = await supabase.from('notification_failures').insert({
+                      notification_type: 'sms',
+                      intended_recipient: order.customers.phone,
+                      subject: 'Lot pictures request not sent',
+                      error_message: decision.failureRecord.error,
+                      context: { orderId: order.id, messageType: 'lot_pictures_request', source: 'PendingOrderCard' },
+                    });
+                    if (logError) console.error('[PendingOrderCard] Failed to log notification failure:', logError);
+                  } catch (logErr) {
+                    console.error('[PendingOrderCard] Failed to log notification failure:', logErr);
+                  }
                 }
                 alert('Failed to send request. Please try again.');
                 return;

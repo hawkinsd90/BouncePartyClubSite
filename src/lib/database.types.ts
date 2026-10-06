@@ -233,22 +233,40 @@ export interface Database {
         Update: Partial<Database['public']['Tables']['invoices']['Insert']>
         Relationships: []
       }
+      // Hand-corrected to the contract shared by Dev and production (see the notification_failures
+      // migration). Dev-only channel / message_type columns are intentionally not represented.
+      // Columns with DB defaults are non-null here, matching this file's convention.
       notification_failures: {
         Row: {
           id: string
-          order_id: string | null
           notification_type: string
           intended_recipient: string
           subject: string | null
           message_preview: string | null
           error_message: string
+          context: Json | null
+          fallback_sent: boolean
+          fallback_type: string | null
           retry_count: number
-          last_retry_at: string | null
           resolved_at: string | null
-          resolved_by: string | null
           created_at: string
+          updated_at: string
         }
-        Insert: Omit<Database['public']['Tables']['notification_failures']['Row'], 'id' | 'created_at'>
+        Insert: {
+          id?: string
+          notification_type: string
+          intended_recipient: string
+          subject?: string | null
+          message_preview?: string | null
+          error_message: string
+          context?: Json | null
+          fallback_sent?: boolean
+          fallback_type?: string | null
+          retry_count?: number
+          resolved_at?: string | null
+          created_at?: string
+          updated_at?: string
+        }
         Update: Partial<Database['public']['Tables']['notification_failures']['Insert']>
         Relationships: []
       }
@@ -260,10 +278,23 @@ export interface Database {
           last_success_at: string | null
           last_failure_at: string | null
           consecutive_failures: number
-          error_message: string | null
+          total_failures_24h: number
+          error_details: Json | null
+          admin_notified_at: string | null
           updated_at: string
         }
-        Insert: Omit<Database['public']['Tables']['notification_system_status']['Row'], 'id' | 'updated_at'>
+        Insert: {
+          id?: string
+          system_type: string
+          is_operational?: boolean
+          last_success_at?: string | null
+          last_failure_at?: string | null
+          consecutive_failures?: number
+          total_failures_24h?: number
+          error_details?: Json | null
+          admin_notified_at?: string | null
+          updated_at?: string
+        }
         Update: Partial<Database['public']['Tables']['notification_system_status']['Insert']>
         Relationships: []
       }
@@ -1028,26 +1059,28 @@ export interface Database {
         Args: { user_id: string }
         Returns: Json
       }
+      // Signatures verified against the notification_failures migration and the live Dev/production
+      // function definitions.
       record_notification_failure: {
         Args: {
-          p_order_id: string | null
-          p_notification_type: string
-          p_intended_recipient: string
-          p_subject: string | null
-          p_message_preview: string | null
-          p_error_message: string
+          p_type: string
+          p_recipient: string
+          p_subject: string
+          p_message_preview: string
+          p_error: string
+          p_context?: Json
         }
-        Returns: void
+        Returns: string
       }
       record_notification_success: {
         Args: {
-          p_notification_type: string
+          p_type: string
         }
-        Returns: void
+        Returns: undefined
       }
       get_unresolved_failures_count: {
         Args: Record<string, never>
-        Returns: number
+        Returns: Json
       }
       get_all_role_users: {
         Args: Record<string, never>

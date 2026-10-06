@@ -425,18 +425,22 @@ export function InvoiceAcceptanceView({
           });
         } catch (notifError: any) {
           console.error('[InvoiceAcceptanceView] confirmation notification failed (non-fatal):', notifError);
-          try {
-            await supabase
-              .from('notification_failures' as any)
-              .insert({
-                order_id: order.id,
-                channel: 'email',
-                message_type: 'invoice_acceptance_confirmation',
+          const failureContext = { orderId: order.id, messageType: 'invoice_acceptance_confirmation', source: 'InvoiceAcceptanceView' };
+          const failureRows: Array<{ notification_type: 'email' | 'sms'; intended_recipient: string }> = [];
+          if (email.trim()) failureRows.push({ notification_type: 'email', intended_recipient: email });
+          if (smsConsent && phone.trim()) failureRows.push({ notification_type: 'sms', intended_recipient: phone });
+          for (const failureRow of failureRows) {
+            try {
+              const { error: logError } = await supabase.from('notification_failures').insert({
+                ...failureRow,
+                subject: 'Invoice acceptance confirmation not sent',
                 error_message: notifError?.message || 'Notification failed',
-                created_at: new Date().toISOString(),
+                context: failureContext,
               });
-          } catch (logErr) {
-            console.error('[InvoiceAcceptanceView] Failed to log notification failure:', logErr);
+              if (logError) console.error('[InvoiceAcceptanceView] Failed to log notification failure:', logError);
+            } catch (logErr) {
+              console.error('[InvoiceAcceptanceView] Failed to log notification failure:', logErr);
+            }
           }
         }
 

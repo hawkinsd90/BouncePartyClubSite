@@ -25,24 +25,22 @@ export async function sendOrderEditNotifications({
     if (!linkResult.success) {
       console.error('[orderNotificationService] Short-link failed, skipping edit notifications:', linkResult.error);
       try {
-        await supabase
-          .from('notification_failures' as any)
-          .insert([
-            {
-              order_id: order.id,
-              channel: 'email',
-              message_type: 'order_edit',
-              error_message: linkResult.error,
-              created_at: new Date().toISOString(),
-            },
-            {
-              order_id: order.id,
-              channel: 'sms',
-              message_type: 'order_edit',
-              error_message: linkResult.error,
-              created_at: new Date().toISOString(),
-            },
-          ]);
+        const failureContext = { orderId: order.id, messageType: 'order_edit', source: 'orderNotificationService' };
+        const failureRows: Array<{
+          notification_type: 'email' | 'sms'; intended_recipient: string; subject: string; error_message: string; context: typeof failureContext;
+        }> = [];
+        const customerEmail = order.customers?.email;
+        const customerPhone = order.customers?.phone;
+        if (typeof customerEmail === 'string' && customerEmail.trim()) {
+          failureRows.push({ notification_type: 'email', intended_recipient: customerEmail, subject: 'Order update notification not sent', error_message: linkResult.error, context: failureContext });
+        }
+        if (typeof customerPhone === 'string' && customerPhone.trim()) {
+          failureRows.push({ notification_type: 'sms', intended_recipient: customerPhone, subject: 'Order update notification not sent', error_message: linkResult.error, context: failureContext });
+        }
+        if (failureRows.length > 0) {
+          const { error: logError } = await supabase.from('notification_failures').insert(failureRows);
+          if (logError) console.error('[orderNotificationService] Failed to log notification failure:', logError);
+        }
       } catch (logErr) {
         console.error('[orderNotificationService] Failed to log notification failure:', logErr);
       }

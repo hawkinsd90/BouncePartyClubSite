@@ -1,4 +1,5 @@
 import { supabase } from './supabase';
+import type { Json } from './database.types';
 
 interface NotificationContext {
   order_id?: string;
@@ -10,17 +11,18 @@ interface NotificationContext {
 
 export interface NotificationFailure {
   id: string;
-  order_id: string | null;
   notification_type: string;
   intended_recipient: string;
   subject: string | null;
   message_preview: string | null;
   error_message: string;
+  context: Json | null;
+  fallback_sent: boolean;
+  fallback_type: string | null;
   retry_count: number;
-  last_retry_at: string | null;
   resolved_at: string | null;
-  resolved_by: string | null;
   created_at: string;
+  updated_at: string;
 }
 
 export interface SystemStatus {
@@ -30,7 +32,9 @@ export interface SystemStatus {
   last_success_at: string | null;
   last_failure_at: string | null;
   consecutive_failures: number;
-  error_message: string | null;
+  total_failures_24h: number;
+  error_details: Json | null;
+  admin_notified_at: string | null;
   updated_at: string;
 }
 
@@ -50,7 +54,7 @@ export async function recordNotificationFailure(
       p_message_preview: messagePreview || '',
       p_error: error,
       p_context: context || {}
-    } as any);
+    });
 
     if (dbError) {
       console.error('Failed to record notification failure:', dbError);
@@ -66,7 +70,7 @@ export async function recordNotificationFailure(
 
 export async function recordNotificationSuccess(type: 'email' | 'sms'): Promise<void> {
   try {
-    await supabase.rpc('record_notification_success', { p_type: type } as any);
+    await supabase.rpc('record_notification_success', { p_type: type });
   } catch (err) {
     console.error('Error recording notification success:', err);
   }

@@ -175,15 +175,16 @@ export function TaskDetailModal({ task, allTasks, onClose, onUpdate, onRefresh, 
       if (!enRouteDecision.shouldSendSms) {
         smsWarning = 'Customer notification failed: unable to create portal link';
         smsFailureError = enRouteDecision.failureRecord?.error;
-        if (enRouteDecision.failureRecord) {
+        if (enRouteDecision.failureRecord && task.customerPhone?.trim()) {
           try {
-            await supabase.from('notification_failures' as any).insert({
-              order_id: task.orderId,
-              channel: enRouteDecision.failureRecord.channel,
-              message_type: enRouteDecision.failureRecord.message_type,
+            const { error: logError } = await supabase.from('notification_failures').insert({
+              notification_type: 'sms',
+              intended_recipient: task.customerPhone,
+              subject: 'En Route notification not sent',
               error_message: enRouteDecision.failureRecord.error,
-              created_at: new Date().toISOString(),
+              context: { orderId: task.orderId, messageType: 'en_route_action_required', source: 'TaskDetailModal' },
             });
+            if (logError) console.error('[TaskDetailModal] Failed to log notification failure:', logError);
           } catch (logErr) {
             console.error('[TaskDetailModal] Failed to log notification failure:', logErr);
           }
@@ -204,20 +205,6 @@ export function TaskDetailModal({ task, allTasks, onClose, onUpdate, onRefresh, 
         messageType: enRouteMessageType,
         failureError: smsFailureError,
       });
-
-      if (!smsSentSuccessfully && enRouteDecision.shouldSendSms && reminderDecision.failureRecord) {
-        try {
-          await supabase.from('notification_failures' as any).insert({
-            order_id: task.orderId,
-            channel: reminderDecision.failureRecord.channel,
-            message_type: reminderDecision.failureRecord.message_type,
-            error_message: reminderDecision.failureRecord.error,
-            created_at: new Date().toISOString(),
-          });
-        } catch (logErr) {
-          console.error('[TaskDetailModal] Failed to log notification failure:', logErr);
-        }
-      }
 
       const { error: taskErr } = await supabase.from('task_status').update({
         status: 'en_route', en_route_time: new Date().toISOString(),
@@ -269,44 +256,25 @@ export function TaskDetailModal({ task, allTasks, onClose, onUpdate, onRefresh, 
         messageType: 'arrived_action_required',
       });
 
-      let arrivedSmsFailureError: string | undefined;
-
       if (!arrivedDecision.shouldSendSms) {
         smsWarn = 'Customer notification failed: unable to create portal link';
-        arrivedSmsFailureError = arrivedDecision.failureRecord?.error;
-        if (arrivedDecision.failureRecord) {
+        if (arrivedDecision.failureRecord && task.customerPhone?.trim()) {
           try {
-            await supabase.from('notification_failures' as any).insert({
-              order_id: task.orderId,
-              channel: arrivedDecision.failureRecord.channel,
-              message_type: arrivedDecision.failureRecord.message_type,
+            const { error: logError } = await supabase.from('notification_failures').insert({
+              notification_type: 'sms',
+              intended_recipient: task.customerPhone,
+              subject: 'Arrived notification not sent',
               error_message: arrivedDecision.failureRecord.error,
-              created_at: new Date().toISOString(),
+              context: { orderId: task.orderId, messageType: 'arrived_action_required', source: 'TaskDetailModal' },
             });
+            if (logError) console.error('[TaskDetailModal] Failed to log notification failure:', logError);
           } catch (logErr) {
             console.error('[TaskDetailModal] Failed to log notification failure:', logErr);
           }
         }
       } else {
         const sms = await postTaskSms({ to: task.customerPhone, message: msg, orderId: task.orderId }, 'Arrived');
-        if (!sms.ok) { smsWarn = sms.warning; arrivedSmsFailureError = sms.failureError; }
-      }
-
-      const arrivedSmsSentSuccessfully = arrivedDecision.shouldSendSms && smsWarn === null;
-
-      if (!arrivedSmsSentSuccessfully && arrivedDecision.shouldSendSms) {
-        const arrivedMessageType = hasArrivedActionRequirement ? 'arrived_action_required' : 'arrived';
-        try {
-          await supabase.from('notification_failures' as any).insert({
-            order_id: task.orderId,
-            channel: 'sms',
-            message_type: arrivedMessageType,
-            error_message: arrivedSmsFailureError || 'SMS send failed',
-            created_at: new Date().toISOString(),
-          });
-        } catch (logErr) {
-          console.error('[TaskDetailModal] Failed to log notification failure:', logErr);
-        }
+        if (!sms.ok) { smsWarn = sms.warning; }
       }
 
       const { error: taskErr } = await supabase.from('task_status').update({ status: 'arrived', arrived_time: new Date().toISOString() }).eq('id', taskStatusId);
