@@ -4,6 +4,7 @@ import { useNavigate } from 'react-router-dom';
 import { supabase } from '../../lib/supabase';
 import { formatCurrency } from '../../lib/pricing';
 import { createShortPortalLink } from '../../lib/utils';
+import type { ShortPortalLinkResult } from '../../lib/utils';
 import { decideActionRequiredSms, decideEnRouteReminders } from '../../lib/notificationDecision';
 import { showAlert, showConfirm, showModal } from '../common/CustomModal';
 import { getCurrentLocation, calculateETA } from '../../lib/googleMaps';
@@ -23,6 +24,11 @@ import { TaskDetailPhotosGrid } from './task-detail/TaskDetailPhotosGrid';
 import { getRoutePool } from './task-detail/taskRoutePool';
 import { uploadTaskPhotos, buildPhotoUploadSummary } from './task-detail/taskPhotoUpload';
 import { getOrCreateTaskStatusRow } from '../../lib/taskStatusService';
+import {
+  buildEnRouteMessage, buildEnRouteResultMessage, buildArrivedMessage, buildArrivedResultMessage,
+  buildDropOffRulesMessage, buildDropOffResultMessage, buildPickupCompletionSummary,
+} from './task-detail/taskNotificationMessages';
+import { postSessionEdge, postTaskSms } from './task-detail/taskEdgeRequests';
 
 export type { Task };
 
@@ -140,31 +146,23 @@ export function TaskDetailModal({ task, allTasks, onClose, onUpdate, onRefresh, 
       const tf = (d: Date) => d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
 
       let smsWarning: string | null = null;
-      let msg = `Hello ${task.customerName.split(' ')[0]}! We're on our way to ${task.type === 'drop-off' ? 'deliver' : 'pick up'} your rental. ETA: ${tf(etaStart)} - ${tf(etaEnd)}`;
-      if (etaDistance) msg += ` (${etaDistance} away)`;
-      msg += '. ';
       const hasActionRequirement = task.type === 'drop-off' && (!task.waiverSigned || task.balanceDue > 0);
-      let enRouteLinkResult: any = { success: false, error: 'No action required' };
+      let enRouteLinkResult: ShortPortalLinkResult = { success: false, error: 'No action required' };
       if (hasActionRequirement) {
-        msg += '\n\n';
-        if (!task.waiverSigned) msg += '⚠️ IMPORTANT: Your waiver is not signed yet. ';
-        if (task.balanceDue > 0) msg += `⚠️ IMPORTANT: Balance due: ${formatCurrency(task.balanceDue)}. `;
         enRouteLinkResult = await createShortPortalLink(task.orderId, supabase, task.date?.toISOString());
-        if (enRouteLinkResult.success) {
-          msg += `\n\nPlease complete these before we arrive: ${enRouteLinkResult.url}`;
-        }
       }
-      if (task.type === 'drop-off') {
-        msg += '\n\nPlease ensure there is a clear path for delivery and setup.';
-        if (task.hasPets) {
-          msg += ' Please also clear the backyard area of any pet waste before we arrive.';
-        }
-        msg += ' See you soon!';
-      } else {
-        if (task.hasPets) {
-          msg += ' Please make sure all pets are secured inside before we arrive.';
-        }
-      }
+      const msg = buildEnRouteMessage({
+        customerName: task.customerName,
+        taskType: task.type,
+        etaStart: tf(etaStart),
+        etaEnd: tf(etaEnd),
+        etaDistance,
+        waiverSigned: task.waiverSigned,
+        balanceDue: task.balanceDue,
+        hasPets: task.hasPets,
+        hasActionRequirement,
+        linkResult: enRouteLinkResult,
+      });
 
       const enRouteDecision = decideActionRequiredSms({
         hasActionRequirement,
@@ -191,13 +189,8 @@ export function TaskDetailModal({ task, allTasks, onClose, onUpdate, onRefresh, 
           }
         }
       } else {
-        try {
-          const r = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/send-sms-notification`, {
-            method: 'POST', headers: { Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`, 'Content-Type': 'application/json' },
-            body: JSON.stringify({ to: task.customerPhone, message: msg, orderId: task.orderId }),
-          });
-          if (!r.ok) { smsWarning = 'SMS failed to send'; smsFailureError = `SMS endpoint returned ${r.status}`; console.warn('En Route SMS failed:', await r.text()); }
-        } catch (e: any) { smsWarning = 'SMS failed: ' + e.message; smsFailureError = e.message; }
+        const sms = await postTaskSms({ to: task.customerPhone, message: msg, orderId: task.orderId }, 'En Route');
+        if (!sms.ok) { smsWarning = sms.warning; smsFailureError = sms.failureError; }
       }
 
       const smsSentSuccessfully = enRouteDecision.shouldSendSms && smsWarning === null;
@@ -238,11 +231,7 @@ export function TaskDetailModal({ task, allTasks, onClose, onUpdate, onRefresh, 
       const { error: wfErr } = await supabase.from('orders').update({ workflow_status: workflowValue }).eq('id', task.orderId);
       if (wfErr) console.warn('workflow_status update failed (en route):', wfErr.message);
 
-      let successMsg = smsWarning && etaCalcErr ? `En Route saved (fallback ETA), but the customer notification failed.`
-        : smsWarning ? `En Route saved, but the customer notification failed.`
-        : etaCalcErr ? `En Route saved and customer notified (fallback ETA used).`
-        : `En Route saved and customer notified. ETA: ${etaMinutes} min${etaDistance ? ` (${etaDistance})` : ''}.`;
-      if (wfErr) successMsg += '\n\n⚠️ Portal status may not update — workflow state failed to save.';
+      const successMsg = buildEnRouteResultMessage({ smsWarning, etaCalcErr, etaMinutes, etaDistance, workflowStatusFailed: !!wfErr });
       showAlert(successMsg);
       refresh();
     } catch (e: any) { console.error('Error en route:', e); showAlert('Failed to send notification: ' + e.message); }
@@ -260,30 +249,19 @@ export function TaskDetailModal({ task, allTasks, onClose, onUpdate, onRefresh, 
     try {
       const taskStatusId = await ensureTaskStatus();
       let smsWarn: string | null = null;
-      let msg = `We have arrived at your location! `;
       const hasArrivedActionRequirement = task.type === 'drop-off' && (!task.waiverSigned || task.balanceDue > 0);
-      let arrivedLinkResult: any = { success: false, error: 'No action required' };
+      let arrivedLinkResult: ShortPortalLinkResult = { success: false, error: 'No action required' };
       if (hasArrivedActionRequirement) {
-        msg += '\n\n⚠️ Before we unload:\n';
-        if (!task.waiverSigned) msg += '• Please sign the waiver\n';
-        if (task.balanceDue > 0) msg += `• Complete payment (${formatCurrency(task.balanceDue)})\n`;
         arrivedLinkResult = await createShortPortalLink(task.orderId, supabase, task.date?.toISOString());
-        if (arrivedLinkResult.success) {
-          msg += `\nComplete at: ${arrivedLinkResult.url}\n\n`;
-        }
       }
-      if (task.type === 'drop-off') {
-        msg += 'Please:\n• Put up any animals\n• Be ready to inspect the equipment\n• Approve the setup location';
-        if (task.hasPets) {
-          msg += '\n• Make sure all pets are secured inside';
-        }
-      } else {
-        msg += "We'll begin pickup shortly.";
-        if (task.hasPets) {
-          msg += ' Please make sure all pets are secured inside before we arrive.';
-        }
-        msg += ' Thank you for using Bounce Party Club!';
-      }
+      const msg = buildArrivedMessage({
+        taskType: task.type,
+        waiverSigned: task.waiverSigned,
+        balanceDue: task.balanceDue,
+        hasPets: task.hasPets,
+        hasActionRequirement: hasArrivedActionRequirement,
+        linkResult: arrivedLinkResult,
+      });
 
       const arrivedDecision = decideActionRequiredSms({
         hasActionRequirement: hasArrivedActionRequirement,
@@ -310,13 +288,8 @@ export function TaskDetailModal({ task, allTasks, onClose, onUpdate, onRefresh, 
           }
         }
       } else {
-        try {
-          const r = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/send-sms-notification`, {
-            method: 'POST', headers: { Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`, 'Content-Type': 'application/json' },
-            body: JSON.stringify({ to: task.customerPhone, message: msg, orderId: task.orderId }),
-          });
-          if (!r.ok) { smsWarn = 'SMS failed to send'; arrivedSmsFailureError = `SMS endpoint returned ${r.status}`; console.warn('Arrived SMS failed:', await r.text()); }
-        } catch (e: any) { smsWarn = 'SMS failed: ' + e.message; arrivedSmsFailureError = e.message; }
+        const sms = await postTaskSms({ to: task.customerPhone, message: msg, orderId: task.orderId }, 'Arrived');
+        if (!sms.ok) { smsWarn = sms.warning; arrivedSmsFailureError = sms.failureError; }
       }
 
       const arrivedSmsSentSuccessfully = arrivedDecision.shouldSendSms && smsWarn === null;
@@ -342,8 +315,7 @@ export function TaskDetailModal({ task, allTasks, onClose, onUpdate, onRefresh, 
       const { error: wfErr } = await supabase.from('orders').update({ workflow_status: 'arrived' }).eq('id', task.orderId);
       if (wfErr) console.warn('workflow_status update failed (arrived):', wfErr.message);
 
-      let arrivedMsg = smsWarn ? `Arrived saved, but the customer notification failed.` : 'Arrived and customer notified successfully!';
-      if (wfErr) arrivedMsg += '\n\n⚠️ Portal status may not update — workflow state failed to save.';
+      const arrivedMsg = buildArrivedResultMessage({ smsWarn, workflowStatusFailed: !!wfErr });
       showAlert(arrivedMsg);
       refresh();
     } catch (e: any) { console.error('Error arrived:', e); showAlert('Failed to send notification: ' + e.message); }
@@ -403,17 +375,11 @@ export function TaskDetailModal({ task, allTasks, onClose, onUpdate, onRefresh, 
     setProcessing(true);
     try {
       const taskStatusId = await ensureTaskStatus();
-      const pickupTime = task.pickupPreference === 'same_day' ? `this evening (${task.eventEndTime || 'after your event'})` : 'tomorrow morning';
-      const msg = `Equipment has been delivered! You are now responsible for the equipment until ${pickupTime}.\n\n⚠️ IMPORTANT RULES:\n• NO SHOES on the inflatable\n• NO FOOD or DRINKS\n• NO SHARP OBJECTS\n• NO HANGING OR CLIMBING ON THE NETS\n• Adult supervision required at all times\n\nEnjoy your event! 🎉`;
+      const msg = buildDropOffRulesMessage({ pickupPreference: task.pickupPreference, eventEndTime: task.eventEndTime });
 
       let smsWarn: string | null = null;
-      try {
-        const r = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/send-sms-notification`, {
-          method: 'POST', headers: { Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`, 'Content-Type': 'application/json' },
-          body: JSON.stringify({ to: task.customerPhone, message: msg, orderId: task.orderId, mediaUrls: [] }),
-        });
-        if (!r.ok) { smsWarn = 'SMS failed to send'; console.warn('Drop-off SMS failed:', await r.text()); }
-      } catch (e: any) { smsWarn = 'SMS failed: ' + e.message; }
+      const sms = await postTaskSms({ to: task.customerPhone, message: msg, orderId: task.orderId, mediaUrls: [] }, 'Drop-off');
+      if (!sms.ok) smsWarn = sms.warning;
 
       const { error: taskErr } = await supabase.from('task_status').update({ status: 'completed', completed_time: new Date().toISOString() }).eq('id', taskStatusId);
       if (taskErr) throw new Error('Failed to update task status: ' + taskErr.message);
@@ -421,8 +387,7 @@ export function TaskDetailModal({ task, allTasks, onClose, onUpdate, onRefresh, 
       const { error: wfErr } = await supabase.from('orders').update({ workflow_status: 'setup_completed' }).eq('id', task.orderId);
       if (wfErr) console.warn('workflow_status update failed (setup_completed):', wfErr.message);
 
-      let dropOffMsg = smsWarn ? `Delivery marked complete. Warning: ${smsWarn}.` : 'Delivery completed and customer notified!';
-      if (wfErr) dropOffMsg += '\n\n⚠️ Portal will not show "Delivered" — workflow state failed to save.';
+      const dropOffMsg = buildDropOffResultMessage({ smsWarn, workflowStatusFailed: !!wfErr });
       showAlert(dropOffMsg);
       refresh();
     } catch (e: any) { console.error('Drop-off complete error:', e); showAlert('Failed to complete delivery: ' + e.message); }
@@ -476,30 +441,7 @@ export function TaskDetailModal({ task, allTasks, onClose, onUpdate, onRefresh, 
         showAlert(`Pickup marked complete. Warning: ${smsWarn}.`);
       }
 
-      const paymentMethods = [...new Set(
-        (task.payments || [])
-          .filter((p: any) => p.status === 'paid' || p.status === 'succeeded')
-          .map((p: any) => {
-            const method = (p.payment_method || '').toLowerCase();
-            if (method === 'cash') return 'Cash';
-            if (method === 'check') return 'Check';
-            return 'Card';
-          })
-      )];
-
-      const summary: CompletionSummaryData = {
-        orderNumber: task.orderNumber,
-        customerName: task.customerName,
-        totalCents: task.total,
-        depositPaidCents: task.depositPaidCents,
-        balancePaidCents: task.balancePaidCents,
-        tipCents: task.tipCents,
-        remainingBalanceCents: hasBalance ? task.balanceDue : 0,
-        paymentMethods,
-        waiverSigned: task.waiverSigned,
-        completionTime: new Date(),
-        hadBalanceWarning: hasBalance,
-      };
+      const summary: CompletionSummaryData = buildPickupCompletionSummary(task, hasBalance, new Date());
       setCompletionSummary(summary);
       refresh();
     } catch (e: any) { console.error('Pickup complete error:', e); showAlert('Failed to complete pickup: ' + e.message); }
@@ -531,12 +473,12 @@ export function TaskDetailModal({ task, allTasks, onClose, onUpdate, onRefresh, 
     setRefunding(true);
     try {
       const { data: { session } } = await supabase.auth.getSession();
-      const r = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/stripe-refund`, {
-        method: 'POST', headers: { 'Authorization': `Bearer ${session?.access_token}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ orderId: task.orderId, amountCents, reason }),
+      await postSessionEdge({
+        functionName: 'stripe-refund',
+        accessToken: session?.access_token,
+        body: { orderId: task.orderId, amountCents, reason },
+        fallbackMessage: 'Failed to process refund',
       });
-      const data = await r.json();
-      if (!r.ok) throw new Error(data.error || 'Failed to process refund');
       showAlert(`Refund of ${formatCurrency(amountCents)} processed successfully!`);
       onUpdate();
     } catch (e: any) { console.error('Refund error:', e); showAlert('Failed to process refund: ' + e.message); }
@@ -558,13 +500,12 @@ export function TaskDetailModal({ task, allTasks, onClose, onUpdate, onRefresh, 
     setRecordingCash(true);
     try {
       const { data: { session } } = await supabase.auth.getSession();
-      const r = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/record-cash-payment`, {
-        method: 'POST',
-        headers: { 'Authorization': `Bearer ${session?.access_token}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ orderId: task.orderId, amountCents: balancePaymentCents, tipCents }),
+      await postSessionEdge({
+        functionName: 'record-cash-payment',
+        accessToken: session?.access_token,
+        body: { orderId: task.orderId, amountCents: balancePaymentCents, tipCents },
+        fallbackMessage: 'Failed to record payment',
       });
-      const data = await r.json();
-      if (!r.ok) throw new Error(data.error || 'Failed to record payment');
       const successMsg = tipCents > 0
         ? `Cash payment recorded! Balance: ${formatCurrency(balancePaymentCents)} + Tip: ${formatCurrency(tipCents)} = ${formatCurrency(totalReceivedCents)}`
         : `Cash payment of ${formatCurrency(balancePaymentCents)} recorded successfully!`;
@@ -590,13 +531,12 @@ export function TaskDetailModal({ task, allTasks, onClose, onUpdate, onRefresh, 
     setRecordingCheck(true);
     try {
       const { data: { session } } = await supabase.auth.getSession();
-      const r = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/record-check-payment`, {
-        method: 'POST',
-        headers: { 'Authorization': `Bearer ${session?.access_token}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ orderId: task.orderId, amountCents: balancePaymentCents, checkNumber, tipCents }),
+      await postSessionEdge({
+        functionName: 'record-check-payment',
+        accessToken: session?.access_token,
+        body: { orderId: task.orderId, amountCents: balancePaymentCents, checkNumber, tipCents },
+        fallbackMessage: 'Failed to record payment',
       });
-      const data = await r.json();
-      if (!r.ok) throw new Error(data.error || 'Failed to record payment');
       const successMsg = tipCents > 0
         ? `Check payment recorded! Balance: ${formatCurrency(balancePaymentCents)} + Tip: ${formatCurrency(tipCents)} = ${formatCurrency(totalReceivedCents)} (Check #${checkNumber})`
         : `Check payment of ${formatCurrency(balancePaymentCents)} (Check #${checkNumber}) recorded successfully!`;
@@ -620,13 +560,12 @@ export function TaskDetailModal({ task, allTasks, onClose, onUpdate, onRefresh, 
       form.append('uploadSource', 'admin_no_photo');
       form.append('overrideReason', overrideReason.trim());
 
-      const r = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/upload-physical-waiver`, {
-        method: 'POST',
-        headers: { 'Authorization': `Bearer ${session?.access_token}` },
+      await postSessionEdge({
+        functionName: 'upload-physical-waiver',
+        accessToken: session?.access_token,
         body: form,
+        fallbackMessage: 'Failed to record waiver',
       });
-      const data = await r.json();
-      if (!r.ok) throw new Error(data.error || 'Failed to record waiver');
       showAlert('Waiver marked as signed in person (no photo).');
       refresh();
     } catch (e: any) { console.error('Paper waiver error:', e); showAlert('Failed to mark waiver: ' + e.message); }
@@ -656,13 +595,12 @@ export function TaskDetailModal({ task, allTasks, onClose, onUpdate, onRefresh, 
         form.append('orderId', task.orderId);
         form.append('uploadSource', 'admin_upload');
 
-        const r = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/upload-physical-waiver`, {
-          method: 'POST',
-          headers: { 'Authorization': `Bearer ${session?.access_token}` },
+        await postSessionEdge({
+          functionName: 'upload-physical-waiver',
+          accessToken: session?.access_token,
           body: form,
+          fallbackMessage: 'Failed to upload waiver',
         });
-        const data = await r.json();
-        if (!r.ok) throw new Error(data.error || 'Failed to upload waiver');
         showAlert('Paper waiver uploaded successfully.');
         refresh();
       } catch (e: any) { console.error('Paper waiver upload error:', e); showAlert('Failed to upload waiver: ' + e.message); }
@@ -682,13 +620,13 @@ export function TaskDetailModal({ task, allTasks, onClose, onUpdate, onRefresh, 
     setChargingCard(true);
     try {
       const { data: { session } } = await supabase.auth.getSession();
-      const r = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/charge-deposit`, {
-        method: 'POST',
-        headers: { 'Authorization': `Bearer ${session?.access_token}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ orderId: task.orderId, paymentAmountCents: amountCents, tipCents: 0, selectedPaymentType: 'balance' }),
+      await postSessionEdge({
+        functionName: 'charge-deposit',
+        accessToken: session?.access_token,
+        body: { orderId: task.orderId, paymentAmountCents: amountCents, tipCents: 0, selectedPaymentType: 'balance' },
+        fallbackMessage: 'Failed to charge card',
+        requireSuccess: true,
       });
-      const data = await r.json();
-      if (!r.ok || !data.success) throw new Error(data.error || 'Failed to charge card');
       showAlert(`Successfully charged ${formatCurrency(amountCents)} to ${cardLabel}. A receipt has been sent to the customer.`);
       refresh();
     } catch (e: any) { console.error('Charge card error:', e); showAlert('Failed to charge card: ' + e.message); }
@@ -712,12 +650,12 @@ export function TaskDetailModal({ task, allTasks, onClose, onUpdate, onRefresh, 
     setCancelling(true);
     try {
       const { data: { session } } = await supabase.auth.getSession();
-      const r = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/customer-cancel-order`, {
-        method: 'POST', headers: { 'Authorization': `Bearer ${session?.access_token}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ orderId: task.orderId, cancellationReason: cancelReason, adminOverrideRefund: shouldRefund }),
+      await postSessionEdge({
+        functionName: 'customer-cancel-order',
+        accessToken: session?.access_token,
+        body: { orderId: task.orderId, cancellationReason: cancelReason, adminOverrideRefund: shouldRefund },
+        fallbackMessage: 'Failed to cancel order',
       });
-      const data = await r.json();
-      if (!r.ok) throw new Error(data.error || 'Failed to cancel order');
       const alertMsg = shouldRefund
         ? `Order cancelled. Refund intent recorded — please issue the refund from the Payments tab.`
         : `Order cancelled. No refund will be issued.`;
