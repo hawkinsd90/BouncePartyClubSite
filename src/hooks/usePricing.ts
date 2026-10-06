@@ -1,121 +1,22 @@
 import { useState, useCallback, useRef } from 'react';
-import { calculatePrice, calculateDrivingDistance, isSameDayWeekdayDelivery, type PricingRules } from '../lib/pricing';
-import { formatOrderSummary, type OrderSummaryData } from '../lib/orderSummary';
+import { calculateDrivingDistance, isSameDayWeekdayDelivery } from '../lib/pricing';
+import { formatOrderSummary } from '../lib/orderSummary';
 import { HOME_BASE } from '../lib/constants';
-import { calculateRequiredDepositCents, parseBookingDepositSettings } from '../lib/depositCalculation';
-import { calculateEventEssentialsSetupFeeCents } from '../lib/setupFeeCalculation';
-
-interface PricingItem {
-  unit_id: string;
-  unit_name: string;
-  qty: number;
-  wet_or_dry: 'dry' | 'water';
-  unit_price_cents: number;
-  is_new?: boolean;
-  is_deleted?: boolean;
-}
-
-interface EEProductItem {
-  product_id: string;
-  bundle_id?: string;
-  item_name?: string;
-  product_name: string;
-  qty: number;
-  unit_price_cents: number;
-  pricing_context?: string;
-  component_snapshot?: any;
-  is_new?: boolean;
-  is_deleted?: boolean;
-}
-
-interface FeeWaivers {
-  taxWaived?: boolean;
-  travelFeeWaived?: boolean;
-  sameDayPickupFeeWaived?: boolean;
-  surfaceFeeWaived?: boolean;
-  generatorFeeWaived?: boolean;
-  sameDayWeekdayDeliveryFeeWaived?: boolean;
-}
-
-interface CalculatePricingParams {
-  items: PricingItem[];
-  eeProductItems?: EEProductItem[];
-  eventDetails: {
-    event_date: string;
-    event_end_date: string;
-    location_type: 'residential' | 'commercial';
-    surface: 'grass' | 'cement';
-    pickup_preference: string;
-    generator_qty: number;
-    address_line1: string;
-    address_city: string;
-    address_state: string;
-    address_zip: string;
-    lat?: number;
-    lng?: number;
-  };
-  discounts: any[];
-  customFees: any[];
-  customDepositCents: number | null;
-  customSetupFeeCents: number | null;
-  storedSetupFeeCents?: number | null;
-  setupFeeBasisChanged?: boolean;
-  pricingRules: PricingRules;
-  feeWaivers?: FeeWaivers;
-  existingOrder?: {
-    travel_fee_cents?: number;
-    travel_total_miles?: number;
-    same_day_pickup_fee_cents?: number;
-    location_type?: string;
-    pickup_preference?: string;
-    addresses?: {
-      line1: string;
-      city: string;
-      state: string;
-      zip: string;
-      lat?: string;
-      lng?: string;
-    };
-    tip_cents?: number;
-    deposit_paid_cents?: number;
-    event_date?: string;
-    same_day_weekday_delivery_fee_cents?: number;
-    generator_fee_cents?: number;
-    generator_qty?: number;
-  };
-}
-
-interface CalculatedPricing {
-  subtotal_cents: number;
-  generator_fee_cents: number;
-  travel_fee_cents: number;
-  travel_total_miles: number;
-  travel_base_radius_miles?: number;
-  travel_chargeable_miles?: number;
-  travel_per_mile_cents?: number;
-  travel_is_flat_fee?: boolean;
-  travel_fee_display_name?: string;
-  distance_miles: number;
-  surface_fee_cents: number;
-  same_day_pickup_fee_cents: number;
-  same_day_weekday_delivery_fee_cents: number;
-  custom_fees_total_cents: number;
-  discount_total_cents: number;
-  tax_cents: number;
-  total_cents: number;
-  deposit_due_cents: number;
-  balance_due_cents: number;
-  event_essentials_subtotal_cents: number;
-  generator_fee_before_waiver_cents: number;
-  setup_fee_cents: number;
-  setup_fee_before_override_cents: number;
-}
+import {
+  calculateOrderPricing,
+  shouldReuseSavedTravel,
+  type CalculatedPricing,
+  type CalculatePricingParams,
+} from '../lib/orderPricingCalculation';
 
 export type PricingCalculationResult =
   | { status: 'success' }
   | { status: 'failed' }
   | { status: 'superseded' };
 
+// The deterministic pricing math lives in lib/orderPricingCalculation.ts. This hook owns what is
+// not deterministic: React state, the stale-result guard and revision, the Google geocoding and
+// driving-distance lookups, and the display formatting.
 export function usePricing() {
   const [orderSummary, setOrderSummary] = useState<any>(null);
   const [calculatedPricing, setCalculatedPricing] = useState<CalculatedPricing | null>(null);
@@ -146,41 +47,13 @@ export function usePricing() {
     setCalculatedPricing(null);
     setPricingError(null);
     setPricingPending(true);
-    const {
-      taxWaived = false,
-      travelFeeWaived = false,
-      sameDayPickupFeeWaived = false,
-      surfaceFeeWaived = false,
-      generatorFeeWaived = false,
-      sameDayWeekdayDeliveryFeeWaived = false,
-    } = feeWaivers;
 
     try {
-      // Check if address has changed (for order edits)
-      const addressChanged = existingOrder
-        ? eventDetails.address_line1 !== (existingOrder.addresses?.line1 || '') ||
-          eventDetails.address_city !== (existingOrder.addresses?.city || '') ||
-          eventDetails.address_state !== (existingOrder.addresses?.state || '') ||
-          eventDetails.address_zip !== (existingOrder.addresses?.zip || '')
-        : true;
-
-      // Check if factors affecting same-day pickup fee have changed
-      const locationTypeChanged = existingOrder
-        ? eventDetails.location_type !== existingOrder.location_type
-        : false;
-      const pickupPreferenceChanged = existingOrder
-        ? eventDetails.pickup_preference !== existingOrder.pickup_preference
-        : false;
-      const sameDayFeeFactorsChanged = locationTypeChanged || pickupPreferenceChanged;
-
       let distance_miles = 0;
-      let useSavedTravelFee = false;
-      let useSavedSameDayFee = false;
 
       // Try to use saved travel fee if address hasn't changed
-      if (existingOrder && !addressChanged && existingOrder.travel_fee_cents && existingOrder.travel_fee_cents > 0) {
-        distance_miles = parseFloat(String(existingOrder.travel_total_miles)) || 0;
-        useSavedTravelFee = true;
+      if (shouldReuseSavedTravel(eventDetails, existingOrder)) {
+        distance_miles = parseFloat(String(existingOrder?.travel_total_miles)) || 0;
       } else {
         // Calculate distance from coordinates or geocode
         let lat = eventDetails.lat || 0;
@@ -220,222 +93,28 @@ export function usePricing() {
         }
       }
 
-      // Determine if we should use saved same-day fee
-      if (existingOrder && !sameDayFeeFactorsChanged && existingOrder.same_day_pickup_fee_cents !== null && existingOrder.same_day_pickup_fee_cents !== undefined) {
-        useSavedSameDayFee = true;
-      }
-
-      // Determine if we should use saved weekday delivery fee or compute fresh
-      const eventDateChanged = existingOrder
-        ? eventDetails.event_date !== existingOrder.event_date?.split('T')[0]
-        : false;
-      const useSavedWeekdayDeliveryFee = !!(
-        existingOrder &&
-        !eventDateChanged &&
-        existingOrder.same_day_weekday_delivery_fee_cents !== undefined &&
-        existingOrder.same_day_weekday_delivery_fee_cents !== null
+      const calculation = calculateOrderPricing(
+        {
+          items,
+          eeProductItems,
+          eventDetails,
+          discounts,
+          customFees,
+          customDepositCents,
+          customSetupFeeCents,
+          storedSetupFeeCents,
+          setupFeeBasisChanged,
+          pricingRules,
+          feeWaivers,
+          existingOrder,
+        },
+        { distanceMiles: distance_miles, isSameDayWeekdayDelivery },
       );
-      const isSameDayWeekday = useSavedWeekdayDeliveryFee ? false : isSameDayWeekdayDelivery(eventDetails.event_date);
 
-      // Filter out deleted items for existing orders
-      const activeItems = items.filter(item => !item.is_deleted);
-      const activeEEItems = eeProductItems.filter(item => !item.is_deleted);
-      const eeSubtotalCents = activeEEItems.reduce((sum, item) => sum + item.unit_price_cents * item.qty, 0);
-
-      const pricingItems = activeItems.map(item => ({
-        unit_id: item.unit_id,
-        qty: item.qty,
-        wet_or_dry: item.wet_or_dry,
-        unit_price_cents: item.unit_price_cents,
-      }));
-
-      // Calculate number of days
-      const eventStartDate = new Date(eventDetails.event_date);
-      const eventEndDate = new Date(eventDetails.event_end_date || eventDetails.event_date);
-      const diffTime = Math.abs(eventEndDate.getTime() - eventStartDate.getTime());
-      const numDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)) + 1;
-
-      // Generator qty: detect intentional change for legacy fee recalculation
-      const existingLegacyQty = existingOrder?.generator_qty ?? 0;
-      const editedLegacyQty = eventDetails.generator_qty ?? 0;
-      const legacyQtyChanged = existingOrder ? editedLegacyQty !== existingLegacyQty : false;
-      const generatorQtyForPricing = existingOrder
-        ? (legacyQtyChanged ? editedLegacyQty : 0)
-        : editedLegacyQty;
-      const hasGeneratorForPricing = existingOrder
-        ? (legacyQtyChanged && editedLegacyQty > 0)
-        : editedLegacyQty > 0;
-
-      // Calculate pricing
-      const priceBreakdown = calculatePrice({
-        items: pricingItems,
-        location_type: eventDetails.location_type,
-        surface: eventDetails.surface,
-        can_use_stakes: eventDetails.surface === 'grass',
-        overnight_allowed: eventDetails.pickup_preference === 'next_day',
-        num_days: numDays,
-        distance_miles,
-        city: eventDetails.address_city,
-        zip: eventDetails.address_zip,
-        has_generator: hasGeneratorForPricing,
-        generator_qty: generatorQtyForPricing,
-        rules: pricingRules,
-        is_same_day_weekday_delivery: isSameDayWeekday,
-      });
-
-      // Prepare items for display
-      const displayItems = activeItems.map(item => ({
-        unit_id: item.unit_id,
-        qty: item.qty,
-        wet_or_dry: item.wet_or_dry,
-        unit_price_cents: item.unit_price_cents,
-        is_new: item.is_new || false,
-        units: {
-          name: item.unit_name,
-          price_dry_cents: item.wet_or_dry === 'dry' ? item.unit_price_cents : 0,
-          price_water_cents: item.wet_or_dry === 'water' ? item.unit_price_cents : 0,
-        }
-      }));
-
-      const eeDisplayItems = activeEEItems.map(item => ({
-        product_id: item.product_id || '',
-        bundle_id: item.bundle_id,
-        item_name: item.item_name,
-        product_name: item.product_name,
-        qty: item.qty,
-        unit_price_cents: item.unit_price_cents,
-        pricing_context: item.pricing_context,
-        component_snapshot: item.component_snapshot,
-        is_new: item.is_new || false,
-      }));
-
-      const subtotalWithEE = priceBreakdown.subtotal_cents + eeSubtotalCents;
-
-      // Store original amounts before waivers (for display)
-      const originalTravelFeeCents = useSavedTravelFee && existingOrder?.travel_fee_cents
-        ? existingOrder.travel_fee_cents
-        : priceBreakdown.travel_fee_cents;
-      const finalTravelMiles = useSavedTravelFee && existingOrder?.travel_total_miles
-        ? parseFloat(String(existingOrder.travel_total_miles)) || 0
-        : priceBreakdown.travel_total_miles || 0;
-      const originalSurfaceFeeCents = priceBreakdown.surface_fee_cents;
-      const originalSameDayPickupFeeCents = useSavedSameDayFee && existingOrder?.same_day_pickup_fee_cents
-        ? existingOrder.same_day_pickup_fee_cents
-        : priceBreakdown.same_day_pickup_fee_cents;
-      // Display-only pre-waiver fee: for unchanged waived legacy generator,
-      // calculate what the fee WOULD be for the current qty using current rules.
-      let originalGeneratorFeeCents: number;
-      if (legacyQtyChanged) {
-        originalGeneratorFeeCents = priceBreakdown.generator_fee_cents;
-      } else if (existingOrder && generatorFeeWaived && editedLegacyQty > 0) {
-        // Unchanged waived historical generator — compute display-only pre-waiver fee
-        const preWaiverBreakdown = calculatePrice({
-          items: [],
-          location_type: eventDetails.location_type,
-          surface: eventDetails.surface,
-          can_use_stakes: eventDetails.surface === 'grass',
-          overnight_allowed: eventDetails.pickup_preference === 'next_day',
-          num_days: numDays,
-          distance_miles: 0,
-          city: eventDetails.address_city,
-          zip: eventDetails.address_zip,
-          has_generator: true,
-          generator_qty: editedLegacyQty,
-          rules: pricingRules,
-          is_same_day_weekday_delivery: false,
-        });
-        originalGeneratorFeeCents = preWaiverBreakdown.generator_fee_cents;
-      } else if (existingOrder && (existingOrder.generator_fee_cents ?? null) !== null && (existingOrder.generator_fee_cents ?? 0) > 0) {
-        originalGeneratorFeeCents = existingOrder.generator_fee_cents!;
-      } else {
-        originalGeneratorFeeCents = priceBreakdown.generator_fee_cents;
-      }
-      const originalSameDayWeekdayDeliveryFeeCents = useSavedWeekdayDeliveryFee && existingOrder?.same_day_weekday_delivery_fee_cents !== undefined
-        ? (existingOrder.same_day_weekday_delivery_fee_cents ?? 0)
-        : priceBreakdown.same_day_weekday_delivery_fee_cents;
-
-      // Apply waivers for total calculation
-      const finalTravelFeeCents = travelFeeWaived ? 0 : originalTravelFeeCents;
-      const finalSurfaceFeeCents = surfaceFeeWaived ? 0 : originalSurfaceFeeCents;
-      const finalSameDayPickupFeeCents = sameDayPickupFeeWaived ? 0 : originalSameDayPickupFeeCents;
-      const finalGeneratorFeeCents = generatorFeeWaived ? 0 : originalGeneratorFeeCents;
-      const finalSameDayWeekdayDeliveryFeeCents = sameDayWeekdayDeliveryFeeWaived ? 0 : originalSameDayWeekdayDeliveryFeeCents;
-
-      // Setup Fee — EE-only orders with EE subtotal below threshold
-      const inflatableQuantity = activeItems.reduce((sum, item) => sum + item.qty, 0);
-      const hasInflatables = inflatableQuantity > 0;
-      const calculatedSetupFeeCents = calculateEventEssentialsSetupFeeCents({
-        hasInflatables,
-        eventEssentialsSubtotalCents: eeSubtotalCents,
-        setupMinimumCents: pricingRules.event_essentials_setup_minimum_cents ?? 15000,
-      });
-      // Historical freeze: when an existing order supplies a stored fee and the
-      // equipment basis hasn't changed, keep the stored fee. New orders (no
-      // stored fee supplied) always use the calculated fee. An explicit
-      // override always wins, including $0.
-      const effectiveSetupFeeCents =
-        customSetupFeeCents !== null
-          ? customSetupFeeCents
-          : storedSetupFeeCents !== null && !setupFeeBasisChanged
-            ? storedSetupFeeCents
-            : calculatedSetupFeeCents;
-
-      // Calculate tax based on waived fees and apply_taxes_by_default setting
-      const shouldApplyTaxesByDefault = pricingRules.apply_taxes_by_default ?? true;
-      const customFeesTotalCents = customFees.reduce((sum: number, f: any) => sum + (f.amount_cents || 0), 0);
-      const discountTotalCents = discounts.reduce((sum: number, d: any) => {
-        if (d.amount_cents > 0) return sum + d.amount_cents;
-        if (d.percentage > 0) return sum + Math.round(subtotalWithEE * (d.percentage / 100));
-        return sum;
-      }, 0);
-      const taxableAmount = subtotalWithEE + finalTravelFeeCents + finalSurfaceFeeCents + finalGeneratorFeeCents + effectiveSetupFeeCents + customFeesTotalCents - discountTotalCents;
-
-      // Calculate the potential tax amount (always calculated for display purposes)
-      const calculatedTaxCents = Math.round(taxableAmount * 0.06);
-
-      // Determine final tax based on default setting and per-order override
-      // The tax_waived flag acts as an override toggle:
-      // - When apply_taxes_by_default is TRUE: taxWaived=false means apply (default), taxWaived=true means waive (override)
-      // - When apply_taxes_by_default is FALSE: taxWaived=false means don't apply (default), taxWaived=true means apply (override)
-      let finalTaxCents: number;
-      if (shouldApplyTaxesByDefault) {
-        finalTaxCents = taxWaived ? 0 : calculatedTaxCents;
-      } else {
-        finalTaxCents = taxWaived ? calculatedTaxCents : 0;
-      }
-
-      // Calculate total with all waivers applied
-      const finalTotalCents = subtotalWithEE + finalTravelFeeCents + finalSurfaceFeeCents + finalSameDayPickupFeeCents + finalGeneratorFeeCents + finalSameDayWeekdayDeliveryFeeCents + effectiveSetupFeeCents + customFeesTotalCents - discountTotalCents + finalTaxCents;
-
-      // Calculate deposit — EE-only orders use EE deposit tier
-      // Setup Fee is NOT included in the deposit basis
-      let calculatedDepositDueCents: number = 0;
-      let depositConfigError: string | null = null;
-      if (inflatableQuantity === 0 && eeSubtotalCents > 0) {
-        const depositSettings = parseBookingDepositSettings(pricingRules);
-        if (depositSettings.status === 'ready') {
-          const eeDeposit = calculateRequiredDepositCents({
-            inflatableQuantity: 0,
-            eventEssentialsSubtotalCents: eeSubtotalCents,
-            orderTotalCents: finalTotalCents,
-            inflatableDepositPerUnitCents: depositSettings.inflatableDepositPerUnitCents,
-            eeOnlyDepositSettings: depositSettings.eventEssentialsDepositSettings,
-          });
-          if (eeDeposit.status === 'calculated') {
-            calculatedDepositDueCents = eeDeposit.depositCents;
-          } else {
-            depositConfigError = eeDeposit.error || 'Deposit calculation failed for this Event Essentials-only order.';
-          }
-        } else {
-          depositConfigError = depositSettings.error || 'Deposit configuration is invalid for this Event Essentials-only order.';
-        }
-      } else {
-        calculatedDepositDueCents = priceBreakdown.deposit_due_cents;
-      }
-      if (depositConfigError) {
+      if (calculation.status === 'deposit_config_error') {
         if (isLatest()) {
           setCalculatedPricing(null);
-          setPricingError(depositConfigError);
+          setPricingError(calculation.error);
           setPricingPending(false);
           return { status: 'failed' } as PricingCalculationResult;
         }
@@ -444,70 +123,15 @@ export function usePricing() {
       if (isLatest()) setPricingError(null);
       if (isLatest()) setPricingPending(false);
       if (isLatest() && revision) setLastPricedRevision(revision);
-      const rawDepositDueCents = customDepositCents !== null ? customDepositCents : calculatedDepositDueCents;
-      const depositDueCents = Math.min(rawDepositDueCents, finalTotalCents);
-      const balanceDueCents = Math.max(0, finalTotalCents - depositDueCents);
 
-      // Build order summary data (with ORIGINAL amounts for display)
-      const orderData: OrderSummaryData = {
-        items: displayItems,
-        eeProductItems: eeDisplayItems,
-        discounts,
-        customFees,
-        subtotal_cents: subtotalWithEE,
-        travel_fee_cents: originalTravelFeeCents,
-        travel_total_miles: finalTravelMiles,
-        surface_fee_cents: originalSurfaceFeeCents,
-        same_day_pickup_fee_cents: originalSameDayPickupFeeCents,
-        same_day_weekday_delivery_fee_cents: originalSameDayWeekdayDeliveryFeeCents,
-        generator_fee_cents: originalGeneratorFeeCents,
-        generator_qty: eventDetails.generator_qty || 0,
-        tax_cents: finalTaxCents,
-        tip_cents: existingOrder?.tip_cents || 0,
-        total_cents: finalTotalCents,
-        deposit_due_cents: depositDueCents,
-        deposit_paid_cents: existingOrder?.deposit_paid_cents || 0,
-        balance_due_cents: balanceDueCents,
-        custom_deposit_cents: customDepositCents,
-        pickup_preference: eventDetails.pickup_preference,
-        event_date: eventDetails.event_date,
-        event_end_date: eventDetails.event_end_date,
-        same_day_weekday_delivery_fee_waived: sameDayWeekdayDeliveryFeeWaived || false,
-        setup_fee_cents: effectiveSetupFeeCents,
-      };
-
-      const summary = formatOrderSummary(orderData);
+      const summary = formatOrderSummary(calculation.orderData);
 
       if (isLatest()) {
         setOrderSummary(summary);
         setPricingPending(false);
         if (revision) setLastPricedRevision(revision);
 
-        setCalculatedPricing({
-          subtotal_cents: subtotalWithEE,
-          generator_fee_cents: finalGeneratorFeeCents,
-          travel_fee_cents: finalTravelFeeCents,
-          travel_total_miles: finalTravelMiles,
-          travel_base_radius_miles: priceBreakdown.travel_base_radius_miles,
-          travel_chargeable_miles: priceBreakdown.travel_chargeable_miles,
-          travel_per_mile_cents: priceBreakdown.travel_per_mile_cents,
-          travel_is_flat_fee: priceBreakdown.travel_is_flat_fee,
-          travel_fee_display_name: priceBreakdown.travel_fee_display_name,
-          distance_miles: finalTravelMiles,
-          surface_fee_cents: finalSurfaceFeeCents,
-          same_day_pickup_fee_cents: finalSameDayPickupFeeCents,
-          same_day_weekday_delivery_fee_cents: finalSameDayWeekdayDeliveryFeeCents,
-          custom_fees_total_cents: summary.customFees.reduce((sum, f) => sum + f.amount, 0),
-          discount_total_cents: summary.discounts.reduce((sum, d) => sum + d.amount, 0),
-          tax_cents: finalTaxCents,
-          total_cents: summary.total,
-          deposit_due_cents: summary.depositDue,
-          balance_due_cents: summary.balanceDue,
-          event_essentials_subtotal_cents: eeSubtotalCents,
-          generator_fee_before_waiver_cents: originalGeneratorFeeCents,
-          setup_fee_cents: effectiveSetupFeeCents,
-          setup_fee_before_override_cents: calculatedSetupFeeCents,
-        });
+        setCalculatedPricing(calculation.calculatedPricing);
         return { status: 'success' } as PricingCalculationResult;
       }
       return { status: 'superseded' } as PricingCalculationResult;
