@@ -21,6 +21,8 @@ import { TaskDetailEquipmentCard } from './task-detail/TaskDetailEquipmentCard';
 import { TaskDetailNotesCard } from './task-detail/TaskDetailNotesCard';
 import { TaskDetailPhotosGrid } from './task-detail/TaskDetailPhotosGrid';
 import { getRoutePool } from './task-detail/taskRoutePool';
+import { uploadTaskPhotos, buildPhotoUploadSummary } from './task-detail/taskPhotoUpload';
+import { getOrCreateTaskStatusRow } from '../../lib/taskStatusService';
 
 export type { Task };
 
@@ -94,49 +96,14 @@ export function TaskDetailModal({ task, allTasks, onClose, onUpdate, onRefresh, 
 
     const dateStr = format(task.date, 'yyyy-MM-dd');
 
-    // Step 1: check for an existing row (covers the case where taskStatus was
-    // not populated at load time but a row already exists in the DB)
-    const { data: existing, error: selectError } = await supabase
-      .from('task_status')
-      .select('id')
-      .eq('order_id', task.orderId)
-      .eq('task_type', task.type)
-      .eq('task_date', dateStr)
-      .maybeSingle();
-
-    if (selectError) throw selectError;
-    if (existing) return existing.id;
-
-    // Step 2: insert a minimal pending row — never overwrite status,
-    // timestamps, images, notes, or sort_order on an existing row
-    const { data: inserted, error: insertError } = await supabase
-      .from('task_status')
-      .insert({
-        order_id: task.orderId,
-        task_type: task.type,
-        task_date: dateStr,
-        status: 'pending',
-      })
-      .select('id')
-      .single();
-
-    if (insertError) {
-      // Step 3: unique violation 23505 means a concurrent request won the race
-      if (insertError.code === '23505') {
-        const { data: raceWinner, error: raceSelectError } = await supabase
-          .from('task_status')
-          .select('id')
-          .eq('order_id', task.orderId)
-          .eq('task_type', task.type)
-          .eq('task_date', dateStr)
-          .single();
-        if (raceSelectError) throw raceSelectError;
-        return raceWinner.id;
-      }
-      throw insertError;
-    }
-
-    return inserted.id;
+    // Existing-row lookup, minimal pending insert and 23505 race recovery live in the shared service
+    const { row } = await getOrCreateTaskStatusRow(supabase, {
+      orderId: task.orderId,
+      taskType: task.type,
+      taskDate: dateStr,
+      select: 'id',
+    });
+    return row.id;
   }
 
   async function handleEnRoute() {
@@ -383,50 +350,7 @@ export function TaskDetailModal({ task, allTasks, onClose, onUpdate, onRefresh, 
     finally { setProcessing(false); }
   }
 
-  function isHeicFile(file: File): boolean {
-    const mimeHeic = ['image/heic', 'image/heif'];
-    if (mimeHeic.includes(file.type.toLowerCase())) return true;
-    return /\.hei[cf]$/i.test(file.name);
-  }
-
-  async function compressImage(file: File): Promise<Blob | null> {
-    const MAX_DIMENSION = 2048;
-    const JPEG_QUALITY = 0.82;
-
-    // HEIC cannot be decoded by canvas in most browsers — caller handles separately
-    if (isHeicFile(file)) {
-      console.log(`[photos] HEIC/HEIF detected: ${file.name} (${(file.size / 1024 / 1024).toFixed(2)} MB) — skipping canvas compression`);
-      return null;
-    }
-
-    // Files with no MIME type (some Android/picker edge cases): attempt compression anyway;
-    // if the browser cannot decode the image, img.onerror fires and we return null.
-    return new Promise((resolve) => {
-      const img = new Image();
-      const objectUrl = URL.createObjectURL(file);
-      img.onload = () => {
-        URL.revokeObjectURL(objectUrl);
-        let { width, height } = img;
-        if (width > MAX_DIMENSION || height > MAX_DIMENSION) {
-          const ratio = Math.min(MAX_DIMENSION / width, MAX_DIMENSION / height);
-          width = Math.round(width * ratio);
-          height = Math.round(height * ratio);
-        }
-        const canvas = document.createElement('canvas');
-        canvas.width = width; canvas.height = height;
-        const ctx = canvas.getContext('2d');
-        if (!ctx) { resolve(null); return; }
-        ctx.drawImage(img, 0, 0, width, height);
-        canvas.toBlob((blob) => resolve(blob), 'image/jpeg', JPEG_QUALITY);
-      };
-      img.onerror = () => { URL.revokeObjectURL(objectUrl); resolve(null); };
-      img.src = objectUrl;
-    });
-  }
-
   async function handleImageUpload(isDamage?: boolean) {
-    const BUCKET_LIMIT_BYTES = 10 * 1024 * 1024; // 10 MB — matches live bucket limit
-
     const input = document.createElement('input');
     input.type = 'file'; input.accept = 'image/*'; input.multiple = true;
     input.onchange = async (e: any) => {
@@ -436,98 +360,19 @@ export function TaskDetailModal({ task, allTasks, onClose, onUpdate, onRefresh, 
       console.log(`[photos] Selected ${files.length} file(s) for ${isDamage ? 'damage' : 'delivery'} upload`);
 
       setUploadingImages(true);
-      const uploadedUrls: string[] = [];
-      const skippedHeic: string[] = [];
-      const skippedLarge: string[] = [];
 
       try {
         const taskStatusId = await ensureTaskStatus();
 
-        for (const file of files) {
-          const heic = isHeicFile(file);
-          const effectiveType = file.type || (heic ? 'image/heic' : 'unknown');
-          console.log(`[photos] Processing: ${file.name} | type: ${effectiveType} | size: ${(file.size / 1024 / 1024).toFixed(2)} MB`);
-
-          let uploadBlob: Blob = file;
-          let uploadName = `${task.orderId}-${task.type}-${Date.now()}-${file.name.replace(/[^a-zA-Z0-9._-]/g, '_')}`;
-
-          if (heic) {
-            if (file.size <= BUCKET_LIMIT_BYTES) {
-              console.log(`[photos] HEIC within limit, uploading as-is`);
-            } else {
-              console.warn(`[photos] HEIC too large to upload: ${file.name} (${(file.size / 1024 / 1024).toFixed(2)} MB)`);
-              skippedHeic.push(file.name);
-              continue;
-            }
-          } else {
-            const compressed = await compressImage(file);
-            if (compressed) {
-              console.log(`[photos] Compressed: ${(file.size / 1024 / 1024).toFixed(2)} MB → ${(compressed.size / 1024 / 1024).toFixed(2)} MB`);
-              uploadBlob = compressed;
-              uploadName = uploadName.replace(/\.[^.]+$/, '') + '.jpg';
-            } else {
-              // Canvas could not decode (unsupported type or no context); try original if within limit
-              if (file.size > BUCKET_LIMIT_BYTES) {
-                console.warn(`[photos] Uncompressible and too large: ${file.name}`);
-                skippedLarge.push(file.name);
-                continue;
-              }
-              console.log(`[photos] Compression unavailable, uploading original`);
-            }
-          }
-
-          const { data, error } = await supabase.storage
-            .from('public-assets')
-            .upload(uploadName, uploadBlob, { cacheControl: '3600', upsert: false });
-
-          if (error) {
-            console.error(`[photos] Upload failed for ${file.name}:`, error);
-            // Treat storage-side size rejections as skipped, not fatal
-            if (error.message?.toLowerCase().includes('size') || error.message?.toLowerCase().includes('maximum')) {
-              skippedLarge.push(file.name);
-              continue;
-            }
-            throw error;
-          }
-
-          const { data: urlData } = supabase.storage.from('public-assets').getPublicUrl(data.path);
-          uploadedUrls.push(urlData.publicUrl);
-          console.log(`[photos] Uploaded successfully: ${file.name}`);
-        }
-
-        // Persist any successfully uploaded URLs before showing messages
-        if (uploadedUrls.length > 0) {
-          const col = isDamage ? 'damage_images' : 'delivery_images';
-          const { data: cur, error: fetchErr } = await supabase
-            .from('task_status').select(col).eq('id', taskStatusId).maybeSingle();
-          if (fetchErr) throw fetchErr;
-          const merged = [...((cur as any)?.[col] || []), ...uploadedUrls];
-          const { error: updErr } = await supabase.from('task_status').update({ [col]: merged }).eq('id', taskStatusId);
-          if (updErr) throw updErr;
-          console.log(`[photos] Saved ${uploadedUrls.length} URL(s) to task_status.${col}`);
+        const result = await uploadTaskPhotos(
+          { files, orderId: task.orderId, taskType: task.type, taskStatusId, isDamage },
+          { client: supabase },
+        );
+        if (result.uploadedUrls.length > 0) {
           refresh();
         }
 
-        const totalSkipped = skippedHeic.length + skippedLarge.length;
-
-        if (uploadedUrls.length === 0 && totalSkipped > 0) {
-          if (skippedHeic.length > 0) {
-            showAlert(
-              'These photos could not be uploaded because the HEIC format is too large to process.\n\n' +
-              'Please retake the photo using "Most Compatible" (JPEG) mode in your iPhone camera settings, or choose a smaller image.'
-            );
-          } else {
-            showAlert('Photo is too large. Please try again, or take a lower-resolution photo.');
-          }
-        } else if (totalSkipped > 0) {
-          showAlert(
-            `${uploadedUrls.length} photo(s) uploaded successfully.\n` +
-            `${totalSkipped} photo(s) were skipped — they were too large or in an unsupported format. ` +
-            `Please retake those using a lower resolution or JPEG mode.`
-          );
-        } else {
-          showAlert(`${uploadedUrls.length} ${isDamage ? 'damage' : 'delivery'} photo(s) uploaded and saved successfully!`);
-        }
+        showAlert(buildPhotoUploadSummary(result, isDamage));
       } catch (e: any) {
         console.error('[photos] Upload error:', e);
         const msg = (e.message || '').toLowerCase();

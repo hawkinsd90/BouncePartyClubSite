@@ -7,6 +7,7 @@ import { showToast } from '../../lib/notifications';
 import { sortTasksByOrder, isTaskActiveRouteStop, isDropOffPlanningOnly } from '../../lib/calendarUtils';
 import { SimpleConfirmModal } from '../common/SimpleConfirmModal';
 import type { RouteOriginOptions } from '../../lib/routeOptimization';
+import { getOrCreateTaskStatusRow } from '../../lib/taskStatusService';
 
 export type RouteStartMode = 'home_base' | 'last_completed' | 'current_location';
 
@@ -263,82 +264,41 @@ export function RouteManagementModal({
 
         const dateStr = format(task.date, 'yyyy-MM-dd');
 
-        // Step 1: check for an existing row without overwriting it
-        const { data: existing, error: selectError } = await supabase
-          .from('task_status')
-          .select('id, status, sort_order, completed_time, delivery_images, damage_images, eta_sent')
-          .eq('order_id', task.orderId)
-          .eq('task_type', task.type)
-          .eq('task_date', dateStr)
-          .maybeSingle();
+        // Existing-row lookup, minimal pending insert and 23505 race recovery live in the shared service
+        const { row, created } = await getOrCreateTaskStatusRow(supabase, {
+          orderId: task.orderId,
+          taskType: task.type,
+          taskDate: dateStr,
+          select: 'id, status, sort_order, completed_time, delivery_images, damage_images, eta_sent',
+          onInsertError: (insertError) => console.error('Error creating task status:', insertError),
+        });
 
-        if (selectError) throw selectError;
-
-        if (existing) {
+        if (created) {
           return {
             ...task,
             taskStatus: {
-              id: existing.id,
-              status: existing.status,
-              sortOrder: existing.sort_order ?? null,
-              completedTime: existing.completed_time ?? null,
-              deliveryImages: (existing.delivery_images as any) || [],
-              damageImages: (existing.damage_images as any) || [],
-              etaSent: existing.eta_sent || false,
+              id: row.id,
+              status: row.status,
+              sortOrder: row.sort_order ?? null,
+              completedTime: null,
+              deliveryImages: [] as string[],
+              damageImages: [] as string[],
+              etaSent: false,
             },
           };
         }
 
-        // Step 2: insert minimal pending row — route ordering is a separate update
-        const { data: inserted, error: insertError } = await supabase
-          .from('task_status')
-          .insert({
-            order_id: task.orderId,
-            task_type: task.type,
-            task_date: dateStr,
-            status: 'pending',
-          })
-          .select('id, status, sort_order, completed_time, delivery_images, damage_images, eta_sent')
-          .single();
-
-        if (insertError) {
-          // Step 3: unique violation — fetch the concurrent winner's row
-          if (insertError.code === '23505') {
-            const { data: raceWinner, error: raceSelectError } = await supabase
-              .from('task_status')
-              .select('id, status, sort_order, completed_time, delivery_images, damage_images, eta_sent')
-              .eq('order_id', task.orderId)
-              .eq('task_type', task.type)
-              .eq('task_date', dateStr)
-              .single();
-            if (raceSelectError) throw raceSelectError;
-            return {
-              ...task,
-              taskStatus: {
-                id: raceWinner.id,
-                status: raceWinner.status,
-                sortOrder: raceWinner.sort_order ?? null,
-                completedTime: raceWinner.completed_time ?? null,
-                deliveryImages: (raceWinner.delivery_images as any) || [],
-                damageImages: (raceWinner.damage_images as any) || [],
-                etaSent: raceWinner.eta_sent || false,
-              },
-            };
-          }
-          console.error('Error creating task status:', insertError);
-          throw insertError;
-        }
-
+        // Existing row, or the winner of a concurrent insert
         return {
           ...task,
           taskStatus: {
-            id: inserted.id,
-            status: inserted.status,
-            sortOrder: inserted.sort_order ?? null,
-            completedTime: null,
-            deliveryImages: [] as string[],
-            damageImages: [] as string[],
-            etaSent: false,
+            id: row.id,
+            status: row.status,
+            sortOrder: row.sort_order ?? null,
+            completedTime: row.completed_time ?? null,
+            deliveryImages: (row.delivery_images as any) || [],
+            damageImages: (row.damage_images as any) || [],
+            etaSent: row.eta_sent || false,
           },
         };
       }));
