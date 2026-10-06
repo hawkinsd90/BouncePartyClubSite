@@ -78,6 +78,10 @@ Deno.serve(async (req: Request) => {
   // Same idea for the admin fallback email: set when the Twilio-error branch has attempted it, so the outer
   // catch does not send a second one. It means "attempted", not "delivered" (the fallback is best effort).
   let fallbackAlreadyAttempted = false;
+  // The recipient and message actually handed to Twilio. Set only immediately before the Twilio request, so the
+  // outer catch can report a pre-acceptance transport failure for a template send (whose recipient and message
+  // are resolved internally and are absent from the raw request). Stays null for template-preparation failures.
+  let twilioAttempt: { to: string; message: string } | null = null;
 
   try {
     requestBody = await req.json();
@@ -293,6 +297,7 @@ Deno.serve(async (req: Request) => {
     }
 
     // console.log("[send-sms-notification] Calling Twilio API");
+    twilioAttempt = { to: toPhone, message: messageBody };
     const twilioResponse = await fetch(twilioUrl, {
       method: "POST",
       headers: {
@@ -385,7 +390,11 @@ Deno.serve(async (req: Request) => {
     console.error("[send-sms-notification] Error:", error);
 
     const errorMsg = error instanceof Error ? error.message : "Failed to send SMS";
-    const { to, message: messageBody, orderId, skipFallback } = requestBody || {} as SmsRequest;
+    const { to: rawTo, message: rawMessage, orderId, skipFallback } = requestBody || {} as SmsRequest;
+    // Explicit requests keep reporting the raw request values. A template request that already reached the
+    // Twilio attempt reports the recipient and message it actually tried to send.
+    const to = rawTo && rawMessage ? rawTo : twilioAttempt?.to;
+    const messageBody = rawTo && rawMessage ? rawMessage : twilioAttempt?.message;
 
     if (to && messageBody) {
       const supabase = createClient(

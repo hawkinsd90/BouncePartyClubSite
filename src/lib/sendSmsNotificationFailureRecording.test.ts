@@ -225,8 +225,28 @@ const templateData = { template: { message_template: 'Thanks {name}' }, order: {
   }
   {
     const r = await run({ body: TEMPLATE, twilio: 'throws', ...templateData });
-    eq('fetch throws via template: no failure RPC (outer catch has no to/message), response preserved', [r.failureCalls.length, r.status, r.body], [0, 500, { error: 'network down' }]);
-    eq('fetch throws via template: no admin fallback either (outer catch has no explicit recipient)', r.fallbackCalls.length, 0);
+    // A template send that reached the Twilio attempt gets the same observability as an explicit send, using the
+    // recipient and message the function actually resolved and sent to Twilio.
+    eq('fetch throws via template: Twilio attempted once', r.twilioCalls.length, 1);
+    eq('fetch throws via template: EXACTLY ONE failure RPC', r.failureCalls.length, 1);
+    eq('fetch throws via template: failure RPC payload uses the resolved recipient and rendered message', r.failureCalls[0]?.args, {
+      p_type: 'sms', p_recipient: '+15555550199', p_subject: null, p_message_preview: 'Thanks Ann', p_error: 'network down', p_context: { orderId: 'ord-1' },
+    });
+    eq('fetch throws via template: EXACTLY ONE admin fallback', r.fallbackCalls.length, 1);
+    eq('fetch throws via template: the fallback names the resolved recipient, message and error', [r.fallbackCalls[0]?.body.html.includes('+15555550199'), r.fallbackCalls[0]?.body.html.includes('Thanks Ann'), r.fallbackCalls[0]?.body.html.includes('network down')], [true, true, true]);
+    eq('fetch throws via template: response preserved', [r.status, r.body], [500, { error: 'network down' }]);
+    const rs2 = await run({ body: { ...TEMPLATE, skipFallback: true }, twilio: 'throws', ...templateData });
+    eq('fetch throws via template + skipFallback: one failure RPC, no fallback, same response', [rs2.failureCalls.length, rs2.fallbackCalls.length, rs2.status, rs2.body], [1, 0, 500, { error: 'network down' }]);
+    const rf = await run({ body: TEMPLATE, twilio: 'throws', failureRpc: 'returns-error', ...templateData });
+    eq('fetch throws via template + failure RPC error: still one attempt, one fallback, primary error preserved', [rf.failureCalls.length, rf.fallbackCalls.length, rf.status, rf.body], [1, 1, 500, { error: 'network down' }]);
+    const rg = await run({ body: TEMPLATE, twilio: 'throws', fallbackFetch: 'throws', ...templateData });
+    eq('fetch throws via template + fallback request rejects: one attempt each, primary error preserved', [rg.failureCalls.length, rg.fallbackCalls.length, rg.status, rg.body], [1, 1, 500, { error: 'network down' }]);
+    // When a request supplies BOTH a template and explicit to/message, the raw values keep precedence in the outer catch (existing behavior).
+    const rb = await run({ body: { ...TEMPLATE, to: '5555550123', message: 'Raw message' }, twilio: 'throws', ...templateData });
+    eq('template + explicit to/message: raw values keep precedence', [rb.failureCalls.length, rb.failureCalls[0]?.args.p_recipient, rb.failureCalls[0]?.args.p_message_preview], [1, '5555550123', 'Raw message']);
+    // Explicit requests keep using the raw request recipient (unchanged), even when the same attempt context exists.
+    const re = await run({ body: EXPLICIT, twilio: 'throws' });
+    eq('fetch throws explicit: still the raw recipient and one failure RPC and one fallback', [re.failureCalls[0].args.p_recipient, re.failureCalls.length, re.fallbackCalls.length], ['5555550123', 1, 1]);
   }
 
   // ---- Twilio non-OK with an unreadable error body ----
@@ -235,6 +255,16 @@ const templateData = { template: { message_template: 'Thanks {name}' }, order: {
     eq('non-OK with unreadable body: exactly one failure RPC (outer catch)', r.failureCalls.length, 1);
     eq('non-OK with unreadable body: response', [r.status, r.body], [500, { error: 'Unexpected token <' }]);
     eq('non-OK with unreadable body: exactly one admin fallback (outer catch; the inner branch never ran)', r.fallbackCalls.length, 1);
+    // The same body problem on a template send must be observable too (no Twilio error code can be invented).
+    const rt = await run({ body: TEMPLATE, twilio: 'non-ok-bad-json', ...templateData });
+    eq('template non-OK with unreadable body: Twilio attempted once', rt.twilioCalls.length, 1);
+    eq('template non-OK with unreadable body: EXACTLY ONE failure RPC with the resolved recipient and message', rt.failureCalls.map((c: any) => c.args), [{
+      p_type: 'sms', p_recipient: '+15555550199', p_subject: null, p_message_preview: 'Thanks Ann', p_error: 'Unexpected token <', p_context: { orderId: 'ord-1' },
+    }]);
+    eq('template non-OK with unreadable body: no invented twilioCode in the context', 'twilioCode' in (rt.failureCalls[0]?.args.p_context ?? {}), false);
+    eq('template non-OK with unreadable body: exactly one fallback and the existing response', [rt.fallbackCalls.length, rt.status, rt.body], [1, 500, { error: 'Unexpected token <' }]);
+    const rts = await run({ body: { ...TEMPLATE, skipFallback: true }, twilio: 'non-ok-bad-json', ...templateData });
+    eq('template non-OK with unreadable body + skipFallback: one failure RPC, no fallback', [rts.failureCalls.length, rts.fallbackCalls.length], [1, 0]);
   }
 
   // ---- Failure recording itself fails ----
@@ -276,6 +306,27 @@ const templateData = { template: { message_template: 'Thanks {name}' }, order: {
     eq('malformed JSON: 500 and no failure RPC', [r5.status, r5.failureCalls.length], [500, 0]);
     const r6 = await run({ body: { ...TEMPLATE, templateKey: 'booking_received_admin' }, ...templateData, adminPhone: null });
     eq('admin phone not configured: 500 and no failure RPC', [r6.status, r6.failureCalls.length], [500, 0]);
+    // Template PREPARATION failures happen before a send attempt exists: no provider-failure record, no fallback, no Twilio call.
+    const prep: Array<[string, any]> = [
+      ['template not found', { body: TEMPLATE, template: null, order: null }],
+      ['order not found', { body: TEMPLATE, template: { message_template: 'Hi' }, order: null }],
+      ['admin phone not configured', { body: { ...TEMPLATE, templateKey: 'booking_received_admin' }, ...templateData, adminPhone: null }],
+      ['customer phone missing (no final recipient)', { body: TEMPLATE, template: templateData.template, order: { ...templateData.order, customers: { first_name: 'Ann', last_name: 'Lee' } } }],
+    ];
+    for (const [name, sc] of prep) {
+      const rp = await run({ ...sc, twilio: 'throws' });
+      eq('template preparation failure (' + name + '): no Twilio call, no failure RPC, no fallback', [rp.twilioCalls.length, rp.failureCalls.length, rp.fallbackCalls.length], [0, 0, 0]);
+      const rps = await run({ ...sc, body: { ...sc.body, skipFallback: true }, twilio: 'throws' });
+      eq('template preparation failure (' + name + ') + skipFallback: still nothing recorded', [rps.twilioCalls.length, rps.failureCalls.length, rps.fallbackCalls.length], [0, 0, 0]);
+    }
+    const rm = await run({ body: TEMPLATE, template: templateData.template, order: { ...templateData.order, customers: { first_name: 'Ann', last_name: 'Lee' } }, twilio: 'throws' });
+    eq('template missing final recipient: 400 missing-field response, as before', [rm.status, rm.body], [400, { error: "Missing 'to' or 'message' parameter" }]);
+    // Template accepted by Twilio stays a plain success with no failure observability.
+    const ra = await run({ body: TEMPLATE, twilio: 'ok', ...templateData });
+    eq('template accepted: success, zero failure RPCs, zero fallbacks', [ra.status, ra.failureCalls.length, ra.fallbackCalls.length], [200, 0, 0]);
+    // Missing and incomplete config on a template send are unchanged: one failure RPC (config branch), one fallback, 400.
+    const rc = await run({ body: TEMPLATE, settings: [], ...templateData });
+    eq('template + missing config: one failure RPC, one fallback, 400 (config branch, not the transport catch)', [rc.failureCalls.length, rc.fallbackCalls.length, rc.status], [1, 1, 400]);
   }
 
   // ---- Post-acceptance bookkeeping: once Twilio returns 2xx the SMS is accepted ----
