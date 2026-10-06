@@ -72,6 +72,9 @@ Deno.serve(async (req: Request) => {
   }
 
   let requestBody: SmsRequest | null = null;
+  // Set once the Twilio-error branch has recorded its own failure, so the outer catch (which that branch
+  // reaches by throwing) does not record the same failed SMS attempt a second time.
+  let failureAlreadyRecorded = false;
 
   try {
     requestBody = await req.json();
@@ -307,6 +310,7 @@ Deno.serve(async (req: Request) => {
 
       const errorMsg = `Twilio API error (${errorData.code}): ${errorData.message || 'Unknown error'}`;
 
+      failureAlreadyRecorded = true;
       await supabase.rpc('record_notification_failure', {
         p_type: 'sms',
         p_recipient: toPhone || 'unknown',
@@ -364,14 +368,16 @@ Deno.serve(async (req: Request) => {
         Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
       );
 
-      await supabase.rpc('record_notification_failure', {
-        p_type: 'sms',
-        p_recipient: to,
-        p_subject: null,
-        p_message_preview: messageBody?.substring(0, 200) || null,
-        p_error: errorMsg,
-        p_context: { orderId }
-      });
+      if (!failureAlreadyRecorded) {
+        await supabase.rpc('record_notification_failure', {
+          p_type: 'sms',
+          p_recipient: to,
+          p_subject: null,
+          p_message_preview: messageBody?.substring(0, 200) || null,
+          p_error: errorMsg,
+          p_context: { orderId }
+        });
+      }
 
       if (!skipFallback) {
         await sendAdminEmailFallback(supabase, to, messageBody, errorMsg);
