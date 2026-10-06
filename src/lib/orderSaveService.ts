@@ -1,9 +1,9 @@
 import { supabase } from './supabase';
 import { showToast } from './notifications';
 import { upsertCanonicalAddress } from './addressService';
-import { ORDER_STATUS } from './constants/statuses';
 import { calculateTotalFromOrder } from './orderSummary';
 import { notifyPortalRefresh } from './customerPortalRefreshSignal';
+import { hasAddressChanged, planOrderChanges, finalizeOrderPlan } from './orderChangePlanning';
 
 interface SaveOrderChangesParams {
   order: any;
@@ -66,64 +66,8 @@ export async function saveOrderChanges({
     throw new Error('Authentication required');
   }
 
-  const changes: any = {};
-  const logs = [];
-
-  if (editedOrder.location_type !== order.location_type) {
-    changes.location_type = editedOrder.location_type;
-    logs.push(['location_type', order.location_type, editedOrder.location_type]);
-  }
-  // EE-only orders (no inflatables) must persist surface = null.
-  const hasInflatables = stagedItems.some(item => item.unit_id && !item.is_deleted);
-  const effectiveSurface = hasInflatables ? editedOrder.surface : null;
-  if (effectiveSurface !== order.surface) {
-    changes.surface = effectiveSurface;
-    logs.push(['surface', order.surface, effectiveSurface]);
-  }
-  if (editedOrder.generator_qty !== (order.generator_qty || 0)) {
-    changes.generator_qty = editedOrder.generator_qty;
-    logs.push(['generator_qty', order.generator_qty || 0, editedOrder.generator_qty]);
-  }
-  if (editedOrder.start_window !== order.start_window) {
-    changes.start_window = editedOrder.start_window;
-    logs.push(['start_window', order.start_window, editedOrder.start_window]);
-  }
-  if (editedOrder.end_window !== order.end_window) {
-    changes.end_window = editedOrder.end_window;
-    logs.push(['end_window', order.end_window, editedOrder.end_window]);
-  }
-
-  const normalizeDate = (dateStr: string) => dateStr ? dateStr.split('T')[0] : '';
-
-  const originalEventDate = normalizeDate(order.event_date);
-  const editedEventDate = normalizeDate(editedOrder.event_date);
-  if (editedEventDate !== originalEventDate) {
-    changes.event_date = editedOrder.event_date;
-    logs.push(['event_date', order.event_date, editedOrder.event_date]);
-  }
-
-  const originalEventEndDate = normalizeDate(order.event_end_date || order.event_date);
-  const editedEventEndDate = normalizeDate(editedOrder.event_end_date);
-  if (editedEventEndDate !== originalEventEndDate) {
-    changes.event_end_date = editedOrder.event_end_date;
-    logs.push(['event_end_date', order.event_end_date || order.event_date, editedOrder.event_end_date]);
-  }
-
-  if (editedOrder.pickup_preference !== (order.pickup_preference || 'next_day')) {
-    changes.pickup_preference = editedOrder.pickup_preference;
-    changes.overnight_allowed = editedOrder.pickup_preference === 'next_day';
-    logs.push(['pickup_preference', order.pickup_preference || 'next_day', editedOrder.pickup_preference]);
-  }
-
-  // Part 8: Address change detection now includes address_line2
-  const addressChanged =
-    editedOrder.address_line1 !== (order.addresses?.line1 || '') ||
-    editedOrder.address_line2 !== (order.addresses?.line2 || '') ||
-    editedOrder.address_city !== (order.addresses?.city || '') ||
-    editedOrder.address_state !== (order.addresses?.state || '') ||
-    editedOrder.address_zip !== (order.addresses?.zip || '');
-
-  if (addressChanged) {
+  let canonicalAddressId: string | undefined;
+  if (hasAddressChanged(order, editedOrder)) {
     const canonical = await upsertCanonicalAddress({
       customer_id: order.customer_id ?? null,
       line1: editedOrder.address_line1,
@@ -134,283 +78,31 @@ export async function saveOrderChanges({
       lat: editedOrder.address_lat ?? null,
       lng: editedOrder.address_lng ?? null,
     });
-
-    changes.address_id = canonical.id;
-
-    const oldAddr = `${order.addresses?.line1 || ''}${order.addresses?.line2 ? ', ' + order.addresses.line2 : ''}, ${order.addresses?.city || ''}, ${order.addresses?.state || ''} ${order.addresses?.zip || ''}`;
-    const newAddr = `${editedOrder.address_line1}${editedOrder.address_line2 ? ', ' + editedOrder.address_line2 : ''}, ${editedOrder.address_city}, ${editedOrder.address_state} ${editedOrder.address_zip}`;
-    logs.push(['address', oldAddr, newAddr]);
+    canonicalAddressId = canonical.id;
   }
 
-  let effectiveTotalCents = 0;
+  const plan = planOrderChanges({
+    order, editedOrder, stagedItems, discounts, customFees, calculatedPricing,
+    customDepositCents, customSetupFeeCents, adminMessage, canonicalAddressId,
+    taxWaived, taxWaiveReason, travelFeeWaived, travelFeeWaiveReason,
+    sameDayPickupFeeWaived, sameDayPickupFeeWaiveReason, surfaceFeeWaived, surfaceFeeWaiveReason,
+    generatorFeeWaived, generatorFeeWaiveReason, sameDayWeekdayDeliveryFeeWaived, sameDayWeekdayDeliveryFeeWaiveReason,
+    parksAcknowledgmentRequired, parksAcknowledgmentCounty,
+    depositCatchupMode, requireCardOnFile,
+  }, { calculateTotal: calculateTotalFromOrder });
 
-  if (calculatedPricing) {
-    if (calculatedPricing.subtotal_cents !== order.subtotal_cents) {
-      changes.subtotal_cents = calculatedPricing.subtotal_cents;
-      logs.push(['subtotal', order.subtotal_cents, calculatedPricing.subtotal_cents]);
-    }
-    if (calculatedPricing.generator_fee_cents !== (order.generator_fee_cents || 0)) {
-      changes.generator_fee_cents = calculatedPricing.generator_fee_cents;
-      logs.push(['generator_fee', order.generator_fee_cents || 0, calculatedPricing.generator_fee_cents]);
-    }
-    const effectiveSetupFeeCents = customSetupFeeCents !== null ? customSetupFeeCents : (calculatedPricing.setup_fee_cents ?? 0);
-    if (effectiveSetupFeeCents !== (order.setup_fee_cents || 0)) {
-      changes.setup_fee_cents = effectiveSetupFeeCents;
-      logs.push(['setup_fee', order.setup_fee_cents || 0, effectiveSetupFeeCents]);
-    }
-    const eeSubtotal = calculatedPricing.event_essentials_subtotal_cents || 0;
-    if (eeSubtotal !== (order.event_essentials_subtotal_cents || 0)) {
-      changes.event_essentials_subtotal_cents = eeSubtotal;
-      logs.push(['event_essentials_subtotal', order.event_essentials_subtotal_cents || 0, eeSubtotal]);
-    }
-    if (calculatedPricing.travel_fee_cents !== (order.travel_fee_cents || 0)) {
-      changes.travel_fee_cents = calculatedPricing.travel_fee_cents;
-      logs.push(['travel_fee', order.travel_fee_cents, calculatedPricing.travel_fee_cents]);
-    }
-    if (calculatedPricing.travel_total_miles !== (parseFloat(order.travel_total_miles) || 0)) changes.travel_total_miles = calculatedPricing.travel_total_miles;
-    if (calculatedPricing.travel_base_radius_miles !== (parseFloat(order.travel_base_radius_miles) || null)) changes.travel_base_radius_miles = calculatedPricing.travel_base_radius_miles;
-    if (calculatedPricing.travel_chargeable_miles !== (parseFloat(order.travel_chargeable_miles) || null)) changes.travel_chargeable_miles = calculatedPricing.travel_chargeable_miles;
-    if (calculatedPricing.travel_per_mile_cents !== (order.travel_per_mile_cents || null)) changes.travel_per_mile_cents = calculatedPricing.travel_per_mile_cents;
-    if (calculatedPricing.travel_is_flat_fee !== (order.travel_is_flat_fee || false)) changes.travel_is_flat_fee = calculatedPricing.travel_is_flat_fee;
-    const effectiveSurfaceFeeCents = hasInflatables ? calculatedPricing.surface_fee_cents : 0;
-    if (effectiveSurfaceFeeCents !== (order.surface_fee_cents || 0)) {
-      changes.surface_fee_cents = effectiveSurfaceFeeCents;
-      logs.push(['surface_fee', order.surface_fee_cents, effectiveSurfaceFeeCents]);
-    }
-    if (calculatedPricing.same_day_pickup_fee_cents !== (order.same_day_pickup_fee_cents || 0)) {
-      changes.same_day_pickup_fee_cents = calculatedPricing.same_day_pickup_fee_cents;
-      logs.push(['same_day_pickup_fee', order.same_day_pickup_fee_cents || 0, calculatedPricing.same_day_pickup_fee_cents]);
-    }
-    if (calculatedPricing.same_day_weekday_delivery_fee_cents !== (order.same_day_weekday_delivery_fee_cents || 0)) {
-      changes.same_day_weekday_delivery_fee_cents = calculatedPricing.same_day_weekday_delivery_fee_cents;
-      logs.push(['same_day_weekday_delivery_fee', order.same_day_weekday_delivery_fee_cents || 0, calculatedPricing.same_day_weekday_delivery_fee_cents]);
-    }
-    if (calculatedPricing.tax_cents !== (order.tax_cents || 0)) {
-      changes.tax_cents = calculatedPricing.tax_cents;
-      logs.push(['tax', order.tax_cents, calculatedPricing.tax_cents]);
-    }
-
-    const finalDepositCents = customDepositCents !== null ? customDepositCents : calculatedPricing.deposit_due_cents;
-    if (finalDepositCents !== order.deposit_due_cents) {
-      changes.deposit_due_cents = finalDepositCents;
-      logs.push(['deposit_due', order.deposit_due_cents, finalDepositCents]);
-    }
-
-    effectiveTotalCents = calculateTotalFromOrder(
-      { ...order, ...calculatedPricing },
-      discounts.filter(d => !d.is_deleted),
-      customFees.filter(f => !f.is_deleted),
-    );
-
-    const depositAlreadyCapturedCents = order.deposit_paid_cents || 0;
-    const isConfirmedWithPayment = (order.status === ORDER_STATUS.CONFIRMED || order.status === ORDER_STATUS.IN_PROGRESS) && depositAlreadyCapturedCents > 0;
-    const depositDifferenceCents = Math.max(0, finalDepositCents - depositAlreadyCapturedCents);
-
-    const hasRefunds = (order.total_refunded_cents || 0) > 0;
-    const depositPaidCents = order.deposit_paid_cents || 0;
-    const balancePaidCents = order.balance_paid_cents || 0;
-    const excessDepositPaidCents = Math.max(0, depositPaidCents - finalDepositCents);
-
-    let newBalanceDueCents: number;
-    if (hasRefunds) {
-      newBalanceDueCents = order.balance_due_cents ?? 0;
-    } else if (isConfirmedWithPayment && depositDifferenceCents > 0 && depositCatchupMode === 'require') {
-      newBalanceDueCents = Math.max(0, effectiveTotalCents - finalDepositCents - balancePaidCents - excessDepositPaidCents);
-      changes.deposit_catchup_cents = depositDifferenceCents;
-      logs.push(['deposit_catchup', 0, depositDifferenceCents]);
-    } else if (isConfirmedWithPayment && depositDifferenceCents > 0 && depositCatchupMode === 'waive') {
-      newBalanceDueCents = Math.max(0, effectiveTotalCents - depositPaidCents - balancePaidCents);
-      changes.deposit_catchup_cents = 0;
+  for (const op of plan.itemOperations) {
+    if (op.kind === 'insert') {
+      const { error: itemInsertError } = await supabase.from('order_items').insert(op.payload);
+      if (itemInsertError) throw new Error(`${op.errorLabel}: ${itemInsertError.message}`);
+    } else if (op.kind === 'delete') {
+      const { error: itemDeleteError } = await supabase.from('order_items').delete().eq('id', op.itemId);
+      if (itemDeleteError) throw new Error(`${op.errorLabel}: ${itemDeleteError.message}`);
     } else {
-      newBalanceDueCents = Math.max(0, effectiveTotalCents - finalDepositCents - balancePaidCents - excessDepositPaidCents);
+      const { error: itemUpdateError } = await supabase.from('order_items').update(op.payload).eq('id', op.itemId);
+      if (itemUpdateError) throw new Error(`${op.errorLabel}: ${itemUpdateError.message}`);
     }
-
-    if (newBalanceDueCents !== order.balance_due_cents) {
-      changes.balance_due_cents = newBalanceDueCents;
-      logs.push(['balance_due', order.balance_due_cents, newBalanceDueCents]);
-    }
-
-    const oldTotal = calculateTotalFromOrder(order, discounts.filter(d => !d.is_deleted), customFees.filter(f => !f.is_deleted));
-    if (effectiveTotalCents !== oldTotal) {
-      logs.push(['total', oldTotal, effectiveTotalCents]);
-    }
-  }
-
-  if (taxWaived !== undefined && taxWaived !== (order.tax_waived || false)) {
-    changes.tax_waived = taxWaived;
-    const reasonInfo = taxWaived && taxWaiveReason ? ` (Reason: ${taxWaiveReason})` : '';
-    logs.push(['tax_waived', order.tax_waived || false, `${taxWaived}${reasonInfo}`]);
-  }
-  if (taxWaiveReason !== undefined && taxWaiveReason !== (order.tax_waive_reason || '')) {
-    changes.tax_waive_reason = taxWaiveReason || null;
-  }
-
-  if (travelFeeWaived !== undefined && travelFeeWaived !== (order.travel_fee_waived || false)) {
-    changes.travel_fee_waived = travelFeeWaived;
-    const reasonInfo = travelFeeWaived && travelFeeWaiveReason ? ` (Reason: ${travelFeeWaiveReason})` : '';
-    logs.push(['travel_fee_waived', order.travel_fee_waived || false, `${travelFeeWaived}${reasonInfo}`]);
-  }
-  if (travelFeeWaiveReason !== undefined && travelFeeWaiveReason !== (order.travel_fee_waive_reason || '')) {
-    changes.travel_fee_waive_reason = travelFeeWaiveReason || null;
-  }
-
-  if (sameDayPickupFeeWaived !== undefined && sameDayPickupFeeWaived !== (order.same_day_pickup_fee_waived || false)) {
-    changes.same_day_pickup_fee_waived = sameDayPickupFeeWaived;
-    const reasonInfo = sameDayPickupFeeWaived && sameDayPickupFeeWaiveReason ? ` (Reason: ${sameDayPickupFeeWaiveReason})` : '';
-    logs.push(['same_day_pickup_fee_waived', order.same_day_pickup_fee_waived || false, `${sameDayPickupFeeWaived}${reasonInfo}`]);
-  }
-  if (sameDayPickupFeeWaiveReason !== undefined && sameDayPickupFeeWaiveReason !== (order.same_day_pickup_fee_waive_reason || '')) {
-    changes.same_day_pickup_fee_waive_reason = sameDayPickupFeeWaiveReason || null;
-  }
-
-  if (surfaceFeeWaived !== undefined && surfaceFeeWaived !== (order.surface_fee_waived || false)) {
-    changes.surface_fee_waived = surfaceFeeWaived;
-    const reasonInfo = surfaceFeeWaived && surfaceFeeWaiveReason ? ` (Reason: ${surfaceFeeWaiveReason})` : '';
-    logs.push(['surface_fee_waived', order.surface_fee_waived || false, `${surfaceFeeWaived}${reasonInfo}`]);
-  }
-  if (surfaceFeeWaiveReason !== undefined && surfaceFeeWaiveReason !== (order.surface_fee_waive_reason || '')) {
-    changes.surface_fee_waive_reason = surfaceFeeWaiveReason || null;
-  }
-
-  if (generatorFeeWaived !== undefined && generatorFeeWaived !== (order.generator_fee_waived || false)) {
-    changes.generator_fee_waived = generatorFeeWaived;
-    const reasonInfo = generatorFeeWaived && generatorFeeWaiveReason ? ` (Reason: ${generatorFeeWaiveReason})` : '';
-    logs.push(['generator_fee_waived', order.generator_fee_waived || false, `${generatorFeeWaived}${reasonInfo}`]);
-  }
-  if (generatorFeeWaiveReason !== undefined && generatorFeeWaiveReason !== (order.generator_fee_waive_reason || '')) {
-    changes.generator_fee_waive_reason = generatorFeeWaiveReason || null;
-  }
-
-  if (sameDayWeekdayDeliveryFeeWaived !== undefined && sameDayWeekdayDeliveryFeeWaived !== (order.same_day_weekday_delivery_fee_waived || false)) {
-    changes.same_day_weekday_delivery_fee_waived = sameDayWeekdayDeliveryFeeWaived;
-    const reasonInfo = sameDayWeekdayDeliveryFeeWaived && sameDayWeekdayDeliveryFeeWaiveReason ? ` (Reason: ${sameDayWeekdayDeliveryFeeWaiveReason})` : '';
-    logs.push(['same_day_weekday_delivery_fee_waived', order.same_day_weekday_delivery_fee_waived || false, `${sameDayWeekdayDeliveryFeeWaived}${reasonInfo}`]);
-  }
-  if (sameDayWeekdayDeliveryFeeWaiveReason !== undefined && sameDayWeekdayDeliveryFeeWaiveReason !== (order.same_day_weekday_delivery_fee_waive_reason || '')) {
-    changes.same_day_weekday_delivery_fee_waive_reason = sameDayWeekdayDeliveryFeeWaiveReason || null;
-  }
-
-  // Handle parks acknowledgment changes
-  if (parksAcknowledgmentRequired !== undefined && parksAcknowledgmentRequired !== (order.parks_acknowledgment_required || false)) {
-    changes.parks_acknowledgment_required = parksAcknowledgmentRequired;
-    logs.push(['parks_acknowledgment_required', order.parks_acknowledgment_required || false, parksAcknowledgmentRequired]);
-  }
-
-  if (parksAcknowledgmentRequired) {
-    if (parksAcknowledgmentCounty && parksAcknowledgmentCounty !== (order.parks_acknowledgment_county || null)) {
-      changes.parks_acknowledgment_county = parksAcknowledgmentCounty;
-      logs.push(['parks_acknowledgment_county', order.parks_acknowledgment_county || '', parksAcknowledgmentCounty]);
-    }
-  } else {
-    if (order.parks_acknowledgment_county) {
-      changes.parks_acknowledgment_county = null;
-      logs.push(['parks_acknowledgment_county', order.parks_acknowledgment_county, '']);
-    }
-  }
-
-  let shouldClearPayment = false;
-  const itemsChanged = stagedItems.some(item => item.is_new || item.is_deleted || item.is_updated);
-
-  if (itemsChanged) {
-    shouldClearPayment = true;
-    logs.push(['payment_method', 'cleared', 'items changed']);
-  } else if (calculatedPricing && order.stripe_payment_intent_id) {
-    const finalDepositCents = customDepositCents !== null ? customDepositCents : calculatedPricing.deposit_due_cents;
-    const depositAlreadyCaptured = order.deposit_paid_cents || 0;
-    if (finalDepositCents > depositAlreadyCaptured) {
-      shouldClearPayment = true;
-      logs.push(['payment_method', 'cleared', `deposit increased from ${depositAlreadyCaptured} to ${finalDepositCents}`]);
-    } else if (depositAlreadyCaptured >= calculateTotalFromOrder(order, discounts.filter(d => !d.is_deleted), customFees.filter(f => !f.is_deleted))) {
-      if (effectiveTotalCents > depositAlreadyCaptured) {
-        shouldClearPayment = true;
-        logs.push(['payment_method', 'cleared', `paid in full but total increased from ${depositAlreadyCaptured} to ${effectiveTotalCents}`]);
-      }
-    }
-  }
-
-  if (shouldClearPayment) {
-    changes.stripe_payment_method_id = null;
-    changes.stripe_payment_status = 'unpaid';
-  }
-
-  for (const item of stagedItems) {
-    if (item.is_new && !item.is_deleted) {
-      if (item.bundle_id && !item.unit_id) {
-        // New EE package insert
-        const { error: itemInsertError } = await supabase.from('order_items').insert({
-          order_id: order.id,
-          bundle_id: item.bundle_id,
-          product_id: null,
-          item_name: item.item_name || item.product_name || null,
-          qty: item.qty,
-          unit_price_cents: item.unit_price_cents,
-          pricing_context: item.pricing_context || null,
-          wet_or_dry: null,
-          unit_id: null,
-          component_snapshot: item.component_snapshot ?? null,
-        } as any);
-        if (itemInsertError) throw new Error(`Failed to add package: ${itemInsertError.message}`);
-        await logChangeFn('order_items', '', item.item_name || item.product_name || 'Package', 'add');
-      } else if (item.product_id && !item.unit_id) {
-        // New direct EE product insert
-        const { error: itemInsertError } = await supabase.from('order_items').insert({
-          order_id: order.id,
-          product_id: item.product_id,
-          item_name: item.item_name || item.product_name || null,
-          qty: item.qty,
-          unit_price_cents: item.unit_price_cents,
-          pricing_context: item.pricing_context || null,
-          wet_or_dry: null,
-          unit_id: null,
-          bundle_id: null,
-          component_snapshot: null,
-        } as any);
-        if (itemInsertError) throw new Error(`Failed to add item: ${itemInsertError.message}`);
-        await logChangeFn('order_items', '', item.item_name || item.product_name || 'Event Essential', 'add');
-      } else {
-        // Existing inflatable insert behavior (unchanged)
-        const { error: itemInsertError } = await supabase.from('order_items').insert({
-          order_id: order.id, unit_id: item.unit_id, qty: item.qty,
-          wet_or_dry: item.wet_or_dry, unit_price_cents: item.unit_price_cents,
-        } as any);
-        if (itemInsertError) throw new Error(`Failed to add item: ${itemInsertError.message}`);
-        await logChangeFn('order_items', '', `${item.unit_name} (${item.wet_or_dry})`, 'add');
-      }
-    } else if (item.is_deleted && item.id) {
-      const { error: itemDeleteError } = await supabase.from('order_items').delete().eq('id', item.id);
-      if (itemDeleteError) throw new Error(`Failed to remove item: ${itemDeleteError.message}`);
-      const itemLabel = item.product_id && !item.unit_id
-        ? (item.item_name || item.product_name || 'Event Essential')
-        : item.bundle_id && !item.unit_id
-        ? (item.item_name || item.product_name || 'Package')
-        : `${item.unit_name} (${item.wet_or_dry})`;
-      await logChangeFn('order_items', itemLabel, '', 'remove');
-    } else if (item.id && !item.is_new && !item.is_deleted && item.is_updated) {
-      if (item.product_id && !item.unit_id) {
-        // Existing direct EE product update — qty only, preserve price/context
-        const { error: itemUpdateError } = await supabase.from('order_items').update({
-          qty: item.qty,
-        }).eq('id', item.id);
-        if (itemUpdateError) throw new Error(`Failed to update item: ${itemUpdateError.message}`);
-        await logChangeFn('order_items', item.item_name || item.product_name || 'Event Essential', `${item.qty}`, 'update');
-      } else if (item.bundle_id && !item.unit_id) {
-        // Existing package update — qty only, preserve price/context/snapshot
-        const { error: itemUpdateError } = await supabase.from('order_items').update({
-          qty: item.qty,
-        }).eq('id', item.id);
-        if (itemUpdateError) throw new Error(`Failed to update package: ${itemUpdateError.message}`);
-        await logChangeFn('order_items', item.item_name || item.product_name || 'Package', `${item.qty}`, 'update');
-      } else {
-        // Existing inflatable update behavior (unchanged)
-        const { error: itemUpdateError } = await supabase.from('order_items').update({
-          qty: item.qty,
-          unit_price_cents: item.unit_price_cents,
-          pricing_context: item.pricing_context || null,
-        }).eq('id', item.id);
-        if (itemUpdateError) throw new Error(`Failed to update item: ${itemUpdateError.message}`);
-        await logChangeFn('order_items', `${item.unit_name} (${item.wet_or_dry})`, `${item.qty} × ${item.unit_price_cents}`, 'update');
-      }
-    }
+    await logChangeFn(op.log.field, op.log.oldValue, op.log.newValue, op.log.action);
   }
 
   const insertedDiscountIds: string[] = [];
@@ -491,75 +183,15 @@ export async function saveOrderChanges({
     }
   }
 
-  const normalizedAdminMessage = adminMessage.trim();
-  const originalAdminMessage = order.admin_message || '';
-  if (normalizedAdminMessage !== originalAdminMessage) {
-    changes.admin_message = normalizedAdminMessage || null;
-    logs.push(['admin_message', originalAdminMessage, normalizedAdminMessage]);
-  }
+  const finalized = finalizeOrderPlan(
+    plan,
+    { deletedDiscountCount, updatedDiscountCount, deletedFeeCount, updatedFeeCount },
+    { adminOverrideApproval, nowIso: () => new Date().toISOString() },
+  );
+  const { changes, logs, hasTrackedChanges, hasCustomerVisibleChanges, preserveCurrentStatus } = finalized;
 
-  const finalDepositForCard = customDepositCents !== null ? customDepositCents : calculatedPricing?.deposit_due_cents ?? order.deposit_due_cents ?? 0;
-  const normalizedRequireCardOnFile = finalDepositForCard > 0 ? true : (requireCardOnFile ?? true);
-  if (normalizedRequireCardOnFile !== (order.require_card_on_file ?? true)) {
-    changes.require_card_on_file = normalizedRequireCardOnFile;
-    logs.push(['require_card_on_file', order.require_card_on_file ?? true, normalizedRequireCardOnFile]);
-  }
-
-  const hasTrackedChanges = logs.length > 0
-    || stagedItems.some(item => item.is_new || item.is_deleted || item.is_updated)
-    || discounts.some(d => d.is_new)
-    || customFees.some(f => f.is_new)
-    || deletedDiscountCount > 0 || deletedFeeCount > 0
-    || updatedDiscountCount > 0 || updatedFeeCount > 0;
-  const hasFieldChanges = Object.keys(changes).length > 0;
-
-  // Part 7: Customer-visible classification — no broad logs.some fallback.
-  // Only explicit keys, item changes, discount changes, and fee changes count.
-  const CUSTOMER_VISIBLE_CHANGE_KEYS = new Set([
-    'location_type', 'surface', 'generator_qty',
-    'start_window', 'end_window', 'event_date', 'event_end_date',
-    'pickup_preference', 'overnight_allowed', 'address_id',
-    'subtotal_cents', 'generator_fee_cents', 'travel_fee_cents',
-    'travel_total_miles', 'travel_base_radius_miles', 'travel_chargeable_miles',
-    'travel_per_mile_cents', 'travel_is_flat_fee', 'surface_fee_cents',
-    'same_day_pickup_fee_cents', 'same_day_weekday_delivery_fee_cents', 'tax_cents',
-    'setup_fee_cents',
-    'deposit_due_cents', 'balance_due_cents', 'deposit_catchup_cents',
-    'tax_waived', 'tax_waive_reason', 'travel_fee_waived', 'travel_fee_waive_reason',
-    'same_day_pickup_fee_waived', 'same_day_pickup_fee_waive_reason',
-    'surface_fee_waived', 'surface_fee_waive_reason',
-    'generator_fee_waived', 'generator_fee_waive_reason',
-    'same_day_weekday_delivery_fee_waived', 'same_day_weekday_delivery_fee_waive_reason',
-    'admin_message', 'require_card_on_file',
-  ]);
-  const hasCustomerVisibleChanges =
-    Object.keys(changes).some(k => CUSTOMER_VISIBLE_CHANGE_KEYS.has(k))
-    || stagedItems.some(item => item.is_new || item.is_deleted || item.is_updated)
-    || discounts.some(d => d.is_new || d.is_deleted)
-    || customFees.some(f => f.is_new || f.is_deleted)
-    || deletedDiscountCount > 0 || deletedFeeCount > 0
-    || updatedDiscountCount > 0 || updatedFeeCount > 0;
-
-  const PRESERVE_STATUS = new Set([
-    ORDER_STATUS.DRAFT, ORDER_STATUS.IN_PROGRESS, ORDER_STATUS.COMPLETED,
-    ORDER_STATUS.CANCELLED, ORDER_STATUS.VOID,
-  ]);
-  const preserveCurrentStatus = PRESERVE_STATUS.has(order.status);
-
-  if (hasTrackedChanges || hasFieldChanges) {
+  if (finalized.shouldCommit) {
     const oldStatus = order.status;
-
-    if (!preserveCurrentStatus) {
-      if (adminOverrideApproval) {
-        changes.status = ORDER_STATUS.CONFIRMED;
-      } else {
-        changes.status = ORDER_STATUS.AWAITING_CUSTOMER_APPROVAL;
-      }
-    }
-
-    if (hasCustomerVisibleChanges) {
-      changes.customer_view_updated_at = new Date().toISOString();
-    }
 
     const { error: updateError } = await supabase.from('orders').update(changes).eq('id', order.id);
     if (updateError) throw new Error(`Failed to update order: ${updateError.message}`);
