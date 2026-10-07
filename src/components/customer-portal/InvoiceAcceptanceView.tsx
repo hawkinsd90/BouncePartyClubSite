@@ -15,11 +15,10 @@ import { PaymentAmountSelector } from './PaymentAmountSelector';
 import { CustomerInfoForm } from './CustomerInfoForm';
 import { CancelOrderModal } from './CancelOrderModal';
 import { showToast } from '../../lib/notifications';
-import { checkMultipleUnitsAvailability } from '../../lib/availability';
+import { portalAction } from '../../lib/customerPortalApi';
 import { checkEventEssentialsAvailability } from '../../lib/queries/products';
 import { sendNotificationToCustomer } from '../../lib/notificationService';
 import { enterConfirmed } from '../../lib/orderLifecycle';
-import { ORDER_STATUS } from '../../lib/constants/statuses';
 import {
   generateConfirmationReceiptEmail,
   generateConfirmationSmsMessage,
@@ -35,6 +34,8 @@ interface InvoiceAcceptanceViewProps {
   discounts: any[];
   customFees: any[];
   invoiceLink: any | null;
+  // The portal/invoice token this visit arrived with (null for a signed-in owner).
+  invoiceToken?: string | null;
   orderSummary: OrderSummaryDisplay | null;
   onReload: () => void;
   onApprovalSuccess?: () => void;
@@ -44,6 +45,7 @@ export function InvoiceAcceptanceView({
   order,
   orderItems,
   invoiceLink,
+  invoiceToken,
   orderSummary,
   onReload,
   onApprovalSuccess,
@@ -180,18 +182,9 @@ export function InvoiceAcceptanceView({
 
     try {
       // Verify item availability BEFORE writing any acceptance state.
-      const { data: allOrderItems, error: orderItemsError } = await supabase
-        .from('order_items')
-        .select('unit_id, product_id, bundle_id, qty, component_snapshot')
-        .eq('order_id', order.id);
+      const allOrderItems: any[] = orderItems ?? [];
 
-      if (orderItemsError) {
-        showToast('Sorry, we could not verify item availability. Please try again or contact us.', 'error');
-        setProcessing(false);
-        return;
-      }
-
-      if (!allOrderItems || allOrderItems.length === 0) {
+      if (allOrderItems.length === 0) {
         showToast('Sorry, we could not verify item availability. Please try again or contact us.', 'error');
         setProcessing(false);
         return;
@@ -201,17 +194,15 @@ export function InvoiceAcceptanceView({
       {
         const inflatableItems = allOrderItems.filter((item: any) => item.unit_id);
         if (inflatableItems.length > 0) {
-          const availabilityChecks = inflatableItems.map((item: any) => ({
-            unitId: item.unit_id,
-            eventStartDate: order.event_date,
-            eventEndDate: order.event_end_date || order.event_date,
-            excludeOrderId: order.id,
-          }));
+          let unitsAvailable = false;
+          try {
+            const result = await portalAction<{ available: boolean }>(order.id, invoiceToken, 'check_unit_availability');
+            unitsAvailable = result.available === true;
+          } catch {
+            unitsAvailable = false;
+          }
 
-          const results = await checkMultipleUnitsAvailability(availabilityChecks);
-          const unavailable = results.filter((r) => !r.isAvailable);
-
-          if (unavailable.length > 0) {
+          if (!unitsAvailable) {
             showToast(
               'Sorry, one or more items in your order are no longer available for your event date. Please contact us to reschedule.',
               'error'
@@ -243,142 +234,45 @@ export function InvoiceAcceptanceView({
         }
       }
 
-      let customerId = order.customer_id;
-
-      if (needsCustomerInfo && customerInfo.email) {
-        const { data: existingCustomer, error: lookupError } = await supabase
-          .from('customers')
-          .select('id')
-          .eq('email', customerInfo.email)
-          .maybeSingle();
-
-        if (lookupError) throw lookupError;
-
-        if (existingCustomer) {
-          customerId = existingCustomer.id;
-
-          const { error: updateError } = await supabase
-            .from('customers')
-            .update({
-              first_name: customerInfo.first_name,
-              last_name: customerInfo.last_name,
-              phone: customerInfo.phone,
-              ...(customerInfo.business_name ? { business_name: customerInfo.business_name } : {}),
-            })
-            .eq('id', existingCustomer.id);
-
-          if (updateError) {
-            console.error('Failed to update existing customer:', updateError);
-          }
-        } else {
-          const { data: newCustomer, error: customerError } = await supabase
-            .from('customers')
-            .insert([customerInfo])
-            .select()
-            .single();
-
-          if (customerError) throw customerError;
-
-          customerId = newCustomer.id;
-        }
-
-        const { error: consentUpdateError } = await supabase
-          .from('orders')
-          .update({
-            customer_id: customerId,
-            card_on_file_consent: isNoCardRequired ? false : cardOnFileConsent,
-            sms_consent: smsConsent,
-            invoice_accepted_at: new Date().toISOString(),
-          })
-          .eq('id', order.id);
-
-        if (consentUpdateError) {
-          console.error('Failed to record consent:', consentUpdateError);
-          showToast('Failed to save your information. Please try again.', 'error');
-          setProcessing(false);
-          return;
-        }
-
-        if (invoiceLink) {
-          const { error: invoiceLinkError } = await supabase
-            .from('invoice_links' as any)
-            .update({ customer_filled: true })
-            .eq('id', invoiceLink.id);
-
-          if (invoiceLinkError) {
-            console.error('Failed to mark invoice link as filled:', invoiceLinkError);
-          }
-        }
-      } else {
-        const { error: consentUpdateError } = await supabase
-          .from('orders')
-          .update({
-            card_on_file_consent: isNoCardRequired ? false : cardOnFileConsent,
-            sms_consent: smsConsent,
-            invoice_accepted_at: new Date().toISOString(),
-          })
-          .eq('id', order.id);
-
-        if (consentUpdateError) {
-          console.error('Failed to record consent:', consentUpdateError);
-          showToast('Failed to save your information. Please try again.', 'error');
-          setProcessing(false);
-          return;
-        }
-      }
-
-      // Save referral source if not yet captured
-      if (!referralAlreadyCaptured && referralSource) {
-        const { error: referralSaveError } = await supabase
-          .from('orders')
-          .update({
-            referral_source: referralSource,
-            referral_source_detail: referralSourceDetail || null,
-          })
-          .eq('id', order.id);
-
-        if (referralSaveError) {
-          console.error('Failed to save referral source:', referralSaveError);
-          showToast('Failed to save how you heard about us. Please try again.', 'error');
-          setProcessing(false);
-          return;
-        }
-      }
-
       const tipCents = getTipCents();
 
-      if (tipCents > 0) {
-        const { error: tipUpdateError } = await supabase
-          .from('orders')
-          .update({ tip_cents: tipCents })
-          .eq('id', order.id);
-
-        if (tipUpdateError) {
-          console.error('Failed to record tip:', tipUpdateError);
-          showToast('Failed to save tip amount. Please try again.', 'error');
-          setProcessing(false);
-          return;
-        }
+      try {
+        await portalAction(order.id, invoiceToken, 'invoice_accept_details', {
+          ...(needsCustomerInfo && customerInfo.email
+            ? {
+                customer: {
+                  first_name: customerInfo.first_name,
+                  last_name: customerInfo.last_name,
+                  email: customerInfo.email,
+                  phone: customerInfo.phone,
+                  ...(customerInfo.business_name ? { business_name: customerInfo.business_name } : {}),
+                },
+              }
+            : {}),
+          cardOnFileConsent: isNoCardRequired ? false : cardOnFileConsent,
+          smsConsent,
+          ...(!referralAlreadyCaptured && referralSource
+            ? { referralSource, ...(referralSourceDetail ? { referralSourceDetail } : {}) }
+            : {}),
+          ...(tipCents > 0 ? { tipCents } : {}),
+        });
+      } catch (saveError) {
+        console.error('Failed to record acceptance:', saveError instanceof Error ? saveError.message : 'unknown');
+        showToast('Failed to save your information. Please try again.', 'error');
+        setProcessing(false);
+        return;
       }
 
       // No card required & $0 deposit: confirm order directly without Stripe
       if (isNoCardRequired) {
-        const fieldToUpdate =
-          order.pickup_preference === 'next_day'
-            ? 'overnight_responsibility_accepted'
-            : 'same_day_responsibility_accepted';
-
-        const { error: confirmError } = await supabase
-          .from('orders')
-          .update({
-            [fieldToUpdate]: true,
-            status: ORDER_STATUS.CONFIRMED,
-            invoice_accepted_at: new Date().toISOString(),
-          })
-          .eq('id', order.id);
-
-        if (confirmError) {
-          console.error('Error confirming order:', confirmError);
+        try {
+          // Records the acceptance and the responsibility agreement; the order stays a draft until the lifecycle
+          // function confirms it below.
+          await portalAction(order.id, invoiceToken, 'invoice_confirm_no_card');
+          const confirmation = await enterConfirmed(order.id, 'invoice_acceptance_no_card', 'waived', order.status, { invoiceToken: invoiceToken ?? null });
+          if (!confirmation.success) throw new Error('lifecycle refused the confirmation');
+        } catch (confirmError) {
+          console.error('Error confirming order:', confirmError instanceof Error ? confirmError.message : 'unknown');
           showToast(
             'Failed to confirm booking. Please try again or contact support.',
             'error'
@@ -400,7 +294,7 @@ export function InvoiceAcceptanceView({
         };
 
         try {
-          const linkResult = await createShortPortalLink(order.id, supabase, order.event_date, invoiceLink?.link_token ?? null);
+          const linkResult = await createShortPortalLink(order.id, supabase, order.event_date, invoiceToken ?? null);
           if (!linkResult.success) {
             throw new Error(`Failed to create short link: ${linkResult.error}`);
           }
@@ -426,29 +320,6 @@ export function InvoiceAcceptanceView({
           });
         } catch (notifError: any) {
           console.error('[InvoiceAcceptanceView] confirmation notification failed (non-fatal):', notifError);
-          const failureContext = { orderId: order.id, messageType: 'invoice_acceptance_confirmation', source: 'InvoiceAcceptanceView' };
-          const failureRows: Array<{ notification_type: 'email' | 'sms'; intended_recipient: string }> = [];
-          if (email.trim()) failureRows.push({ notification_type: 'email', intended_recipient: email });
-          if (smsConsent && phone.trim()) failureRows.push({ notification_type: 'sms', intended_recipient: phone });
-          for (const failureRow of failureRows) {
-            try {
-              const { error: logError } = await supabase.from('notification_failures').insert({
-                ...failureRow,
-                subject: 'Invoice acceptance confirmation not sent',
-                error_message: notifError?.message || 'Notification failed',
-                context: failureContext,
-              });
-              if (logError) console.error('[InvoiceAcceptanceView] Failed to log notification failure:', logError);
-            } catch (logErr) {
-              console.error('[InvoiceAcceptanceView] Failed to log notification failure:', logErr);
-            }
-          }
-        }
-
-        try {
-          await enterConfirmed(order.id, 'invoice_acceptance_no_card', 'waived', order.status, { invoiceToken: invoiceLink?.link_token ?? null });
-        } catch (lifecycleErr) {
-          console.error('[InvoiceAcceptanceView] enterConfirmed failed (non-fatal):', lifecycleErr);
         }
 
         if (onApprovalSuccess) {
@@ -480,7 +351,7 @@ export function InvoiceAcceptanceView({
               orderId: order.id,
               setupMode: true,
               invoiceMode: true,
-              invoiceLinkToken: invoiceLink?.link_token ?? null,
+              invoiceLinkToken: invoiceToken ?? null,
               customerEmail: effectiveEmailSetup,
               customerName: effectiveNameSetup,
               origin: window.location.origin,
@@ -515,16 +386,13 @@ export function InvoiceAcceptanceView({
       const resolvedPaymentType =
         paymentAmount === 'full' ? 'full' : paymentAmount === 'custom' ? 'custom' : 'deposit';
 
-      const { error: paymentSelectionError } = await supabase
-        .from('orders')
-        .update({
-          customer_selected_payment_cents: actualPaymentCents,
-          customer_selected_payment_type: resolvedPaymentType,
-        })
-        .eq('id', order.id);
-
-      if (paymentSelectionError) {
-        console.error('Failed to save payment selection:', paymentSelectionError);
+      try {
+        await portalAction(order.id, invoiceToken, 'invoice_select_payment', {
+          amountCents: actualPaymentCents,
+          type: resolvedPaymentType,
+        });
+      } catch (selectionError) {
+        console.error('Failed to save payment selection:', selectionError instanceof Error ? selectionError.message : 'unknown');
         showToast('Failed to save payment selection. Please try again.', 'error');
         setProcessing(false);
         return;
@@ -545,7 +413,7 @@ export function InvoiceAcceptanceView({
             orderId: order.id,
             setupMode: true,
             invoiceMode: true,
-            invoiceLinkToken: invoiceLink?.link_token ?? null,
+            invoiceLinkToken: invoiceToken ?? null,
             customerEmail: effectiveEmail,
             customerName: effectiveName,
             origin: window.location.origin,
@@ -889,7 +757,7 @@ export function InvoiceAcceptanceView({
             orderId={order.id}
             eventDate={order.event_date}
             customerEmail={order.customer_email || order.customers?.email || ''}
-            invoiceLinkToken={invoiceLink?.link_token ?? null}
+            invoiceLinkToken={invoiceToken ?? null}
             onClose={() => setShowCancelModal(false)}
             onSuccess={() => {
               showToast('Your order has been cancelled', 'success');

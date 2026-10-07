@@ -1,62 +1,24 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { Truck, Camera, Clock, CheckCircle } from 'lucide-react';
-import { supabase } from '../../lib/supabase';
 
 interface DeliveryTabProps {
-  orderId: string;
+  // Delivery state from the secure portal payload (latest drop-off task); the tab reads no tables itself.
+  delivery: {
+    delivery_images: string[];
+    status: string | null;
+    completed_time: string | null;
+    updated_at: string | null;
+  } | null;
 }
 
-export function DeliveryTab({ orderId }: DeliveryTabProps) {
-  const [deliveryImages, setDeliveryImages] = useState<string[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [deliveredAt, setDeliveredAt] = useState<string | null>(null);
+export function DeliveryTab({ delivery }: DeliveryTabProps) {
+  const deliveryImages: string[] = Array.isArray(delivery?.delivery_images) ? delivery!.delivery_images : [];
+  // Prefer completed_time (set when crew marks drop-off done) over updated_at
+  const deliveredAt: string | null =
+    delivery && (delivery.status === 'completed' || deliveryImages.length > 0)
+      ? delivery.completed_time || delivery.updated_at
+      : null;
   const [lightboxUrl, setLightboxUrl] = useState<string | null>(null);
-
-  useEffect(() => {
-    loadDeliveryPhotos();
-  }, [orderId]);
-
-  async function loadDeliveryPhotos() {
-    setLoading(true);
-    try {
-      const { data: rows, error } = await supabase
-        .from('task_status')
-        .select('delivery_images, completed_time, updated_at, status')
-        .eq('order_id', orderId)
-        .eq('task_type', 'drop-off')
-        .order('created_at', { ascending: false })
-        .limit(1);
-
-      const data = rows && rows.length > 0 ? rows[0] : null;
-
-      if (error) {
-        console.error('Error loading delivery photos:', error);
-        return;
-      }
-
-      if (data) {
-        const imgs: string[] = Array.isArray(data.delivery_images) ? data.delivery_images : [];
-        setDeliveryImages(imgs);
-        if (data.status === 'completed' || imgs.length > 0) {
-          // Prefer completed_time (set when crew marks drop-off done) over updated_at
-          setDeliveredAt(data.completed_time || data.updated_at);
-        }
-      }
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center py-16">
-        <div className="text-center">
-          <div className="w-8 h-8 border-2 border-blue-600 border-t-transparent rounded-full animate-spin mx-auto mb-3" />
-          <p className="text-sm text-slate-500">Loading delivery photos...</p>
-        </div>
-      </div>
-    );
-  }
 
   return (
     <>

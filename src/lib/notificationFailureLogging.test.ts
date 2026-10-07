@@ -343,10 +343,10 @@ function evalLiteral(literal: string, scope: Record<string, any>): any {
   // ---------------------------------------------------------------------------
   const allSites: InsertSite[] = [];
   for (const f of walk('src')) allSites.push(...findInserts(f.replace(/\\/g, '/'), fs.readFileSync(f, 'utf8').replace(/\r\n/g, '\n')));
-  eq('repo has exactly 7 direct notification_failures inserts', allSites.length, 7);
+  eq('repo has exactly 6 direct notification_failures inserts', allSites.length, 6);
   eq('inserts per file', Object.fromEntries(Object.entries(allSites.reduce((m: Record<string, number>, s) => { m[s.file] = (m[s.file] || 0) + 1; return m; }, {})).sort()), {
     'src/components/admin/PendingOrderCard.tsx': 1, 'src/components/admin/TaskDetailModal.tsx': 2,
-    'src/components/customer-portal/InvoiceAcceptanceView.tsx': 1, 'src/lib/orderApprovalService.ts': 2, 'src/lib/orderNotificationService.ts': 1,
+    'src/lib/orderApprovalService.ts': 2, 'src/lib/orderNotificationService.ts': 1,
   });
   ok('no insert casts the table name to any', allSites.every(s => !s.asAny));
   ok('no insert payload names a stale column', allSites.every(s => !/\border_id\b|\bchannel\b|\bmessage_type\b|\bcreated_at\b/.test(s.argText)));
@@ -390,26 +390,10 @@ function evalLiteral(literal: string, scope: Record<string, any>): any {
   ok('PendingOrderCard: returned insert error is logged', poc.includes("if (logError) console.error('[PendingOrderCard] Failed to log notification failure:', logError)"));
 
   // ---------------------------------------------------------------------------
-  // InvoiceAcceptanceView
+  // InvoiceAcceptanceView (Customer Portal, A2.2): customers no longer write notification_failures from the browser;
+  // the notification Edge Functions record provider failures themselves.
   // ---------------------------------------------------------------------------
-  const iav = readSrc('components/customer-portal/InvoiceAcceptanceView.tsx');
-  const iavSite = findInserts('InvoiceAcceptanceView.tsx', iav)[0];
-  const block = iav.slice(iav.indexOf('const failureContext = {'), iavSite.index + iavSite.argText.length + 400);
-  const run = new Function('order', 'email', 'phone', 'smsConsent', 'notifError', 'supabase', `
-    const rows = [];
-    const console = { error: () => {} };
-    ${block.slice(0, block.indexOf('for (const failureRow of failureRows)'))
-      .replace(/: Array<\{[^}]*\}> =/, ' =')}
-    return { failureRows, failureContext };
-  `);
-  const t1 = run({ id: 'ord-2' }, 'a@x.test', '+15555550122', true, new Error('link boom'), {});
-  eq('InvoiceAcceptanceView: email + consenting sms rows', t1.failureRows.map((r: any) => [r.notification_type, r.intended_recipient]), [['email', 'a@x.test'], ['sms', '+15555550122']]);
-  eq('InvoiceAcceptanceView: context', t1.failureContext, { orderId: 'ord-2', messageType: 'invoice_acceptance_confirmation', source: 'InvoiceAcceptanceView' });
-  eq('InvoiceAcceptanceView: no sms consent -> email only', run({ id: 'o' }, 'a@x.test', '+1555', false, new Error('x'), {}).failureRows.map((r: any) => r.notification_type), ['email']);
-  eq('InvoiceAcceptanceView: no email -> sms only (with consent)', run({ id: 'o' }, '', '+1555', true, new Error('x'), {}).failureRows.map((r: any) => r.notification_type), ['sms']);
-  eq('InvoiceAcceptanceView: blank contacts -> no rows', run({ id: 'o' }, '  ', ' ', true, new Error('x'), {}).failureRows.length, 0);
-  ok('InvoiceAcceptanceView: subject and error message', iavSite.argText.includes("subject: 'Invoice acceptance confirmation not sent'") && iavSite.argText.includes("error_message: notifError?.message || 'Notification failed'") && iavSite.argText.includes('context: failureContext'));
-  ok('InvoiceAcceptanceView: returned insert error is logged and the catch stays non-fatal', iav.includes("if (logError) console.error('[InvoiceAcceptanceView] Failed to log notification failure:', logError)") && iav.includes('confirmation notification failed (non-fatal)'));
+  ok('InvoiceAcceptanceView has no direct notification_failures insert', !readSrc('components/customer-portal/InvoiceAcceptanceView.tsx').includes('notification_failures'));
 
   // ---------------------------------------------------------------------------
   // Reader compatibility and untouched writers

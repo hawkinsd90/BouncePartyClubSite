@@ -125,28 +125,67 @@ export function requireRoles(
 // The service-role client reads the table, so this does not depend on any anon policy.
 export const ORDER_PROOF_LINK_TYPES: readonly string[] = ["portal", "invoice"];
 
+export interface OrderLinkRow {
+  id: string;
+  order_id: string;
+  link_type: string;
+  expires_at: string | null;
+  revoked_at: string | null;
+  customer_filled?: boolean | null;
+  deposit_cents?: number | null;
+}
+
+// The link row that proves this order for this token, or null. Rules: exact token AND exact order AND accepted link
+// type AND not revoked AND a non-null, future expiry.
+export async function findValidOrderLink(
+  client: AuthClient,
+  orderId: string,
+  token: unknown,
+  now: Date = new Date(),
+): Promise<OrderLinkRow | null> {
+  if (typeof token !== "string" || token.length < 16 || !orderId) return null;
+  try {
+    const { data, error } = await client
+      .from("invoice_links")
+      .select("id, order_id, link_type, expires_at, revoked_at, customer_filled, deposit_cents")
+      .eq("link_token", token)
+      .eq("order_id", orderId)
+      .maybeSingle();
+    if (error || !data) return null;
+    if (data.revoked_at) return null;
+    if (!ORDER_PROOF_LINK_TYPES.includes(data.link_type)) return null;
+    if (!data.expires_at) return null;
+    return new Date(data.expires_at).getTime() > now.getTime() ? (data as OrderLinkRow) : null;
+  } catch {
+    return null;
+  }
+}
+
+// An Admin Invoice is current for an order when it has an invoice-type link that is unexpired and unrevoked. Signed-in
+// ownership and a Stripe session prove access to the order, but only this (or an invoice-type token) makes it an invoice.
+export async function hasCurrentInvoiceLink(client: AuthClient, orderId: string, now: Date = new Date()): Promise<boolean> {
+  if (!orderId) return false;
+  try {
+    const { data, error } = await client
+      .from("invoice_links")
+      .select("id, expires_at, revoked_at")
+      .eq("order_id", orderId)
+      .eq("link_type", "invoice")
+      .is("revoked_at", null);
+    if (error || !Array.isArray(data)) return false;
+    return data.some((r: { expires_at: string | null }) => !!r.expires_at && new Date(r.expires_at).getTime() > now.getTime());
+  } catch {
+    return false;
+  }
+}
+
 export async function validateOrderToken(
   client: AuthClient,
   orderId: string,
   token: unknown,
   now: Date = new Date(),
 ): Promise<boolean> {
-  if (typeof token !== "string" || token.length < 16 || !orderId) return false;
-  try {
-    const { data, error } = await client
-      .from("invoice_links")
-      .select("id, expires_at, revoked_at, link_type")
-      .eq("link_token", token)
-      .eq("order_id", orderId)
-      .maybeSingle();
-    if (error || !data) return false;
-    if (data.revoked_at) return false;
-    if (!ORDER_PROOF_LINK_TYPES.includes(data.link_type)) return false;
-    if (!data.expires_at) return false;
-    return new Date(data.expires_at).getTime() > now.getTime();
-  } catch {
-    return false;
-  }
+  return (await findValidOrderLink(client, orderId, token, now)) !== null;
 }
 
 // A signed-in customer owns an order when customers.user_id = their auth id and orders.customer_id = that customer.
@@ -294,6 +333,36 @@ export async function proveOrderAccess(
     }
   }
 
+  return null;
+}
+
+// Customer Portal access (Payment Safety A2.2). Who may read or act on an order through the portal endpoints:
+//   - token:   an unexpired, unrevoked portal/invoice token bound to THIS order;
+//   - owner:   the signed-in customer who owns THIS order;
+//   - service: the backend;
+//   - staff:   admin/master, only when the endpoint allows read-only support access.
+// A raw order id, an email, a phone number, a name, the public anon key or a short code are never proof.
+export type PortalProof =
+  | { kind: "token"; link: OrderLinkRow }
+  | { kind: "owner"; userId: string }
+  | { kind: "service" }
+  | { kind: "staff"; userId: string };
+
+export async function authorizePortalOrder(
+  client: AuthClient,
+  input: { orderId: unknown; token?: unknown; caller: Caller; allowStaffRead?: boolean; now?: Date },
+): Promise<PortalProof | null> {
+  const { caller } = input;
+  if (typeof input.orderId !== "string" || !input.orderId) return null;
+  if (caller.kind === "service") return { kind: "service" };
+
+  const link = await findValidOrderLink(client, input.orderId, input.token, input.now);
+  if (link) return { kind: "token", link };
+
+  if (caller.kind === "user") {
+    if (await userOwnsOrder(client, caller.userId, input.orderId)) return { kind: "owner", userId: caller.userId };
+    if (input.allowStaffRead && isStaffAdmin(caller)) return { kind: "staff", userId: caller.userId };
+  }
   return null;
 }
 

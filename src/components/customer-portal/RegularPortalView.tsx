@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect } from 'react';
 import { tokenFragment } from '../../lib/portalToken';
 import { format } from 'date-fns';
 import { FileText, CreditCard, CheckCircle, Image as ImageIcon, MapPin, Printer, Calendar, MapPin as MapPinIcon, Truck, Navigation, Clock, Package, Lock } from 'lucide-react';
@@ -6,6 +6,7 @@ import { useNavigate, useLocation, useSearchParams } from 'react-router-dom';
 import { formatCurrency } from '../../lib/pricing';
 import { formatOrderId } from '../../lib/utils';
 import { supabase } from '../../lib/supabase';
+import { portalAction, type PortalDeliveryState } from '../../lib/customerPortalApi';
 import { resolveCustomerPortalTab, buildTabUrlParam, type PortalTabKey, type PortalNavSection } from '../../lib/customerPortalTab';
 import WaiverTab from '../waiver/WaiverTab';
 import { PaymentTab } from './PaymentTab';
@@ -33,6 +34,13 @@ interface RegularPortalViewProps {
   orderSummary: any;
   invoiceLinkToken?: string | null;
   onReload: () => void;
+  // Quiet refetch through the secure portal endpoint (no spinner); used after uploads.
+  onSilentReload?: () => Promise<void>;
+  portalExtras?: {
+    lotPictures?: any[];
+    pictures?: any[];
+    delivery?: PortalDeliveryState | null;
+  };
   refreshVersion: number;
   suppressRefreshRef?: React.MutableRefObject<boolean>;
 }
@@ -48,7 +56,7 @@ interface NavSection {
   lockedReason?: string;
 }
 
-export function RegularPortalView({ order, orderId, orderItems: _orderItems, orderSummary, invoiceLinkToken, onReload, refreshVersion, suppressRefreshRef }: RegularPortalViewProps) {
+export function RegularPortalView({ order, orderId, orderItems: _orderItems, orderSummary, invoiceLinkToken, onReload, onSilentReload, portalExtras, refreshVersion: _refreshVersion, suppressRefreshRef }: RegularPortalViewProps) {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const routerLocation = useLocation();
@@ -57,99 +65,21 @@ export function RegularPortalView({ order, orderId, orderItems: _orderItems, ord
     navigate({ search: `?${next.toString()}`, hash: routerLocation.hash }, options);
   const lotPicturesRequested = order.lot_pictures_requested || false;
   const [showCancelModal, setShowCancelModal] = useState(false);
-  const [payments, setPayments] = useState<any[]>([]);
-  const [lotPicturesUploaded, setLotPicturesUploaded] = useState(false);
-  const [deliveryPhotosAvailable, setDeliveryPhotosAvailable] = useState(false);
-  const [isDelivered, setIsDelivered] = useState(false);
-  const [existingPictures, setExistingPictures] = useState<any[]>([]);
+  // Everything below comes from the secure portal payload (customer-portal-data); the view reads no tables itself.
+  const payments: any[] = order.payments ?? [];
+  const lotPicturesUploaded = (portalExtras?.lotPictures?.length ?? 0) > 0;
+  const deliveryImages = Array.isArray(portalExtras?.delivery?.delivery_images) ? portalExtras!.delivery!.delivery_images : [];
+  const deliveryPhotosAvailable = deliveryImages.length > 0;
+  const isDelivered = portalExtras?.delivery?.status === 'completed';
+  const existingPictures = (portalExtras?.pictures ?? []).map((pic: any) => {
+    const { data: urlData } = supabase.storage.from('order-pictures').getPublicUrl(pic.file_path);
+    return { ...pic, url: urlData.publicUrl };
+  });
   const [restoredTipCents, setRestoredTipCents] = useState<number | null>(null);
-
-  const loadPayments = useCallback(async () => {
-    try {
-      const { data, error } = await supabase
-        .from('payments')
-        .select('*')
-        .eq('order_id', orderId)
-        .order('created_at', { ascending: false });
-      if (error) throw error;
-      setPayments(data || []);
-    } catch (error) {
-      console.error('Error loading payments:', error);
-      setPayments([]);
-    }
-  }, [orderId]);
-
-  const loadLotPictures = useCallback(async () => {
-    try {
-      const { data, error } = await supabase
-        .from('order_lot_pictures' as any)
-        .select('id')
-        .eq('order_id', orderId)
-        .limit(1);
-      if (error) throw error;
-      setLotPicturesUploaded((data || []).length > 0);
-    } catch (error) {
-      console.error('Error loading lot pictures:', error);
-      setLotPicturesUploaded(false);
-    }
-  }, [orderId]);
-
-  const loadDeliveryStatus = useCallback(async () => {
-    try {
-      const { data: rows, error } = await supabase
-        .from('task_status')
-        .select('delivery_images, status')
-        .eq('order_id', orderId)
-        .eq('task_type', 'drop-off')
-        .order('created_at', { ascending: false })
-        .limit(1);
-      if (error) throw error;
-      const row = rows && rows.length > 0 ? rows[0] : null;
-      if (row) {
-        const imgs: string[] = Array.isArray(row.delivery_images) ? row.delivery_images : [];
-        setDeliveryPhotosAvailable(imgs.length > 0);
-        setIsDelivered(row.status === 'completed');
-      } else {
-        setDeliveryPhotosAvailable(false);
-        setIsDelivered(false);
-      }
-    } catch (err) {
-      console.error('Error loading delivery status:', err);
-      setDeliveryPhotosAvailable(false);
-      setIsDelivered(false);
-    }
-  }, [orderId]);
-
-  const loadExistingPictures = useCallback(async () => {
-    try {
-      const { data, error } = await supabase
-        .from('order_pictures' as any)
-        .select('id, file_path, file_name, notes, created_at')
-        .eq('order_id', orderId)
-        .order('created_at', { ascending: false });
-      if (error) throw error;
-      const withUrls = (data || []).map((pic: any) => {
-        const { data: urlData } = supabase.storage
-          .from('order-pictures')
-          .getPublicUrl(pic.file_path);
-        return { ...pic, url: urlData.publicUrl };
-      });
-      setExistingPictures(withUrls);
-    } catch (err) {
-      console.error('Error loading existing pictures:', err);
-      setExistingPictures([]);
-    }
-  }, [orderId]);
-
-  useEffect(() => {
-    const results = Promise.allSettled([
-      loadPayments(),
-      loadLotPictures(),
-      loadDeliveryStatus(),
-      loadExistingPictures(),
-    ]);
-    void results;
-  }, [orderId, refreshVersion, loadPayments, loadLotPictures, loadDeliveryStatus, loadExistingPictures]);
+  const refreshPortal = async () => {
+    if (onSilentReload) await onSilentReload();
+    else onReload();
+  };
 
   // On mount, read payment-status params and tip restoration.
   useEffect(() => {
@@ -196,32 +126,22 @@ export function RegularPortalView({ order, orderId, orderItems: _orderItems, ord
 
   async function handleSubmitPictures(files: File[], notes: string) {
     try {
-      const uploadPromises = files.map(async (file) => {
+      // Files go to storage first (storage access is a separate, later hardening step); the database record is then
+      // created by the server, which checks the paths belong to this order.
+      const uploaded = await Promise.all(files.map(async (file) => {
         const fileExt = file.name.split('.').pop();
         const fileName = `${orderId}/${Date.now()}-${Math.random().toString(36).substring(7)}.${fileExt}`;
         const { error: uploadError } = await supabase.storage
           .from('order-pictures')
           .upload(fileName, file, { cacheControl: '3600', upsert: false });
         if (uploadError) throw uploadError;
-        const { error: dbError } = await supabase
-          .from('order_pictures' as any)
-          .insert({
-            order_id: orderId,
-            file_path: fileName,
-            file_name: file.name,
-            file_size: file.size,
-            mime_type: file.type,
-            notes: notes || null,
-            uploaded_by: null,
-          });
-        if (dbError) throw dbError;
-        return fileName;
-      });
-      await Promise.all(uploadPromises);
+        return { path: fileName, name: file.name, size: file.size, mimeType: file.type };
+      }));
+      await portalAction(orderId, invoiceLinkToken, 'register_order_pictures', { files: uploaded, notes: notes || null });
       showToast(`Successfully uploaded ${files.length} picture${files.length > 1 ? 's' : ''}`, 'success');
-      loadExistingPictures();
+      await refreshPortal();
     } catch (error) {
-      console.error('Error submitting pictures:', error);
+      console.error('Error submitting pictures:', error instanceof Error ? error.message : 'unknown');
       showToast('Failed to upload pictures. Please try again.', 'error');
       throw error;
     }
@@ -685,7 +605,10 @@ export function RegularPortalView({ order, orderId, orderItems: _orderItems, ord
                 orderId={orderId}
                 orderNumber={order.order_number}
                 orderStatus={order.status}
-                onUploadComplete={() => { loadLotPictures(); }}
+                pictures={portalExtras?.lotPictures ?? []}
+                invoiceLinkToken={invoiceLinkToken}
+                onChanged={refreshPortal}
+                onUploadComplete={() => { void refreshPortal(); }}
                 suppressRefreshRef={suppressRefreshRef}
               />
             )}
@@ -706,7 +629,7 @@ export function RegularPortalView({ order, orderId, orderItems: _orderItems, ord
 
             {activeTab === 'pictures' && <PicturesTab onSubmit={handleSubmitPictures} existingPictures={existingPictures} />}
 
-            {activeTab === 'delivery' && <DeliveryTab orderId={orderId} />}
+            {activeTab === 'delivery' && <DeliveryTab delivery={portalExtras?.delivery ?? null} />}
           </div>
         </div>
 

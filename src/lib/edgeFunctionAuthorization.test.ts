@@ -358,7 +358,7 @@ const isDenied = (status: number) => status === 401 || status === 403;
 
   // Customer proof, unpaid deposit: the claimed "waived" must not confirm the order.
   r = track(await call(LC, { bearer: ANON_KEY, body: confirm('order-A', { invoiceToken: TOKEN_A }) }));
-  ok('lifecycle: valid token + unpaid deposit + claimed "waived" does NOT confirm', r.status === 400 && r.json?.success === false && /not been collected/.test(r.json?.error ?? ''));
+  ok('lifecycle: valid token + unpaid deposit + claimed "waived" does NOT confirm', r.status === 400 && r.json?.success === false && /not been collected|cannot be confirmed/.test(r.json?.error ?? ''));
   ok('lifecycle: no status write on the rejected customer confirm', !wrote(r.w, 'orders', (e) => e.payload?.status === 'confirmed'));
 
   for (const outcome of ['already_paid', 'charged_now', 'cash']) {
@@ -367,7 +367,7 @@ const isDenied = (status: number) => status === 401 || status === 403;
   }
 
   // Customer proof, deposit genuinely collected: confirmation proceeds and the outcome label comes from state.
-  r = track(await call(LC, { bearer: ANON_KEY, body: confirm('order-paid', { invoiceToken: TOKEN_A, paymentOutcome: 'waived' }) }));
+  r = track(await call(LC, { bearer: ANON_KEY, body: confirm('order-paid', { invoiceToken: TOKEN_A, paymentOutcome: 'waived', source: 'customer_approval_already_paid' }), mutate: (w) => { w.tables.orders.find((o) => o.id === 'order-paid').status = 'awaiting_customer_approval'; } }));
   ok('lifecycle: token + deposit already collected confirms', r.status === 200 && r.json?.success === true);
   ok('lifecycle: the changelog outcome is derived from state (already_paid), not the claim (waived)', r.w.log.some((e) => e.table === 'order_changelog' && /payment: already_paid/.test(e.payload?.notes ?? '')));
 
@@ -375,13 +375,13 @@ const isDenied = (status: number) => status === 401 || status === 403;
   ok('lifecycle: Order B token cannot confirm Order "paid" either', r.status === 401);
 
   // Owner proof
-  r = track(await call(LC, { bearer: 'jwt-cust', body: confirm('order-paid', { paymentOutcome: 'already_paid' }) }));
+  r = track(await call(LC, { bearer: 'jwt-cust', body: confirm('order-paid', { paymentOutcome: 'already_paid', source: 'customer_approval_already_paid' }), mutate: (w) => { w.tables.orders.find((o) => o.id === 'order-paid').status = 'awaiting_customer_approval'; } }));
   ok('lifecycle: signed-in owner with collected deposit confirms', r.status === 200 && r.json?.success === true);
   r = track(await call(LC, { bearer: 'jwt-cust', body: confirm('order-A', { paymentOutcome: 'waived' }) }));
   ok('lifecycle: signed-in owner cannot self-waive an unpaid deposit', r.status === 400 && !wrote(r.w, 'orders', (e) => e.payload?.status === 'confirmed'));
 
   // Zero deposit (waived / zero_due_with_card) is allowed with proof
-  r = track(await call(LC, { bearer: ANON_KEY, body: confirm('order-A', { invoiceToken: TOKEN_A, paymentOutcome: 'waived' }), mutate: (w) => { w.tables.orders.find((o) => o.id === 'order-A').deposit_due_cents = 0; } }));
+  r = track(await call(LC, { bearer: ANON_KEY, body: confirm('order-A', { invoiceToken: TOKEN_A, paymentOutcome: 'waived', source: 'invoice_acceptance_no_card' }), mutate: (w) => { Object.assign(w.tables.orders.find((o) => o.id === 'order-A'), { deposit_due_cents: 0, status: 'draft', require_card_on_file: false }); } }));
   ok('lifecycle: token + zero deposit confirms (no-card invoice)', r.status === 200 && r.json?.success === true);
 
   // Staff and service callers keep choosing the outcome
@@ -713,13 +713,13 @@ const isDenied = (status: number) => status === 401 || status === 403;
     const usages = s.match(/<CancelOrderModal[\s\S]*?\/>/g) ?? [];
     ok(`${file.split('/').pop()} renders CancelOrderModal with the invoice token (${usages.length} usage)`, usages.length >= 1 && usages.every((u) => /invoiceLinkToken=\{/.test(u)));
   }
-  ok('InvoiceAcceptanceView passes the invoice link token exactly', /<CancelOrderModal[\s\S]*?invoiceLinkToken=\{invoiceLink\?\.link_token \?\? null\}[\s\S]*?\/>/.test(read('src/components/customer-portal/InvoiceAcceptanceView.tsx')));
+  ok('InvoiceAcceptanceView passes the invoice link token exactly', /<CancelOrderModal[\s\S]*?invoiceLinkToken=\{invoiceToken \?\? null\}[\s\S]*?\/>/.test(read('src/components/customer-portal/InvoiceAcceptanceView.tsx')));
   const modal = read('src/components/customer-portal/CancelOrderModal.tsx');
   ok('CancelOrderModal sends the invoice token and the session-or-anon bearer', /invoiceLinkToken \? \{ invoiceLinkToken \} : \{\}/.test(modal) && /getEdgeAuthToken\(\)/.test(modal));
   ok('CancelOrderModal no longer sends the customer email as proof', !/customerEmail/.test(modal.slice(modal.indexOf('JSON.stringify'), modal.indexOf('JSON.stringify') + 300)));
   ok('card-update from PaymentTab carries the order token', /setupMode: true,\s*\.\.\.\(invoiceLinkToken \? \{ invoiceLinkToken \} : \{\}\)/.test(read('src/components/customer-portal/PaymentTab.tsx')));
   ok('card-update from ApprovalModal carries the order token', /setupMode: true,[\s\S]{0,200}\.\.\.\(invoiceLinkToken \? \{ invoiceLinkToken \} : \{\}\)/.test(read('src/components/customer-portal/ApprovalModal.tsx')));
-  ok('invoice setup calls from InvoiceAcceptanceView carry the invoice token', (read('src/components/customer-portal/InvoiceAcceptanceView.tsx').match(/invoiceLinkToken: invoiceLink\?\.link_token \?\? null/g) ?? []).length >= 2);
+  ok('invoice setup calls from InvoiceAcceptanceView carry the invoice token', (read('src/components/customer-portal/InvoiceAcceptanceView.tsx').match(/invoiceLinkToken: invoiceToken \?\? null/g) ?? []).length >= 2);
   ok('public booking checkout still uses bookingMode', /bookingMode: true/.test(read('src/pages/Checkout.tsx')));
   ok('crew invoice send uses the signed-in token (invoiceService)', /Bearer \$\{await getEdgeAuthToken\(\)\}/.test(read('src/lib/invoiceService.ts')));
   ok('CrewInvoiceBuilder sends through generateInvoice (the token-aware sender)', /generateInvoice/.test(read('src/components/crew/CrewInvoiceBuilder.tsx')));

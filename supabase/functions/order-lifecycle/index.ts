@@ -7,10 +7,12 @@ import {
   resolveCaller,
   isStaffAdmin,
   proveOrderAccess,
+  findValidOrderLink,
+  hasCurrentInvoiceLink,
   authFailureResponse,
   type AuthClient,
 } from "../_shared/auth.ts";
-import { deriveCustomerOutcome } from "../_shared/lifecycle-outcome.ts";
+import { evaluateCustomerConfirmation } from "../_shared/lifecycle-outcome.ts";
 import { getOrCreatePortalLink } from "../_shared/portal-link.ts";
 
 const corsHeaders = {
@@ -60,19 +62,28 @@ Deno.serve(async (req: Request) => {
     );
     const trustedCaller = caller.kind === "service" || isStaffAdmin(caller);
 
-    if (!trustedCaller) {
-      const proof = await proveOrderAccess(supabase, {
-        orderId,
-        caller,
-        token: invoiceToken,
-        sessionId,
-        accept: action === "enter_pending_review"
-          ? ["stripe_session"]
-          : ["token", "owner", "stripe_session"],
-        retrieveCheckoutSession: (id: string) => retrieveCheckoutSession(supabase, id),
-      });
+    // What kind of proof an untrusted caller holds is kept: for confirmation the lifecycle must know whether it was an
+    // invoice-type token, a portal token, the owner's session or a Stripe session (see evaluateCustomerConfirmation).
+    let customerProof: CustomerProof | null = null;
 
-      if (!proof) {
+    if (!trustedCaller) {
+      const tokenLink = action === "enter_pending_review" ? null : await findValidOrderLink(supabase, orderId, invoiceToken);
+      let kind: string | null = tokenLink ? "token" : null;
+
+      if (!kind) {
+        kind = await proveOrderAccess(supabase, {
+          orderId,
+          caller,
+          token: undefined,
+          sessionId,
+          accept: action === "enter_pending_review"
+            ? ["stripe_session"]
+            : ["owner", "stripe_session"],
+          retrieveCheckoutSession: (id: string) => retrieveCheckoutSession(supabase, id),
+        });
+      }
+
+      if (!kind) {
         console.warn(
           `[order-lifecycle] rejected: action=${action} caller=${caller.kind}${caller.kind === "user" ? ` user=${caller.userId}` : ""} reason=no_order_proof`
         );
@@ -81,6 +92,7 @@ Deno.serve(async (req: Request) => {
           corsHeaders
         );
       }
+      customerProof = { kind, linkType: tokenLink?.link_type ?? null };
     }
 
     if (action === "enter_pending_review") {
@@ -95,7 +107,7 @@ Deno.serve(async (req: Request) => {
 
     if (action === "enter_confirmed") {
       // console.log(`[order-lifecycle] enter_confirmed — orderId=${orderId} source=${source ?? "(none)"} paymentOutcome=${paymentOutcome ?? "(none)"}`);
-      const result = await enterConfirmed(supabase, orderId, source || "unknown", paymentOutcome || "already_paid", oldStatusHint || null, trustedCaller);
+      const result = await enterConfirmed(supabase, orderId, source || "unknown", paymentOutcome || "already_paid", oldStatusHint || null, trustedCaller, customerProof);
       // console.log(`[order-lifecycle] enter_confirmed result — success=${result.success} alreadySent=${result.alreadySent ?? false} error=${result.error ?? "(none)"}`);
       return new Response(JSON.stringify(result), {
         status: result.success ? 200 : 400,
@@ -234,18 +246,26 @@ async function enterPendingReview(
 // ============================================================
 // AUTHORITATIVE HANDLER B: enterConfirmed
 // ============================================================
+interface CustomerProof {
+  kind: string;
+  // link_type of the token when the proof was a token (invoice vs portal), else null
+  linkType: string | null;
+}
+
 async function enterConfirmed(
   supabase: any,
   orderId: string,
   source: string,
   requestedOutcome: string,
   oldStatusHint: string | null = null,
-  trustedCaller = false
+  trustedCaller = false,
+  customerProof: CustomerProof | null = null
 ): Promise<{ success: boolean; error?: string; alreadySent?: boolean }> {
   const { data: order, error: fetchError } = await supabase
     .from("orders")
     .select(`
-      id, status, event_date, confirmed_admin_alerted,
+      id, status, event_date, confirmed_admin_alerted, customer_approved_at,
+      stripe_customer_id, stripe_payment_method_id, stripe_payment_status, require_card_on_file,
       subtotal_cents, travel_fee_cents, surface_fee_cents,
       same_day_pickup_fee_cents, generator_fee_cents, tax_cents,
       deposit_due_cents, balance_due_cents, tip_cents,
@@ -264,11 +284,27 @@ async function enterConfirmed(
     return { success: false, error: "Order not found" };
   }
 
-  // Trusted callers (backend, signed-in admin/master) choose the outcome. Anyone else only proved control of the
-  // order, not that payment happened, so the outcome is derived from the order's own deposit state.
-  const paymentOutcome = trustedCaller
-    ? requestedOutcome
-    : deriveCustomerOutcome(requestedOutcome, order.deposit_due_cents, order.deposit_paid_cents);
+  // Trusted callers (backend, signed-in admin/master) choose the outcome. An untrusted caller only proved control of the
+  // order, which is not permission to confirm it: the confirmation must be one of the known customer pathways and the
+  // order's own stored state must satisfy that pathway's prerequisites (state, deposit collected, saved card, invoice
+  // context). The requested outcome string is never trusted; the pathway decides it.
+  let paymentOutcome: string;
+  if (trustedCaller) {
+    paymentOutcome = requestedOutcome;
+  } else {
+    // A portal token never makes an order an invoice; only an invoice-type token, or (owner / Stripe session) a current
+    // invoice link on the order does.
+    const invoiceContext =
+      customerProof?.kind === "token"
+        ? customerProof.linkType === "invoice"
+        : !!customerProof && (await hasCurrentInvoiceLink(supabase, orderId));
+    const verdict = evaluateCustomerConfirmation({ source, order, hasInvoiceContext: invoiceContext });
+    if (!verdict.ok) {
+      console.warn(`[order-lifecycle] customer confirmation refused: source=${source} reason=${verdict.reason}`);
+      return { success: false, error: "This order cannot be confirmed this way." };
+    }
+    paymentOutcome = verdict.outcome;
+  }
 
   const allowedFromStatuses = ["draft", "pending_review", "awaiting_customer_approval", "confirmed"];
 
@@ -304,8 +340,20 @@ async function enterConfirmed(
     }
   }
 
-  // Short-circuit only when the admin has already been alerted — full idempotency.
-  if (order.confirmed_admin_alerted) {
+  // A customer approving an order is stamped when the order actually reaches (or is verified in) the confirmed state,
+  // never merely because the customer chose a payment option. The customer-portal-action approval only records the
+  // selection; this is where the approval completes.
+  const isCustomerApproval = typeof source === "string" && source.startsWith("customer_approval");
+  const approvedAtPatch: Record<string, unknown> =
+    isCustomerApproval && !order.customer_approved_at ? { customer_approved_at: new Date().toISOString() } : {};
+  const alreadyAlerted = !!order.confirmed_admin_alerted;
+
+  // Fully processed before (confirmed and the admin already alerted): idempotent. A customer approval still gets its
+  // timestamp once.
+  if (alreadyAlerted && order.status === "confirmed") {
+    if (Object.keys(approvedAtPatch).length > 0) {
+      await supabase.from("orders").update(approvedAtPatch).eq("id", orderId);
+    }
     return { success: true, alreadySent: true };
   }
 
@@ -316,15 +364,19 @@ async function enterConfirmed(
   const oldStatus = (order.status === "confirmed" && oldStatusHint) ? oldStatusHint : order.status;
 
   if (order.status !== "confirmed") {
+    // The deposit guard above has already passed, so this is the one place a customer-initiated confirmation lands.
+    // An order that was confirmed before and later edited (admin already alerted once) is confirmed again here too.
     const { error: updateError } = await supabase
       .from("orders")
-      .update({ status: "confirmed" })
+      .update({ status: "confirmed", ...approvedAtPatch })
       .eq("id", orderId)
       .not("status", "in", '("cancelled","void","completed")');
 
     if (updateError) {
       return { success: false, error: `Failed to update status: ${updateError.message}` };
     }
+  } else if (Object.keys(approvedAtPatch).length > 0) {
+    await supabase.from("orders").update(approvedAtPatch).eq("id", orderId);
   }
 
   try {
@@ -339,6 +391,11 @@ async function enterConfirmed(
     });
   } catch (e) {
     console.warn("[order-lifecycle] Changelog insert failed (non-fatal):", e);
+  }
+
+  // Already alerted for an earlier confirmation: the transition above is recorded, but the admin is not alerted twice.
+  if (alreadyAlerted) {
+    return { success: true, alreadySent: true };
   }
 
   const customer = Array.isArray(order.customers) ? order.customers[0] : order.customers;

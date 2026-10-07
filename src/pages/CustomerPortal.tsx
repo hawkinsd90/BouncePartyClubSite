@@ -14,6 +14,7 @@ import { LoadingSpinner } from '../components/common/LoadingSpinner';
 import { showToast } from '../lib/notifications';
 import { trackEvent } from '../lib/siteEvents';
 import { parsePortalToken } from '../lib/portalToken';
+import { SecureAccessRequired } from '../components/customer-portal/SecureAccessRequired';
 
 export function CustomerPortal() {
   const { orderId, token } = useParams();
@@ -53,7 +54,7 @@ export function CustomerPortal() {
   const [refreshVersion, setRefreshVersion] = useState(0);
   const suppressRefreshRef = useRef(false);
 
-  const { data, loading, loadOrder } = useOrderData();
+  const { data, loading, loadOrder, accessRequired } = useOrderData();
 
   const resolvedOrderId = orderId || (data?.order?.id);
 
@@ -65,9 +66,17 @@ export function CustomerPortal() {
     return result;
   }, [orderId, invoiceToken, isInvoiceLink, loadOrder]);
 
+  // Background refresh: same secure endpoint, but silent (no spinner, no re-render when nothing changed).
+  const reloadPortalDataSilently = useCallback(async () => {
+    const result = await loadOrder(orderId, invoiceToken ?? undefined, isInvoiceLink, { silent: true });
+    if (result?.order) {
+      setRefreshVersion((v) => v + 1);
+    }
+  }, [orderId, invoiceToken, isInvoiceLink, loadOrder]);
+
   useCustomerPortalRefresh({
     orderId: resolvedOrderId,
-    reload: async () => { await reloadPortalData(); },
+    reload: reloadPortalDataSilently,
     isApprovalSuccess: approvalSuccess || approvalProcessing || invoiceProcessing,
     suppressRefreshRef,
   });
@@ -189,6 +198,10 @@ export function CustomerPortal() {
     );
   }
 
+  if (accessRequired && orderId) {
+    return <SecureAccessRequired orderId={orderId} />;
+  }
+
   if (!data?.order) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-blue-50 flex items-center justify-center p-4">
@@ -220,6 +233,7 @@ export function CustomerPortal() {
           discounts={discounts}
           customFees={customFees}
           invoiceLink={invoiceLink}
+          invoiceToken={invoiceToken}
           orderSummary={orderSummary}
           onReload={handleReload}
           onApprovalSuccess={() => setApprovalSuccess(true)}
@@ -236,6 +250,7 @@ export function CustomerPortal() {
         changelog={changelog}
         orderSummary={orderSummary}
         invoiceLinkToken={invoiceToken}
+        orderItems={orderItems}
         autoOpenApprovalModal={cardJustUpdated}
         restoredPaymentState={restoredPaymentState}
         onApprovalProcessingStart={() => setApprovalProcessing(true)}
@@ -256,7 +271,9 @@ export function CustomerPortal() {
       orderItems={orderItems}
       orderSummary={orderSummary}
       invoiceLinkToken={invoiceToken}
+      portalExtras={{ lotPictures: data.lotPictures, pictures: data.pictures, delivery: data.delivery }}
       onReload={handleReload}
+      onSilentReload={reloadPortalDataSilently}
       refreshVersion={refreshVersion}
       suppressRefreshRef={suppressRefreshRef}
     />

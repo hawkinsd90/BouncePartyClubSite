@@ -3,17 +3,20 @@ import { calculateDrivingDistance } from './pricing';
 import { HOME_BASE } from './constants';
 import { buildOrderSummaryDisplay } from './orderSummaryHelpers';
 import { formatStoredOrderItems } from './formatStoredOrderItems';
+import type { Database } from './database.types';
+
+type PricingRuleRow = Database['public']['Tables']['pricing_rules']['Row'];
 
 export { formatStoredOrderItems } from './formatStoredOrderItems';
 
-async function estimateDistanceFromFee(travelFeeCents: number): Promise<number> {
+async function estimateDistanceFromFee(travelFeeCents: number, pricing?: PricingRuleRow | null): Promise<number> {
   try {
     // console.log('[estimateDistanceFromFee] Estimating distance from fee:', travelFeeCents / 100);
 
-    const { data: pricingData } = await supabase
+    const pricingData = pricing ?? (await supabase
       .from('pricing_rules')
       .select('base_radius_miles, per_mile_after_base_cents')
-      .maybeSingle();
+      .maybeSingle()).data;
 
     if (!pricingData) {
       console.warn('[estimateDistanceFromFee] No pricing rules found, cannot estimate');
@@ -151,7 +154,7 @@ export interface OrderSummaryDisplay {
   pickupPreference: string;
 }
 
-async function calculateOriginalFees(order: any, discounts: OrderDiscount[], customFees: OrderCustomFee[]): Promise<{
+async function calculateOriginalFees(order: any, discounts: OrderDiscount[], customFees: OrderCustomFee[], pricing?: PricingRuleRow | null): Promise<{
   travel_fee_cents: number;
   surface_fee_cents: number;
   same_day_pickup_fee_cents: number;
@@ -159,10 +162,10 @@ async function calculateOriginalFees(order: any, discounts: OrderDiscount[], cus
   generator_fee_cents: number;
   tax_cents: number;
 }> {
-  const { data: pricingData } = await supabase
+  const pricingData = pricing ?? (await supabase
     .from('pricing_rules')
     .select('*')
-    .maybeSingle();
+    .maybeSingle()).data;
 
   if (!pricingData) {
     return {
@@ -229,6 +232,19 @@ async function calculateOriginalFees(order: any, discounts: OrderDiscount[], cus
   };
 }
 
+// Raw rows for one order, from whichever trusted source produced them (direct admin/owner queries, or the Customer
+// Portal's server projection). Everything the summary needs is passed in, so building it needs no table access.
+/* eslint-disable @typescript-eslint/no-explicit-any */
+export interface RawOrderSummaryInput {
+  order: any;
+  items: any[];
+  discounts: any[];
+  customFees: any[];
+  // Pricing configuration; when omitted it is read from pricing_rules as before.
+  pricing?: PricingRuleRow | null;
+}
+/* eslint-enable @typescript-eslint/no-explicit-any */
+
 export async function loadOrderSummary(orderId: string): Promise<OrderSummaryData | null> {
   try {
     const [orderRes, itemsRes, discountsRes, feesRes] = await Promise.all([
@@ -240,7 +256,30 @@ export async function loadOrderSummary(orderId: string): Promise<OrderSummaryDat
 
     if (!orderRes.data) return null;
 
-    const order = orderRes.data;
+    return await buildOrderSummaryData(
+      {
+        order: orderRes.data,
+        items: itemsRes.data || [],
+        discounts: discountsRes.data || [],
+        customFees: feesRes.data || [],
+      },
+      { persistTravelMiles: true },
+    );
+  } catch (error) {
+    console.error('Error loading order summary:', error);
+    return null;
+  }
+}
+
+// Builds the summary from already-loaded rows. persistTravelMiles keeps the old best-effort write-back of a computed
+// driving distance; the Customer Portal passes false because customers never write order rows directly.
+export async function buildOrderSummaryData(
+  input: RawOrderSummaryInput,
+  options: { persistTravelMiles?: boolean } = {},
+): Promise<OrderSummaryData | null> {
+  try {
+    const order = input.order;
+    const orderId: string = order.id;
     let travelMiles = order.travel_total_miles || 0;
 
     // If travel miles not saved and we have travel fee, calculate it in real-time
@@ -248,10 +287,10 @@ export async function loadOrderSummary(orderId: string): Promise<OrderSummaryDat
       // Strategy 1: Use stored travel_per_mile_cents if available
       if (order.travel_per_mile_cents && order.travel_per_mile_cents > 0) {
         // console.log('[OrderSummary] Estimating distance from stored per-mile rate');
-        const { data: pricingData } = await supabase
+        const pricingData = input.pricing ?? (await supabase
           .from('pricing_rules')
           .select('base_radius_miles')
-          .maybeSingle();
+          .maybeSingle()).data;
 
         const baseRadius = parseFloat(pricingData?.base_radius_miles?.toString() || '10');
         const chargeableMiles = order.travel_fee_cents / order.travel_per_mile_cents;
@@ -287,14 +326,16 @@ export async function loadOrderSummary(orderId: string): Promise<OrderSummaryDat
             // Optionally save it for next time (fire and forget, don't await)
             if (travelMiles > 0) {
               // console.log('[OrderSummary] Saving calculated distance to database');
-              supabase.from('orders').update({ travel_total_miles: travelMiles }).eq('id', orderId);
+              if (options.persistTravelMiles) {
+                supabase.from('orders').update({ travel_total_miles: travelMiles }).eq('id', orderId);
+              }
             } else {
               console.warn('[OrderSummary] Calculated distance was 0 or invalid, not saving');
             }
           } else {
             console.warn('[OrderSummary] Invalid coordinates - lat or lng is falsy', { lat, lng });
             // Strategy 3: Estimate from current pricing rules
-            travelMiles = await estimateDistanceFromFee(order.travel_fee_cents);
+            travelMiles = await estimateDistanceFromFee(order.travel_fee_cents, input.pricing);
           }
         } catch (error) {
           console.error('[OrderSummary] Error calculating travel distance on-the-fly:', error);
@@ -303,12 +344,12 @@ export async function loadOrderSummary(orderId: string): Promise<OrderSummaryDat
             stack: error instanceof Error ? error.stack : undefined,
           });
           // Strategy 3: Estimate from current pricing rules
-          travelMiles = await estimateDistanceFromFee(order.travel_fee_cents);
+          travelMiles = await estimateDistanceFromFee(order.travel_fee_cents, input.pricing);
         }
       } else {
         // Strategy 3: Estimate from current pricing rules
         // console.log('[OrderSummary] No coordinates available, estimating from fee');
-        travelMiles = await estimateDistanceFromFee(order.travel_fee_cents);
+        travelMiles = await estimateDistanceFromFee(order.travel_fee_cents, input.pricing);
       }
     } else {
       // console.log('[OrderSummary] Skipping real-time distance calculation:', {
@@ -318,12 +359,12 @@ export async function loadOrderSummary(orderId: string): Promise<OrderSummaryDat
       // });
     }
 
-    const discounts = (discountsRes.data || []) as unknown as OrderDiscount[];
-    const customFees = (feesRes.data || []) as unknown as OrderCustomFee[];
-    const originalFees = await calculateOriginalFees(order, discounts, customFees);
+    const discounts = (input.discounts || []) as unknown as OrderDiscount[];
+    const customFees = (input.customFees || []) as unknown as OrderCustomFee[];
+    const originalFees = await calculateOriginalFees(order, discounts, customFees, input.pricing);
 
     return {
-      items: (itemsRes.data || []).map(item => ({
+      items: (input.items || []).map(item => ({
         ...item,
         units: item.units || undefined,
       })) as unknown as OrderItem[],

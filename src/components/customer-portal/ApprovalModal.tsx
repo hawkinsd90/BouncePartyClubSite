@@ -11,10 +11,9 @@ import { showToast } from '../../lib/notifications';
 import { formatOrderId } from '../../lib/utils';
 import { format } from 'date-fns';
 import { formatCurrency } from '../../lib/pricing';
-import { checkMultipleUnitsAvailability } from '../../lib/availability';
+import { portalAction, PortalActionError } from '../../lib/customerPortalApi';
 import { checkEventEssentialsAvailability } from '../../lib/queries/products';
 import { enterConfirmed } from '../../lib/orderLifecycle';
-import { ORDER_STATUS } from '../../lib/constants/statuses';
 import { COMPANY_PHONE } from '../../lib/emailTemplateBase';
 
 interface ApprovalModalProps {
@@ -32,6 +31,8 @@ interface ApprovalModalProps {
   customPaymentAmount?: string;
   orderTotalCents?: number;
   invoiceLinkToken?: string | null;
+  // The order's items from the portal payload (availability checks need them; no table read).
+  orderItems?: Array<Record<string, unknown>>;
 }
 
 export function ApprovalModal({
@@ -49,6 +50,7 @@ export function ApprovalModal({
   customPaymentAmount = '',
   orderTotalCents,
   invoiceLinkToken,
+  orderItems: items = [],
 }: ApprovalModalProps) {
   const [submitting, setSubmitting] = useState(false);
   const [updatingCard, setUpdatingCard] = useState(false);
@@ -62,20 +64,34 @@ export function ApprovalModal({
     };
   }, []);
 
-  async function checkAvailability(): Promise<boolean> {
-    const { data: orderItems, error: itemsError } = await supabase
-      .from('order_items')
-      .select('unit_id, product_id, bundle_id, qty, component_snapshot')
-      .eq('order_id', order.id);
-
-    if (itemsError) {
-      showToast(
-        'Unable to verify item availability. Please try again or contact us for assistance.',
-        'error'
-      );
-      return false;
+  // Records the customer's payment selection and tip through the server. This does NOT confirm the order: the
+  // server re-checks the order is awaiting approval and the selection is possible, then stores only those inputs.
+  async function approveChanges(paymentCents: number, paymentType: string) {
+    const type = ['deposit', 'full', 'custom'].includes(paymentType) ? paymentType : 'deposit';
+    try {
+      await portalAction(order.id, invoiceLinkToken, 'approve_changes', {
+        selectedPaymentCents: paymentCents,
+        selectedPaymentType: type,
+        ...(!keepOriginalPayment && newTipCents > 0 ? { tipCents: newTipCents } : {}),
+      });
+    } catch (err) {
+      if (err instanceof PortalActionError && err.code === 'invalid_status') throw new Error('This order can no longer be approved.');
+      if (err instanceof PortalActionError && err.code === 'card_required') throw new Error('Please add a payment method before confirming.');
+      throw new Error('Failed to save your approval. Please try again.');
     }
+  }
 
+  // The confirmation itself belongs to the order-lifecycle function, which checks the payment outcome. If it refuses,
+  // the order is not confirmed and the customer must be told.
+  async function confirmThroughLifecycle(source: string, outcome: 'already_paid' | 'zero_due_with_card') {
+    const result = await enterConfirmed(order.id, source, outcome, order.status, { invoiceToken: invoiceLinkToken });
+    if (!result.success) {
+      throw new Error('We could not confirm your approval yet. Please try again or contact us.');
+    }
+  }
+
+  async function checkAvailability(): Promise<boolean> {
+    const orderItems = items;
     if (!orderItems || orderItems.length === 0) return true;
 
     const isNonBlank = (v: unknown): v is string =>
@@ -90,17 +106,20 @@ export function ApprovalModal({
       (item) => !isNonBlank(item.unit_id) && (isNonBlank(item.product_id) || isNonBlank(item.bundle_id))
     );
 
-    // 1. Inflatable availability — only rows with a real unit_id.
+    // 1. Inflatable availability: checked by the server against this order's own items and dates.
     if (inflatableItems.length > 0) {
-      const checks = inflatableItems.map((item: any) => ({
-        unitId: item.unit_id,
-        eventStartDate: order.event_date,
-        eventEndDate: order.event_end_date || order.event_date,
-        excludeOrderId: order.id,
-      }));
-      const results = await checkMultipleUnitsAvailability(checks);
-      const unavailable = results.filter((r) => !r.isAvailable);
-      if (unavailable.length > 0) {
+      let available = false;
+      try {
+        const result = await portalAction<{ available: boolean }>(order.id, invoiceLinkToken, 'check_unit_availability');
+        available = result.available === true;
+      } catch {
+        showToast(
+          'Unable to verify item availability. Please try again or contact us for assistance.',
+          'error'
+        );
+        return false;
+      }
+      if (!available) {
         showToast(
           'Sorry, one or more items in your order are no longer available for your event date. Please contact us to reschedule.',
           'error'
@@ -191,41 +210,9 @@ export function ApprovalModal({
         // Already paid — persist payment selection and confirm without charging.
         // Only write tip_cents when the customer has actively selected a positive tip.
         // Do not overwrite an existing stored tip with 0 through this flow.
-        if (invoiceLinkToken) {
-          const { data: rpcResult, error: rpcError } = await supabase.rpc('approve_order_changes', {
-            p_order_id: order.id,
-            p_token: invoiceLinkToken,
-            p_customer_selected_payment_cents: selectedPaymentBaseCents,
-            p_customer_selected_payment_type: resolvedPaymentType,
-            p_tip_cents: (!keepOriginalPayment && newTipCents > 0) ? newTipCents : null,
-            p_confirm_status: true,
-          });
-          if (rpcError || !rpcResult?.success) {
-            throw new Error(rpcError?.message || rpcResult?.error || 'Failed to update order status');
-          }
-        } else {
-          const updatePayload: Record<string, unknown> = {
-            customer_selected_payment_cents: selectedPaymentBaseCents,
-            customer_selected_payment_type: resolvedPaymentType,
-            status: ORDER_STATUS.CONFIRMED,
-          };
-          if (!keepOriginalPayment && newTipCents > 0) {
-            updatePayload.tip_cents = newTipCents;
-          }
-          const { error: statusError } = await supabase
-            .from('orders')
-            .update(updatePayload)
-            .eq('id', order.id);
-          if (statusError) {
-            throw new Error(statusError.message || 'Failed to update order status');
-          }
-        }
+        await approveChanges(selectedPaymentBaseCents, resolvedPaymentType);
 
-        try {
-          await enterConfirmed(order.id, 'customer_approval_already_paid', 'already_paid', order.status, { invoiceToken: invoiceLinkToken });
-        } catch (lifecycleErr) {
-          console.error('[ApprovalModal] enterConfirmed (already-paid) failed (non-fatal):', lifecycleErr);
-        }
+        await confirmThroughLifecycle('customer_approval_already_paid', 'already_paid');
 
         showToast(
           'Order approved successfully! Any changes will be added to your final balance.',
@@ -246,46 +233,13 @@ export function ApprovalModal({
 
         // Tip deferred: store tip_cents on the order so it can be collected at
         // final payment. UI already explains "tip collected at your event".
-        if (invoiceLinkToken) {
-          const { data: rpcResult, error: rpcError } = await supabase.rpc('approve_order_changes', {
-            p_order_id: order.id,
-            p_token: invoiceLinkToken,
-            p_customer_selected_payment_cents: 0,
-            p_customer_selected_payment_type: resolvedPaymentType,
-            p_tip_cents: (!keepOriginalPayment && newTipCents > 0) ? newTipCents : null,
-            p_confirm_status: true,
-          });
-          if (rpcError || !rpcResult?.success) {
-            throw new Error(rpcError?.message || rpcResult?.error || 'Failed to confirm order');
-          }
-        } else {
-          const updatePayload: Record<string, unknown> = {
-            customer_selected_payment_cents: 0,
-            customer_selected_payment_type: resolvedPaymentType,
-            status: ORDER_STATUS.CONFIRMED,
-          };
-          if (!keepOriginalPayment && newTipCents > 0) {
-            updatePayload.tip_cents = newTipCents;
-          }
-          const { error: zeroDepositError } = await supabase
-            .from('orders')
-            .update(updatePayload)
-            .eq('id', order.id);
-          if (zeroDepositError) {
-            throw new Error(zeroDepositError.message || 'Failed to confirm order');
-          }
-        }
+        await approveChanges(0, resolvedPaymentType);
+        await confirmThroughLifecycle('customer_approval_zero_deposit', 'zero_due_with_card');
 
         // Send confirmation notification via edge function (fire-and-forget — non-fatal)
         try {
-          const { data: fullOrder } = await supabase
-            .from('orders')
-            .select('*, customers(*), addresses(*)')
-            .eq('id', order.id)
-            .maybeSingle();
-
-          const customer = fullOrder?.customers as any;
-          const address = fullOrder?.addresses as any;
+          const customer = order.customers as any;
+          const address = order.addresses as any;
 
           if (customer?.email) {
             const firstName = customer.first_name || 'Customer';
@@ -336,12 +290,6 @@ export function ApprovalModal({
           }
         } catch (notifyErr) {
           console.error('Zero-deposit confirmation notification failed (non-fatal):', notifyErr);
-        }
-
-        try {
-          await enterConfirmed(order.id, 'customer_approval_zero_deposit', 'zero_due_with_card', order.status, { invoiceToken: invoiceLinkToken });
-        } catch (lifecycleErr) {
-          console.error('[ApprovalModal] enterConfirmed (zero-deposit) failed (non-fatal):', lifecycleErr);
         }
 
         showToast(
@@ -466,7 +414,7 @@ export function ApprovalModal({
     order.stripe_payment_status === 'paid' ||
     (order.deposit_paid_cents || 0) > 0;
 
-  const hasValidCardOnFile = !!(order.stripe_customer_id && order.stripe_payment_method_id);
+  const hasValidCardOnFile = !!order.has_saved_card;
 
   if (!isOpen) return null;
 
@@ -519,7 +467,7 @@ export function ApprovalModal({
             </div>
           </div>
 
-          {(order.stripe_payment_method_id || paymentMethodText) && (
+          {(order.has_saved_card || paymentMethodText) && (
             <div className="mb-3 p-3 bg-blue-50 border border-blue-200 rounded-lg">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2 flex-1 min-w-0">

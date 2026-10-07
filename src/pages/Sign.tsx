@@ -1,9 +1,9 @@
 import { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { FileCheck, AlertCircle, Loader2 } from 'lucide-react';
-import { supabase } from '../lib/supabase';
+import { fetchPortalData, PortalAccessError } from '../lib/customerPortalApi';
 import { trackEvent } from '../lib/siteEvents';
-import { portalPathForCurrentVisitor } from '../lib/portalToken';
+import { portalPathForCurrentVisitor, readPortalToken } from '../lib/portalToken';
 import SignaturePad from '../components/waiver/SignaturePad';
 import WaiverViewer, { sectionInitialId, WaiverViewerHandle } from '../components/waiver/WaiverViewer';
 import {
@@ -36,7 +36,7 @@ interface OrderData {
     zip: string;
   };
   waiver_signed_at: string | null;
-  signed_waiver_url: string | null;
+  has_signed_waiver_document: boolean;
 }
 
 export default function Sign() {
@@ -112,29 +112,16 @@ export default function Sign() {
       setLoading(true);
       setError(null);
 
-      const { data, error: orderError } = await supabase
-        .from('orders')
-        .select(`
-          id,
-          customer_id,
-          event_date,
-          event_end_date,
-          waiver_signed_at,
-          signed_waiver_url,
-          parks_acknowledgment_required,
-          parks_acknowledgment_county,
-          customer:customers(*),
-          address:addresses(*)
-        `)
-        .eq('id', orderId!)
-        .single();
+      // Secure read: the server proves this visitor holds a token for (or owns) this order.
+      const { data: portal } = await fetchPortalData(orderId!, readPortalToken(), { sections: ['core'] });
+      if (!portal.order) throw new Error('Order not found');
+      const orderData = {
+        ...portal.order,
+        customer: portal.order.customers,
+        address: portal.order.addresses,
+      } as any;
 
-      if (orderError) throw orderError;
-      if (!data) throw new Error('Order not found');
-
-      const orderData = data as any;
-
-      if (orderData.waiver_signed_at && orderData.signed_waiver_url) {
+      if (orderData.waiver_signed_at && orderData.has_signed_waiver_document) {
         setError('This waiver has already been signed.');
       }
 
@@ -161,7 +148,7 @@ export default function Sign() {
       }
     } catch (err: any) {
       console.error('Error loading order:', err);
-      setError(err.message || 'Failed to load order');
+      setError(err instanceof PortalAccessError ? 'Secure access is required to sign this waiver. Open it from your secure order link.' : (err.message || 'Failed to load order'));
     } finally {
       setLoading(false);
     }

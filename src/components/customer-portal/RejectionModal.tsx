@@ -1,17 +1,17 @@
 import { useState, useEffect, useRef } from 'react';
-import { supabase } from '../../lib/supabase';
+import { portalAction } from '../../lib/customerPortalApi';
 import { showToast } from '../../lib/notifications';
-import { ORDER_STATUS } from '../../lib/constants/statuses';
 import { useBusinessSettings } from '../../contexts/BusinessContext';
 
 interface RejectionModalProps {
   isOpen: boolean;
   onClose: () => void;
   order: any;
+  invoiceLinkToken?: string | null;
   onSuccess: () => void;
 }
 
-export function RejectionModal({ isOpen, onClose, order, onSuccess }: RejectionModalProps) {
+export function RejectionModal({ isOpen, onClose, order, invoiceLinkToken, onSuccess }: RejectionModalProps) {
   const [confirmName, setConfirmName] = useState('');
   const [reason, setReason] = useState('');
   const [submitting, setSubmitting] = useState(false);
@@ -40,29 +40,8 @@ export function RejectionModal({ isOpen, onClose, order, onSuccess }: RejectionM
     try {
       const cancellationReason = reason.trim() || null;
 
-      const { error: updateError } = await supabase
-        .from('orders')
-        .update({
-          status: ORDER_STATUS.CANCELLED,
-          cancellation_reason: cancellationReason,
-        })
-        .eq('id', order.id);
-
-      if (updateError) throw updateError;
-
-      const { error: logError } = await supabase.from('order_changelog').insert({
-        order_id: order.id,
-        user_id: null,
-        changed_by: null,
-        notes: null,
-        change_type: 'status_change',
-        field_name: 'status',
-        field_changed: 'status',
-        old_value: order.status,
-        new_value: cancellationReason ? `cancelled - ${cancellationReason}` : 'cancelled',
-      });
-
-      if (logError) console.error('Error logging rejection:', logError);
+      // Server-authorized: the order must be awaiting approval; the server cancels it and logs the change.
+      await portalAction(order.id, invoiceLinkToken, 'reject_changes', { reason: cancellationReason });
 
       showToast('Order has been cancelled.', 'success');
 

@@ -2,12 +2,13 @@ import { useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { format } from 'date-fns';
 import { AlertCircle, Printer } from 'lucide-react';
-import { supabase } from '../lib/supabase';
+import { fetchPortalData, PortalAccessError } from '../lib/customerPortalApi';
+import { readPortalToken } from '../lib/portalToken';
 import { formatCurrency } from '../lib/pricing';
 import { formatOrderId } from '../lib/utils';
 import { OrderSummary } from '../components/order/OrderSummary';
 import type { OrderSummaryDisplay } from '../lib/orderSummary';
-import { loadOrderSummary, formatOrderSummary } from '../lib/orderSummary';
+import { buildOrderSummaryData, formatOrderSummary } from '../lib/orderSummary';
 import { formatTime } from '../lib/orderUtils';
 import { LoadingSpinner } from '../components/common/LoadingSpinner';
 
@@ -28,29 +29,27 @@ export function Receipt() {
       setLoading(true);
       setError(null);
 
-      const { data: orderData, error: orderError } = await supabase
-        .from('orders')
-        .select('*, customers(*), addresses(*)')
-        .eq('id', orderId!)
-        .single();
-
-      if (orderError) throw orderError;
+      // One secure read: the server proves this visitor holds a token for (or owns) this order and returns the order,
+      // the requested payment and the rows the summary needs.
+      const { data: portal } = await fetchPortalData(orderId!, readPortalToken(), {
+        sections: ['core', 'summary', 'payment'],
+        paymentId: paymentId!,
+      });
+      const orderData = portal.order;
+      const paymentData = portal.payment;
       if (!orderData) throw new Error('Order not found');
-
-      const { data: paymentData, error: paymentError } = await supabase
-        .from('payments')
-        .select('*')
-        .eq('id', paymentId!)
-        .eq('order_id', orderId!)
-        .single();
-
-      if (paymentError) throw paymentError;
       if (!paymentData) throw new Error('Payment not found');
 
-      // Use the shared loadOrderSummary which queries order_items with
-      // all EE fields (product_id, bundle_id, item_name, component_snapshot,
-      // pricing_context) and formats them via formatOrderSummary.
-      const summaryData = await loadOrderSummary(orderId!);
+      const summaryData = await buildOrderSummaryData(
+        {
+          order: orderData,
+          items: portal.orderItems ?? [],
+          discounts: portal.discounts ?? [],
+          customFees: portal.customFees ?? [],
+          pricing: portal.pricing ?? null,
+        },
+        { persistTravelMiles: false },
+      );
 
       if (!summaryData) throw new Error('Failed to load order summary');
 
@@ -59,7 +58,7 @@ export function Receipt() {
       setSummary(formatOrderSummary(summaryData));
     } catch (err: any) {
       console.error('Error loading receipt:', err);
-      setError(err.message || 'Failed to load receipt');
+      setError(err instanceof PortalAccessError ? 'Secure access is required to view this receipt. Open it from your secure order link.' : (err.message || 'Failed to load receipt'));
     } finally {
       setLoading(false);
     }

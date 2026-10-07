@@ -155,7 +155,7 @@ export function PaymentTab({ orderId, order, balanceDue, orderSummary, onPayment
     : null;
   const cardLast4: string | null = order.payment_method_last_four || recentPayment?.payment_last4 || null;
   const cardBrand: string | null = order.payment_method_brand || recentPayment?.payment_brand || null;
-  const canChargeSavedCard = !!(order.stripe_customer_id && order.stripe_payment_method_id);
+  const canChargeSavedCard = !!order.has_saved_card;
   const isDisabled = totalDueNow <= 0 || loading;
 
   // The already-paid amount is deposit + balance_paid (both stored without tip)

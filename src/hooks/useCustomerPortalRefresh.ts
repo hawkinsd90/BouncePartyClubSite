@@ -1,5 +1,5 @@
 import { useEffect, useRef, useCallback } from 'react';
-import { supabase } from '../lib/supabase';
+import { browserRefreshEnv, createPortalRefreshController, PortalRefreshController } from '../lib/portalRefreshController';
 
 interface UseCustomerPortalRefreshOptions {
   orderId: string | undefined;
@@ -8,9 +8,8 @@ interface UseCustomerPortalRefreshOptions {
   suppressRefreshRef?: React.MutableRefObject<boolean>;
 }
 
-const DEBOUNCE_MS = 800;
-const DEDUP_WINDOW_MS = 3_000;
-
+// Keeps the open portal current without any direct table or Realtime access: see lib/portalRefreshController.ts. The
+// reload it triggers goes through the secure customer-portal-data endpoint.
 export function useCustomerPortalRefresh({
   orderId,
   reload,
@@ -19,85 +18,28 @@ export function useCustomerPortalRefresh({
 }: UseCustomerPortalRefreshOptions) {
   const reloadRef = useRef(reload);
   reloadRef.current = reload;
-
-  const isReloadingRef = useRef(false);
-  const pendingRefreshRef = useRef(false);
   const approvalSuccessRef = useRef(isApprovalSuccess);
   approvalSuccessRef.current = isApprovalSuccess;
-  const lastReloadAtRef = useRef(0);
-
-  const doReload = useCallback(async () => {
-    if (approvalSuccessRef.current) return;
-    if (suppressRefreshRef?.current) return;
-
-    const now = Date.now();
-    if (now - lastReloadAtRef.current < DEDUP_WINDOW_MS) return;
-
-    if (isReloadingRef.current) {
-      pendingRefreshRef.current = true;
-      return;
-    }
-    isReloadingRef.current = true;
-    pendingRefreshRef.current = false;
-    lastReloadAtRef.current = Date.now();
-    try {
-      await reloadRef.current();
-    } catch (err) {
-      console.error('[useCustomerPortalRefresh] reload failed:', err);
-    } finally {
-      isReloadingRef.current = false;
-      if (pendingRefreshRef.current) {
-        pendingRefreshRef.current = false;
-        doReload();
-      }
-    }
-  }, [suppressRefreshRef]);
+  const controllerRef = useRef<PortalRefreshController | null>(null);
 
   useEffect(() => {
     if (!orderId) return;
-
-    let debounceTimer: ReturnType<typeof setTimeout> | null = null;
-
-    const debouncedReload = () => {
-      if (suppressRefreshRef?.current) return;
-      if (debounceTimer) clearTimeout(debounceTimer);
-      debounceTimer = setTimeout(() => doReload(), DEBOUNCE_MS);
-    };
-
-    // Subscribe to realtime postgres changes for this order only.
-    // Deduplicate bursts into one debounced background refresh.
-    const channel = supabase
-      .channel(`portal-order-${orderId}`)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'orders', filter: `id=eq.${orderId}` }, debouncedReload)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'order_items', filter: `order_id=eq.${orderId}` }, debouncedReload)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'payments', filter: `order_id=eq.${orderId}` }, debouncedReload)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'order_lot_pictures', filter: `order_id=eq.${orderId}` }, debouncedReload)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'order_pictures', filter: `order_id=eq.${orderId}` }, debouncedReload)
-      .subscribe();
-
-    // Conservative fallback: only refresh when the tab becomes visible after
-    // being hidden for at least 30 seconds. This avoids rapid refresh loops.
-    let hiddenAt: number | null = null;
-    const handleVisibilityChange = () => {
-      if (document.visibilityState === 'hidden') {
-        hiddenAt = Date.now();
-      } else if (document.visibilityState === 'visible' && hiddenAt !== null) {
-        const hiddenDuration = Date.now() - hiddenAt;
-        hiddenAt = null;
-        if (hiddenDuration >= 30_000 && !approvalSuccessRef.current) {
-          doReload();
-        }
-      }
-    };
-
-    document.addEventListener('visibilitychange', handleVisibilityChange);
-
+    const controller = createPortalRefreshController({
+      reload: () => reloadRef.current(),
+      isSuppressed: () => approvalSuccessRef.current || !!suppressRefreshRef?.current,
+      env: browserRefreshEnv(),
+    });
+    controllerRef.current = controller;
+    controller.start();
     return () => {
-      if (debounceTimer) clearTimeout(debounceTimer);
-      document.removeEventListener('visibilitychange', handleVisibilityChange);
-      supabase.removeChannel(channel);
+      controller.stop();
+      controllerRef.current = null;
     };
-  }, [orderId, doReload, suppressRefreshRef]);
+  }, [orderId, suppressRefreshRef]);
+
+  const doReload = useCallback(async () => {
+    await controllerRef.current?.refreshNow();
+  }, []);
 
   return { doReload };
 }

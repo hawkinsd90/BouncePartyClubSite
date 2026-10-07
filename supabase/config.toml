@@ -123,3 +123,9 @@ verify_jwt = false
 
 [functions.request-portal-link]
 verify_jwt = false
+
+[functions.customer-portal-data]
+verify_jwt = false
+
+[functions.customer-portal-action]
+verify_jwt = false

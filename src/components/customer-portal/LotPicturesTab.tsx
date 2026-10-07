@@ -1,8 +1,8 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useRef } from 'react';
 import { Upload, Image as ImageIcon, CheckCircle, X, Maximize, Trash2 } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { notifyError, notifySuccess } from '../../lib/notifications';
-import { formatOrderId } from '../../lib/utils';
+import { portalAction } from '../../lib/customerPortalApi';
 import { SimpleConfirmModal } from '../common/SimpleConfirmModal';
 import { ORDER_STATUS } from '../../lib/constants/statuses';
 
@@ -10,95 +10,14 @@ interface LotPicturesTabProps {
   orderId: string;
   orderNumber: string;
   orderStatus?: string;
+  // Current lot pictures from the secure portal payload (customer-portal-data).
+  pictures: LotPicture[];
+  // Portal/invoice token (the server also accepts the signed-in owner).
+  invoiceLinkToken?: string | null;
+  // Refetch the portal payload after a change.
+  onChanged: () => Promise<void> | void;
   onUploadComplete?: () => void;
   suppressRefreshRef?: React.MutableRefObject<boolean>;
-}
-
-async function notifyAdminOfPictureUpload(orderId: string, pictureCount: number) {
-  try {
-    // Get order details
-    const { data: order } = await (supabase
-      .from('orders')
-      .select('*, customers(first_name, last_name, email), addresses(line1, city, state)')
-      .eq('id', orderId)
-      .single() as any);
-
-    if (!order) return;
-
-    // Only notify if admin requested lot pictures
-    if (!order.lot_pictures_requested) {
-      // console.log('Lot pictures uploaded but not requested by admin, skipping notification');
-      return;
-    }
-
-    const customerName = `${order.customers?.first_name || ''} ${order.customers?.last_name || ''}`.trim();
-    const formattedOrderId = formatOrderId(orderId);
-    const portalLink = `${window.location.origin}/admin?tab=pending`;
-
-    // Send SMS notification
-    try {
-      await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/send-sms-notification`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          orderId,
-          templateKey: 'lot_pictures_uploaded_admin',
-        }),
-      });
-    } catch (smsError) {
-      console.error('Failed to send SMS notification:', smsError);
-    }
-
-    // Send email notification
-    try {
-      const emailSubject = `Lot Pictures Uploaded - Order ${formattedOrderId}`;
-      const emailBody = `
-        <h2>Lot Pictures Uploaded</h2>
-        <p><strong>${customerName}</strong> has uploaded <strong>${pictureCount}</strong> picture${pictureCount > 1 ? 's' : ''} of the event location.</p>
-
-        <p><strong>Order Details:</strong></p>
-        <ul>
-          <li>Order ID: ${formattedOrderId}</li>
-          <li>Customer: ${customerName}</li>
-          <li>Event Date: ${order.event_date}</li>
-          <li>Location: ${order.addresses?.line1}, ${order.addresses?.city}, ${order.addresses?.state}</li>
-        </ul>
-
-        <p><a href="${portalLink}" style="display: inline-block; padding: 12px 24px; background-color: #2563eb; color: white; text-decoration: none; border-radius: 6px; margin-top: 16px;">View Order</a></p>
-      `;
-
-      // Get admin email
-      const { data: adminEmailSetting } = await supabase
-        .from('admin_settings')
-        .select('value')
-        .eq('key', 'admin_email')
-        .maybeSingle();
-
-      const adminEmail = adminEmailSetting?.value;
-
-      if (adminEmail) {
-        await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/send-email`, {
-          method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            to: adminEmail,
-            subject: emailSubject,
-            html: emailBody,
-          }),
-        });
-      }
-    } catch (emailError) {
-      console.error('Failed to send email notification:', emailError);
-    }
-  } catch (error) {
-    console.error('Error notifying admin:', error);
-  }
 }
 
 interface LotPicture {
@@ -109,9 +28,7 @@ interface LotPicture {
   uploaded_at: string;
 }
 
-export function LotPicturesTab({ orderId, orderStatus, onUploadComplete, suppressRefreshRef }: LotPicturesTabProps) {
-  const [pictures, setPictures] = useState<LotPicture[]>([]);
-  const [loading, setLoading] = useState(true);
+export function LotPicturesTab({ orderId, orderStatus, pictures, invoiceLinkToken, onChanged, onUploadComplete, suppressRefreshRef }: LotPicturesTabProps) {
   const [uploading, setUploading] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
   const [selectedPicture, setSelectedPicture] = useState<LotPicture | null>(null);
@@ -121,29 +38,6 @@ export function LotPicturesTab({ orderId, orderStatus, onUploadComplete, suppres
 
   // Can only delete if order is in pending_review or awaiting_customer_approval
   const canDelete = [ORDER_STATUS.PENDING, ORDER_STATUS.AWAITING_CUSTOMER_APPROVAL].includes(orderStatus as any || '');
-
-  useEffect(() => {
-    loadPictures();
-  }, [orderId]);
-
-  const loadPictures = async () => {
-    if (uploadingRef.current) return;
-    try {
-      const { data, error } = await supabase
-        .from('order_lot_pictures' as any)
-        .select('*')
-        .eq('order_id', orderId)
-        .order('uploaded_at', { ascending: false });
-
-      if (error) throw error;
-      setPictures((data as any) || []);
-    } catch (error: any) {
-      console.error('Error loading lot pictures:', error);
-      notifyError('Failed to load pictures');
-    } finally {
-      setLoading(false);
-    }
-  };
 
   const handleFileSelect = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const files = event.target.files;
@@ -163,62 +57,55 @@ export function LotPicturesTab({ orderId, orderStatus, onUploadComplete, suppres
     setUploadError(null);
 
     try {
-      const uploadPromises = Array.from(files).map(async (file) => {
-        // Validate file type
-        if (!file.type.startsWith('image/')) {
-          throw new Error(`${file.name} is not an image file`);
+      const uploaded: Array<{ path: string; name: string }> = [];
+      try {
+        for (const file of Array.from(files)) {
+          // Validate file type
+          if (!file.type.startsWith('image/')) {
+            throw new Error(`${file.name} is not an image file`);
+          }
+
+          // Validate file size (10MB max)
+          if (file.size > 10 * 1024 * 1024) {
+            throw new Error(`${file.name} is too large (max 10MB)`);
+          }
+
+          // Create unique file name
+          const fileExt = file.name.split('.').pop();
+          const fileName = `${orderId}/${Date.now()}-${Math.random().toString(36).substring(7)}.${fileExt}`;
+
+          // Upload to storage (storage access is a separate, later hardening step)
+          const { error: storageUploadError } = await supabase.storage
+            .from('lot-pictures')
+            .upload(fileName, file, {
+              cacheControl: '3600',
+              upsert: false,
+            });
+
+          if (storageUploadError) {
+            console.error('[LotPicturesTab] Storage upload error:', storageUploadError.message);
+            throw new Error(`Storage upload failed: ${storageUploadError.message}`);
+          }
+          uploaded.push({ path: fileName, name: file.name });
         }
 
-        // Validate file size (10MB max)
-        if (file.size > 10 * 1024 * 1024) {
-          throw new Error(`${file.name} is too large (max 10MB)`);
+        // The server records the pictures for this order and tells the admin when they were requested.
+        await portalAction(orderId, invoiceLinkToken, 'register_lot_pictures', { files: uploaded });
+      } catch (uploadError) {
+        // Do not leave orphaned files behind if the record could not be saved.
+        if (uploaded.length > 0) {
+          await supabase.storage.from('lot-pictures').remove(uploaded.map((u) => u.path));
         }
+        throw uploadError;
+      }
 
-        // Create unique file name
-        const fileExt = file.name.split('.').pop();
-        const fileName = `${orderId}/${Date.now()}-${Math.random().toString(36).substring(7)}.${fileExt}`;
-
-        // Upload to storage
-        const { error: storageUploadError } = await supabase.storage
-          .from('lot-pictures')
-          .upload(fileName, file, {
-            cacheControl: '3600',
-            upsert: false,
-          });
-
-        if (storageUploadError) {
-          console.error('[LotPicturesTab] Storage upload error:', storageUploadError);
-          throw new Error(`Storage upload failed: ${storageUploadError.message}`);
-        }
-
-        // Save record to database
-        const { error: dbError } = await supabase
-          .from('order_lot_pictures' as any)
-          .insert({
-            order_id: orderId,
-            file_path: fileName,
-            file_name: file.name,
-          });
-
-        if (dbError) {
-          console.error('[LotPicturesTab] Database insert error:', dbError);
-          // Clean up uploaded file if database insert fails
-          await supabase.storage.from('lot-pictures').remove([fileName]);
-          throw new Error(`Database save failed: ${dbError.message}`);
-        }
-      });
-
-      await Promise.all(uploadPromises);
       notifySuccess(`Successfully uploaded ${files.length} picture${files.length > 1 ? 's' : ''}`);
 
-      // Release the upload guard so loadPictures can proceed, then reload
+      // Release the upload guard, then refetch the portal payload
       // the local list and update the parent completion indicator before
       // releasing the realtime-suppression ref.
       uploadingRef.current = false;
-      await loadPictures();
-
-      // Notify admin about the upload
-      await notifyAdminOfPictureUpload(orderId, files.length);
+      await onChanged();
 
       // Notify parent to refresh status indicator
       if (onUploadComplete) {
@@ -260,26 +147,10 @@ export function LotPicturesTab({ orderId, orderStatus, onUploadComplete, suppres
 
     setDeleting(pictureToDelete.id);
     try {
-      // Delete from storage first
-      const { error: storageError } = await supabase.storage
-        .from('lot-pictures')
-        .remove([pictureToDelete.file_path]);
-
-      if (storageError) {
-        console.error('Storage delete error:', storageError);
-        throw new Error('Failed to delete file from storage');
-      }
-
-      // Delete from database
-      const { error: dbError } = await supabase
-        .from('order_lot_pictures' as any)
-        .delete()
-        .eq('id', pictureToDelete.id);
-
-      if (dbError) throw dbError;
+      await portalAction(orderId, invoiceLinkToken, 'delete_lot_picture', { pictureId: pictureToDelete.id });
 
       notifySuccess('Picture deleted successfully');
-      await loadPictures();
+      await onChanged();
 
       // Close modal if this was the selected picture
       if (selectedPicture?.id === pictureToDelete.id) {
@@ -293,14 +164,6 @@ export function LotPicturesTab({ orderId, orderStatus, onUploadComplete, suppres
       setPictureToDelete(null);
     }
   };
-
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center py-12">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
-      </div>
-    );
-  }
 
   return (
     <div className="space-y-6">
