@@ -10,8 +10,8 @@ import { useQuotePricing } from '../hooks/useQuotePricing';
 import { useQuotePrefill } from '../hooks/useQuotePrefill';
 import { useDataFetch } from '../hooks/useDataFetch';
 import { checkDateBlackout } from '../lib/availability';
-import { validateQuote } from '../lib/quoteValidation';
-import { validateCartPackageSnapshots } from '../lib/packageDisplay';
+import { evaluateQuoteSubmitGate, evaluateAvailabilityRecheck } from '../lib/quoteSubmitGate';
+import type { QuoteSubmitGateFailure } from '../lib/quoteSubmitGate';
 import { composeUnifiedQuoteTotals } from '../lib/unifiedTotals';
 import {
   parseBookingDepositSettings,
@@ -407,206 +407,62 @@ export function Quote() {
     }
   };
 
+  // Applies a failure returned by the pure submit gate: show the banner and toast (synchronously, inside the
+  // user gesture), record debug info where the gate asks for it, then scroll to the field or section.
+  const applyGateFailure = (failure: QuoteSubmitGateFailure) => {
+    // Use flushSync to update state synchronously within user gesture
+    // This ensures scroll happens in the same event loop tick
+    flushSync(() => {
+      setValidationError(failure.message);
+      setValidationErrorFieldId(failure.fieldId);
+      setShowBottomToast(true);
+
+      if (debugMode && failure.debugSection !== undefined) {
+        setDebugInfo({
+          timestamp: new Date().toISOString(),
+          validationFailed: true,
+          errorSection: failure.debugSection,
+          scrollAttempted: false,
+          refFound: false,
+          scrollTop: null,
+          elementTop: null,
+        });
+      }
+    });
+
+    // NO AUTO-DISMISS - user must fix error or manually dismiss
+    if (failure.scroll?.kind === 'field') {
+      scrollToField(failure.scroll.id);
+    } else if (failure.scroll?.kind === 'section') {
+      scrollToSection(failure.scroll.section);
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     e.stopPropagation();
 
-    const validation = validateQuote(cart, formData);
-    if (!validation.isValid) {
-      const errorMessage = validation.errorMessage || 'Please fix the errors below';
-
-      // Use flushSync to update state synchronously within user gesture
-      // This ensures scroll happens in the same event loop tick
-      flushSync(() => {
-        setValidationError(errorMessage);
-        setValidationErrorFieldId(validation.errorFieldId || null);
-        setShowBottomToast(true);
-
-        if (debugMode) {
-          setDebugInfo({
-            timestamp: new Date().toISOString(),
-            validationFailed: true,
-            errorSection: validation.errorSection || null,
-            scrollAttempted: false,
-            refFound: false,
-            scrollTop: null,
-            elementTop: null,
-          });
-        }
-      });
-
-      // Scroll to exact field if errorFieldId is provided, otherwise scroll to section
-      if (validation.errorFieldId) {
-        scrollToField(validation.errorFieldId);
-      } else if (validation.errorSection) {
-        scrollToSection(validation.errorSection);
-      }
-
-      // NO AUTO-DISMISS - user must fix error or manually dismiss
-
+    const gate = evaluateQuoteSubmitGate({
+      cart,
+      formData,
+      dateChangeAvailabilityError,
+      eventEssentialsRepricing,
+      legacyConversionNeeded: generatorCheckbox.legacyConversionNeeded,
+      pricingRulesLoading,
+      pricingRulesError,
+      pricingRules,
+      priceBreakdown,
+    });
+    if (!gate.ok) {
+      applyGateFailure(gate);
       return;
-    }
-
-    // Block checkout when date-change availability check found unavailable items
-    if (dateChangeAvailabilityError) {
-      flushSync(() => {
-        setValidationError(dateChangeAvailabilityError);
-        setValidationErrorFieldId(null);
-        setShowBottomToast(true);
-      });
-      scrollToSection('cart');
-      return;
-    }
-
-    // Stage E3 — Block checkout while Event Essential validation is pending.
-    if (eventEssentialsRepricing.validationPending) {
-      flushSync(() => {
-        setValidationError('Please wait while your Event Essential items are being verified.');
-        setValidationErrorFieldId(null);
-        setShowBottomToast(true);
-      });
-      scrollToSection('cart');
-      return;
-    }
-
-    // Stage E3 — Block checkout when Event Essential configuration failed.
-    if (eventEssentialsRepricing.validationFailed) {
-      flushSync(() => {
-        setValidationError('Unable to verify your Event Essential items. Please try again.');
-        setValidationErrorFieldId(null);
-        setShowBottomToast(true);
-      });
-      scrollToSection('cart');
-      return;
-    }
-
-    // Stage E3 — Block checkout when Event Essential items have blocking issues.
-    if (eventEssentialsRepricing.hasBlockingIssues) {
-      flushSync(() => {
-        setValidationError('Please resolve the unavailable Event Essential items before continuing.');
-        setValidationErrorFieldId(null);
-        setShowBottomToast(true);
-      });
-      scrollToSection('cart');
-      return;
-    }
-
-    // Stage E4 — Generator unification: no conflict guard needed.
-    // The unified checkbox controls the EE Generator product directly.
-    // Legacy browser-storage conversion is handled by useGeneratorCheckbox.
-    if (generatorCheckbox.legacyConversionNeeded) {
-      flushSync(() => {
-        setValidationError('Your saved Generator selection needs to be reviewed before continuing.');
-        setValidationErrorFieldId(null);
-        setShowBottomToast(true);
-      });
-      scrollToSection('setup');
-      return;
-    }
-
-    // Stage E4 — Validate package snapshots before navigating to Checkout.
-    const packageValidation = validateCartPackageSnapshots(cart as any[]);
-    if (!packageValidation.ok) {
-      flushSync(() => {
-        setValidationError('Package details could not be verified. Please remove and re-add the package or contact us.');
-        setValidationErrorFieldId(null);
-        setShowBottomToast(true);
-      });
-      scrollToSection('cart');
-      return;
-    }
-
-    // Stage E4 — Block checkout while pricing settings are loading or failed.
-    if (pricingRulesLoading) {
-      flushSync(() => {
-        setValidationError('Loading pricing configuration. Please wait a moment and try again.');
-        setValidationErrorFieldId(null);
-        setShowBottomToast(true);
-      });
-      return;
-    }
-
-    if (pricingRulesError || !pricingRules) {
-      flushSync(() => {
-        setValidationError('Unable to load pricing configuration. Please refresh the page or contact us for assistance.');
-        setValidationErrorFieldId(null);
-        setShowBottomToast(true);
-      });
-      return;
-    }
-
-    // Stage E4 — Block checkout on deposit calculation failure.
-    if (priceBreakdown && pricingRules) {
-      const parsedSettings = parseBookingDepositSettings(pricingRules);
-      if (parsedSettings.status !== 'ready') {
-        flushSync(() => {
-          setValidationError(`Unable to calculate deposit: ${parsedSettings.error} Please contact us for assistance.`);
-          setValidationErrorFieldId(null);
-          setShowBottomToast(true);
-        });
-        return;
-      }
-      const preTotals = composeUnifiedQuoteTotals({
-        inflatableBreakdown: priceBreakdown,
-        cart,
-        taxApplied: priceBreakdown.tax_applied ?? true,
-        eeOnlyDepositSettings: parsedSettings.eventEssentialsDepositSettings,
-        inflatableDepositPerUnitCents: parsedSettings.inflatableDepositPerUnitCents,
-        setupMinimumCents: pricingRules.event_essentials_setup_minimum_cents ?? 15000,
-      });
-      if (preTotals.depositError) {
-        flushSync(() => {
-          setValidationError(`Unable to calculate deposit: ${preTotals.depositError}. Please contact us for assistance.`);
-          setValidationErrorFieldId(null);
-          setShowBottomToast(true);
-        });
-        return;
-      }
     }
 
     const availabilityResult = await checkAllCartAvailability(formData.event_date, formData.event_end_date);
 
-    if (availabilityResult.eventEssentialsCheckFailed) {
-      flushSync(() => {
-        setValidationError('Unable to check Event Essentials availability right now. Please try again.');
-        setValidationErrorFieldId(null);
-        setShowBottomToast(true);
-      });
-      scrollToSection('cart');
-      return;
-    }
-
-    const stillUnavailable = availabilityResult.cart.filter((item) => item.isAvailable === false);
-    if (stillUnavailable.length > 0) {
-      const unavailableNames = stillUnavailable.map((item) => {
-        if (item.item_type === 'event_essential_bundle') return item.bundle_name;
-        if (item.item_type === 'event_essential_product') return item.product_name;
-        return item.unit_name;
-      }).join(', ');
-      const errorMessage = `Sorry, the following items were just booked: ${unavailableNames}. Please choose different dates or remove these items.`;
-
-      flushSync(() => {
-        setValidationError(errorMessage);
-        setValidationErrorFieldId(null);
-        setShowBottomToast(true);
-
-        if (debugMode) {
-          setDebugInfo({
-            timestamp: new Date().toISOString(),
-            validationFailed: true,
-            errorSection: 'cart',
-            scrollAttempted: false,
-            refFound: false,
-            scrollTop: null,
-            elementTop: null,
-          });
-        }
-      });
-
-      scrollToSection('cart');
-
-      // NO AUTO-DISMISS - user must fix error or manually dismiss
-
+    const recheck = evaluateAvailabilityRecheck(availabilityResult);
+    if (!recheck.ok) {
+      applyGateFailure(recheck);
       return;
     }
 
