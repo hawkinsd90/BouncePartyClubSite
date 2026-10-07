@@ -432,7 +432,7 @@ The `GoogleAdsTag` component (`src/components/common/GoogleAdsTag.tsx`) manages 
 The tag is only ever injected when a public route is first visited. It is **never injected** on these internal route prefixes:
 
 ```
-/admin, /crew, /setup, /invoice-preview, /menu-preview
+/admin, /crew, /invoice-preview, /menu-preview
 ```
 
 Once injected, the tag persists in the DOM for the session. This is safe because `send_page_view: false` is set in the gtag config — no events fire automatically on SPA navigation. The tag requires explicit event calls.

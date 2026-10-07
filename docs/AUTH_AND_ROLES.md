@@ -253,7 +253,7 @@ The Supabase client is configured with:
 
 ## First-Time Setup
 
-The `/setup` route renders `Setup.tsx`, which calls the `create-admin-user` edge function to bootstrap the first master user. This route is accessible without authentication and is intended to be used once during initial deployment.
+There is no public first-time setup route any more (the `/setup` page was removed). The `create-admin-user` edge function creates an admin account and is authorized inside the function: only the service role or a signed-in master may call it. The role is stored in canonical lowercase (`admin`).
 
 ---
 

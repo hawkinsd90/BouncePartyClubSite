@@ -19,7 +19,6 @@ const About = lazy(() => import('./pages/About').then(m => ({ default: m.About }
 const Admin = lazy(() => import('./pages/Admin').then(m => ({ default: m.Admin })));
 const Crew = lazy(() => import('./pages/Crew').then(m => ({ default: m.Crew })));
 const Login = lazy(() => import('./pages/Login').then(m => ({ default: m.Login })));
-const Setup = lazy(() => import('./pages/Setup').then(m => ({ default: m.Setup })));
 const Invoice = lazy(() => import('./pages/Invoice').then(m => ({ default: m.Invoice })));
 const PaymentComplete = lazy(() => import('./pages/PaymentComplete').then(m => ({ default: m.PaymentComplete })));
 const PaymentCanceled = lazy(() => import('./pages/PaymentCanceled').then(m => ({ default: m.PaymentCanceled })));
@@ -74,7 +73,6 @@ function App() {
           </div>
         }>
         <Routes>
-          <Route path="/setup" element={<Setup />} />
           <Route path="/login" element={<Login />} />
           <Route path="/signup" element={<SignUp />} />
           <Route path="/forgot-password" element={<ForgotPassword />} />

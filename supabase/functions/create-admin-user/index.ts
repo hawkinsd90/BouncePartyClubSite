@@ -1,5 +1,6 @@
 import "jsr:@supabase/functions-js@2/edge-runtime.d.ts";
 import { createClient } from "npm:@supabase/supabase-js@2.57.4";
+import { resolveCaller, requireRoles, authFailureResponse } from "../_shared/auth.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -15,6 +16,15 @@ interface CreateAdminRequest {
   twilioFromNumber?: string;
 }
 
+// Creating an admin account grants a privileged role. Only the backend (service role) or a signed-in MASTER may do
+// it: the user_roles policies let only master grant admin/master roles (admin may grant crew only), so this endpoint
+// must not be a way around that. The public anon key, customers, crew and admins are all refused. There is no
+// unauthenticated first-admin bootstrap any more; the business already has live master/admin accounts.
+const ADMIN_CREATOR_ROLES = ["master"] as const;
+
+// Canonical stored role value (the rest of the system reads lowercase roles).
+const ADMIN_ROLE = "admin";
+
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") {
     return new Response(null, {
@@ -24,6 +34,30 @@ Deno.serve(async (req: Request) => {
   }
 
   try {
+    const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+    const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+    const supabase = createClient(supabaseUrl, supabaseServiceKey, {
+      auth: {
+        autoRefreshToken: false,
+        persistSession: false,
+      },
+    });
+
+    // Authorization first, before the body is even parsed.
+    const caller = await resolveCaller(supabase, req.headers.get("Authorization"), supabaseServiceKey);
+    if (caller.kind !== "service") {
+      const gate = requireRoles(caller, ADMIN_CREATOR_ROLES, {
+        unauthorized: "Unauthorized",
+        forbidden: "Forbidden: master access required.",
+      });
+      if (!gate.ok) {
+        console.warn(
+          `[create-admin-user] rejected: caller=${caller.kind}${caller.kind === "user" ? ` user=${caller.userId}` : ""} reason=master_required`
+        );
+        return authFailureResponse(gate, corsHeaders, "error-only");
+      }
+    }
+
     const { email, password, twilioAccountSid, twilioAuthToken, twilioFromNumber }: CreateAdminRequest = await req.json();
 
     if (!email || !password) {
@@ -52,36 +86,12 @@ Deno.serve(async (req: Request) => {
       );
     }
 
-    const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
-    const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-    const supabase = createClient(supabaseUrl, supabaseServiceKey, {
-      auth: {
-        autoRefreshToken: false,
-        persistSession: false,
-      },
-    });
-
-    const { data: existingUsers } = await supabase.rpc('get_admin_users');
-    
-    if (existingUsers && existingUsers.length > 0) {
-      return new Response(
-        JSON.stringify({ error: "Admin user already exists" }),
-        {
-          status: 400,
-          headers: {
-            ...corsHeaders,
-            "Content-Type": "application/json",
-          },
-        }
-      );
-    }
-
     const { data: authData, error: signUpError } = await supabase.auth.admin.createUser({
       email,
       password,
       email_confirm: true,
       user_metadata: {
-        role: 'ADMIN'
+        role: ADMIN_ROLE
       }
     });
 
@@ -89,15 +99,22 @@ Deno.serve(async (req: Request) => {
       console.error('Sign up error:', signUpError);
       throw signUpError;
     }
-    
+
     if (!authData.user) {
       throw new Error('Failed to create user');
     }
 
-    await supabase.from('user_roles').insert({
+    const { error: roleError } = await supabase.from('user_roles').insert({
       user_id: authData.user.id,
-      role: 'ADMIN'
+      role: ADMIN_ROLE
     });
+
+    if (roleError) {
+      // Do not leave a login without a role behind.
+      console.error('Role assignment error:', roleError);
+      await supabase.auth.admin.deleteUser(authData.user.id);
+      throw new Error('Failed to assign the admin role');
+    }
 
     if (twilioAccountSid && twilioAuthToken && twilioFromNumber) {
       const updates = [

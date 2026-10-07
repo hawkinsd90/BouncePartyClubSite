@@ -1030,7 +1030,7 @@ The `GoogleAdsTag` component manages the Google Ads conversion tracking tag (`AW
 The tag is **never injected** when the initial page load (or the first SPA navigation) is to an admin or internal route. Protected route prefixes:
 
 ```
-/admin, /crew, /setup, /invoice-preview, /menu-preview
+/admin, /crew, /invoice-preview, /menu-preview
 ```
 
 This protection is implemented by `isInternalRoute(pathname)`, which is exported for reuse elsewhere in the codebase.

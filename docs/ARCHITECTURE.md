@@ -91,7 +91,6 @@ Routes are defined in `App.tsx` using React Router v6. Components are lazy-loade
 | `/signup` | Sign up |
 | `/forgot-password` | Password reset request |
 | `/reset-password` | Password reset form |
-| `/setup` | First-time admin setup |
 | `/contact` | Contact page |
 | `/about` | About page |
 
@@ -469,7 +468,7 @@ All edge functions handle CORS preflight (`OPTIONS`) and include CORS headers on
 | `calculate-route-mileage` | Yes | Computes total miles for a day's route from `route_stops` |
 | `charge-deposit` | Yes | Charges saved payment method for deposit or balance. Uses a sentinel value (`deposit_paid_cents = -1`) for atomic race-condition safety. Called during order approval and day-of balance collection. |
 | `checkout-bridge` | No | Minimal HTML page served from the Supabase domain that relays payment completion from Stripe back to the checkout window via `window.opener.postMessage({ type: 'BPC_CHECKOUT_COMPLETE', orderId, session_id })` then calls `window.close()`. Exists because Stripe cannot redirect to localhost or arbitrary dev URLs. |
-| `create-admin-user` | Yes | Bootstraps the first master user during initial setup |
+| `create-admin-user` | Yes | Creates an admin account. Authorized inside the function: service role or a signed-in master only (no public bootstrap) |
 | `customer-balance-payment` | No | Allows customers to pay remaining balance via saved card on file or a new Stripe Checkout session |
 | `customer-cancel-order` | No | Handles customer-initiated cancellation with reason and refund-request flag |
 | `fix-payment-method` | No | Allows customer to update a saved card after a declined charge |
