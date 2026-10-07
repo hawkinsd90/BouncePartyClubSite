@@ -5,6 +5,7 @@ import { PaymentLoadingState } from '../components/payment/PaymentLoadingState';
 import { PaymentErrorState } from '../components/payment/PaymentErrorState';
 import { PaymentSuccessState } from '../components/payment/PaymentSuccessState';
 import { trackEvent } from '../lib/siteEvents';
+import { portalPathForCurrentVisitor } from '../lib/portalToken';
 
 export function PaymentComplete() {
   const [searchParams] = useSearchParams();
@@ -22,7 +23,7 @@ export function PaymentComplete() {
 
   useEffect(() => {
     if (status === 'success' && shouldRedirectToPortal && orderId) {
-      navigate(`/customer-portal/${orderId}?invoice_paid=true`, { replace: true });
+      navigate(portalPathForCurrentVisitor(orderId, { invoice_paid: true }), { replace: true });
     }
   }, [status, shouldRedirectToPortal, orderId, navigate]);
 

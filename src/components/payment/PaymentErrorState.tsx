@@ -1,4 +1,5 @@
 import { useSearchParams } from 'react-router-dom';
+import { portalPathForCurrentVisitor } from '../../lib/portalToken';
 
 interface PaymentErrorStateProps {
   error: string | null;
@@ -48,7 +49,7 @@ export function PaymentErrorState({ error }: PaymentErrorStateProps) {
 
         {orderId && (
           <a
-            href={`/customer-portal/${orderId}`}
+            href={portalPathForCurrentVisitor(orderId)}
             className="block text-sm text-blue-600 hover:text-blue-700 underline"
           >
             Return to your order

@@ -13,6 +13,7 @@ import { RegularPortalView } from '../components/customer-portal/RegularPortalVi
 import { LoadingSpinner } from '../components/common/LoadingSpinner';
 import { showToast } from '../lib/notifications';
 import { trackEvent } from '../lib/siteEvents';
+import { parsePortalToken } from '../lib/portalToken';
 
 export function CustomerPortal() {
   const { orderId, token } = useParams();
@@ -23,7 +24,12 @@ export function CustomerPortal() {
     trackEvent('customer_portal_viewed', { orderId: orderId || undefined });
   }, [orderId]);
 
-  const tokenFromQuery = searchParams.get('t');
+  // The credential arrives in the URL fragment (legacy ?t= still read). Remember it for this visit so an in-app
+  // navigation that rewrites the URL cannot lose the customer's proof.
+  const tokenFromUrl = parsePortalToken(location.hash, location.search);
+  const rememberedToken = useRef<string | null>(null);
+  if (tokenFromUrl) rememberedToken.current = tokenFromUrl;
+  const tokenFromQuery = tokenFromUrl ?? rememberedToken.current;
   const isInvoiceLink = !!(tokenFromQuery || location.pathname.startsWith('/invoice/'));
   const invoiceToken = tokenFromQuery || (location.pathname.startsWith('/invoice/') ? token : null);
 

@@ -11,6 +11,7 @@ import {
   type AuthClient,
 } from "../_shared/auth.ts";
 import { deriveCustomerOutcome } from "../_shared/lifecycle-outcome.ts";
+import { getOrCreatePortalLink } from "../_shared/portal-link.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -214,6 +215,10 @@ async function enterPendingReview(
   // console.log(`[order-lifecycle] enterPendingReview — sending admin alert`);
   const customer = Array.isArray(order.customers) ? order.customers[0] : order.customers;
   const address = Array.isArray(order.addresses) ? order.addresses[0] : order.addresses;
+
+  // The booking exists and has passed the Stripe-session proof: issue its canonical portal link now (best effort,
+  // one active link per order, reused if it already exists). No customer message depends on this call.
+  try { await getOrCreatePortalLink(supabase, orderId); } catch { /* non-fatal */ }
 
   await sendAdminPendingReviewAlert(supabase, order, customer, address);
 

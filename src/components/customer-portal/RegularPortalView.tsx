@@ -1,7 +1,8 @@
 import { useState, useEffect, useCallback } from 'react';
+import { tokenFragment } from '../../lib/portalToken';
 import { format } from 'date-fns';
 import { FileText, CreditCard, CheckCircle, Image as ImageIcon, MapPin, Printer, Calendar, MapPin as MapPinIcon, Truck, Navigation, Clock, Package, Lock } from 'lucide-react';
-import { useNavigate, useSearchParams } from 'react-router-dom';
+import { useNavigate, useLocation, useSearchParams } from 'react-router-dom';
 import { formatCurrency } from '../../lib/pricing';
 import { formatOrderId } from '../../lib/utils';
 import { supabase } from '../../lib/supabase';
@@ -49,7 +50,11 @@ interface NavSection {
 
 export function RegularPortalView({ order, orderId, orderItems: _orderItems, orderSummary, invoiceLinkToken, onReload, refreshVersion, suppressRefreshRef }: RegularPortalViewProps) {
   const navigate = useNavigate();
-  const [searchParams, setSearchParams] = useSearchParams();
+  const [searchParams] = useSearchParams();
+  const routerLocation = useLocation();
+  // react-router's setSearchParams drops the URL fragment, which carries the portal credential (#t=...). Keep it.
+  const setSearchParams = (next: URLSearchParams, options?: { replace?: boolean }) =>
+    navigate({ search: `?${next.toString()}`, hash: routerLocation.hash }, options);
   const lotPicturesRequested = order.lot_pictures_requested || false;
   const [showCancelModal, setShowCancelModal] = useState(false);
   const [payments, setPayments] = useState<any[]>([]);
@@ -661,7 +666,7 @@ export function RegularPortalView({ order, orderId, orderItems: _orderItems, ord
                             <p className="text-xs text-slate-500">{payment.payment_method === 'card' ? 'Credit Card' : payment.payment_method}</p>
                           </div>
                           <button
-                            onClick={() => window.open(`/receipt/${orderId}/${payment.id}`, '_blank')}
+                            onClick={() => window.open(`/receipt/${orderId}/${payment.id}${tokenFragment(invoiceLinkToken)}`, '_blank')}
                             className="flex items-center gap-2 bg-slate-100 hover:bg-slate-200 text-slate-700 px-4 py-2 rounded-lg text-sm font-medium transition-colors"
                           >
                             <Printer className="w-4 h-4" />

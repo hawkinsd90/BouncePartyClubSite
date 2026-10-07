@@ -9,6 +9,7 @@ import {
 } from "../_shared/rate-limit.ts";
 import { validatePaymentMethod } from "../_shared/payment-validation.ts";
 import { formatCurrency } from "../_shared/fmt.ts";
+import { buildPortalUrl } from "../_shared/portal-link.ts";
 import {
   resolveCaller,
   isStaffAdmin,
@@ -826,7 +827,7 @@ Deno.serve(async (req: Request) => {
 
           const timeWindow = `${fullOrder.start_window || ""} - ${fullOrder.end_window || ""}`;
           const shortId = orderId.replace(/-/g, "").toUpperCase().slice(0, 8);
-          const portalUrl = `https://bouncepartyclub.com/customer-portal/${orderId}`;
+          const portalUrl = (await buildPortalUrl(supabaseClient, orderId, "https://bouncepartyclub.com")) ?? "https://bouncepartyclub.com";
 
           const itemsHtml = (fullOrder.order_items || [])
             .map(

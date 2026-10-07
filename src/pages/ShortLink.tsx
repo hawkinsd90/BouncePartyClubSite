@@ -1,7 +1,11 @@
 import { useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
+import { buildPortalPath } from '../lib/portalToken';
 
+// /i/<shortCode>: the short code is a bearer credential. The server resolves it (rate limited, service role) and
+// returns only the order id and, for order-bound proof links, the token. The token is then carried in the URL
+// fragment (#t=...), which is not sent to any server and does not appear in Referer headers.
 export function ShortLink() {
   const { shortCode } = useParams<{ shortCode: string }>();
   const [error, setError] = useState(false);
@@ -13,24 +17,16 @@ export function ShortLink() {
     }
 
     (async () => {
-      const { data, error: rpcError } = await supabase.rpc('resolve_portal_short_link' as any, {
-        p_short_code: shortCode,
-      }) as any;
+      const { data, error: invokeError } = await supabase.functions.invoke('resolve-link', {
+        body: { code: shortCode },
+      });
 
-      if (rpcError || !data?.found) {
+      if (invokeError || !data?.found || typeof data.orderId !== 'string') {
         setError(true);
         return;
       }
 
-      if (data.link_type === 'invoice' && data.invoice_token) {
-        window.location.replace(
-          `/customer-portal/${data.order_id}?t=${data.invoice_token}`
-        );
-      } else {
-        window.location.replace(
-          `/customer-portal/${data.order_id}`
-        );
-      }
+      window.location.replace(buildPortalPath(data.orderId, { token: data.token ?? null }));
     })();
   }, [shortCode]);
 

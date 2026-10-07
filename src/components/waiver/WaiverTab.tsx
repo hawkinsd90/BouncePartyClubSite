@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { FileCheck, FileText, Download, AlertCircle, CheckCircle2, Upload, ExternalLink, Printer } from 'lucide-react';
 import { format } from 'date-fns';
+import { tokenFragment } from '../../lib/portalToken';
 
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL as string;
 const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY as string;
@@ -238,7 +239,7 @@ export default function WaiverTab({ orderId, token, onWaiverChange }: WaiverTabP
             </ul>
           </div>
           <button
-            onClick={() => navigate(`/sign/${orderId}`)}
+            onClick={() => navigate(`/sign/${orderId}${tokenFragment(token)}`)}
             className="w-full bg-gradient-to-r from-blue-600 to-teal-600 text-white rounded-lg px-8 py-4 font-semibold hover:from-blue-700 hover:to-teal-700 transition-all flex items-center justify-center gap-2"
           >
             <FileCheck className="w-5 h-5" />

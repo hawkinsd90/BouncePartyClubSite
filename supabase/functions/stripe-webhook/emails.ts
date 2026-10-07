@@ -1,4 +1,5 @@
 import { formatCurrency, DEFAULT_PHONE } from "../_shared/fmt.ts";
+import { buildPortalUrl } from "../_shared/portal-link.ts";
 
 export async function sendCheckoutBalanceReceiptEmail(
   supabaseClient: any,
@@ -82,7 +83,7 @@ export async function sendCheckoutBalanceReceiptEmail(
   const paymentDate = new Date().toLocaleDateString("en-US", {
     month: "short", day: "numeric", year: "numeric", hour: "numeric", minute: "2-digit",
   });
-  const portalUrl = `https://bouncepartyclub.com/customer-portal/${orderId}`;
+  const portalUrl = (await buildPortalUrl(supabaseClient, orderId, "https://bouncepartyclub.com")) ?? "https://bouncepartyclub.com";
 
   const receiptHtml = `<!DOCTYPE html>
 <html>
@@ -251,7 +252,7 @@ export async function sendDepositReceiptEmail(
   const paymentDate = new Date().toLocaleDateString("en-US", {
     month: "short", day: "numeric", year: "numeric", hour: "numeric", minute: "2-digit",
   });
-  const portalUrl = `https://bouncepartyclub.com/customer-portal/${orderId}`;
+  const portalUrl = (await buildPortalUrl(supabaseClient, orderId, "https://bouncepartyclub.com")) ?? "https://bouncepartyclub.com";
 
   const receiptHtml = `<!DOCTYPE html>
 <html>

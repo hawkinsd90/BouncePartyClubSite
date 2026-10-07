@@ -1,24 +1,12 @@
 import { createClient } from 'npm:@supabase/supabase-js@2.57.4';
 import { resolveCaller, requireRoles, authFailureResponse, INVOICE_SENDER_ROLES } from '../_shared/auth.ts';
+import { generateShortCode, portalTokenFragment } from '../_shared/portal-link.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
   'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-Client-Info, Apikey',
 };
-
-const SHORT_CODE_CHARS = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789';
-const SHORT_CODE_LENGTH = 8;
-
-function generateShortCode(): string {
-  let code = '';
-  const bytes = new Uint8Array(SHORT_CODE_LENGTH);
-  crypto.getRandomValues(bytes);
-  for (let i = 0; i < SHORT_CODE_LENGTH; i++) {
-    code += SHORT_CODE_CHARS[bytes[i] % SHORT_CODE_CHARS.length];
-  }
-  return code;
-}
 
 async function generateUniqueShortCode(supabase: any): Promise<string | null> {
   for (let attempt = 0; attempt < 5; attempt++) {
@@ -145,7 +133,7 @@ Deno.serve(async (req: Request) => {
       Deno.env.get('SITE_URL') ||
       'https://bouncepartyclub.com';
 
-    const fullInvoiceUrl = `${resolvedOrigin}/customer-portal/${orderId}?t=${invoiceLink.link_token}`;
+    const fullInvoiceUrl = `${resolvedOrigin}/customer-portal/${orderId}${portalTokenFragment(invoiceLink.link_token)}`;
     const shortInvoiceUrl = shortCode
       ? `${resolvedOrigin}/i/${shortCode}`
       : fullInvoiceUrl;

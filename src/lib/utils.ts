@@ -1,3 +1,5 @@
+import { readPortalToken } from './portalToken';
+
 export function centsToDollars(cents: number): string {
   return (cents / 100).toFixed(2);
 }
@@ -110,73 +112,36 @@ export type ShortPortalLinkResult =
   | { success: true; url: string; shortCode: string }
   | { success: false; error: string };
 
+// Asks the server (portal-link Edge Function) for the order's canonical secure portal short link. This helper never
+// creates the token, and portal-link returns only the short code; the short-link resolver (resolve-link) later hands
+// the order-bound token to the customer portal, which carries it in the URL fragment (#t=...). Staff (admin/master/crew) are authorized by their
+// session; a customer must present proof for this order (their portal token, a Checkout session, or ownership).
+// A raw order id is never enough, and no fallback ever produces a /customer-portal/<uuid> URL.
 export async function createShortPortalLink(
   orderId: string,
   supabaseClient: any,
   _eventDate?: string | null,
-  invoiceToken?: string | null
+  invoiceToken?: string | null,
+  sessionId?: string | null
 ): Promise<ShortPortalLinkResult> {
-  // 1. If an invoice token is available, try the invoice-link RPC first.
-  if (invoiceToken) {
-    const { data: rpcResult, error: rpcError } = await supabaseClient.rpc(
-      'create_portal_short_link',
-      { p_invoice_token: invoiceToken }
-    );
+  const token = invoiceToken ?? readPortalToken();
+  const { data, error } = await supabaseClient.functions.invoke('portal-link', {
+    body: {
+      orderId,
+      ...(token ? { token } : {}),
+      ...(sessionId ? { sessionId } : {}),
+    },
+  });
 
-    if (!rpcError && rpcResult?.success && rpcResult?.short_code) {
-      return {
-        success: true,
-        url: `${window.location.origin}/i/${rpcResult.short_code}`,
-        shortCode: rpcResult.short_code,
-      };
-    }
-
-    console.error(
-      '[createShortPortalLink] invoice RPC failed:',
-      rpcError?.message || rpcResult?.error || 'unknown'
-    );
-  }
-
-  // 2. Try order-level short link (works for standard booking requests without invoice links).
-  const { data: orderRpcResult, error: orderRpcError } = await supabaseClient.rpc(
-    'create_order_short_link',
-    { p_order_id: orderId }
-  );
-
-  if (!orderRpcError && orderRpcResult?.success && orderRpcResult?.short_code) {
+  if (!error && data?.success && typeof data.shortCode === 'string' && data.shortCode) {
     return {
       success: true,
-      url: `${window.location.origin}/i/${orderRpcResult.short_code}`,
-      shortCode: orderRpcResult.short_code,
+      url: `${window.location.origin}/i/${data.shortCode}`,
+      shortCode: data.shortCode,
     };
   }
 
-  // 3. If invoice token exists but RPC failed, try direct lookup for existing short_code.
-  if (invoiceToken) {
-    const { data: linkData } = await supabaseClient
-      .from('invoice_links')
-      .select('short_code')
-      .eq('link_token', invoiceToken)
-      .maybeSingle();
-
-    if (linkData?.short_code) {
-      return {
-        success: true,
-        url: `${window.location.origin}/i/${linkData.short_code}`,
-        shortCode: linkData.short_code,
-      };
-    }
-  }
-
-  // 4. All attempts failed — return typed failure, never a long URL.
-  const underlyingError =
-    orderRpcError?.message ||
-    orderRpcResult?.error ||
-    'Short-link generation failed';
-  console.error(
-    '[createShortPortalLink] All short-link methods failed for order:',
-    orderId,
-    underlyingError
-  );
+  const underlyingError = error?.message || data?.error || 'Short-link generation failed';
+  console.error('[createShortPortalLink] Could not get a secure portal link for order:', orderId, underlyingError);
   return { success: false, error: underlyingError };
 }

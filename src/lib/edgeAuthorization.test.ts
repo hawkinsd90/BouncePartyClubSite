@@ -49,7 +49,7 @@ const PAST = new Date(Date.now() - 86_400_000).toISOString();
 interface World {
   users: Record<string, string>; // access token -> user id
   roles: Record<string, string[]>; // user id -> role rows
-  links: Array<{ link_token: string; order_id: string; expires_at: string | null }>;
+  links: Array<{ link_token: string; order_id: string; expires_at: string | null; link_type?: string; revoked_at?: string | null }>;
   orders: Array<{ id: string; customer_id: string | null }>;
   customers: Array<{ id: string; user_id: string | null }>;
   failRoles?: boolean;
@@ -101,10 +101,10 @@ const world = (): World => ({
   users: { 'tok-admin': 'u-admin', 'tok-master': 'u-master', 'tok-crew': 'u-crew', 'tok-cust': 'u-cust', 'tok-upper': 'u-upper', 'tok-multi': 'u-multi', 'tok-norole': 'u-norole' },
   roles: { 'u-admin': ['admin'], 'u-master': ['master'], 'u-crew': ['crew'], 'u-cust': ['customer'], 'u-upper': ['ADMIN'], 'u-multi': ['customer', 'Master'] },
   links: [
-    { link_token: 'A'.repeat(64), order_id: 'order-A', expires_at: FUTURE },
-    { link_token: 'B'.repeat(64), order_id: 'order-B', expires_at: FUTURE },
-    { link_token: 'E'.repeat(64), order_id: 'order-A', expires_at: PAST },
-    { link_token: 'N'.repeat(64), order_id: 'order-A', expires_at: null },
+    { link_token: 'A'.repeat(64), order_id: 'order-A', link_type: 'invoice', expires_at: FUTURE },
+    { link_token: 'B'.repeat(64), order_id: 'order-B', link_type: 'invoice', expires_at: FUTURE },
+    { link_token: 'E'.repeat(64), order_id: 'order-A', link_type: 'invoice', expires_at: PAST },
+    { link_token: 'N'.repeat(64), order_id: 'order-A', link_type: 'invoice', expires_at: null },
   ],
   orders: [{ id: 'order-A', customer_id: 'cust-A' }, { id: 'order-B', customer_id: 'cust-B' }, { id: 'order-X', customer_id: null }],
   customers: [{ id: 'cust-A', user_id: 'u-cust' }, { id: 'cust-B', user_id: 'u-other' }],

@@ -24,6 +24,9 @@ export const RATE_LIMIT_CONFIGS: Record<string, RateLimitConfig> = {
   'save-signature': { maxRequests: 5, windowSeconds: 60 },
   'send-invoice': { maxRequests: 10, windowSeconds: 60 },
   'send-sms-notification': { maxRequests: 20, windowSeconds: 60 },
+  // Short codes are bearer credentials: per caller IP, generous for normal retries, hopeless for brute force.
+  'resolve-link': { maxRequests: 20, windowSeconds: 60 },
+  'request-portal-link': { maxRequests: 5, windowSeconds: 600 },
 };
 
 export function getIdentifier(req: Request): string {

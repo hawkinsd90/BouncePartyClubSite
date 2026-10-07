@@ -1,6 +1,7 @@
 import { useNavigate } from 'react-router-dom';
 import { Home, FileText } from 'lucide-react';
 import { formatOrderId } from '../../lib/utils';
+import { portalPathForCurrentVisitor } from '../../lib/portalToken';
 import { useBusinessSettings } from '../../contexts/BusinessContext';
 
 interface ApprovalSuccessViewProps {
@@ -75,7 +76,7 @@ export function ApprovalSuccessView({ orderId }: ApprovalSuccessViewProps) {
             <button
               onClick={() => {
                 // Force a full page reload to ensure portal reloads with new data
-                window.location.href = `/customer-portal/${orderId}`;
+                window.location.href = portalPathForCurrentVisitor(orderId);
               }}
               className="flex items-center gap-2 px-6 py-3 bg-green-600 hover:bg-green-700 text-white rounded-lg font-medium transition-colors"
             >

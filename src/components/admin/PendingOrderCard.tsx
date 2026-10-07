@@ -199,9 +199,24 @@ const PendingOrderCardInner = forwardRef<PendingOrderCardRef, {
   const isDraft = order.status === ORDER_STATUS.DRAFT;
   const isAwaitingApproval = order.status === ORDER_STATUS.AWAITING_CUSTOMER_APPROVAL;
   const isPendingReview = order.status === ORDER_STATUS.PENDING;
-  const paymentUrl = `${window.location.origin}/checkout/${order.id}`;
+  // The customer-facing link is the canonical secure portal short link (/i/<code>), never /checkout/<order id>.
+  const [paymentUrl, setPaymentUrl] = useState('');
+  useEffect(() => {
+    if (order.status !== ORDER_STATUS.DRAFT) return;
+    let cancelled = false;
+    createShortPortalLink(order.id, supabase, order.event_date).then((result) => {
+      if (!cancelled && result.success) setPaymentUrl(result.url);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [order.id, order.status, order.event_date]);
 
   async function handleCopyPaymentLink() {
+    if (!paymentUrl) {
+      alert('The secure payment link is not ready yet. Please try again in a moment.');
+      return;
+    }
     try {
       await navigator.clipboard.writeText(paymentUrl);
       alert('Payment link copied to clipboard!');
@@ -212,6 +227,10 @@ const PendingOrderCardInner = forwardRef<PendingOrderCardRef, {
   }
 
   async function handleSendPaymentLink() {
+    if (!paymentUrl) {
+      alert('The secure payment link is not ready yet. Please try again in a moment.');
+      return;
+    }
     const message = generatePaymentLinkSmsMessage(order.customers?.first_name, paymentUrl);
     const success = await sendSms(message);
     if (success) {

@@ -1,6 +1,7 @@
 import { createContext, useContext, useEffect, useState, useCallback, useMemo } from 'react';
 import { supabase } from '../lib/supabase';
 import { createLogger } from '../lib/logger';
+import { isPortalTokenHash } from '../lib/portalToken';
 
 const log = createLogger('Auth');
 
@@ -140,7 +141,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setUser(session?.user ?? null);
       setLoading(false);
 
-      if (_event === 'SIGNED_IN' && window.location.hash) {
+      if (_event === 'SIGNED_IN' && window.location.hash && !isPortalTokenHash(window.location.hash)) {
         window.history.replaceState(null, '', window.location.pathname);
       }
 

@@ -24,6 +24,7 @@
 import "jsr:@supabase/functions-js@2/edge-runtime.d.ts";
 import Stripe from "npm:stripe@20.0.0";
 import { createClient } from "npm:@supabase/supabase-js@2.57.4";
+import { buildPortalUrl } from "../_shared/portal-link.ts";
 import { formatCurrency, formatPaymentMethodLabel } from "../_shared/fmt.ts";
 
 const corsHeaders = {
@@ -406,7 +407,7 @@ Deno.serve(async (req: Request) => {
         const paymentDate = new Date().toLocaleDateString("en-US", {
           month: "short", day: "numeric", year: "numeric", hour: "numeric", minute: "2-digit",
         });
-        const portalUrl = `https://bouncepartyclub.com/customer-portal/${orderId}`;
+        const portalUrl = (await buildPortalUrl(supabaseClient, orderId, "https://bouncepartyclub.com")) ?? "https://bouncepartyclub.com";
 
         const receiptHtml = `<!DOCTYPE html>
 <html>

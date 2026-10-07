@@ -309,11 +309,13 @@ function evalLiteral(literal: string, scope: Record<string, any>): any {
     const sb: any = supabase;
     const saved = { rpc: sb.rpc, from: sb.from };
     sb.rpc = async (name: string) => { rec.tables.push('rpc:' + name); return { data: null, error: { message: 'link boom' } }; };
+    // A2.1: the secure portal link now comes from the portal-link Edge Function.
+    Object.defineProperty(sb, 'functions', { configurable: true, value: { invoke: async (name: string) => { rec.tables.push('fn:' + name); return { data: null, error: { message: 'link boom' } }; } } });
     sb.from = (t: string) => fake.from(t);
     try {
       const out = await captureErrors(() => editNotif.sendOrderEditNotifications({ order: { id: 'ord-5', event_date: '2026-07-04', customers }, adminMessage: '' }));
       return { rec, errors: out.errors };
-    } finally { sb.rpc = saved.rpc; sb.from = saved.from; }
+    } finally { sb.rpc = saved.rpc; sb.from = saved.from; delete sb.functions; }
   }
   for (const behavior of ['ok', 'returns-error', 'throws'] as InsertBehavior[]) {
     const { rec, errors } = await runOrderEdit({ first_name: 'Ann', email: both.email, phone: both.phone }, behavior);

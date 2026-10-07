@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
+import { buildPortalPath } from '../../lib/portalToken';
 import { ArrowLeft, Copy, Check, ExternalLink, Link } from 'lucide-react';
 import { PendingOrderCard } from './PendingOrderCard';
 import { AdminFloatingOrderHeader } from './AdminFloatingOrderHeader';
@@ -134,7 +135,8 @@ export function SingleOrderView({ orderId, openEditMode = false, onBack, onUpdat
         .from('invoice_links' as any)
         .select('short_code')
         .eq('order_id', order.id)
-        .eq('link_type', 'portal_shortlink')
+        .eq('link_type', 'portal')
+        .is('revoked_at', null)
         .not('short_code', 'is', null)
         .gt('expires_at', new Date().toISOString())
         .order('created_at', { ascending: false })
@@ -156,7 +158,8 @@ export function SingleOrderView({ orderId, openEditMode = false, onBack, onUpdat
           .from('invoice_links' as any)
           .select('short_code')
           .eq('order_id', order.id)
-          .eq('link_type', 'portal_shortlink')
+          .eq('link_type', 'portal')
+        .is('revoked_at', null)
           .not('short_code', 'is', null)
           .gt('expires_at', new Date().toISOString())
           .order('created_at', { ascending: false })
@@ -322,7 +325,7 @@ export function SingleOrderView({ orderId, openEditMode = false, onBack, onUpdat
             </div>
 
             <a
-              href={portalToken ? `/customer-portal/${order.id}?t=${portalToken}` : `/customer-portal/${order.id}`}
+              href={buildPortalPath(order.id, { token: portalToken })}
               target="_blank"
               rel="noopener noreferrer"
               className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-white border border-slate-300 hover:border-blue-400 hover:bg-blue-50 text-slate-700 hover:text-blue-700 text-sm font-medium rounded-lg transition-colors"

@@ -1,5 +1,6 @@
 import { supabase } from './supabase';
 import type { Json } from './database.types';
+import { redactCredentialsInPath } from './portalToken';
 
 let sessionId: string | null = null;
 
@@ -60,7 +61,7 @@ export async function trackEventOnce(
   eventName: SiteEventName,
   options: TrackEventOptions = {}
 ): Promise<void> {
-  const key = `bpc_tracked_${eventName}_${window.location.pathname}`;
+  const key = `bpc_tracked_${eventName}_${redactCredentialsInPath(window.location.pathname)}`;
   if (sessionStorage.getItem(key)) return;
   sessionStorage.setItem(key, '1');
   await trackEvent(eventName, options);
@@ -74,7 +75,7 @@ export async function trackEvent(
     const adminOrMaster = await isAdminOrMaster();
     if (adminOrMaster) return;
 
-    const pagePath = window.location.pathname;
+    const pagePath = redactCredentialsInPath(window.location.pathname);
     await supabase.from('site_events').insert({
       event_name: eventName,
       session_id: getSessionId(),

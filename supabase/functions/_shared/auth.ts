@@ -120,8 +120,11 @@ export function requireRoles(
 // ---------------------------------------------------------------------------
 
 // A token is valid for an order only if an invoice_links row has that exact token AND that exact order_id AND a
-// non-null expires_at in the future (mirrors approve_order_changes, which requires expires_at > now()).
+// non-null expires_at in the future AND no revoked_at AND an accepted link_type. Accepted types are the canonical
+// customer 'portal' link and the admin 'invoice' link; legacy types (e.g. 'portal_shortlink') are never proof.
 // The service-role client reads the table, so this does not depend on any anon policy.
+export const ORDER_PROOF_LINK_TYPES: readonly string[] = ["portal", "invoice"];
+
 export async function validateOrderToken(
   client: AuthClient,
   orderId: string,
@@ -132,11 +135,13 @@ export async function validateOrderToken(
   try {
     const { data, error } = await client
       .from("invoice_links")
-      .select("id, expires_at")
+      .select("id, expires_at, revoked_at, link_type")
       .eq("link_token", token)
       .eq("order_id", orderId)
       .maybeSingle();
     if (error || !data) return false;
+    if (data.revoked_at) return false;
+    if (!ORDER_PROOF_LINK_TYPES.includes(data.link_type)) return false;
     if (!data.expires_at) return false;
     return new Date(data.expires_at).getTime() > now.getTime();
   } catch {

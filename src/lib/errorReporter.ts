@@ -1,3 +1,5 @@
+import { redactCredentialsInUrl } from './portalToken';
+
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL as string;
 const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY as string;
 
@@ -39,7 +41,7 @@ export async function reportError(
       message: errorMessage,
       stack: errorStack,
       userAgent: navigator.userAgent,
-      url: window.location.href,
+      url: redactCredentialsInUrl(window.location.href),
       timestamp: new Date().toISOString(),
       userId,
       additionalInfo: additionalInfo && Object.keys(additionalInfo).length > 0

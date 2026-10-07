@@ -9,6 +9,7 @@ import {
   isFreshBookingDraft,
   authFailureResponse,
 } from "../_shared/auth.ts";
+import { portalTokenFragment } from "../_shared/portal-link.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -209,14 +210,15 @@ Deno.serve(async (req: Request) => {
     // Use setup mode to save card on file (no charge yet)
     // If setupMode (card update), redirect back to customer portal with approval modal trigger
     // Encode payment state in URL so it survives the Stripe redirect
+    // Order-bound proof for token-authenticated portal visits rides in the URL fragment (never in the query string).
+    const returnFragment = portalTokenFragment(invoiceLinkToken);
     let successUrl: string;
     if (bookingMode) {
       successUrl = `${resolvedOrigin}/payment-complete?session_id={CHECKOUT_SESSION_ID}&order_id=${orderId}`;
     } else if (setupMode) {
       let params: URLSearchParams;
       if (invoiceMode) {
-        const tokenParam = invoiceLinkToken ? `&t=${invoiceLinkToken}` : '';
-        successUrl = `${resolvedOrigin}/customer-portal/${orderId}?invoice_card_saved=true&session_id={CHECKOUT_SESSION_ID}${tokenParam}`;
+        successUrl = `${resolvedOrigin}/customer-portal/${orderId}?invoice_card_saved=true&session_id={CHECKOUT_SESSION_ID}${returnFragment}`;
       } else {
         params = new URLSearchParams({ card_updated: 'true' });
         if (paymentState) {
@@ -226,18 +228,17 @@ Deno.serve(async (req: Request) => {
           if (typeof paymentState.keepOriginalPayment === 'boolean') params.set('kop', paymentState.keepOriginalPayment ? '1' : '0');
           if (typeof paymentState.selectedPaymentBaseCents === 'number') params.set('spb', String(paymentState.selectedPaymentBaseCents));
         }
-        successUrl = `${resolvedOrigin}/customer-portal/${orderId}?${params.toString()}&session_id={CHECKOUT_SESSION_ID}`;
+        successUrl = `${resolvedOrigin}/customer-portal/${orderId}?${params.toString()}&session_id={CHECKOUT_SESSION_ID}${returnFragment}`;
       }
     } else {
       successUrl = `${resolvedOrigin}/payment-complete?session_id={CHECKOUT_SESSION_ID}&order_id=${orderId}`;
     }
-    const cancelTokenParam = (setupMode && invoiceMode && invoiceLinkToken) ? `&t=${invoiceLinkToken}` : '';
     const cancelUrl = (setupMode && !bookingMode)
-      ? `${resolvedOrigin}/customer-portal/${orderId}?card_update_canceled=true${cancelTokenParam}`
+      ? `${resolvedOrigin}/customer-portal/${orderId}?card_update_canceled=true${returnFragment}`
       : `${resolvedOrigin}/payment-canceled?order_id=${orderId}`;
 
-    // The return URLs can carry the portal link token (&t=...); never log it.
-    const redactToken = (u: string) => u.replace(/([?&]t=)[^&]+/g, "$1[redacted]");
+    // The return URLs can carry the portal link token (#t=...); never log it.
+    const redactToken = (u: string) => u.replace(/([?&#]t=)[^&#]+/g, "$1[redacted]");
     console.log("stripe-checkout: urls — success:", redactToken(successUrl), "| cancel:", redactToken(cancelUrl));
 
     const sessionParams: Stripe.Checkout.SessionCreateParams = bookingMode

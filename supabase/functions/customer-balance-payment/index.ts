@@ -26,6 +26,7 @@ import { formatOrderId } from "../_shared/format-order-id.ts";
 import { logTransaction } from "../_shared/transaction-logger.ts";
 import { formatCurrency, formatPaymentMethodLabel } from "../_shared/fmt.ts";
 import { resolveCaller, proveOrderAccess, authFailureResponse } from "../_shared/auth.ts";
+import { buildPortalUrl, portalTokenFragment } from "../_shared/portal-link.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -187,7 +188,7 @@ Deno.serve(async (req: Request) => {
           // Card declined / authentication required — fall through to Checkout
           console.warn("[customer-balance-payment] Off-session charge failed, falling back to Checkout:", stripeErr?.message);
           return await createCheckoutSession(
-            stripe, supabaseClient, order, stripeCustomerId, balanceCents, tipCents, orderId, siteOrigin, corsHeaders
+            stripe, supabaseClient, order, stripeCustomerId, balanceCents, tipCents, orderId, siteOrigin, corsHeaders, portalTokenFragment(invoiceToken)
           );
         }
 
@@ -197,7 +198,7 @@ Deno.serve(async (req: Request) => {
           // Cancel the intent so it doesn't sit open
           try { await stripe.paymentIntents.cancel(paymentIntent.id); } catch { /* ignore */ }
           return await createCheckoutSession(
-            stripe, supabaseClient, order, stripeCustomerId, balanceCents, tipCents, orderId, siteOrigin, corsHeaders
+            stripe, supabaseClient, order, stripeCustomerId, balanceCents, tipCents, orderId, siteOrigin, corsHeaders, portalTokenFragment(invoiceToken)
           );
         }
 
@@ -371,6 +372,7 @@ Deno.serve(async (req: Request) => {
               to: customer.email,
               subject: `Payment Received - Order #${formatOrderId(orderId)}`,
               html: buildReceiptEmail({
+                portalUrl: (await buildPortalUrl(supabaseClient, orderId, "https://bouncepartyclub.com")) ?? "https://bouncepartyclub.com",
                 contactName: customer.first_name ? `${customer.first_name} ${customer.last_name || ""}`.trim() : "Customer",
                 orderId,
                 balanceCents,
@@ -439,7 +441,7 @@ Deno.serve(async (req: Request) => {
     }
 
     return await createCheckoutSession(
-      stripe, supabaseClient, order, customerId!, balanceCents, tipCents, orderId, siteOrigin, corsHeaders
+      stripe, supabaseClient, order, customerId!, balanceCents, tipCents, orderId, siteOrigin, corsHeaders, portalTokenFragment(invoiceToken)
     );
   } catch (error: unknown) {
     console.error("[customer-balance-payment] Fatal error:", error);
@@ -460,7 +462,8 @@ async function createCheckoutSession(
   tipCents: number,
   orderId: string,
   siteOrigin: string,
-  corsHeaders: Record<string, string>
+  corsHeaders: Record<string, string>,
+  returnFragment = ""
 ): Promise<Response> {
   const lineItems: Stripe.Checkout.SessionCreateParams.LineItem[] = [];
 
@@ -494,8 +497,8 @@ async function createCheckoutSession(
 
   // success_url: go to portal with ?payment=success&session_id=... (Stripe substitutes {CHECKOUT_SESSION_ID})
   // cancel_url: go back to payment tab so tip state is NOT lost via URL param
-  const success_url = `${siteOrigin}/customer-portal/${orderId}?payment=success&session_id={CHECKOUT_SESSION_ID}`;
-  const cancel_url = `${siteOrigin}/customer-portal/${orderId}?tab=payment&tip=${tipCents}`;
+  const success_url = `${siteOrigin}/customer-portal/${orderId}?payment=success&session_id={CHECKOUT_SESSION_ID}${returnFragment}`;
+  const cancel_url = `${siteOrigin}/customer-portal/${orderId}?tab=payment&tip=${tipCents}${returnFragment}`;
 
   const session = await stripe.checkout.sessions.create({
     customer: customerId,
@@ -531,6 +534,7 @@ async function createCheckoutSession(
 }
 
 function buildReceiptEmail(opts: {
+  portalUrl: string;
   contactName: string;
   orderId: string;
   balanceCents: number;
@@ -544,7 +548,7 @@ function buildReceiptEmail(opts: {
   customFees: Array<{ name: string; amount_cents: number }>;
   discounts: Array<{ name: string; amount_cents: number | null; percentage: number | null }>;
 }): string {
-  const { contactName, orderId, balanceCents, tipCents, totalChargeAmount, cardBrand, cardLast4, eventDate, order, biz, customFees, discounts } = opts;
+  const { contactName, orderId, balanceCents, tipCents, totalChargeAmount, cardBrand, cardLast4, eventDate, order, biz, customFees, discounts, portalUrl } = opts;
   const orderNum = formatOrderId(orderId);
   const fmt = formatCurrency;
 
@@ -602,7 +606,6 @@ function buildReceiptEmail(opts: {
     month: "short", day: "numeric", year: "numeric", hour: "numeric", minute: "2-digit",
   });
 
-  const portalUrl = `https://bouncepartyclub.com/customer-portal/${orderId}`;
 
   const logoHtml = biz.logo_url
     ? `<img src="${biz.logo_url}" alt="${businessName}" style="height:60px;margin-bottom:12px;display:block;margin-left:auto;margin-right:auto;">`

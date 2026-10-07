@@ -17,6 +17,7 @@ const fs = require('fs');
 const ts = require('typescript');
 
 import * as authHelpers from '../../supabase/functions/_shared/auth';
+import * as portalLinkHelpers from '../../supabase/functions/_shared/portal-link';
 import * as outcomeHelpers from '../../supabase/functions/_shared/lifecycle-outcome';
 
 let passed = 0;
@@ -268,6 +269,7 @@ function loadHandler(fnDir: string, w: World): (req: Request) => Promise<Respons
       return { ok: true, status: 200, json: async () => ({ success: true }), text: async () => '' };
     },
     ...authHelpers,
+    ...portalLinkHelpers,
     ...outcomeHelpers,
     corsHeaders: { 'Access-Control-Allow-Origin': '*' },
     checkRateLimit: async () => ({ allowed: true }),

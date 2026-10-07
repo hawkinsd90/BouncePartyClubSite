@@ -5,7 +5,7 @@ const TAG_ID = 'AW-18153233398';
 const SCRIPT_ID = 'google-ads-gtag';
 
 // Routes where the tag must never be injected and events must never fire.
-const BLOCKED_PREFIXES = ['/admin', '/crew', '/setup', '/invoice-preview', '/menu-preview'];
+const BLOCKED_PREFIXES = ['/admin', '/crew', '/setup', '/invoice-preview', '/menu-preview', '/i'];
 
 export function isInternalRoute(pathname: string): boolean {
   return BLOCKED_PREFIXES.some(

@@ -1,6 +1,8 @@
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Home, ArrowRight } from 'lucide-react';
-import { formatOrderId } from '../../lib/utils';
+import { formatOrderId, createShortPortalLink } from '../../lib/utils';
+import { supabase } from '../../lib/supabase';
+import { portalPathForCurrentVisitor } from '../../lib/portalToken';
 import { useState, useEffect } from 'react';
 import { getPublicBusinessSettings } from '../../lib/adminSettingsCache';
 
@@ -28,6 +30,20 @@ export function PaymentSuccessState({ orderDetails, sessionTipCents = 0, emailSe
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const orderId = searchParams.get('order_id') || orderDetails?.id;
+  const returnSessionId = searchParams.get('session_id');
+
+  // The guest who just paid proves control of this order with the completed Checkout session; the server answers
+  // with their secure short link (/i/<code>), which resolves to the portal with the order-bound token. Without a
+  // link we fall back to the visitor's own proof (signed-in ownership), never to a bare UUID credential.
+  const openSecurePortal = async () => {
+    if (!orderId) return;
+    const result = await createShortPortalLink(orderId, supabase, null, null, returnSessionId);
+    if (result.success) {
+      navigate(`/i/${result.shortCode}`);
+      return;
+    }
+    navigate(portalPathForCurrentVisitor(orderId));
+  };
   const [businessPhone, setBusinessPhone] = useState('(313) 889-3860');
 
   useEffect(() => {
@@ -173,7 +189,7 @@ export function PaymentSuccessState({ orderDetails, sessionTipCents = 0, emailSe
               View live updates, check order status, and manage your booking through your customer portal:
             </p>
             <button
-              onClick={() => navigate(`/customer-portal/${orderId}`)}
+              onClick={openSecurePortal}
               className="inline-flex items-center gap-2 px-5 py-2.5 bg-green-600 hover:bg-green-700 text-white font-semibold rounded-lg transition-colors"
             >
               View Customer Portal

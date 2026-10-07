@@ -25,6 +25,7 @@ import {
   generateConfirmationSmsMessage,
 } from '../../lib/orderEmailTemplates';
 import { formatOrderId, createShortPortalLink } from '../../lib/utils';
+import { portalPathForCurrentVisitor } from '../../lib/portalToken';
 import { ReferralSourceSelect } from '../shared/ReferralSourceSelect';
 import { getPublicBusinessSettings } from '../../lib/adminSettingsCache';
 
@@ -602,7 +603,7 @@ export function InvoiceAcceptanceView({
     sessionStorage.setItem('invoice-preview-data', JSON.stringify(invoiceData));
     sessionStorage.setItem(
       'invoice-preview-return-to',
-      `/customer-portal/${order.id}`
+      portalPathForCurrentVisitor(order.id)
     );
 
     window.open('/invoice-preview', '_blank');

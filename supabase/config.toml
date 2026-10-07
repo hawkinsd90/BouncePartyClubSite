@@ -114,3 +114,12 @@ verify_jwt = true
 
 [functions.twilio-webhook]
 verify_jwt = false
+
+[functions.resolve-link]
+verify_jwt = false
+
+[functions.portal-link]
+verify_jwt = false
+
+[functions.request-portal-link]
+verify_jwt = false
