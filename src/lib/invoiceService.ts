@@ -1,4 +1,5 @@
 import { supabase } from './supabase';
+import { getEdgeAuthToken } from './edgeAuth';
 import type { PriceBreakdown } from './pricing';
 import { upsertCanonicalAddress } from './addressService';
 import { ORDER_STATUS } from './constants/statuses';
@@ -282,7 +283,8 @@ async function sendInvoiceToCustomer(
         method: 'POST',
         signal: controller.signal,
         headers: {
-          Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
+          // send-invoice is staff-only: send the signed-in admin's session token, not the public anon key.
+          Authorization: `Bearer ${await getEdgeAuthToken()}`,
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({

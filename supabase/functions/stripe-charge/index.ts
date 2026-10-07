@@ -55,7 +55,7 @@ Deno.serve(async (req: Request) => {
       .eq("user_id", user.id)
       .single();
 
-    if (!userRole || (userRole.role !== "ADMIN" && userRole.role !== "MASTER")) {
+    if (!userRole || !["admin", "master"].includes(String(userRole.role ?? "").trim().toLowerCase())) {
       return new Response(
         JSON.stringify({ error: "Admin access required" }),
         {

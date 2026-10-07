@@ -45,7 +45,7 @@ Deno.serve(async (req: Request) => {
       .eq("user_id", user.id)
       .single();
 
-    if (!userRole || (userRole.role !== "admin" && userRole.role !== "master")) {
+    if (!userRole || !["admin", "master"].includes(String(userRole.role ?? "").trim().toLowerCase())) {
       return new Response(
         JSON.stringify({ error: "Admin access required" }),
         { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } }
@@ -246,7 +246,14 @@ Deno.serve(async (req: Request) => {
 
     // Only update order total after successful DB insert.
     const actualRefunded = amountCents - remainingToRefund;
-    const { error: rpcError } = await supabaseClient.rpc("increment_order_refunded_cents", {
+    // increment_order_refunded_cents is an internal accounting RPC (EXECUTE is service-role only). The client above
+    // forwards the caller's Authorization header, so PostgREST would run as the caller's role; use a plain
+    // service-role client for this call. The admin/master check above has already authorized the request.
+    const serviceClient = createClient(
+      Deno.env.get("SUPABASE_URL") ?? "",
+      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? ""
+    );
+    const { error: rpcError } = await serviceClient.rpc("increment_order_refunded_cents", {
       p_order_id: orderId,
       p_amount_cents: actualRefunded,
     });

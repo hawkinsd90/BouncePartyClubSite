@@ -695,6 +695,7 @@ export function RegularPortalView({ order, orderId, orderItems: _orderItems, ord
                 orderSummary={orderSummary}
                 onPaymentComplete={onReload}
                 restoredTipCents={restoredTipCents ?? undefined}
+                invoiceLinkToken={invoiceLinkToken}
               />
             )}
 

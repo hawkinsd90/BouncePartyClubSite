@@ -1,10 +1,12 @@
 import { useState } from 'react';
 import { X, AlertTriangle, Loader2, CheckCircle, XCircle } from 'lucide-react';
+import { getEdgeAuthToken } from '../../lib/edgeAuth';
 
 interface CancelOrderModalProps {
   orderId: string;
   eventDate: string;
-  customerEmail: string;
+  // Kept for call-site compatibility. An email address is no longer accepted as proof to cancel.
+  customerEmail?: string;
   invoiceLinkToken?: string | null;
   onClose: () => void;
   onSuccess: () => void;
@@ -22,7 +24,7 @@ const CANCELLATION_REASONS = [
   { value: 'other', label: 'Other (please specify)' },
 ];
 
-export function CancelOrderModal({ orderId, eventDate, customerEmail, invoiceLinkToken, onClose, onSuccess }: CancelOrderModalProps) {
+export function CancelOrderModal({ orderId, eventDate, invoiceLinkToken, onClose, onSuccess }: CancelOrderModalProps) {
   const [selectedReason, setSelectedReason] = useState('');
   const [customReason, setCustomReason] = useState('');
   const [submitting, setSubmitting] = useState(false);
@@ -53,13 +55,14 @@ export function CancelOrderModal({ orderId, eventDate, customerEmail, invoiceLin
         {
           method: 'POST',
           headers: {
-            'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
+            // Order-bound proof: the link token, or a signed-in owner's session token. An email address alone is no longer accepted.
+            'Authorization': `Bearer ${await getEdgeAuthToken()}`,
             'Content-Type': 'application/json',
           },
           body: JSON.stringify({
             orderId,
             cancellationReason: finalReason,
-            ...(invoiceLinkToken ? { invoiceLinkToken } : { customerEmail }),
+            ...(invoiceLinkToken ? { invoiceLinkToken } : {}),
           }),
         }
       );

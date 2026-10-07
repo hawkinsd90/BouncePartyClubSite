@@ -1,6 +1,7 @@
 import "jsr:@supabase/functions-js@2/edge-runtime.d.ts";
 import { createClient } from "npm:@supabase/supabase-js@2.57.4";
 import { formatOrderId } from "../_shared/format-order-id.ts";
+import { resolveCaller, isStaffAdmin, proveOrderAccess } from "../_shared/auth.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -25,25 +26,14 @@ Deno.serve(async (req: Request) => {
   }
 
   try {
+    // Service-role client for all reads/writes. It is created WITHOUT the caller's Authorization header, so database
+    // access does not depend on what role the caller's token happens to have; authorization is decided explicitly below.
     const supabaseClient = createClient(
       Deno.env.get("SUPABASE_URL") ?? "",
-      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "",
-      {
-        global: {
-          headers: { Authorization: req.headers.get("Authorization")! },
-        },
-      }
+      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? ""
     );
 
-    const authHeader = req.headers.get("Authorization");
-    let userId = null;
-
-    if (authHeader && authHeader.startsWith("Bearer ")) {
-      const { data: { user } } = await supabaseClient.auth.getUser();
-      userId = user?.id || null;
-    }
-
-    const { orderId, cancellationReason, adminOverrideRefund, customerEmail, invoiceLinkToken }: CancelRequest = await req.json();
+    const { orderId, cancellationReason, adminOverrideRefund: adminOverrideRefundRequested, invoiceLinkToken }: CancelRequest = await req.json();
 
     if (!orderId || !cancellationReason || cancellationReason.trim().length < 10) {
       return new Response(
@@ -56,6 +46,42 @@ Deno.serve(async (req: Request) => {
         }
       );
     }
+
+    // ── Authorization (Payment Safety A1) ─────────────────────────────────
+    // Staff cancellation requires a signed-in admin/master (not just any logged-in account). Customer cancellation
+    // requires order-bound proof: an unexpired invoice/portal link token for THIS order, or a signed-in customer who
+    // owns the order. An email address is not proof and is no longer accepted.
+    const caller = await resolveCaller(
+      supabaseClient,
+      req.headers.get("Authorization"),
+      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")
+    );
+    const isStaff = isStaffAdmin(caller);
+
+    if (!isStaff) {
+      const proof = await proveOrderAccess(supabaseClient, {
+        orderId,
+        caller,
+        token: invoiceLinkToken,
+        accept: ["token", "owner"],
+      });
+
+      if (!proof) {
+        console.warn(`[customer-cancel-order] rejected: caller=${caller.kind}${caller.kind === "user" ? ` user=${caller.userId}` : ""} reason=no_order_proof`);
+        return new Response(
+          JSON.stringify({ error: "You are not authorized to cancel this order." }),
+          {
+            status: caller.kind === "anonymous" ? 401 : 403,
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
+          }
+        );
+      }
+    }
+
+    // Staff identity (used for cancelled_by, the status allow-list, and notifications). Customers are null.
+    const userId = isStaff && caller.kind === "user" ? caller.userId : null;
+    // Only staff may record a refund intent.
+    const adminOverrideRefund = isStaff ? adminOverrideRefundRequested : undefined;
 
     const { data: order, error: orderError } = await supabaseClient
       .from("orders")
@@ -71,49 +97,6 @@ Deno.serve(async (req: Request) => {
           headers: { ...corsHeaders, "Content-Type": "application/json" },
         }
       );
-    }
-
-    // Ownership check: anon callers must prove ownership.
-    // Authenticated admins (userId != null) skip this check entirely.
-    if (!userId) {
-      if (invoiceLinkToken) {
-        // Strong path: verify the cryptographic invoice link token.
-        const { data: linkData, error: linkError } = await supabaseClient
-          .from("invoice_links")
-          .select("id, order_id, expires_at")
-          .eq("link_token", invoiceLinkToken)
-          .eq("order_id", orderId)
-          .maybeSingle();
-
-        if (linkError || !linkData) {
-          return new Response(
-            JSON.stringify({ error: "This cancellation link is not valid for this order" }),
-            { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-          );
-        }
-
-        if (linkData.expires_at && new Date(linkData.expires_at) < new Date()) {
-          return new Response(
-            JSON.stringify({ error: "This cancellation link has expired. Please contact us to cancel your order." }),
-            { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-          );
-        }
-      } else {
-        // Fallback path: email match for direct /customer-portal/:orderId sessions (no token issued).
-        if (!customerEmail) {
-          return new Response(
-            JSON.stringify({ error: "Customer email is required to cancel this order" }),
-            { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-          );
-        }
-        const orderEmail = order.customers?.email ?? "";
-        if (orderEmail.trim().toLowerCase() !== customerEmail.trim().toLowerCase()) {
-          return new Response(
-            JSON.stringify({ error: "The email address provided does not match this order" }),
-            { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-          );
-        }
-      }
     }
 
     const customerCancellableStatuses = ["draft", "pending_review", "awaiting_customer_approval", "confirmed"];

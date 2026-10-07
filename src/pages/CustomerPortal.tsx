@@ -109,7 +109,7 @@ export function CustomerPortal() {
             if (depositDue > 0 && depositPaid < depositDue) {
               try {
                 const { data: chargeData, error: chargeErr } = await supabase.functions.invoke('charge-deposit', {
-                  body: { orderId },
+                  body: { orderId, sessionId: returnSessionId, ...(invoiceToken ? { invoiceToken } : {}) },
                 });
                 if (chargeErr || !chargeData?.success) {
                   console.error('[CustomerPortal] charge-deposit failed:', chargeErr?.message ?? chargeData?.error ?? 'unknown');
@@ -128,7 +128,7 @@ export function CustomerPortal() {
             } else {
               try {
                 await supabase.functions.invoke('order-lifecycle', {
-                  body: { action: 'enter_confirmed', orderId, source: 'invoice_card_saved_fallback', paymentOutcome: 'zero_due_with_card' },
+                  body: { action: 'enter_confirmed', orderId, source: 'invoice_card_saved_fallback', paymentOutcome: 'zero_due_with_card', sessionId: returnSessionId, ...(invoiceToken ? { invoiceToken } : {}) },
                 });
               } catch (lifecycleErr) {
                 console.error('[CustomerPortal] order-lifecycle fallback failed (non-fatal):', lifecycleErr instanceof Error ? lifecycleErr.message : 'unknown');

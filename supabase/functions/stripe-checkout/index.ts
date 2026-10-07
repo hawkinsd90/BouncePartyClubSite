@@ -2,6 +2,13 @@ import "jsr:@supabase/functions-js@2/edge-runtime.d.ts";
 import Stripe from "npm:stripe@20.0.0";
 import { createClient } from "npm:@supabase/supabase-js@2.57.4";
 import { checkRateLimit, createRateLimitResponse, getIdentifier, buildRateLimitKey } from "../_shared/rate-limit.ts";
+import {
+  resolveCaller,
+  isStaffAdmin,
+  proveOrderAccess,
+  isFreshBookingDraft,
+  authFailureResponse,
+} from "../_shared/auth.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -63,6 +70,49 @@ Deno.serve(async (req: Request) => {
       Deno.env.get("SUPABASE_URL") ?? "",
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? ""
     );
+
+    // ── Authorization (Payment Safety A1 corrective) ────────────────────────
+    // A completed Checkout session whose metadata.order_id names an order is accepted elsewhere as proof of control of
+    // that order (charge-deposit, order-lifecycle, save-payment-method-from-session). That is only sound if an
+    // untrusted caller cannot get a session created for an arbitrary existing order, so creation is gated here.
+    //
+    // Allowed to create a session for an order:
+    //   - the backend (service role) or a signed-in admin/master;
+    //   - a customer proving control of THIS order: an unexpired invoice/portal link token bound to it (invoice,
+    //     card-update and payment flows) or a signed-in customer who owns it;
+    //   - the public NEW-booking flow (bookingMode) for an order that is still an untouched booking draft: draft status,
+    //     not an admin invoice, no Stripe customer or payment method attached yet, created within the last 2 hours.
+    // A bare order UUID is never enough for an existing order.
+    const caller = await resolveCaller(
+      supabaseClient,
+      req.headers.get("Authorization"),
+      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")
+    );
+    let authorizedToCreate = caller.kind === "service" || isStaffAdmin(caller);
+
+    if (!authorizedToCreate) {
+      const proof = await proveOrderAccess(supabaseClient, {
+        orderId,
+        caller,
+        token: invoiceLinkToken,
+        accept: ["token", "owner"],
+      });
+      authorizedToCreate = !!proof;
+    }
+
+    if (!authorizedToCreate && bookingMode === true) {
+      authorizedToCreate = await isFreshBookingDraft(supabaseClient, orderId);
+    }
+
+    if (!authorizedToCreate) {
+      console.warn(
+        `[stripe-checkout] rejected: caller=${caller.kind}${caller.kind === "user" ? ` user=${caller.userId}` : ""} mode=${bookingMode ? "booking" : setupMode ? "setup" : "payment"} reason=no_order_proof`
+      );
+      return authFailureResponse(
+        { ok: false, status: caller.kind === "anonymous" ? 401 : 403, error: "Not authorized for this order." },
+        corsHeaders
+      );
+    }
 
     const { data: stripeKeyData, error: keyError } = await supabaseClient
       .from("admin_settings")
@@ -186,7 +236,9 @@ Deno.serve(async (req: Request) => {
       ? `${resolvedOrigin}/customer-portal/${orderId}?card_update_canceled=true${cancelTokenParam}`
       : `${resolvedOrigin}/payment-canceled?order_id=${orderId}`;
 
-    console.log("stripe-checkout: urls — success:", successUrl, "| cancel:", cancelUrl);
+    // The return URLs can carry the portal link token (&t=...); never log it.
+    const redactToken = (u: string) => u.replace(/([?&]t=)[^&]+/g, "$1[redacted]");
+    console.log("stripe-checkout: urls — success:", redactToken(successUrl), "| cancel:", redactToken(cancelUrl));
 
     const sessionParams: Stripe.Checkout.SessionCreateParams = bookingMode
       ? {

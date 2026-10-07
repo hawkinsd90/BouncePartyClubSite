@@ -445,7 +445,7 @@ export function InvoiceAcceptanceView({
         }
 
         try {
-          await enterConfirmed(order.id, 'invoice_acceptance_no_card', 'waived', order.status);
+          await enterConfirmed(order.id, 'invoice_acceptance_no_card', 'waived', order.status, { invoiceToken: invoiceLink?.link_token ?? null });
         } catch (lifecycleErr) {
           console.error('[InvoiceAcceptanceView] enterConfirmed failed (non-fatal):', lifecycleErr);
         }
@@ -888,6 +888,7 @@ export function InvoiceAcceptanceView({
             orderId={order.id}
             eventDate={order.event_date}
             customerEmail={order.customer_email || order.customers?.email || ''}
+            invoiceLinkToken={invoiceLink?.link_token ?? null}
             onClose={() => setShowCancelModal(false)}
             onSuccess={() => {
               showToast('Your order has been cancelled', 'success');

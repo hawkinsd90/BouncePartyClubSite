@@ -165,9 +165,9 @@ export function usePaymentCompletion(orderId: string | null, sessionId: string |
             const { enterPendingReview, enterConfirmed } = await import('../lib/orderLifecycle');
             let lifecycleResult;
             if (isAdminInvoice) {
-              lifecycleResult = await enterConfirmed(orderId!, 'webhook_fallback_admin_invoice', 'charged_now');
+              lifecycleResult = await enterConfirmed(orderId!, 'webhook_fallback_admin_invoice', 'charged_now', undefined, { sessionId });
             } else {
-              lifecycleResult = await enterPendingReview(orderId!, 'webhook_fallback_standard');
+              lifecycleResult = await enterPendingReview(orderId!, 'webhook_fallback_standard', { sessionId });
             }
             lifecycleOk = lifecycleResult.success === true;
           } catch (lifecycleErr) {

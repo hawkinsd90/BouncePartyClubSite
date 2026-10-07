@@ -3,6 +3,7 @@ import { CheckCircle, CreditCard, Loader2 } from 'lucide-react';
 import { formatCurrency } from '../../lib/pricing';
 import { TipSelector, calculateTipCents } from '../payment/TipSelector';
 import { showToast } from '../../lib/notifications';
+import { getEdgeAuthToken } from '../../lib/edgeAuth';
 
 interface PaymentTabProps {
   orderId: string;
@@ -11,6 +12,8 @@ interface PaymentTabProps {
   orderSummary: any;
   onPaymentComplete: () => void;
   restoredTipCents?: number;
+  // Order-bound proof for the saved-card charge (an unexpired invoice/portal link token for this order).
+  invoiceLinkToken?: string | null;
 }
 
 interface ConfirmModalProps {
@@ -115,7 +118,7 @@ function ConfirmChargeModal({
   );
 }
 
-export function PaymentTab({ orderId, order, balanceDue, orderSummary, onPaymentComplete, restoredTipCents }: PaymentTabProps) {
+export function PaymentTab({ orderId, order, balanceDue, orderSummary, onPaymentComplete, restoredTipCents, invoiceLinkToken }: PaymentTabProps) {
   const [tipAmount, setTipAmount] = useState<'none' | '10' | '15' | '20' | 'custom'>('none');
   const [customTipAmount, setCustomTipAmount] = useState('');
   const [loading, setLoading] = useState(false);
@@ -169,13 +172,15 @@ export function PaymentTab({ orderId, order, balanceDue, orderSummary, onPayment
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${anonKey}`,
+          // Signed-in customers send their session token (owner proof); otherwise the anon key plus the link token.
+          'Authorization': `Bearer ${await getEdgeAuthToken()}`,
           'Apikey': anonKey,
         },
         body: JSON.stringify({
           orderId,
           amountCents: balanceDue,
           tipCents,
+          ...(invoiceLinkToken ? { invoiceToken: invoiceLinkToken } : {}),
         }),
       });
 
@@ -225,12 +230,14 @@ export function PaymentTab({ orderId, order, balanceDue, orderSummary, onPayment
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${anonKey}`,
+          // Signed-in owners send their session token; otherwise the anon key plus the order-bound link token.
+          'Authorization': `Bearer ${await getEdgeAuthToken()}`,
           'Apikey': anonKey,
         },
         body: JSON.stringify({
           orderId,
           setupMode: true,
+          ...(invoiceLinkToken ? { invoiceLinkToken } : {}),
           paymentState: {
             newTipCents: tipCents,
           },

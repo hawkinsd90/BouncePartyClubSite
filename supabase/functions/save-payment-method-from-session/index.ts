@@ -2,6 +2,7 @@ import "jsr:@supabase/functions-js@2/edge-runtime.d.ts";
 import Stripe from "npm:stripe@20.0.0";
 import { createClient } from "npm:@supabase/supabase-js@2.57.4";
 import { corsHeaders } from "../_shared/cors.ts";
+import { sessionBoundToOrder, sessionCustomerId } from "../_shared/auth.ts";
 
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") {
@@ -48,8 +49,54 @@ Deno.serve(async (req: Request) => {
       apiVersion: "2024-10-28.acacia",
     });
 
-    // Retrieve the checkout session
-    const session = await stripe.checkout.sessions.retrieve(sessionId);
+    // Retrieve the checkout session. The session id is the caller's proof, so it must belong to THIS order: the
+    // session must be complete and its metadata.order_id must equal the requested orderId. Without this binding any
+    // session id (for example one the caller created for their own order) could overwrite another order's saved card.
+    let session: Stripe.Checkout.Session;
+    try {
+      session = await stripe.checkout.sessions.retrieve(sessionId);
+    } catch {
+      console.warn("[SAVE-PM] rejected: reason=session_not_retrievable");
+      return new Response(
+        JSON.stringify({ success: false, error: "Not authorized for this order." }),
+        { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    if (!sessionBoundToOrder(session, orderId, { modes: ["setup", "payment"] })) {
+      console.warn("[SAVE-PM] rejected: reason=session_not_bound_to_order");
+      return new Response(
+        JSON.stringify({ success: false, error: "Not authorized for this order." }),
+        { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    // The session's Stripe customer must be the order's customer when the order already has one.
+    const { data: existingOrder } = await supabaseClient
+      .from("orders")
+      .select("stripe_customer_id")
+      .eq("id", orderId)
+      .maybeSingle();
+
+    if (!existingOrder) {
+      return new Response(
+        JSON.stringify({ success: false, error: "Order not found" }),
+        { status: 404, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    const sessionStripeCustomerId = sessionCustomerId(session);
+    if (
+      existingOrder.stripe_customer_id &&
+      sessionStripeCustomerId &&
+      existingOrder.stripe_customer_id !== sessionStripeCustomerId
+    ) {
+      console.warn("[SAVE-PM] rejected: reason=session_customer_mismatch");
+      return new Response(
+        JSON.stringify({ success: false, error: "Not authorized for this order." }),
+        { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
 
     // console.log(`[SAVE-PM] Session mode: ${session.mode}, status: ${session.status}`);
 

@@ -1,5 +1,14 @@
+import { getEdgeAuthToken } from './edgeAuth';
+
 const LIFECYCLE_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/order-lifecycle`;
-const ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY;
+
+// Order-bound proof for non-admin callers. The server never trusts the order id alone: it needs an unexpired invoice
+// token for this order, a completed Stripe Checkout session for this order, or a signed-in owner session.
+// Admin/master callers authenticate with their session token and need no extra proof.
+export interface LifecycleProof {
+  sessionId?: string | null;
+  invoiceToken?: string | null;
+}
 
 export type PaymentOutcome =
   | 'waived'
@@ -10,7 +19,7 @@ export type PaymentOutcome =
   | 'custom_paid'
   | 'cash';
 
-async function callLifecycle(body: object): Promise<{ success: boolean; error?: string; alreadySent?: boolean }> {
+async function callLifecycle(body: object, proof?: LifecycleProof): Promise<{ success: boolean; error?: string; alreadySent?: boolean }> {
   const { action, orderId } = body as { action?: string; orderId?: string };
   const logPrefix = `[orderLifecycle] action=${action ?? '?'} orderId=${orderId ?? '?'}`;
 
@@ -18,10 +27,14 @@ async function callLifecycle(body: object): Promise<{ success: boolean; error?: 
     const response = await fetch(LIFECYCLE_URL, {
       method: 'POST',
       headers: {
-        Authorization: `Bearer ${ANON_KEY}`,
+        Authorization: `Bearer ${await getEdgeAuthToken()}`,
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify(body),
+      body: JSON.stringify({
+        ...body,
+        ...(proof?.sessionId ? { sessionId: proof.sessionId } : {}),
+        ...(proof?.invoiceToken ? { invoiceToken: proof.invoiceToken } : {}),
+      }),
     });
 
     let data: { success: boolean; error?: string; alreadySent?: boolean };
@@ -47,16 +60,18 @@ async function callLifecycle(body: object): Promise<{ success: boolean; error?: 
 
 export async function enterPendingReview(
   orderId: string,
-  source: string
+  source: string,
+  proof?: LifecycleProof
 ): Promise<{ success: boolean; error?: string }> {
-  return callLifecycle({ action: 'enter_pending_review', orderId, source });
+  return callLifecycle({ action: 'enter_pending_review', orderId, source }, proof);
 }
 
 export async function enterConfirmed(
   orderId: string,
   source: string,
   paymentOutcome: PaymentOutcome,
-  oldStatusHint?: string
+  oldStatusHint?: string,
+  proof?: LifecycleProof
 ): Promise<{ success: boolean; error?: string }> {
-  return callLifecycle({ action: 'enter_confirmed', orderId, source, paymentOutcome, ...(oldStatusHint ? { oldStatusHint } : {}) });
+  return callLifecycle({ action: 'enter_confirmed', orderId, source, paymentOutcome, ...(oldStatusHint ? { oldStatusHint } : {}) }, proof);
 }

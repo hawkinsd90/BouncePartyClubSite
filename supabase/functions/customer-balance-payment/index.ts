@@ -25,6 +25,7 @@ import { validatePaymentMethod } from "../_shared/payment-validation.ts";
 import { formatOrderId } from "../_shared/format-order-id.ts";
 import { logTransaction } from "../_shared/transaction-logger.ts";
 import { formatCurrency, formatPaymentMethodLabel } from "../_shared/fmt.ts";
+import { resolveCaller, proveOrderAccess, authFailureResponse } from "../_shared/auth.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -37,6 +38,8 @@ interface BalancePaymentRequest {
   orderId: string;
   amountCents: number;
   tipCents?: number;
+  // Order-bound customer proof (an unexpired invoice/portal link token for this order).
+  invoiceToken?: string;
 }
 
 Deno.serve(async (req: Request) => {
@@ -46,7 +49,7 @@ Deno.serve(async (req: Request) => {
 
   try {
     const body: BalancePaymentRequest = await req.json();
-    const { orderId, amountCents, tipCents: rawTipCents = 0 } = body;
+    const { orderId, amountCents, tipCents: rawTipCents = 0, invoiceToken } = body;
 
     const tipCents = Math.max(0, Math.round(Number(rawTipCents) || 0));
     const balanceCents = Math.max(0, Math.round(Number(amountCents) || 0));
@@ -63,6 +66,29 @@ Deno.serve(async (req: Request) => {
       Deno.env.get("SUPABASE_URL") ?? "",
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? ""
     );
+
+    // ── Authorization (Payment Safety A1) ───────────────────────────────────
+    // This charges the order's saved card, so an order UUID alone is not enough. The caller must prove control of
+    // THIS order: an unexpired invoice/portal link token bound to it, or a signed-in customer who owns it.
+    const caller = await resolveCaller(
+      supabaseClient,
+      req.headers.get("Authorization"),
+      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")
+    );
+    const proof = await proveOrderAccess(supabaseClient, {
+      orderId,
+      caller,
+      token: invoiceToken,
+      accept: ["token", "owner"],
+    });
+    if (!proof) {
+      console.warn(`[customer-balance-payment] rejected: caller=${caller.kind}${caller.kind === "user" ? ` user=${caller.userId}` : ""} reason=no_order_proof`);
+      return authFailureResponse(
+        { ok: false, status: caller.kind === "anonymous" ? 401 : 403, error: "Not authorized to pay this order." },
+        corsHeaders,
+        "error-only"
+      );
+    }
 
     // Load Stripe secret key from admin_settings
     const { data: stripeKeyData, error: keyError } = await supabaseClient
@@ -104,6 +130,16 @@ Deno.serve(async (req: Request) => {
       return new Response(
         JSON.stringify({ error: "Order not found.", detail: orderError?.message }),
         { status: 404, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    // The balance portion of the charge can never exceed what the order currently owes (server-read). A tip may be
+    // added on top of the balance.
+    const authorizedBalanceCents = Math.max(0, order.balance_due_cents ?? 0);
+    if (balanceCents > authorizedBalanceCents) {
+      return new Response(
+        JSON.stringify({ error: "Payment amount exceeds the balance due on this order." }),
+        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 

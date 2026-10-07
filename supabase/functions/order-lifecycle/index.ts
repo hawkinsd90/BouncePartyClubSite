@@ -1,7 +1,16 @@
 import "jsr:@supabase/functions-js@2/edge-runtime.d.ts";
 import { createClient } from "npm:@supabase/supabase-js@2.57.4";
+import Stripe from "npm:stripe@20.0.0";
 import { formatCurrency } from "../_shared/fmt.ts";
 import { formatOrderId } from "../_shared/format-order-id.ts";
+import {
+  resolveCaller,
+  isStaffAdmin,
+  proveOrderAccess,
+  authFailureResponse,
+  type AuthClient,
+} from "../_shared/auth.ts";
+import { deriveCustomerOutcome } from "../_shared/lifecycle-outcome.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -23,9 +32,9 @@ Deno.serve(async (req: Request) => {
 
   try {
     const body = await req.json();
-    const { action, orderId, source, paymentOutcome, oldStatusHint } = body;
+    const { action, orderId, source, paymentOutcome, oldStatusHint, invoiceToken, sessionId } = body;
 
-    if (!orderId || !action) {
+    if (!orderId || !action || typeof orderId !== "string") {
       return new Response(JSON.stringify({ error: "Missing required fields: orderId, action" }), {
         status: 400,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -36,6 +45,42 @@ Deno.serve(async (req: Request) => {
       Deno.env.get("SUPABASE_URL") ?? "",
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? ""
     );
+
+    // ── Authorization (Payment Safety A1) ───────────────────────────────────
+    // The browser sends the public anon key (or a user session token), neither of which proves anything about
+    // an order. Trusted callers: the backend (service-role key) and signed-in admin/master users. Everyone else
+    // must prove control of THIS order: an unexpired invoice token bound to the order, a signed-in customer who
+    // owns it, or a completed Stripe Checkout session whose metadata.order_id is this order. The booking-request
+    // transition (enter_pending_review) accepts only the Stripe session proof.
+    const caller = await resolveCaller(
+      supabase,
+      req.headers.get("Authorization"),
+      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")
+    );
+    const trustedCaller = caller.kind === "service" || isStaffAdmin(caller);
+
+    if (!trustedCaller) {
+      const proof = await proveOrderAccess(supabase, {
+        orderId,
+        caller,
+        token: invoiceToken,
+        sessionId,
+        accept: action === "enter_pending_review"
+          ? ["stripe_session"]
+          : ["token", "owner", "stripe_session"],
+        retrieveCheckoutSession: (id: string) => retrieveCheckoutSession(supabase, id),
+      });
+
+      if (!proof) {
+        console.warn(
+          `[order-lifecycle] rejected: action=${action} caller=${caller.kind}${caller.kind === "user" ? ` user=${caller.userId}` : ""} reason=no_order_proof`
+        );
+        return authFailureResponse(
+          { ok: false, status: caller.kind === "anonymous" ? 401 : 403, error: "Not authorized for this order." },
+          corsHeaders
+        );
+      }
+    }
 
     if (action === "enter_pending_review") {
       // console.log(`[order-lifecycle] enter_pending_review — orderId=${orderId} source=${source ?? "(none)"}`);
@@ -49,7 +94,7 @@ Deno.serve(async (req: Request) => {
 
     if (action === "enter_confirmed") {
       // console.log(`[order-lifecycle] enter_confirmed — orderId=${orderId} source=${source ?? "(none)"} paymentOutcome=${paymentOutcome ?? "(none)"}`);
-      const result = await enterConfirmed(supabase, orderId, source || "unknown", paymentOutcome || "already_paid", oldStatusHint || null);
+      const result = await enterConfirmed(supabase, orderId, source || "unknown", paymentOutcome || "already_paid", oldStatusHint || null, trustedCaller);
       // console.log(`[order-lifecycle] enter_confirmed result — success=${result.success} alreadySent=${result.alreadySent ?? false} error=${result.error ?? "(none)"}`);
       return new Response(JSON.stringify(result), {
         status: result.success ? 200 : 400,
@@ -70,6 +115,18 @@ Deno.serve(async (req: Request) => {
     });
   }
 });
+
+// Stripe Checkout session lookup for the customer-proof path. Loads the Stripe key lazily from admin_settings.
+async function retrieveCheckoutSession(supabase: AuthClient, sessionId: string) {
+  const { data: keyData } = await supabase
+    .from("admin_settings")
+    .select("value")
+    .eq("key", "stripe_secret_key")
+    .maybeSingle();
+  if (!keyData?.value) return null;
+  const stripe = new Stripe(keyData.value, { apiVersion: "2024-10-28.acacia" });
+  return await stripe.checkout.sessions.retrieve(sessionId);
+}
 
 // ============================================================
 // AUTHORITATIVE HANDLER A: enterPendingReview
@@ -176,8 +233,9 @@ async function enterConfirmed(
   supabase: any,
   orderId: string,
   source: string,
-  paymentOutcome: string,
-  oldStatusHint: string | null = null
+  requestedOutcome: string,
+  oldStatusHint: string | null = null,
+  trustedCaller = false
 ): Promise<{ success: boolean; error?: string; alreadySent?: boolean }> {
   const { data: order, error: fetchError } = await supabase
     .from("orders")
@@ -200,6 +258,12 @@ async function enterConfirmed(
   if (fetchError || !order) {
     return { success: false, error: "Order not found" };
   }
+
+  // Trusted callers (backend, signed-in admin/master) choose the outcome. Anyone else only proved control of the
+  // order, not that payment happened, so the outcome is derived from the order's own deposit state.
+  const paymentOutcome = trustedCaller
+    ? requestedOutcome
+    : deriveCustomerOutcome(requestedOutcome, order.deposit_due_cents, order.deposit_paid_cents);
 
   const allowedFromStatuses = ["draft", "pending_review", "awaiting_customer_approval", "confirmed"];
 

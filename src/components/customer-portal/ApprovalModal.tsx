@@ -142,6 +142,8 @@ export function ApprovalModal({
           body: {
             orderId: order.id,
             setupMode: true,
+            // Order-bound proof for the card-update session (a signed-in owner is recognized from the session token).
+            ...(invoiceLinkToken ? { invoiceLinkToken } : {}),
             paymentState: {
               paymentAmount,
               customPaymentAmount,
@@ -220,7 +222,7 @@ export function ApprovalModal({
         }
 
         try {
-          await enterConfirmed(order.id, 'customer_approval_already_paid', 'already_paid', order.status);
+          await enterConfirmed(order.id, 'customer_approval_already_paid', 'already_paid', order.status, { invoiceToken: invoiceLinkToken });
         } catch (lifecycleErr) {
           console.error('[ApprovalModal] enterConfirmed (already-paid) failed (non-fatal):', lifecycleErr);
         }
@@ -337,7 +339,7 @@ export function ApprovalModal({
         }
 
         try {
-          await enterConfirmed(order.id, 'customer_approval_zero_deposit', 'zero_due_with_card', order.status);
+          await enterConfirmed(order.id, 'customer_approval_zero_deposit', 'zero_due_with_card', order.status, { invoiceToken: invoiceLinkToken });
         } catch (lifecycleErr) {
           console.error('[ApprovalModal] enterConfirmed (zero-deposit) failed (non-fatal):', lifecycleErr);
         }
@@ -369,6 +371,8 @@ export function ApprovalModal({
               paymentAmountCents: selectedPaymentBaseCents,
               tipCents: keepOriginalPayment ? (order.tip_cents || 0) : newTipCents,
               selectedPaymentType: resolvedPaymentType,
+              // Order-bound proof; a signed-in owner is also recognized from the Authorization token.
+              ...(invoiceLinkToken ? { invoiceToken: invoiceLinkToken } : {}),
             }),
           }
         );
@@ -401,7 +405,7 @@ export function ApprovalModal({
         }
 
         try {
-          await enterConfirmed(order.id, 'customer_approval_charge_deposit', 'charged_now');
+          await enterConfirmed(order.id, 'customer_approval_charge_deposit', 'charged_now', undefined, { invoiceToken: invoiceLinkToken });
         } catch (lifecycleErr) {
           console.error('[ApprovalModal] enterConfirmed (charge-deposit) failed (non-fatal):', lifecycleErr);
         }

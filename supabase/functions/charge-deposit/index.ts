@@ -9,12 +9,31 @@ import {
 } from "../_shared/rate-limit.ts";
 import { validatePaymentMethod } from "../_shared/payment-validation.ts";
 import { formatCurrency } from "../_shared/fmt.ts";
+import {
+  resolveCaller,
+  isStaffAdmin,
+  proveOrderAccess,
+  authFailureResponse,
+  type AuthClient,
+} from "../_shared/auth.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
   "Access-Control-Allow-Headers": "Content-Type, Authorization, X-Client-Info, Apikey",
 };
+
+// Stripe Checkout session lookup for the customer-proof path (loads the Stripe key lazily).
+async function retrieveCheckoutSession(supabaseClient: AuthClient, sessionId: string) {
+  const { data: keyData } = await supabaseClient
+    .from("admin_settings")
+    .select("value")
+    .eq("key", "stripe_secret_key")
+    .maybeSingle();
+  if (!keyData?.value) return null;
+  const stripe = new Stripe(keyData.value, { apiVersion: "2024-10-28.acacia" });
+  return await stripe.checkout.sessions.retrieve(sessionId);
+}
 
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") {
@@ -38,6 +57,8 @@ Deno.serve(async (req: Request) => {
       paymentAmountCents: requestPaymentAmountCents,
       tipCents: requestTipCents,
       selectedPaymentType: requestSelectedPaymentType,
+      invoiceToken,
+      sessionId,
     } = body;
 
     const ip = getIdentifier(req);
@@ -94,6 +115,47 @@ Deno.serve(async (req: Request) => {
       Deno.env.get("SUPABASE_URL") ?? "",
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? ""
     );
+
+    // ── Authorization (Payment Safety A1) ───────────────────────────────────
+    // The public anon key is not proof of anything. A card charge is allowed only for:
+    //   - a signed-in admin/master (any amount/type this function supports, including balance charges), or
+    //   - a customer proving control of THIS order with an unexpired invoice token bound to it, a signed-in
+    //     customer who owns it, or a completed Stripe Checkout session whose metadata.order_id is this order.
+    // Crew are not admin and may not charge cards. Customers may not run balance charges here (customer balance
+    // payments go through customer-balance-payment).
+    const caller = await resolveCaller(
+      supabaseClient,
+      req.headers.get("Authorization"),
+      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")
+    );
+    const staffCaller = caller.kind === "service" || isStaffAdmin(caller);
+
+    if (!staffCaller) {
+      const anonymous = caller.kind === "anonymous";
+      if (requestSelectedPaymentType === "balance") {
+        console.warn(`[charge-deposit] rejected: caller=${caller.kind}${caller.kind === "user" ? ` user=${caller.userId}` : ""} reason=balance_charge_requires_admin`);
+        return authFailureResponse(
+          { ok: false, status: anonymous ? 401 : 403, error: "Not authorized to charge this order." },
+          corsHeaders
+        );
+      }
+
+      const proof = await proveOrderAccess(supabaseClient, {
+        orderId,
+        caller,
+        token: invoiceToken,
+        sessionId,
+        retrieveCheckoutSession: (id: string) => retrieveCheckoutSession(supabaseClient, id),
+      });
+
+      if (!proof) {
+        console.warn(`[charge-deposit] rejected: caller=${caller.kind}${caller.kind === "user" ? ` user=${caller.userId}` : ""} reason=no_order_proof`);
+        return authFailureResponse(
+          { ok: false, status: anonymous ? 401 : 403, error: "Not authorized to charge this order." },
+          corsHeaders
+        );
+      }
+    }
 
     const { data: stripeKeyData, error: keyError } = await supabaseClient
       .from("admin_settings")

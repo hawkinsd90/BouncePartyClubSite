@@ -1,4 +1,5 @@
 import { createClient } from 'npm:@supabase/supabase-js@2.57.4';
+import { resolveCaller, requireRoles, authFailureResponse, INVOICE_SENDER_ROLES } from '../_shared/auth.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -45,6 +46,25 @@ Deno.serve(async (req: Request) => {
       Deno.env.get('SUPABASE_URL') ?? '',
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     );
+
+    // Authorization (Payment Safety A1): this mints invoice credentials for an order and sends email/SMS, so it is
+    // staff-only. The public anon key is not enough. Allowed: the backend (service role) and signed-in admin, master or
+    // crew (crew may create and send invoices; crew still cannot charge cards or refund elsewhere).
+    const caller = await resolveCaller(
+      supabase,
+      req.headers.get('Authorization'),
+      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')
+    );
+    if (caller.kind !== 'service') {
+      const gate = requireRoles(caller, INVOICE_SENDER_ROLES, {
+        unauthorized: 'Unauthorized',
+        forbidden: 'Forbidden: staff access required.',
+      });
+      if (!gate.ok) {
+        console.warn(`[send-invoice] rejected: caller=${caller.kind}${caller.kind === 'user' ? ` user=${caller.userId}` : ''} reason=staff_required`);
+        return authFailureResponse(gate, corsHeaders, 'error-only');
+      }
+    }
 
     const { orderId, depositCents: rawDepositCents, customerEmail, customerPhone, customerName } = await req.json();
     const parsedDepositCents = Number(rawDepositCents);
