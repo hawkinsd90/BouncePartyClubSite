@@ -10,20 +10,14 @@ import {
 import {
   notifySuccess,
   notifyError,
-  notifyWarning,
 } from '../../../lib/notifications';
-import { supabase } from '../../../lib/supabase';
-import { parseStoragePath } from '../../../lib/queries/products';
 import type {
   InventoryProductWithPricing,
   ProductCategory,
   ProductAdminFormData,
 } from '../../../types';
-import {
-  AdminImageUpload,
-  type AdminImageUploadHandle,
-  type UploadedImage,
-} from './AdminImageUpload';
+import { AdminImageUpload } from './AdminImageUpload';
+import { useEventEssentialsImageLifecycle } from './useEventEssentialsImageLifecycle';
 
 interface ProductFormProps {
   product: InventoryProductWithPricing | null;
@@ -107,16 +101,23 @@ export function ProductForm({
     centsToDollars(product?.pricing?.addon_qualifying_threshold_cents)
   );
 
-  const [imageAction, setImageAction] = useState<'upload' | 'remove' | 'none'>('none');
-  const [newUploadedImage, setNewUploadedImage] = useState<UploadedImage | null>(null);
-  const [isSaving, setIsSaving] = useState(false);
-  const [isUploading, setIsUploading] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [rpcError, setRpcError] = useState<string | null>(null);
 
-  const imageUploadRef = useRef<AdminImageUploadHandle>(null);
-  const prevImageUrl = useRef<string | null>(product?.image_url ?? null);
-  const closedRef = useRef(false);
+  const {
+    imageUploadRef,
+    isSaving,
+    isBusy,
+    handleImageChange,
+    handleUploadStateChange,
+    handleClose,
+    prepareImageForSave,
+    saveWithImage,
+  } = useEventEssentialsImageLifecycle({
+    entityLabel: 'product',
+    initialImageUrl: product?.image_url ?? null,
+    onClose,
+  });
 
   useEffect(() => {
     if (!isEdit && !slugManuallyEdited.current) {
@@ -131,58 +132,6 @@ export function ProductForm({
     },
     []
   );
-
-  const handleImageChange = useCallback(
-    (image: UploadedImage | null, action: 'upload' | 'remove' | 'none') => {
-      setNewUploadedImage(image);
-      setImageAction(action);
-    },
-    []
-  );
-
-  const handleUploadStateChange = useCallback((busy: boolean) => {
-    setIsUploading(busy);
-  }, []);
-
-  const isBusy = isSaving || isUploading;
-
-  async function cleanupPendingUpload(): Promise<boolean> {
-    const img = imageUploadRef.current?.getUploadedImage();
-    if (!img) {
-      setNewUploadedImage(null);
-      setImageAction('none');
-      return true;
-    }
-    const deleted = await imageUploadRef.current?.deleteNewlyUploaded();
-    if (deleted) {
-      setNewUploadedImage(null);
-      setImageAction('none');
-      return true;
-    }
-    // Deletion failed — preserve child and parent pending state.
-    // Re-affirm parent state points to the pending upload.
-    const current = imageUploadRef.current?.getUploadedImage();
-    if (current) {
-      setNewUploadedImage(current);
-      setImageAction('upload');
-    }
-    notifyWarning(
-      'Could not delete the pending image. The form will stay open so you can retry.'
-    );
-    return false;
-  }
-
-  async function handleClose(): Promise<void> {
-    if (closedRef.current) return;
-    if (isBusy) return;
-    const cleaned = await cleanupPendingUpload();
-    if (!cleaned) {
-      // Keep modal open so cleanup can be retried.
-      return;
-    }
-    closedRef.current = true;
-    onClose();
-  }
 
   function validate(): boolean {
     const e: Record<string, string> = {};
@@ -237,28 +186,6 @@ export function ProductForm({
     return Object.keys(e).length === 0;
   }
 
-  async function deleteStorageFile(url: string): Promise<boolean> {
-    const path = parseStoragePath(url);
-    if (!path) return true;
-    try {
-      const { error } = await supabase.storage.from('event-essentials-media').remove([path]);
-      if (error) {
-        console.error('Failed to delete old storage file:', path, error.message);
-        notifyWarning(
-          'The product was saved, but the old image file could not be deleted. Manual cleanup may be needed.'
-        );
-        return false;
-      }
-      return true;
-    } catch (err) {
-      console.error('Failed to delete old storage file:', path, err);
-      notifyWarning(
-        'The product was saved, but the old image file could not be deleted. Manual cleanup may be needed.'
-      );
-      return false;
-    }
-  }
-
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setRpcError(null);
@@ -275,25 +202,9 @@ export function ProductForm({
     const thresholdCents =
       formData.addon_enabled && thresholdParsed.cents !== null ? thresholdParsed.cents : null;
 
-    // Sync parent image state with child pending state before save.
-    // If the child retains a pending upload (e.g. after a failed remove),
-    // treat it as the selected upload.
-    const childPending = imageUploadRef.current?.getUploadedImage() ?? null;
-    let effectiveAction = imageAction;
-    let effectiveImage = newUploadedImage;
-    if (childPending && (!newUploadedImage || newUploadedImage.url !== childPending.url)) {
-      effectiveImage = childPending;
-      effectiveAction = 'upload';
-      setNewUploadedImage(childPending);
-      setImageAction('upload');
-    }
-
-    let imageUrl = formData.image_url;
-    if (effectiveAction === 'remove') {
-      imageUrl = null;
-    } else if (effectiveAction === 'upload' && effectiveImage) {
-      imageUrl = effectiveImage.url;
-    }
+    // Sync parent image state with child pending state before save, then resolve the image URL to save.
+    const prepared = prepareImageForSave(formData.image_url);
+    const imageUrl = prepared.imageUrl;
 
     const productId = productIdRef.current;
 
@@ -305,72 +216,19 @@ export function ProductForm({
       thresholdCents,
     );
 
-    setIsSaving(true);
-
-    try {
-      const { error } = await saveInventoryProductV2(params);
-
-      if (error) {
-        const msg = error.message || 'Failed to save product';
+    await saveWithImage({
+      prepared,
+      fallbackMessage: 'Failed to save product',
+      saveEntity: () => saveInventoryProductV2(params),
+      onFailure: (msg) => {
         setRpcError(msg);
         notifyError(msg);
-
-        if (effectiveAction === 'upload') {
-          const deleted = await imageUploadRef.current?.deleteNewlyUploaded();
-          if (deleted) {
-            setNewUploadedImage(null);
-            setImageAction('none');
-            imageUploadRef.current?.resetToCurrentImage();
-          } else {
-            // Cleanup failed — retain pending reference for retry.
-            const retained = imageUploadRef.current?.getUploadedImage();
-            if (retained) {
-              setNewUploadedImage(retained);
-              setImageAction('upload');
-            }
-          }
-        }
-        return;
-      }
-
-      // RPC succeeded — commit the pending upload only when that exact image was submitted.
-      if (effectiveAction === 'upload' && effectiveImage) {
-        imageUploadRef.current?.commitUploadedImage();
-      }
-
-      // Delete prior saved image only after RPC success
-      if (effectiveAction === 'upload' && effectiveImage && prevImageUrl.current) {
-        await deleteStorageFile(prevImageUrl.current);
-      }
-
-      if (effectiveAction === 'remove' && prevImageUrl.current) {
-        await deleteStorageFile(prevImageUrl.current);
-      }
-
-      notifySuccess(isEdit ? 'Product updated successfully' : 'Product created successfully');
-      onSaved();
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : 'Failed to save product';
-      setRpcError(msg);
-      notifyError(msg);
-
-      if (effectiveAction === 'upload') {
-        const deleted = await imageUploadRef.current?.deleteNewlyUploaded();
-        if (deleted) {
-          setNewUploadedImage(null);
-          setImageAction('none');
-          imageUploadRef.current?.resetToCurrentImage();
-        } else {
-          const retained = imageUploadRef.current?.getUploadedImage();
-          if (retained) {
-            setNewUploadedImage(retained);
-            setImageAction('upload');
-          }
-        }
-      }
-    } finally {
-      setIsSaving(false);
-    }
+      },
+      onSuccess: () => {
+        notifySuccess(isEdit ? 'Product updated successfully' : 'Product created successfully');
+        onSaved();
+      },
+    });
   }
 
   return (

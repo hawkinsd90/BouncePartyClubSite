@@ -5,16 +5,13 @@ import {
   buildSaveProductBundleV2Params,
   parsePrice,
   centsToDollars,
-  parseStoragePath,
   bundleToFormData,
   generateSlugFromName,
 } from '../../../lib/queries/products';
 import {
   notifySuccess,
   notifyError,
-  notifyWarning,
 } from '../../../lib/notifications';
-import { supabase } from '../../../lib/supabase';
 import type {
   ProductBundleWithConfiguration,
   InventoryProductWithPricing,
@@ -25,11 +22,8 @@ import type {
   InflatableEligibilityMode,
   AdminInflatableUnit,
 } from '../../../types';
-import {
-  AdminImageUpload,
-  type AdminImageUploadHandle,
-  type UploadedImage,
-} from './AdminImageUpload';
+import { AdminImageUpload } from './AdminImageUpload';
+import { useEventEssentialsImageLifecycle } from './useEventEssentialsImageLifecycle';
 import {
   deriveAvailable,
   type EditableComponentRow,
@@ -125,16 +119,23 @@ export function PackageForm({
     centsToDollars(bundle?.addon_qualifying_threshold_cents),
   );
 
-  const [imageAction, setImageAction] = useState<'upload' | 'remove' | 'none'>('none');
-  const [newUploadedImage, setNewUploadedImage] = useState<UploadedImage | null>(null);
-  const [isSaving, setIsSaving] = useState(false);
-  const [isUploading, setIsUploading] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [rpcError, setRpcError] = useState<string | null>(null);
 
-  const imageUploadRef = useRef<AdminImageUploadHandle>(null);
-  const prevImageUrl = useRef<string | null>(bundle?.image_url ?? null);
-  const closedRef = useRef(false);
+  const {
+    imageUploadRef,
+    isSaving,
+    isBusy,
+    handleImageChange,
+    handleUploadStateChange,
+    handleClose,
+    prepareImageForSave,
+    saveWithImage,
+  } = useEventEssentialsImageLifecycle({
+    entityLabel: 'package',
+    initialImageUrl: bundle?.image_url ?? null,
+    onClose,
+  });
 
   const handleFieldChange = useCallback(
     <K extends keyof PackageFormState>(field: K, value: PackageFormState[K]) => {
@@ -151,53 +152,6 @@ export function PackageForm({
       menu_visible: checked,
     }));
   }, []);
-
-  const handleImageChange = useCallback(
-    (image: UploadedImage | null, action: 'upload' | 'remove' | 'none') => {
-      setNewUploadedImage(image);
-      setImageAction(action);
-    },
-    [],
-  );
-
-  const handleUploadStateChange = useCallback((busy: boolean) => {
-    setIsUploading(busy);
-  }, []);
-
-  const isBusy = isSaving || isUploading;
-
-  async function cleanupPendingUpload(): Promise<boolean> {
-    const img = imageUploadRef.current?.getUploadedImage();
-    if (!img) {
-      setNewUploadedImage(null);
-      setImageAction('none');
-      return true;
-    }
-    const deleted = await imageUploadRef.current?.deleteNewlyUploaded();
-    if (deleted) {
-      setNewUploadedImage(null);
-      setImageAction('none');
-      return true;
-    }
-    const current = imageUploadRef.current?.getUploadedImage();
-    if (current) {
-      setNewUploadedImage(current);
-      setImageAction('upload');
-    }
-    notifyWarning(
-      'Could not delete the pending image. The form will stay open so you can retry.',
-    );
-    return false;
-  }
-
-  async function handleClose(): Promise<void> {
-    if (closedRef.current) return;
-    if (isBusy) return;
-    const cleaned = await cleanupPendingUpload();
-    if (!cleaned) return;
-    closedRef.current = true;
-    onClose();
-  }
 
   // --- Event Essential component editor helpers ---
 
@@ -311,28 +265,6 @@ export function PackageForm({
     return Object.keys(e).length === 0;
   }
 
-  async function deleteStorageFile(url: string): Promise<boolean> {
-    const path = parseStoragePath(url);
-    if (!path) return true;
-    try {
-      const { error } = await supabase.storage.from('event-essentials-media').remove([path]);
-      if (error) {
-        console.error('Failed to delete old storage file:', path, error.message);
-        notifyWarning(
-          'The package was saved, but the old image file could not be deleted. Manual cleanup may be needed.',
-        );
-        return false;
-      }
-      return true;
-    } catch (err) {
-      console.error('Failed to delete old storage file:', path, err);
-      notifyWarning(
-        'The package was saved, but the old image file could not be deleted. Manual cleanup may be needed.',
-      );
-      return false;
-    }
-  }
-
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setRpcError(null);
@@ -386,23 +318,9 @@ export function PackageForm({
       inflatable_components: validatedInflatableComponents,
     };
 
-    // Sync parent image state with child pending state before save.
-    const childPending = imageUploadRef.current?.getUploadedImage() ?? null;
-    let effectiveAction = imageAction;
-    let effectiveImage = newUploadedImage;
-    if (childPending && (!newUploadedImage || newUploadedImage.url !== childPending.url)) {
-      effectiveImage = childPending;
-      effectiveAction = 'upload';
-      setNewUploadedImage(childPending);
-      setImageAction('upload');
-    }
-
-    let imageUrl = formData.image_url;
-    if (effectiveAction === 'remove') {
-      imageUrl = null;
-    } else if (effectiveAction === 'upload' && effectiveImage) {
-      imageUrl = effectiveImage.url;
-    }
+    // Sync parent image state with child pending state before save, then resolve the image URL to save.
+    const prepared = prepareImageForSave(formData.image_url);
+    const imageUrl = prepared.imageUrl;
 
     const bundleId = bundleIdRef.current;
     const params = buildSaveProductBundleV2Params(
@@ -412,68 +330,19 @@ export function PackageForm({
       imageUrl,
     );
 
-    setIsSaving(true);
-
-    try {
-      const { error: rpcErrorResult } = await saveProductBundleV2(params);
-
-      if (rpcErrorResult) {
-        const msg = rpcErrorResult.message || 'Failed to save package';
+    await saveWithImage({
+      prepared,
+      fallbackMessage: 'Failed to save package',
+      saveEntity: () => saveProductBundleV2(params),
+      onFailure: (msg) => {
         setRpcError(msg);
         notifyError(msg);
-
-        if (effectiveAction === 'upload') {
-          const deleted = await imageUploadRef.current?.deleteNewlyUploaded();
-          if (deleted) {
-            setNewUploadedImage(null);
-            setImageAction('none');
-            imageUploadRef.current?.resetToCurrentImage();
-          } else {
-            const retained = imageUploadRef.current?.getUploadedImage();
-            if (retained) {
-              setNewUploadedImage(retained);
-              setImageAction('upload');
-            }
-          }
-        }
-        return;
-      }
-
-      if (effectiveAction === 'upload' && effectiveImage) {
-        imageUploadRef.current?.commitUploadedImage();
-      }
-
-      if (effectiveAction === 'upload' && effectiveImage && prevImageUrl.current) {
-        await deleteStorageFile(prevImageUrl.current);
-      }
-      if (effectiveAction === 'remove' && prevImageUrl.current) {
-        await deleteStorageFile(prevImageUrl.current);
-      }
-
-      notifySuccess(isEdit ? 'Package updated successfully' : 'Package created successfully');
-      onSaved();
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : 'Failed to save package';
-      setRpcError(msg);
-      notifyError(msg);
-
-      if (effectiveAction === 'upload') {
-        const deleted = await imageUploadRef.current?.deleteNewlyUploaded();
-        if (deleted) {
-          setNewUploadedImage(null);
-          setImageAction('none');
-          imageUploadRef.current?.resetToCurrentImage();
-        } else {
-          const retained = imageUploadRef.current?.getUploadedImage();
-          if (retained) {
-            setNewUploadedImage(retained);
-            setImageAction('upload');
-          }
-        }
-      }
-    } finally {
-      setIsSaving(false);
-    }
+      },
+      onSuccess: () => {
+        notifySuccess(isEdit ? 'Package updated successfully' : 'Package created successfully');
+        onSaved();
+      },
+    });
   }
 
   // Build product option list with category names and status labels
