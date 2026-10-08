@@ -61,6 +61,8 @@ export interface Order {
     phone: string | null;
     business_name?: string | null;
   };
+  // This order's own delivery unit (NULL = legacy order: use addresses.line2). See src/lib/eventAddress.ts.
+  event_address_line2?: string | null;
   addresses: {
     line1: string;
     line2?: string | null;

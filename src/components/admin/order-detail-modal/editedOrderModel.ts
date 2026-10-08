@@ -13,7 +13,9 @@
 // - Only the fields listed below are compared. can_stake, address lat/lng/county,
 //   Parks, fee waivers and overrides are deliberately not part of this check.
 //
-// No runtime imports, so it can be loaded from Node-based tests.
+// Its only import is the pure eventAddress helper, so it can still be loaded from Node-based tests.
+
+import { eventAddressLine2 } from '../../../lib/eventAddress';
 
 // Only the stored order fields these helpers read.
 export interface EditableOrderSource {
@@ -24,6 +26,8 @@ export interface EditableOrderSource {
   end_window?: string | null;
   event_date?: string | null;
   event_end_date?: string | null;
+  // This order's own delivery unit (NULL = legacy order, falls back to addresses.line2).
+  event_address_line2?: string | null;
   addresses?: {
     line1?: string | null;
     line2?: string | null;
@@ -69,7 +73,7 @@ export function buildInitialEditedOrder(order: EditableOrderSource): EditedOrder
     event_date: order.event_date?.split('T')[0] || order.event_date,
     event_end_date: (order.event_end_date || order.event_date)?.split('T')[0] || order.event_date,
     address_line1: order.addresses?.line1 || '',
-    address_line2: order.addresses?.line2 || '',
+    address_line2: eventAddressLine2(order),
     address_city: order.addresses?.city || '',
     address_state: order.addresses?.state || '',
     address_zip: order.addresses?.zip || '',
@@ -91,7 +95,7 @@ export function hasOrderDetailChanges(
     editedOrder.event_date !== order.event_date ||
     editedOrder.event_end_date !== (order.event_end_date || order.event_date) ||
     editedOrder.address_line1 !== (order.addresses?.line1 || '') ||
-    editedOrder.address_line2 !== (order.addresses?.line2 || '') ||
+    editedOrder.address_line2 !== eventAddressLine2(order) ||
     editedOrder.address_city !== (order.addresses?.city || '') ||
     editedOrder.address_state !== (order.addresses?.state || '') ||
     editedOrder.address_zip !== (order.addresses?.zip || '') ||

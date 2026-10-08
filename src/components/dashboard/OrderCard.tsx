@@ -8,6 +8,7 @@ import { OrderPaymentStatus } from './OrderPaymentStatus';
 import { formatCurrency } from '../../lib/pricing';
 import { formatTime } from '../../lib/orderUtils';
 import { isOrderCancellable } from '../../lib/constants/statuses';
+import { eventAddressLine2 } from '../../lib/eventAddress';
 import { calculateTotalFromOrder } from '../../lib/orderSummary';
 
 interface OrderCardProps {
@@ -46,7 +47,7 @@ export function OrderCard({ order, onViewReceipt, onDuplicateOrder, onCancelOrde
             <MapPin className="w-4 h-4 mt-0.5 flex-shrink-0" />
             <div className="min-w-0">
               <div className="break-words">{order.addresses.line1}</div>
-              {order.addresses.line2 && <div className="break-words">{order.addresses.line2}</div>}
+              {eventAddressLine2(order) && <div className="break-words">{eventAddressLine2(order)}</div>}
               <div>{order.addresses.city}, {order.addresses.state} {order.addresses.zip}</div>
             </div>
           </div>

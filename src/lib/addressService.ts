@@ -189,13 +189,23 @@ export async function upsertCanonicalAddress(params: UpsertAddressParams): Promi
     }
   }
 
+  // The canonical row is shared by every order at this street address, so a later booking or edit must not rewrite its
+  // line2 (that would change what OTHER, legacy orders display). Each order keeps its own unit in
+  // orders.event_address_line2; the shared row keeps whatever unit its first writer had.
+  const { data: existingRow } = await supabase
+    .from('addresses')
+    .select('line2')
+    .eq('address_key', key)
+    .maybeSingle();
+  const sharedLine2 = existingRow ? (existingRow.line2 ?? null) : (line2 ?? null);
+
   const { data: upserted, error: upsertError } = await supabase
     .from('addresses')
     .upsert(
       {
         customer_id,
         line1: line1.trim(),
-        line2: line2 ?? null,
+        line2: sharedLine2,
         city: city.trim(),
         state: state.trim(),
         zip: normalizeZip(zip),

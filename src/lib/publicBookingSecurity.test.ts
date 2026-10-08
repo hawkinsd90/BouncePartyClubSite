@@ -16,6 +16,7 @@ const fs = require('fs');
 const nodeCrypto = require('crypto');
 
 import { createBookingRequest } from '../../supabase/functions/_shared/booking/createBooking';
+import { eventAddressLine2 } from './eventAddress';
 import { validateBookingInput } from '../../supabase/functions/_shared/booking/bookingInput';
 import { buildBooking } from '../../supabase/functions/_shared/booking/bookingBuild';
 import { checkPublicUnitAvailability } from '../../supabase/functions/_shared/booking/publicAvailability';
@@ -160,7 +161,7 @@ function emulateCreateBookingRequest(w: World, args: any) {
     step('address');
     const o = p.order;
     const order = {
-      id: `o-${w.nextId++}`, customer_id: customer.id, address_id: address.id, status: 'draft',
+      id: `o-${w.nextId++}`, customer_id: customer.id, address_id: address.id, event_address_line2: String(p.address.line2 ?? '').trim(), status: 'draft',
       location_type: o.location_type, surface: o.surface, event_date: o.event_date, event_end_date: o.event_end_date, pickup_preference: o.pickup_preference,
       subtotal_cents: o.subtotal_cents, tax_cents: o.tax_cents, tip_cents: o.tip_cents, setup_fee_cents: o.setup_fee_cents,
       deposit_due_cents: o.deposit_due_cents, balance_due_cents: o.balance_due_cents,
@@ -450,7 +451,7 @@ const noRows = (w: World, snapshot: string) => JSON.stringify(w.db) === snapshot
     ok('account: a guest record is also usable by a signed-in caller (unchanged behaviour)', guestSigned.status === 200 && orderRow(w5b).customer_id === 'c-guest');
 
     // The authoritative rule lives in the RPC, before every side-effecting write (static binding of the emulation to the SQL)
-    const sqlText = read('supabase/migrations/20261010120000_payment_safety_a2_3_booking.sql');
+    const sqlText = read('supabase/migrations/20261011120000_order_event_address_line2.sql');
     const raise = sqlText.indexOf("RAISE EXCEPTION 'account_sign_in_required'");
     ok('account (SQL): the rejection exists with the exact guard condition', raise > 0 && sqlText.includes("IF v_customer_uid IS NOT NULL AND v_customer_uid IS DISTINCT FROM p_caller_user_id THEN\n    RAISE EXCEPTION 'account_sign_in_required';"));
     ok('account (SQL): the rejection comes BEFORE the profile update, contacts, addresses, orders, items, consents and proof writes', ['UPDATE customers', 'INSERT INTO contacts', 'INSERT INTO addresses', 'INSERT INTO orders', 'INSERT INTO order_items', 'INSERT INTO consent_records', 'INSERT INTO booking_setup_proofs'].every((t) => sqlText.indexOf(t) > raise));
@@ -562,7 +563,7 @@ const noRows = (w: World, snapshot: string) => JSON.stringify(w.db) === snapshot
     ok('atomic: with no fault the same request commits everything together', okRun.status === 200 && w.db.orders.length === 1 && w.db.order_items.length === 1 && w.db.consent_records.length === 2 && w.db.booking_setup_proofs.length === 1);
     const createSrc = read('supabase/functions/_shared/booking/createBooking.ts') + read('supabase/functions/create-booking/index.ts');
     ok('atomic: the TypeScript never writes a core table itself — only the single RPC does', !/\.from\(\s*['"](customers|addresses|orders|order_items|consent_records|contacts|booking_setup_proofs|payments)['"]\s*\)[\s\S]{0,40}\.(insert|update|upsert|delete)/.test(createSrc) && (createSrc.match(/\.rpc\(/g) ?? []).length === 1);
-    const sql = read('supabase/migrations/20261010120000_payment_safety_a2_3_booking.sql');
+    const sql = read('supabase/migrations/20261011120000_order_event_address_line2.sql');
     ok('atomic: the RPC is one plpgsql function with no transaction control', /CREATE OR REPLACE FUNCTION public\.create_booking_request/.test(sql) && !/\bCOMMIT\b|\bROLLBACK\b|BEGIN;|SAVEPOINT/i.test(sql.replace(/^\s*BEGIN\s*$/gim, '')));
     ok('atomic: customer, address, order, items, consents and proof are all inserted by that one function', ['INSERT INTO customers', 'INSERT INTO addresses', 'INSERT INTO orders', 'INSERT INTO order_items', 'INSERT INTO consent_records', 'INSERT INTO booking_setup_proofs'].every((s) => sql.includes(s)));
   }
@@ -664,9 +665,9 @@ const noRows = (w: World, snapshot: string) => JSON.stringify(w.db) === snapshot
       ok(`no-charge: ${f} never creates a PaymentIntent, charge, refund or payment-mode session`, !/paymentIntents|charges\.create|refunds\.create|mode:\s*["']payment["']|checkout\.sessions\.create/.test(code));
       ok(`no-charge: ${f} never writes a payment or ledger row or a deposit amount`, !/from\(\s*["']payments["']\s*\)|deposit_paid_cents\s*[:=]\s*[1-9]|record_cash_payment|apply_balance_payment_financials/.test(code));
     }
-    const sql = read('supabase/migrations/20261010120000_payment_safety_a2_3_booking.sql');
+    const sql = read('supabase/migrations/20261011120000_order_event_address_line2.sql');
     ok('no-charge: the RPC writes deposit_paid_cents = 0, balance_paid = 0, refunded = 0 as literals', /tip_cents, deposit_due_cents, deposit_paid_cents, balance_due_cents, balance_paid_cents, total_refunded_cents/.test(sql) && /\(v_order->>'tip_cents'\)::integer, \(v_order->>'deposit_due_cents'\)::integer, 0, \(v_order->>'balance_due_cents'\)::integer, 0, 0, NULL/.test(sql));
-    ok('no-charge: the RPC writes status as the literal draft and never reads a status from the payload', /v_customer_id, v_address_id, 'draft'/.test(sql) && !/v_order->>'status'|p_payload->>'status'/.test(sql));
+    ok('no-charge: the RPC writes status as the literal draft and never reads a status from the payload', /v_customer_id, v_address_id, COALESCE\(btrim\(v_address->>'line2'\), ''\), 'draft'/.test(sql) && !/v_order->>'status'|p_payload->>'status'/.test(sql));
     ok('no-charge: the RPC forces stripe_payment_status unpaid, payment_lock false, customer_approved_at NULL', /'unpaid', false, NULL/.test(sql));
     const checkout = read('supabase/functions/stripe-checkout/index.ts');
     const bookingParams = checkout.slice(checkout.indexOf('const sessionParams'), checkout.indexOf('? {', checkout.indexOf('const sessionParams')) + 400);
@@ -761,7 +762,7 @@ const noRows = (w: World, snapshot: string) => JSON.stringify(w.db) === snapshot
     const w2 = makeWorld();
     await book(w2, baseRequest());
     ok('consent: with both true the order stores real booleans and two consent rows', orderRow(w2).sms_consent === true && orderRow(w2).card_on_file_consent === true && w2.db.consent_records.length === 2);
-    const sql = read('supabase/migrations/20261010120000_payment_safety_a2_3_booking.sql');
+    const sql = read('supabase/migrations/20261011120000_order_event_address_line2.sql');
     ok('consent: the RPC records consents as true only and takes ip / user agent from request_meta', /v_consent->>'consent_type', true, /.test(sql) && /v_meta->>'ip_address'/.test(sql) && /v_meta->>'user_agent'/.test(sql));
     const fn = read('supabase/functions/create-booking/index.ts');
     ok('consent: request metadata is derived on the server from the request headers', /getIdentifier\(req\)/.test(fn) && /req\.headers\.get\("user-agent"\)/.test(fn) && !/body\.(ip|meta|user_agent)/.test(fn));
@@ -778,10 +779,11 @@ const noRows = (w: World, snapshot: string) => JSON.stringify(w.db) === snapshot
       ok(`wiring: ${name} rate-limits by client IP and requires an identifier`, /checkRateLimit\(\s*"[a-z-]+",[\s\S]{0,120}true\s*\)/.test(src));
       ok(`wiring: ${name} is registered in supabase/config.toml (verify_jwt = false)`, new RegExp(`\\[functions\\.${name}\\]\\s*verify_jwt = false`).test(read('supabase/config.toml')));
     }
-    const sql = read('supabase/migrations/20261010120000_payment_safety_a2_3_booking.sql');
+    const sql = read('supabase/migrations/20261011120000_order_event_address_line2.sql');
+    const sqlOld = read('supabase/migrations/20261010120000_payment_safety_a2_3_booking.sql');
     ok('migration: create_booking_request is revoked from PUBLIC, anon and authenticated and granted to service_role only', /REVOKE ALL ON FUNCTION public\.create_booking_request\(jsonb, text, timestamptz, uuid\) FROM PUBLIC/.test(sql) && /REVOKE ALL ON FUNCTION public\.create_booking_request\(jsonb, text, timestamptz, uuid\) FROM anon/.test(sql) && /REVOKE ALL ON FUNCTION public\.create_booking_request\(jsonb, text, timestamptz, uuid\) FROM authenticated/.test(sql) && /GRANT EXECUTE ON FUNCTION public\.create_booking_request\(jsonb, text, timestamptz, uuid\) TO service_role/.test(sql) && !/GRANT EXECUTE ON FUNCTION public\.create_booking_request[^;]*(anon|authenticated|PUBLIC)/i.test(sql));
     ok('migration: the RPC is SECURITY DEFINER with a pinned search_path', /SECURITY DEFINER\s+SET search_path = public/.test(sql));
-    ok('migration: the browser roles lose upsert_contact_from_checkout', /REVOKE ALL ON FUNCTION public\.upsert_contact_from_checkout\([^)]*\) FROM anon/.test(sql) && /REVOKE ALL ON FUNCTION public\.upsert_contact_from_checkout\([^)]*\) FROM authenticated/.test(sql) && /REVOKE ALL ON FUNCTION public\.upsert_contact_from_checkout\([^)]*\) FROM PUBLIC/.test(sql));
+    ok('migration: the browser roles lose upsert_contact_from_checkout', /REVOKE ALL ON FUNCTION public\.upsert_contact_from_checkout\([^)]*\) FROM anon/.test(sqlOld) && /REVOKE ALL ON FUNCTION public\.upsert_contact_from_checkout\([^)]*\) FROM authenticated/.test(sqlOld) && /REVOKE ALL ON FUNCTION public\.upsert_contact_from_checkout\([^)]*\) FROM PUBLIC/.test(sqlOld));
     ok('migration: a guest cannot overwrite an authenticated customer profile', /IF v_customer_uid IS NULL OR v_customer_uid = p_caller_user_id THEN/.test(sql));
     ok('migration: the address upsert never re-points an existing owner or overwrites coordinates', /customer_id = COALESCE\(addresses\.customer_id, EXCLUDED\.customer_id\)/.test(sql) && /lat\s+= COALESCE\(addresses\.lat, EXCLUDED\.lat\)/.test(sql));
     ok('migration: no caller-supplied customer id or address id is read by the RPC', !/v_contact->>'customer_id'|v_address->>'id'|v_order->>'customer_id'|v_order->>'address_id'|p_payload->>'customer_id'/.test(sql));
@@ -832,6 +834,61 @@ const noRows = (w: World, snapshot: string) => JSON.stringify(w.db) === snapshot
   }
 
   // =============================================================================================================
+  // =============================================================================================================
+  // 18. Delivery unit (address line 2) is order-specific
+  // =============================================================================================================
+  {
+    const addr = (line2: string | null | undefined) => ({ line1: '123 Main St', ...(line2 === undefined ? {} : { line2 }), city: 'Wayne', state: 'MI', zip: '48184', lat: 42.3, lng: -83.4 });
+    const req = (email: string, line2: string | null | undefined) => baseRequest({ contact: { first_name: 'A', last_name: 'B', email, phone: '5551234567' }, event: { ...baseRequest().event, address: addr(line2) } });
+    const unitOf = (w: World, orderIndex: number) => {
+      const o = w.db.orders[orderIndex];
+      return eventAddressLine2({ ...o, addresses: w.db.addresses.find((a) => a.id === o.address_id) });
+    };
+
+    const w = makeWorld();
+    const a = await book(w, req('a-unit@example.com', 'Apt 2A'));
+    const b = await book(w, req('b-unit@example.com', 'Apt 8C'));
+    ok('unit: both public bookings succeed', a.status === 200 && b.status === 200);
+    ok('unit: the two orders share ONE canonical address row', w.db.addresses.length === 1 && w.db.orders[0].address_id === w.db.orders[1].address_id);
+    eq('unit: each order stores its own unit', [w.db.orders[0].event_address_line2, w.db.orders[1].event_address_line2], ['Apt 2A', 'Apt 8C']);
+    eq('unit: each order DISPLAYS its own unit (Apt 2A / Apt 8C)', [unitOf(w, 0), unitOf(w, 1)], ['Apt 2A', 'Apt 8C']);
+    ok('unit: Order B did not inherit Order A\'s unit and Order A was not overwritten', unitOf(w, 1) !== 'Apt 2A' && unitOf(w, 0) !== 'Apt 8C');
+    w.db.addresses[0].line2 = 'Suite 99'; // the canonical row is rewritten later
+    eq('unit: rewriting the shared address row changes neither order', [unitOf(w, 0), unitOf(w, 1)], ['Apt 2A', 'Apt 8C']);
+
+    const c = await book(w, req('c-unit@example.com', null));
+    const d = await book(w, req('d-unit@example.com', undefined));
+    const e = await book(w, req('e-unit@example.com', ''));
+    const f = await book(w, req('f-unit@example.com', '   '));
+    ok('unit: bookings with null / absent / empty / blank line2 succeed', [c, d, e, f].every((x) => x.status === 200));
+    eq('unit: no unit is stored as an EMPTY string (never null / undefined / "null")', w.db.orders.slice(2).map((o) => o.event_address_line2), ['', '', '', '']);
+    eq('unit: an order with no unit shows none and does NOT inherit the shared row\'s unit', [unitOf(w, 2), unitOf(w, 3), unitOf(w, 4), unitOf(w, 5)], ['', '', '', '']);
+    ok('unit: the stored text is the trimmed entry', (await book(w, req('g-unit@example.com', '  Unit 7  '))).status === 200 && w.db.orders[6].event_address_line2 === 'Unit 7');
+    eq('unit: "Apt 2A" is not rewritten to another spelling', (await book(w, req('h-unit@example.com', 'Apt 2A'))).status === 200 && w.db.orders[7].event_address_line2, 'Apt 2A');
+
+    // Signed-in owner, existing guest record and brand-new guest all keep the unit
+    const w2 = makeWorld();
+    const owner = await book(w2, baseRequest({ contact: { first_name: 'Real', last_name: 'Owner', email: 'owner@example.com', phone: '5550000002' }, event: { ...baseRequest().event, address: addr('Apt 3C') } }), { callerUserId: 'u-owner' });
+    const guestExisting = await book(w2, baseRequest({ contact: { first_name: 'Old', last_name: 'Guest', email: 'guest@example.com', phone: '5550000001' }, event: { ...baseRequest().event, address: addr('Apt 4D') } }));
+    const guestNew = await book(w2, req('brand-new-unit@example.com', 'Apt 5E'));
+    ok('unit: signed-in owner, existing guest and new guest all book', owner.status === 200 && guestExisting.status === 200 && guestNew.status === 200);
+    eq('unit: signed-in owner preserves their unit', unitOf(w2, 0), 'Apt 3C');
+    eq('unit: existing guest preserves their unit', unitOf(w2, 1), 'Apt 4D');
+    eq('unit: new guest preserves their unit', unitOf(w2, 2), 'Apt 5E');
+    eq('unit: three different units at one street stay distinct', [unitOf(w2, 0), unitOf(w2, 1), unitOf(w2, 2)], ['Apt 3C', 'Apt 4D', 'Apt 5E']);
+
+    // The browser cannot choose the order column; only the event address line2 is read, by the server
+    const smuggle = baseRequest();
+    smuggle.event.event_address_line2 = 'Apt 666';
+    const w3 = makeWorld();
+    ok('unit: a client-sent event_address_line2 field is rejected by the allowlist', (await book(w3, smuggle)).status === 400 && w3.db.orders.length === 0);
+    const w4 = makeWorld();
+    await book(w4, req('payload-unit@example.com', ' Apt 2A '));
+    ok('unit: the RPC payload carries the address line2; the order column is derived by the RPC, not sent', w4.rpcCalls[0].p_payload.address.line2 === 'Apt 2A' && !('event_address_line2' in w4.rpcCalls[0].p_payload.order));
+    const unitSql = read('supabase/migrations/20261011120000_order_event_address_line2.sql');
+    ok('unit (SQL): the RPC derives the order unit from the validated address, trimmed, empty when none', unitSql.includes("COALESCE(btrim(v_address->>'line2'), '')") && !/v_order->>'event_address_line2'/.test(unitSql));
+  }
+
   console.log(`Public booking security tests: ${passed} passed, ${failed} failed`);
   if (failed > 0) throw new Error(`${failed} public booking security test(s) failed`);
 })();

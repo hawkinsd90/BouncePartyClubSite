@@ -164,6 +164,8 @@ function oracleSave(params: any, canonicalId: any): OracleState {
 
   if (addressChanged) {
     changes.address_id = canonicalId;
+    // Intended behaviour change (order-specific delivery unit): the unit is written to THIS order.
+    changes.event_address_line2 = String(editedOrder.address_line2 ?? '').trim();
 
     const oldAddr = `${order.addresses?.line1 || ''}${order.addresses?.line2 ? ', ' + order.addresses.line2 : ''}, ${order.addresses?.city || ''}, ${order.addresses?.state || ''} ${order.addresses?.zip || ''}`;
     const newAddr = `${editedOrder.address_line1}${editedOrder.address_line2 ? ', ' + editedOrder.address_line2 : ''}, ${editedOrder.address_city}, ${editedOrder.address_state} ${editedOrder.address_zip}`;

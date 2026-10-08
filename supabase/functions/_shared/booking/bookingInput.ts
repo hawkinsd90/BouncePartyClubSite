@@ -83,7 +83,8 @@ function str(v: unknown, max: number): string | null {
   return typeof v === "string" && v.trim().length > 0 && v.length <= max ? v.trim() : null;
 }
 function optStr(v: unknown, max: number): string | null | undefined {
-  if (v === undefined || v === null || v === "") return null;
+  // Blank (including whitespace-only) optional text means "not provided", e.g. an empty apartment/unit.
+  if (v === undefined || v === null || (typeof v === "string" && v.trim() === "")) return null;
   return str(v, max) ?? undefined; // undefined = invalid
 }
 function wholeCents(v: unknown, max = 100_000_000): number | null {

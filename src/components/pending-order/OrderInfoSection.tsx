@@ -2,6 +2,7 @@ import { format } from 'date-fns';
 import { useState, useEffect } from 'react';
 import { CreditCard as Edit2 } from 'lucide-react';
 import { formatOrderId } from '../../lib/utils';
+import { eventAddressLine2 } from '../../lib/eventAddress';
 import { ORDER_STATUS_LABELS } from '../../lib/constants/statuses';
 import { hasGeneratorInOrderItemsByCategory, loadGeneratorCategoryProductIds } from '../../lib/generatorUnified';
 
@@ -121,7 +122,7 @@ export function OrderInfoSection({ order, customerDisplayName, onEditClick }: Or
           <h4 className="text-sm font-medium text-slate-500 mb-1">Event Location</h4>
           <p className="text-base text-slate-900">
             {order.addresses?.line1}
-            {order.addresses?.line2 && `, ${order.addresses.line2}`}
+            {eventAddressLine2(order) && `, ${eventAddressLine2(order)}`}
           </p>
           <p className="text-sm text-slate-600">
             {order.addresses?.city}, {order.addresses?.state} {order.addresses?.zip}

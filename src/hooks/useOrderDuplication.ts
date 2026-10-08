@@ -1,6 +1,7 @@
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import { SafeStorage } from '../lib/safeStorage';
+import { eventAddressLine2 } from '../lib/eventAddress';
 import { notifyError, notifyWarning, showConfirm } from '../lib/notifications';
 
 export function useOrderDuplication() {
@@ -134,7 +135,7 @@ export function useOrderDuplication() {
         has_generator: orderData.generator_qty > 0,
         has_pets: orderData.has_pets,
         special_details: orderData.special_details || '',
-        address_line2: orderData.addresses?.line2 || '',
+        address_line2: eventAddressLine2(orderData),
         event_date: '',
         event_end_date: '',
         start_window: orderData.start_window || '09:00',

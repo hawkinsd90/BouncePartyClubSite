@@ -14,6 +14,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
 import { ORDER_STATUS } from './constants/statuses';
+import { eventAddressLine2, normalizeUnit } from './eventAddress';
 
 export type ChangeLog = [string, any, any];
 
@@ -97,7 +98,7 @@ export interface FinalizedOrderPlan {
 // Part 8: Address change detection now includes address_line2
 export function hasAddressChanged(order: any, editedOrder: any): boolean {
   return editedOrder.address_line1 !== (order.addresses?.line1 || '') ||
-    editedOrder.address_line2 !== (order.addresses?.line2 || '') ||
+    editedOrder.address_line2 !== eventAddressLine2(order) ||
     editedOrder.address_city !== (order.addresses?.city || '') ||
     editedOrder.address_state !== (order.addresses?.state || '') ||
     editedOrder.address_zip !== (order.addresses?.zip || '');
@@ -295,8 +296,11 @@ export function planOrderChanges(input: OrderChangePlanInput, deps: OrderChangeP
 
   if (hasAddressChanged(order, editedOrder)) {
     changes.address_id = input.canonicalAddressId;
+    // The unit belongs to THIS order, not to the shared canonical address row.
+    changes.event_address_line2 = normalizeUnit(editedOrder.address_line2);
 
-    const oldAddr = `${order.addresses?.line1 || ''}${order.addresses?.line2 ? ', ' + order.addresses.line2 : ''}, ${order.addresses?.city || ''}, ${order.addresses?.state || ''} ${order.addresses?.zip || ''}`;
+    const oldUnit = eventAddressLine2(order);
+    const oldAddr = `${order.addresses?.line1 || ''}${oldUnit ? ', ' + oldUnit : ''}, ${order.addresses?.city || ''}, ${order.addresses?.state || ''} ${order.addresses?.zip || ''}`;
     const newAddr = `${editedOrder.address_line1}${editedOrder.address_line2 ? ', ' + editedOrder.address_line2 : ''}, ${editedOrder.address_city}, ${editedOrder.address_state} ${editedOrder.address_zip}`;
     logs.push(['address', oldAddr, newAddr]);
   }

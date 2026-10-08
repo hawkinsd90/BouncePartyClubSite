@@ -174,6 +174,11 @@ export function projectOrder(
   out.has_signed_waiver_document = !!order.signed_waiver_url;
   out.customers = projectCustomer(related.customer);
   out.addresses = projectAddress(related.address);
+  // The shared addresses row can carry another booking's unit. An order that has its own delivery unit (orders.
+  // event_address_line2, '' = none) always shows THAT; only a legacy order (NULL) falls back to the shared row's line2.
+  if (out.addresses && typeof order.event_address_line2 === "string") {
+    (out.addresses as Row).line2 = order.event_address_line2.trim();
+  }
   out.payments = (related.payments ?? []).map(projectPayment);
   return out;
 }

@@ -1,4 +1,5 @@
 import { formatOrderId } from './utils';
+import { eventAddressLine2 } from './eventAddress';
 
 // Enhanced Type Safety
 export interface PrintableItem {
@@ -285,7 +286,7 @@ export function transformOrderToPrintableDocument(
   const address: PrintableAddress | undefined = order.addresses
     ? {
         line1: order.addresses.line1 || '',
-        line2: order.addresses.line2,
+        line2: eventAddressLine2(order),
         city: order.addresses.city || '',
         state: order.addresses.state || '',
         zip: order.addresses.zip || '',

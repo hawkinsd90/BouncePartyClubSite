@@ -20,9 +20,10 @@ export interface Database {
           zip: string
           lat: number | null
           lng: number | null
+          address_key: string | null
           created_at: string
         }
-        Insert: Omit<Database['public']['Tables']['addresses']['Row'], 'id' | 'created_at'>
+        Insert: Omit<Database['public']['Tables']['addresses']['Row'], 'id' | 'created_at' | 'address_key'> & { address_key?: string | null }
         Update: Partial<Database['public']['Tables']['addresses']['Insert']>
         Relationships: []
       }
@@ -304,6 +305,7 @@ export interface Database {
           order_number: string
           customer_id: string | null
           address_id: string
+          event_address_line2: string | null
           status: string
           event_date: string
           event_end_date: string | null

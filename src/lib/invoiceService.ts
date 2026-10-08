@@ -3,6 +3,7 @@ import { getEdgeAuthToken } from './edgeAuth';
 import type { PriceBreakdown } from './pricing';
 import { upsertCanonicalAddress } from './addressService';
 import { ORDER_STATUS } from './constants/statuses';
+import { normalizeUnit } from './eventAddress';
 
 interface CartItem {
   unit_id: string;
@@ -134,6 +135,8 @@ async function createOrder(
     .insert({
       customer_id: customerId,
       address_id: addressId,
+      // This order's own delivery unit (the shared address row may carry another booking's unit).
+      event_address_line2: normalizeUnit(eventDetails.address_line2),
       event_date: eventDetails.event_date,
       event_end_date: eventDetails.event_end_date || eventDetails.event_date,
       start_window: eventDetails.start_window,
