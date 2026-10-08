@@ -10,6 +10,8 @@ import { formatTime } from '../../lib/orderUtils';
 import { isOrderCancellable } from '../../lib/constants/statuses';
 import { eventAddressLine2 } from '../../lib/eventAddress';
 import { calculateTotalFromOrder } from '../../lib/orderSummary';
+import { fetchSignedWaiverPdfUrl } from '../../lib/waiverAccess';
+import { notifyError } from '../../lib/notifications';
 
 interface OrderCardProps {
   order: Order;
@@ -20,6 +22,17 @@ interface OrderCardProps {
 
 export function OrderCard({ order, onViewReceipt, onDuplicateOrder, onCancelOrder }: OrderCardProps) {
   const navigate = useNavigate();
+  // The signed waiver is in a private bucket: ask the server for a short-lived link (it checks that this customer owns the order).
+  const openSignedWaiver = async () => {
+    const popup = window.open('', '_blank');
+    const url = await fetchSignedWaiverPdfUrl(order.id);
+    if (url && popup) {
+      popup.location.href = url;
+    } else {
+      popup?.close();
+      notifyError('Your signed waiver could not be opened right now. Please try again or open your order details.');
+    }
+  };
   const eventStartDate = new Date(order.event_date + 'T12:00:00');
   const eventEndDate = order.event_end_date ? new Date(order.event_end_date + 'T12:00:00') : eventStartDate;
   const isMultiDay = eventStartDate.toDateString() !== eventEndDate.toDateString();
@@ -145,7 +158,7 @@ export function OrderCard({ order, onViewReceipt, onDuplicateOrder, onCancelOrde
           </button>
           {order.signed_waiver_url && (
             <button
-              onClick={() => window.open(order.signed_waiver_url!, '_blank')}
+              onClick={openSignedWaiver}
               className="px-3 sm:px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors flex items-center justify-center gap-1.5 sm:gap-2 text-sm"
             >
               <FileText className="w-4 h-4 flex-shrink-0" />

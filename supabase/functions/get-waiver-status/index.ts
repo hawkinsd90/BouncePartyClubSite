@@ -1,5 +1,7 @@
 import "jsr:@supabase/functions-js@2/edge-runtime.d.ts";
 import { createClient } from "npm:@supabase/supabase-js@2.57.4";
+import { authorizePortalOrder, callerHasAnyRole, resolveCaller, userOwnsOrderCanonical } from "../_shared/auth.ts";
+import { signStoredMedia } from "../_shared/media-paths.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -34,44 +36,26 @@ Deno.serve(async (req: Request) => {
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? ""
     );
 
-    // Determine whether caller is authorized to receive signed URLs for physical waivers.
-    // Signed URLs are private (1h expiry) and should only be returned to:
-    //   (a) a verified portal token that matches this order, OR
-    //   (b) an authenticated admin/master/crew session
-    let canReceiveSignedUrl = false;
-
-    // Check for valid portal token
-    if (token) {
-      const { data: link } = await supabaseClient
-        .from("invoice_links")
-        .select("order_id, expires_at")
-        .eq("link_token", token)
-        .maybeSingle();
-      if (link && link.order_id === orderId) {
-        const notExpired = !link.expires_at || new Date(link.expires_at) >= new Date();
-        if (notExpired) canReceiveSignedUrl = true;
-      }
+    // Waiver status (who signed, when, initials, whether a PDF or a paper scan exists) and the private waiver files are
+    // returned only to a caller who is authorized for THIS order; everyone else gets exactly the same answer as for an order
+    // that has no waiver ({ signed: false, data: null }), so the response cannot be used to learn whether an order or a waiver
+    // exists. Authorized callers receive short-lived (1 hour) signed URLs:
+    //   (a) a valid, unexpired, unrevoked portal or invoice token bound to this order, OR
+    //   (b) the signed-in customer who owns this order (direct, or through the historical profile / contact link), OR
+    //   (c) a signed-in admin / master / crew session (or the service role).
+    // The order id alone, the public anon key, an email or a phone number are never enough.
+    const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
+    const caller = await resolveCaller(supabaseClient, req.headers.get("authorization"), serviceKey);
+    const proof = await authorizePortalOrder(supabaseClient, { orderId, token, caller, allowStaffRead: true });
+    let authorized = !!proof || callerHasAnyRole(caller, ["admin", "master", "crew"]);
+    if (!authorized && caller.kind === "user") {
+      authorized = await userOwnsOrderCanonical(supabaseClient, caller.userId, orderId);
     }
-
-    // Check for admin/crew JWT if no valid token yet
-    if (!canReceiveSignedUrl) {
-      const authHeader = req.headers.get("authorization");
-      if (authHeader && authHeader.startsWith("Bearer ")) {
-        const jwt = authHeader.slice(7);
-        const anonClient = createClient(
-          Deno.env.get("SUPABASE_URL") ?? "",
-          Deno.env.get("SUPABASE_ANON_KEY") ?? ""
-        );
-        const { data: userData } = await anonClient.auth.getUser(jwt);
-        if (userData?.user) {
-          const { data: roleData } = await supabaseClient
-            .rpc("get_user_role", { user_id_input: userData.user.id });
-          const role = roleData as string | null;
-          if (role && ["admin", "master", "crew"].includes(role)) {
-            canReceiveSignedUrl = true;
-          }
-        }
-      }
+    if (!authorized) {
+      return new Response(JSON.stringify({ signed: false, data: null }), {
+        status: 200,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
     }
 
     // Verify order exists
@@ -132,7 +116,7 @@ Deno.serve(async (req: Request) => {
 
     if (sig.waiver_version === "paper") {
       let signedUrl: string | null = null;
-      if (sig.physical_waiver_storage_path && canReceiveSignedUrl) {
+      if (sig.physical_waiver_storage_path) {
         const { data: urlData, error: urlError } = await supabaseClient.storage
           .from("physical-waivers")
           .createSignedUrl(sig.physical_waiver_storage_path, 3600);
@@ -150,13 +134,20 @@ Deno.serve(async (req: Request) => {
       };
     }
 
+    // Stored references may be historical public URLs; they are converted to a bucket path and signed. An unauthorized caller
+    // receives no URL at all (never the stored public URL).
+    const signatureImageUrl = await signStoredMedia(supabaseClient, "signatures", sig.signature_image_url);
+    const pdfUrl = await signStoredMedia(supabaseClient, "signed-waivers", sig.pdf_url);
+
     const responseData = {
       signed_at: sig.signed_at,
       signer_name: sig.signer_name,
       waiver_version: sig.waiver_version,
       initials_data: sig.initials_data,
-      signature_image_url: sig.signature_image_url,
-      pdf_url: sig.pdf_url,
+      signature_image_url: signatureImageUrl,
+      pdf_url: pdfUrl,
+      has_signature_image: !!sig.signature_image_url,
+      has_pdf: !!sig.pdf_url,
       waiver_type: waiverType,
       physical_waiver: physicalWaiver,
     };

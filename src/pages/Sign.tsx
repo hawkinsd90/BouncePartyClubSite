@@ -4,6 +4,7 @@ import { FileCheck, AlertCircle, Loader2 } from 'lucide-react';
 import { fetchPortalData, PortalAccessError } from '../lib/customerPortalApi';
 import { trackEvent } from '../lib/siteEvents';
 import { portalPathForCurrentVisitor, readPortalToken } from '../lib/portalToken';
+import { waiverFunctionHeaders } from '../lib/waiverAccess';
 import SignaturePad from '../components/waiver/SignaturePad';
 import WaiverViewer, { sectionInitialId, WaiverViewerHandle } from '../components/waiver/WaiverViewer';
 import {
@@ -247,12 +248,11 @@ export default function Sign() {
         `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/save-signature`,
         {
           method: 'POST',
-          headers: {
-            Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
-            'Content-Type': 'application/json',
-          },
+          headers: await waiverFunctionHeaders(),
           body: JSON.stringify({
             orderId: order.id,
+            // The portal token proves this visitor may sign for this order; the server derives the customer from the order.
+            token: readPortalToken() ?? undefined,
             customerId: order.customer_id,
             // Renter information snapshot
             renterName,

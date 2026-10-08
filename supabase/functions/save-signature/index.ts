@@ -1,5 +1,7 @@
 import "jsr:@supabase/functions-js@2/edge-runtime.d.ts";
 import { createClient } from "npm:@supabase/supabase-js@2.57.4";
+import { buildPortalUrl } from "../_shared/portal-link.ts";
+import { authorizePortalOrder, resolveCaller } from "../_shared/auth.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -22,7 +24,9 @@ Deno.serve(async (req: Request) => {
   try {
     const {
       orderId,
-      customerId,
+      customerId: claimedCustomerId,
+      // Proof that this visitor holds a portal link for the order (a signed-in owner is recognised from the session instead).
+      token,
       // Renter information snapshot
       renterName,
       renterPhone,
@@ -61,6 +65,35 @@ Deno.serve(async (req: Request) => {
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? ""
     );
 
+    // Authorization comes first: nothing is uploaded or written until the caller has proven access to THIS order (a valid,
+    // unexpired, unrevoked portal / invoice token bound to it, or the signed-in customer who owns it). An order id, a customer
+    // id, the public anon key, an email or a phone number are never proof.
+    const caller = await resolveCaller(supabaseClient, req.headers.get("authorization"), Deno.env.get("SUPABASE_SERVICE_ROLE_KEY"));
+    const proof = await authorizePortalOrder(supabaseClient, { orderId, token, caller, allowStaffRead: false });
+    if (!proof) {
+      return new Response(
+        JSON.stringify({ success: false, error: "access_required" }),
+        { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    // The customer is derived from the order, never trusted from the request. A request that names a different customer is
+    // rejected rather than silently corrected, because it means the page was tampered with.
+    const { data: orderRow } = await supabaseClient.from("orders").select("id, customer_id").eq("id", orderId).maybeSingle();
+    if (!orderRow) {
+      return new Response(
+        JSON.stringify({ success: false, error: "access_required" }),
+        { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+    const customerId = orderRow.customer_id ?? null;
+    if (claimedCustomerId && claimedCustomerId !== customerId) {
+      return new Response(
+        JSON.stringify({ success: false, error: "customer_mismatch" }),
+        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
     const ipAddress = req.headers.get("x-forwarded-for")?.split(",")[0] ||
                       req.headers.get("x-real-ip") ||
                       "unknown";
@@ -92,11 +125,8 @@ Deno.serve(async (req: Request) => {
       );
     }
 
-    const { data: urlData } = supabaseClient.storage
-      .from("signatures")
-      .getPublicUrl(uploadData.path);
-
-    const signatureImageUrl = urlData.publicUrl;
+    // The signatures bucket is private. The object path is what is stored; readers sign it on demand.
+    const signatureImageUrl = uploadData.path;
 
     const { data: signatureRecord, error: dbError } = await supabaseClient
       .from("order_signatures")
@@ -179,7 +209,7 @@ Deno.serve(async (req: Request) => {
     EdgeRuntime.waitUntil((async () => {
       // Always generate the PDF regardless of email preference so pdf_url is
       // stored in order_signatures and the Download button appears in the portal.
-      let pdfUrl: string | null = null;
+      let pdfPath: string | null = null;
       let pdfBase64: string | null = null;
       try {
         const pdfResponse = await fetch(
@@ -196,13 +226,14 @@ Deno.serve(async (req: Request) => {
 
         if (pdfResponse.ok) {
           const pdfData = await pdfResponse.json();
-          pdfUrl = pdfData.pdfUrl || null;
+          pdfPath = pdfData.pdfPath || null;
 
-          if (pdfUrl) {
+          if (pdfPath) {
             try {
-              const pdfBytesResponse = await fetch(pdfUrl);
-              if (pdfBytesResponse.ok) {
-                const buffer = await pdfBytesResponse.arrayBuffer();
+              // The signed-waivers bucket is private: read the PDF with the service role for the email attachment.
+              const { data: pdfBlob } = await supabaseClient.storage.from("signed-waivers").download(pdfPath);
+              if (pdfBlob) {
+                const buffer = await pdfBlob.arrayBuffer();
                 pdfBase64 = btoa(String.fromCharCode(...new Uint8Array(buffer)));
               }
             } catch (fetchErr) {
@@ -231,15 +262,16 @@ Deno.serve(async (req: Request) => {
           .join(", ");
         const signedAt = new Date().toLocaleString("en-US", { dateStyle: "medium", timeStyle: "short" });
 
-        // Always include the download link in the body. When the attachment is also
-        // present it acts as a convenient fallback for email clients that strip attachments.
-        const pdfSection = pdfUrl
+        // The PDF is attached. The link opens the customer's secure portal, where the waiver can be downloaded again
+        // (the PDF itself lives in a private bucket and has no permanent public URL).
+        const portalUrl = await buildPortalUrl(supabaseClient, orderId, "https://bouncepartyclub.com");
+        const pdfSection = pdfPath
           ? `
             <div style="background-color:#f0fdf4;border:2px solid #10b981;border-radius:6px;padding:18px;margin:25px 0;text-align:center;">
               <h3 style="margin:0 0 10px;color:#15803d;font-size:15px;font-weight:600;">Your Signed Waiver Copy</h3>
-              <p style="margin:0 0 14px;color:#166534;font-size:14px;">Your signed rental agreement is attached to this email. You can also download it using the button below.</p>
-              <a href="${pdfUrl}" target="_blank" rel="noopener noreferrer" style="display:inline-block;background-color:#10b981;color:#ffffff;text-decoration:none;padding:16px 32px;border-radius:6px;font-weight:700;font-size:16px;cursor:pointer;-webkit-text-size-adjust:none;mso-hide:none;">Download Signed Waiver (PDF)</a>
-              <p style="margin:12px 0 0;color:#64748b;font-size:12px;">Keep this for your records. This link will remain active.</p>
+              <p style="margin:0 0 14px;color:#166534;font-size:14px;">Your signed rental agreement is attached to this email.${portalUrl ? " You can also download it again from your customer portal using the button below." : ""}</p>
+              ${portalUrl ? `<a href="${portalUrl}" target="_blank" rel="noopener noreferrer" style="display:inline-block;background-color:#10b981;color:#ffffff;text-decoration:none;padding:16px 32px;border-radius:6px;font-weight:700;font-size:16px;cursor:pointer;-webkit-text-size-adjust:none;mso-hide:none;">Open My Customer Portal</a>` : ""}
+              <p style="margin:12px 0 0;color:#64748b;font-size:12px;">Keep this for your records.</p>
             </div>`
           : `
             <div style="background-color:#fef3c7;border:2px solid #f59e0b;border-radius:6px;padding:14px;margin:25px 0;">

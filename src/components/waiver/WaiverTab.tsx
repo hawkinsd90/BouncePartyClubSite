@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { FileCheck, FileText, Download, AlertCircle, CheckCircle2, Upload, ExternalLink, Printer } from 'lucide-react';
 import { format } from 'date-fns';
 import { tokenFragment } from '../../lib/portalToken';
+import { waiverFunctionHeaders } from '../../lib/waiverAccess';
 
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL as string;
 const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY as string;
@@ -34,10 +35,7 @@ export default function WaiverTab({ orderId, token, onWaiverChange }: WaiverTabP
       setLoading(true);
       const res = await fetch(`${SUPABASE_URL}/functions/v1/get-waiver-status`, {
         method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
-          'Content-Type': 'application/json',
-        },
+        headers: await waiverFunctionHeaders(),
         body: JSON.stringify({ orderId, ...(token && { token }) }),
       });
       if (!res.ok) throw new Error(`get-waiver-status returned ${res.status}`);

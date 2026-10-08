@@ -15,6 +15,7 @@ import * as projection from '../../supabase/functions/_shared/portal-projection'
 import * as actions from '../../supabase/functions/_shared/portal-actions';
 import * as portalLink from '../../supabase/functions/_shared/portal-link';
 import * as lifecycleOutcome from '../../supabase/functions/_shared/lifecycle-outcome';
+import * as mediaPaths from '../../supabase/functions/_shared/media-paths';
 
 export type Row = Record<string, any>;
 
@@ -29,6 +30,12 @@ export interface Db {
   tables: Record<string, Row[]>;
   writes: Write[];
   storageRemoved: string[];
+  // Signed URLs the fake Storage handed out, as "bucket:path" (a path is signed only when asked for).
+  storageSigned: string[];
+  // Objects the fake Storage accepted, as "bucket:path".
+  storageUploads: string[];
+  // Objects the fake Storage handed out for download, as "bucket:path".
+  storageDownloads: string[];
   rpcResults: Record<string, any>;
   invokes: Array<{ name: string; opts: any }>;
   seq: number;
@@ -70,6 +77,7 @@ export function newDb(): Db {
       order_changelog: [],
       order_lot_pictures: [],
       order_pictures: [],
+      order_signatures: [],
       task_status: [],
       invoice_links: [],
       pricing_rules: [{ id: 'pr-1', base_radius_miles: 10, per_mile_after_base_cents: 250, same_day_pickup_fee_cents: 10500, generator_price_cents: 9500, surface_sandbag_fee_cents: 3500, same_day_weekday_delivery_fee_cents: 0 }],
@@ -84,6 +92,9 @@ export function newDb(): Db {
     },
     writes: [],
     storageRemoved: [],
+    storageSigned: [],
+    storageUploads: [],
+    storageDownloads: [],
     invokes: [],
     rpcResults: { check_date_blackout: { is_full_blocked: false, is_same_day_pickup_blocked: false } },
     seq: 0,
@@ -125,6 +136,18 @@ export function makeClient(db: Db): any {
         remove: async (paths: string[]) => {
           db.storageRemoved.push(...paths.map((p) => `${bucket}:${p}`));
           return { error: null };
+        },
+        upload: async (path: string) => {
+          db.storageUploads.push(`${bucket}:${path}`);
+          return { data: { path }, error: null };
+        },
+        download: async (path: string) => {
+          db.storageDownloads.push(`${bucket}:${path}`);
+          return { data: { arrayBuffer: async () => new Uint8Array([137, 80, 78, 71]).buffer }, error: null };
+        },
+        createSignedUrl: async (path: string, expiresIn: number) => {
+          db.storageSigned.push(`${bucket}:${path}`);
+          return { data: { signedUrl: `https://fake.supabase.co/storage/v1/object/sign/${bucket}/${path}?token=T&ttl=${expiresIn}` }, error: null };
         },
       }),
     },
@@ -218,9 +241,11 @@ export interface Harness {
   logs: string[];
   fetches: Array<{ url: string; init: any }>;
   stripeSessions: Record<string, any>;
+  // Background work an Edge Function hands to EdgeRuntime.waitUntil.
+  pending: Array<Promise<unknown>>;
 }
 
-export const makeHarness = (db: Db = newDb()): Harness => ({ db, logs: [], fetches: [], stripeSessions: {} });
+export const makeHarness = (db: Db = newDb()): Harness => ({ db, logs: [], fetches: [], stripeSessions: {}, pending: [] });
 
 export function loadFunction(fnDir: string, h: Harness): (req: Request) => Promise<Response> {
   const src: string = fs.readFileSync(`supabase/functions/${fnDir}/index.ts`, 'utf8');
@@ -230,6 +255,7 @@ export function loadFunction(fnDir: string, h: Harness): (req: Request) => Promi
   const scope: Record<string, unknown> = {
     Deno: { env: { get: (k: string) => env[k] }, serve: (fn: any) => { captured = fn; } },
     createClient: () => makeClient(h.db),
+    EdgeRuntime: { waitUntil: (p: Promise<unknown>) => { h.pending.push(p); } },
     console: {
       log: (...a: unknown[]) => h.logs.push(a.map(String).join(' ')),
       info: (...a: unknown[]) => h.logs.push(a.map(String).join(' ')),
@@ -246,6 +272,7 @@ export function loadFunction(fnDir: string, h: Harness): (req: Request) => Promi
     ...actions,
     ...portalLink,
     ...lifecycleOutcome,
+    ...mediaPaths,
     formatCurrency: (c: number) => `$${((c ?? 0) / 100).toFixed(2)}`,
     formatOrderId: (id: string) => String(id).slice(0, 8),
     Stripe: class {},
@@ -254,7 +281,7 @@ export function loadFunction(fnDir: string, h: Harness): (req: Request) => Promi
   for (const m of src.matchAll(/^import([^;]*);/gm)) {
     for (const id of m[1].replace(/from\s+['"][^'"]*['"]/, '').match(/[A-Za-z_$][\w$]*/g) ?? []) imported.add(id);
   }
-  const names = Object.keys(scope).filter((n) => ['Deno', 'console', 'fetch'].includes(n) || imported.has(n));
+  const names = Object.keys(scope).filter((n) => ['Deno', 'console', 'fetch', 'EdgeRuntime'].includes(n) || imported.has(n));
   new Function(...names, js)(...names.map((n) => scope[n]));
   if (!captured) throw new Error(`${fnDir}: Deno.serve was not called`);
   return captured;

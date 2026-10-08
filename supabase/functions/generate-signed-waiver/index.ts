@@ -1,5 +1,7 @@
 import "jsr:@supabase/functions-js@2/edge-runtime.d.ts";
 import { createClient } from "npm:@supabase/supabase-js@2.57.4";
+import { storagePathFromReference } from "../_shared/media-paths.ts";
+import { resolveCaller } from "../_shared/auth.ts";
 import { jsPDF } from "npm:jspdf@2.5.2";
 import {
   MARGIN,
@@ -40,6 +42,17 @@ Deno.serve(async (req: Request) => {
       Deno.env.get("SUPABASE_URL") ?? "",
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? ""
     );
+
+    // Only the backend (save-signature calls this with the service-role key) may generate a signed waiver. The caller is
+    // checked before anything is read, downloaded or written, so a customer or anonymous visitor cannot use this function
+    // as a service-role proxy with an arbitrary signature id.
+    const caller = await resolveCaller(supabaseClient, req.headers.get("authorization"), Deno.env.get("SUPABASE_SERVICE_ROLE_KEY"));
+    if (caller.kind !== "service") {
+      return new Response(
+        JSON.stringify({ success: false, error: "access_required" }),
+        { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
 
     const { data: signature, error: sigError } = await supabaseClient
       .from("order_signatures")
@@ -84,9 +97,12 @@ Deno.serve(async (req: Request) => {
     let sigImgDataUrl: string | null = null;
     if (signature.signature_image_url) {
       try {
-        const res = await fetch(signature.signature_image_url);
-        if (res.ok) {
-          const buf = await res.arrayBuffer();
+        // The signatures bucket is private: read the object with the service role instead of fetching a public URL.
+        // The stored reference may be a historical public URL or a bare object path; both resolve to the same object path.
+        const sigPath = storagePathFromReference(signature.signature_image_url, "signatures");
+        const res = sigPath ? await supabaseClient.storage.from("signatures").download(sigPath) : { data: null, error: null };
+        if (res.data) {
+          const buf = await res.data.arrayBuffer();
           const bytes = new Uint8Array(buf);
           let binary = "";
           for (let i = 0; i < bytes.length; i += 1024) {
@@ -286,23 +302,22 @@ Deno.serve(async (req: Request) => {
       );
     }
 
-    const { data: pdfUrlData } = supabaseClient.storage
-      .from("signed-waivers")
-      .getPublicUrl(pdfUpload.path);
-    const pdfUrl = pdfUrlData.publicUrl;
+    // The signed-waivers bucket is private. The object path is stored (readers sign it on demand) and returned to the
+    // trusted caller; no public URL exists.
+    const pdfPath = pdfUpload.path;
 
     await supabaseClient
       .from("order_signatures")
-      .update({ pdf_url: pdfUrl, pdf_generated_at: new Date().toISOString() })
+      .update({ pdf_url: pdfPath, pdf_generated_at: new Date().toISOString() })
       .eq("id", signatureId);
 
     await supabaseClient
       .from("orders")
-      .update({ signed_waiver_url: pdfUrl })
+      .update({ signed_waiver_url: pdfPath })
       .eq("id", signature.order_id);
 
     return new Response(
-      JSON.stringify({ success: true, pdfUrl, message: "Signed waiver PDF generated successfully" }),
+      JSON.stringify({ success: true, pdfPath, message: "Signed waiver PDF generated successfully" }),
       { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   } catch (error: unknown) {

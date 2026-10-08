@@ -1,5 +1,6 @@
 import "jsr:@supabase/functions-js@2/edge-runtime.d.ts";
 import { createClient } from "npm:@supabase/supabase-js@2.57.4";
+import { validateOrderToken } from "../_shared/auth.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -94,17 +95,9 @@ Deno.serve(async (req: Request) => {
       if (!token) {
         return jsonError("Authentication required", 401);
       }
-      const { data: link } = await supabaseClient
-        .from("invoice_links")
-        .select("order_id, expires_at")
-        .eq("link_token", token)
-        .maybeSingle();
-
-      if (!link || link.order_id !== orderId) {
+      // The shared check: a portal / invoice link bound to THIS order that is unexpired and not revoked.
+      if (!(await validateOrderToken(supabaseClient, orderId, token))) {
         return jsonError("Invalid or expired token", 403);
-      }
-      if (link.expires_at && new Date(link.expires_at) < new Date()) {
-        return jsonError("Link expired", 403);
       }
     }
 

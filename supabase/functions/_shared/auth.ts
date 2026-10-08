@@ -210,6 +210,41 @@ export async function userOwnsOrder(client: AuthClient, userId: string, orderId:
   }
 }
 
+// Historical accounts: customers.user_id was never filled in, ownership is auth user -> customer_profiles.contact_id ->
+// contacts.customer_id. This is the same second branch current_customer_ids() uses in the database, so the dashboard, the
+// database policies and waiver access agree on who owns an order. No email, phone or name is ever compared.
+export async function userOwnsOrderViaProfile(client: AuthClient, userId: string, orderId: string): Promise<boolean> {
+  if (!userId || !orderId) return false;
+  try {
+    const { data: order, error: orderError } = await client
+      .from("orders")
+      .select("customer_id")
+      .eq("id", orderId)
+      .maybeSingle();
+    if (orderError || !order?.customer_id) return false;
+    const { data: profiles, error: profileError } = await client
+      .from("customer_profiles")
+      .select("contact_id")
+      .eq("user_id", userId);
+    if (profileError || !Array.isArray(profiles)) return false;
+    const contactIds = profiles.map((p: { contact_id?: string | null }) => p?.contact_id).filter((id: unknown): id is string => typeof id === "string" && !!id);
+    if (contactIds.length === 0) return false;
+    const { data: contacts, error: contactError } = await client
+      .from("contacts")
+      .select("customer_id")
+      .in("id", contactIds);
+    if (contactError || !Array.isArray(contacts)) return false;
+    return contacts.some((c: { customer_id?: string | null }) => c?.customer_id === order.customer_id);
+  } catch {
+    return false;
+  }
+}
+
+// Owner under either ownership model (direct customers.user_id, or the historical profile / contact link).
+export async function userOwnsOrderCanonical(client: AuthClient, userId: string, orderId: string): Promise<boolean> {
+  return (await userOwnsOrder(client, userId, orderId)) || (await userOwnsOrderViaProfile(client, userId, orderId));
+}
+
 export interface CheckoutSessionLike {
   status?: string | null;
   mode?: string | null;
