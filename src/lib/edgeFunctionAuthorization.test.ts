@@ -1,4 +1,4 @@
-// Handler-level authorization tests for the Payment Safety A1 Edge Functions.
+// Handler-level authorization tests for the payment RPC authorization Edge Functions.
 //
 // The Edge Functions are Deno modules (npm:/jsr: imports, Deno.serve), so each test loads the CURRENT source text,
 // strips its import lines, transpiles the TypeScript, and runs it with fakes for Deno, createClient, Stripe and the
@@ -45,7 +45,7 @@ const TOKEN_B = 'b'.repeat(64);
 const TOKEN_EXPIRED = 'e'.repeat(64);
 const TOKEN_INV = 'c'.repeat(64);
 const sha256 = (v: string) => nodeCrypto.createHash('sha256').update(v).digest('hex');
-// Booking proofs (A2.3): well-formed tokens, stored only as hashes.
+// Booking proofs: well-formed tokens, stored only as hashes.
 const BK_FRESH = 'bk_' + 'F'.repeat(43);
 const BK_FRESH2 = 'bk_' + 'G'.repeat(43);
 const BK_EXPIRED = 'bk_' + 'X'.repeat(43);
@@ -645,7 +645,7 @@ const isDenied = (status: number) => status === 401 || status === 403;
   const createdSession = (x: { w: World }) => x.w.stripeCalls.some((c) => c.api === 'checkout.sessions.create');
   const noSessionOrCustomer = (x: { w: World }) => !createdSession(x) && !stripeUsed(x.w, 'customers.create') && !wrote(x.w, 'orders');
 
-  // Public NEW booking flow: authorized ONLY by the server-minted, order-bound booking proof (A2.3)
+  // Public NEW booking flow: authorized ONLY by the server-minted, order-bound booking proof
   r = track(await call(SC, { bearer: ANON_KEY, body: booking('order-fresh', { bookingToken: BK_FRESH }) }));
   ok('checkout: an anonymous NEW booking with its booking proof can start its card setup', r.status === 200 && r.json?.url === 'https://checkout.example/x');
   ok('checkout: that session is a no-charge setup session bound to the booking order', r.w.stripeCalls.some((c) => c.api === 'checkout.sessions.create' && c.args.mode === 'setup' && c.args.metadata.order_id === 'order-fresh' && c.args.metadata.payment_type === 'booking_request'));
@@ -936,7 +936,7 @@ const isDenied = (status: number) => status === 401 || status === 403;
   ok('rejection logs carry safe identifiers only', /reason=no_order_proof/.test(allLogs));
 
   // ===========================================================================================================
-  // Static privilege checks: RPC callers and the A1 migration
+  // Static privilege checks: RPC callers and the payment RPC authorization migration
   // ===========================================================================================================
   const INTERNAL_RPCS = ['record_cash_payment', 'record_check_payment', 'apply_balance_payment_financials', 'claim_balance_payment_financials', 'increment_order_refunded_cents'];
   const fnDirs = fs.readdirSync('supabase/functions').filter((d: string) => fs.existsSync(`supabase/functions/${d}/index.ts`));
@@ -968,7 +968,7 @@ const isDenied = (status: number) => status === 401 || status === 403;
     ok(`${d} builds its Supabase client with the service key and no forwarded header`, !!m && !/global|Authorization/.test(m[0]));
   }
 
-  const mig: string = fs.readFileSync('supabase/migrations/20261007120000_payment_safety_a1_rpc_authorization.sql', 'utf8');
+  const mig: string = fs.readFileSync('supabase/migrations/20261007120000_harden_payment_rpc_authorization.sql', 'utf8');
   const sqlOnly = mig.replace(/\/\*[\s\S]*?\*\//g, '').replace(/--.*$/gm, '');
   const sigs: Record<string, string> = {
     record_cash_payment: 'uuid, integer, integer, uuid',

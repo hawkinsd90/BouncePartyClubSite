@@ -1,8 +1,8 @@
 /*
-  # Payment Safety A1 — RPC authorization hardening
+  # Payment RPC authorization hardening
 
   Scope: function-level authorization only. This migration does NOT change table RLS policies or table grants
-  (that is Safety A2): the open "Service role full access to ..." policies and anon table privileges are untouched.
+  (handled by the core database access lockdown migration): the open "Service role full access to ..." policies and anon table privileges are untouched.
 
   ## Why
   Internal money RPCs are SECURITY DEFINER and were executable by PUBLIC / anon / authenticated with no caller
@@ -31,8 +31,8 @@
 
   ## Not changed (intentionally)
   - approve_order_changes: customer-scoped by invoice token; stays executable by anon/authenticated.
-  - get_admin_users: its only browser caller is the anonymous /setup bootstrap page; deferred to Safety A2.
-  - Table RLS and table grants: Safety A2.
+  - get_admin_users: its only browser caller is the anonymous /setup bootstrap page; deferred (handled by the administrative RPC exposure migration).
+  - Table RLS and table grants: handled by the core database access lockdown migration.
 */
 
 -- 1. is_admin(): lowercase-safe -------------------------------------------------------------------------------

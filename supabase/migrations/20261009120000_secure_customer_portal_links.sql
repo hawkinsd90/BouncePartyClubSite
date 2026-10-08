@@ -1,5 +1,5 @@
 /*
-  # Payment Safety A2.1 — canonical order-bound portal links
+  # Secure customer portal links: canonical order-bound links
 
   Additive and safe for BOTH Dev and Production (written against a read-only comparison of the two). It reuses the
   existing public.invoice_links table as the single canonical customer-link store. It does NOT drop or change any
@@ -15,7 +15,7 @@
     life when an order is rescheduled.
   - The Dev-only public.order_portal_links table (created by migration 20260722212750) is LEGACY: its only possible
     result is a UUID-only URL, Production has neither it nor create_order_short_link / resolve_portal_short_link.
-    A2.1 does not read or build on it.
+    This migration does not read or build on it.
 
   ## 1. revoked_at
   invoice_links.revoked_at (timestamptz, nullable). Revocation is sticky and effective everywhere:
@@ -43,10 +43,10 @@
     - Order dates themselves are never modified.
 
   ## Not changed
-  invoice_links policies and grants (A2.4), orders/customers RLS (A2.4), get_order_by_token and
+  invoice_links policies and grants (core database access lockdown migration), orders/customers RLS (same migration), get_order_by_token and
   get_order_with_relations_by_token bodies (they honor revocation through expires_at), order_portal_links (deferred
   cleanup), create_order_short_link / create_portal_short_link / resolve_portal_short_link (legacy, no longer
-  called by the application after A2.1).
+  called by the application after this migration).
 */
 
 -- 1. revoked_at -----------------------------------------------------------------------------------------------

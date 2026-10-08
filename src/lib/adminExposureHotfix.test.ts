@@ -1,4 +1,4 @@
-// Payment Safety A2.0 tests: user_roles exposure, administrative SECURITY DEFINER RPC exposure, /setup removal and
+// Administrative access hardening tests: user_roles exposure, administrative SECURITY DEFINER RPC exposure, /setup removal and
 // create-admin-user authorization.
 //
 // - create-admin-user is a Deno module, so its CURRENT source is loaded, its imports stripped, transpiled, and run
@@ -31,7 +31,7 @@ function eq(label: string, a: unknown, b: unknown) {
 
 const SERVICE_KEY = 'svc-key-0123456789abcdef';
 const ANON_KEY = 'anon-key-0123456789abcdef';
-const MIGRATION = 'supabase/migrations/20261008120000_payment_safety_a2_0_admin_exposure.sql';
+const MIGRATION = 'supabase/migrations/20261008120000_restrict_role_and_admin_rpc_exposure.sql';
 
 // ---------------------------------------------------------------------------------------------------------------
 // create-admin-user handler harness
@@ -254,7 +254,7 @@ function applyPrivileges(sql: string): Record<string, Set<string>> {
   ok('get_admin_analytics wrapper: binds the caller via auth.uid() and allows service_role via auth.role()', /ur\.user_id = auth\.uid\(\)/.test(wrapper) && /auth\.role\(\)/.test(wrapper) && /'service_role'/.test(wrapper));
   ok('get_admin_analytics wrapper: raises insufficient_privilege (42501) for everyone else', /RAISE EXCEPTION[^;]*42501/.test(wrapper));
   ok('get_admin_analytics wrapper: delegates to the preserved implementation unchanged', /RETURN public\.get_admin_analytics_impl\(p_start, p_end\);/.test(wrapper));
-  ok('get_admin_analytics wrapper: does not depend on is_admin() (independent of the A1 migration)', !/is_admin\(/.test(wrapper));
+  ok('get_admin_analytics wrapper: does not depend on is_admin() (independent of the payment RPC authorization migration)', !/is_admin\(/.test(wrapper));
   const gate = (actor: { role: string | null; service?: boolean; hasJwt?: boolean }) => !!actor.service || (!!actor.role && wrapperRoles.includes(actor.role.toLowerCase()));
   ok('analytics gate: anonymous (no role) is denied', !gate({ role: null }));
   ok('analytics gate: a valid authenticated JWT with no admin role is denied', !gate({ role: null, hasJwt: true }));
@@ -272,8 +272,8 @@ function applyPrivileges(sql: string): Record<string, Set<string>> {
   ok('migration drops the open user_roles policy idempotently', /DROP POLICY IF EXISTS "Service role full access to user_roles" ON public\.user_roles;/.test(migSql));
   ok('migration removes all anon privileges on user_roles', /REVOKE ALL ON TABLE public\.user_roles FROM anon;/.test(migSql));
   ok('migration does not create any user_roles policy (restrictive policies already exist in both environments)', !/CREATE\s+POLICY/i.test(migSql));
-  ok('migration does not touch customer / order / invoice objects or A1 objects', !/\b(orders|order_items|invoice_links|customers|payments|record_cash_payment|record_check_payment|apply_balance_payment_financials|increment_order_refunded_cents|approve_order_changes|stripe|checkout)\b/i.test(migSql));
-  ok('migration does not redefine is_admin (independent of the A1 migration)', !/FUNCTION public\.is_admin/.test(migSql));
+  ok('migration does not touch customer / order / invoice objects or payment RPC authorization objects', !/\b(orders|order_items|invoice_links|customers|payments|record_cash_payment|record_check_payment|apply_balance_payment_financials|increment_order_refunded_cents|approve_order_changes|stripe|checkout)\b/i.test(migSql));
+  ok('migration does not redefine is_admin (independent of the payment RPC authorization migration)', !/FUNCTION public\.is_admin/.test(migSql));
 
   // =============================================================================================================
   // user_roles policy model replayed from every migration

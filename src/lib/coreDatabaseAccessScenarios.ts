@@ -37,9 +37,6 @@ export const IDS = {
 };
 
 export const SEED_SQL = `
--- The live schema has orders.customer_approved_at (order-lifecycle writes it and create_booking_request lists it), but no tracked
--- migration creates it, so a replay of the repo migrations lacks it. Add it here (transactionally, rolled back with the rest).
-ALTER TABLE public.orders ADD COLUMN IF NOT EXISTS customer_approved_at timestamptz;
 INSERT INTO auth.users (id, email) VALUES
   ('${IDS.uAdmin}', 'admin@example.com'), ('${IDS.uCrew}', 'crew@example.com'),
   ('${IDS.uA}', 'a@example.com'), ('${IDS.uB}', 'b@example.com'), ('${IDS.uLegacy}', 'legacy@example.com');
@@ -257,12 +254,15 @@ export function buildScenarios(): Scenario[] {
 
   // ---- Public booking RPC still works for the service role (the server-owned booking boundary); the account guard still applies ----
   const book = (email: string, caller: string | null, line2: string) => `SELECT pg_temp.book('${email}', ${caller ? `'${caller}'::uuid` : 'NULL::uuid'}, '${line2}')`;
-  add('booking RPC (service_role): a new guest booking is created as a draft, nothing paid, with its own delivery unit', 'service_role', null, book('brand-new@example.com', null, 'Apt 9'), 'draft|Apt 9|0');
-  add('booking RPC (service_role): a booking with no unit stores an empty unit', 'service_role', null, book('another-new@example.com', null, ''), 'draft||0');
-  add('booking RPC (service_role): a GUEST customer record can still be used without sign-in', 'service_role', null, book('g@example.com', null, 'Apt 2'), 'draft|Apt 2|0');
+  add('booking RPC (service_role): a new guest booking is created as a draft, nothing paid, with its own delivery unit', 'service_role', null, book('brand-new@example.com', null, 'Apt 9'), 'draft|Apt 9|0|true');
+  add('booking RPC (service_role): a booking with no unit stores an empty unit', 'service_role', null, book('another-new@example.com', null, ''), 'draft||0|true');
+  add('booking RPC (service_role): a GUEST customer record can still be used without sign-in', 'service_role', null, book('g@example.com', null, 'Apt 2'), 'draft|Apt 2|0|true');
   add('booking RPC (service_role): anonymous caller using a REGISTERED customer email is rejected', 'service_role', null, book('a@example.com', null, 'Apt 3'), 'ERR:P0001');
   add('booking RPC (service_role): a different signed-in user using a registered email is rejected', 'service_role', null, book('a@example.com', IDS.uB, 'Apt 3'), 'ERR:P0001');
-  add('booking RPC (service_role): the registered owner can book with their own email', 'service_role', null, book('a@example.com', IDS.uA, 'Apt 3'), 'draft|Apt 3|0');
+  add('booking RPC (service_role): the registered owner can book with their own email', 'service_role', null, book('a@example.com', IDS.uA, 'Apt 3'), 'draft|Apt 3|0|true');
+  // The approval timestamp the repaired schema provides: NULL until a customer approval stamps it (order-lifecycle's write), then a timestamp.
+  add('approval timestamp: a seeded order has none before approval', 'service_role', null, `SELECT (customer_approved_at IS NULL)::text FROM public.orders WHERE id = '${IDS.orderLegacy}'`, 'true');
+  add('approval timestamp: stamping it on approval stores a timestamp', 'service_role', null, `WITH u AS (UPDATE public.orders SET customer_approved_at = now() WHERE id = '${IDS.orderLegacy}' AND customer_approved_at IS NULL RETURNING customer_approved_at) SELECT (customer_approved_at IS NOT NULL)::text FROM u`, 'true');
   add('booking RPC: authenticated users and anon cannot call it directly', 'anon', null, `SELECT (NOT has_function_privilege('anon','public.create_booking_request(jsonb, text, timestamptz, uuid)','EXECUTE') AND NOT has_function_privilege('authenticated','public.create_booking_request(jsonb, text, timestamptz, uuid)','EXECUTE'))::text`, 'true');
   return s;
 }
@@ -309,8 +309,8 @@ BEGIN
       'request_meta', jsonb_build_object('ip_address', '203.0.113.9', 'user_agent', 'scenario')
     ),
     md5(random()::text) || md5(random()::text), now() + interval '30 minutes', p_caller);
-  SELECT status, event_address_line2, deposit_paid_cents INTO o FROM public.orders WHERE id = (res->>'order_id')::uuid;
-  RETURN o.status || '|' || COALESCE(o.event_address_line2, 'NULL') || '|' || o.deposit_paid_cents;
+  SELECT status, event_address_line2, deposit_paid_cents, customer_approved_at INTO o FROM public.orders WHERE id = (res->>'order_id')::uuid;
+  RETURN o.status || '|' || COALESCE(o.event_address_line2, 'NULL') || '|' || o.deposit_paid_cents || '|' || (o.customer_approved_at IS NULL);
 END $b$;
 CREATE FUNCTION pg_temp.n(q text) RETURNS integer LANGUAGE plpgsql AS $g$
 DECLARE c integer;

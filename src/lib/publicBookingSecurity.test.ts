@@ -1,4 +1,4 @@
-// Payment Safety A2.3 — secure public booking creation.
+// Secure public booking creation tests.
 //
 // Question this suite answers: can a public customer create and complete a booking request without the browser having
 // direct write authority over core customer/order tables, without trusting client-controlled item/deposit values, and
@@ -604,7 +604,7 @@ const noRows = (w: World, snapshot: string) => JSON.stringify(w.db) === snapshot
     ok('proof: the booking proof is NOT accepted as a portal/invoice token', (await validateOrderToken(linkClient, orderA, token, NOW)) === false);
     ok('proof: the booking proof is NOT accepted by proveOrderAccess', (await proveOrderAccess(linkClient, { orderId: orderA, caller: { kind: 'anonymous' }, token, now: NOW })) === null);
     ok('proof: an invoice/portal token is NOT accepted as a booking proof', (await checkBookingProof(dbClient, orderA, 'a'.repeat(64), NOW)).ok === false);
-    const sql = read('supabase/migrations/20261010120000_payment_safety_a2_3_booking.sql');
+    const sql = read('supabase/migrations/20261010120000_secure_public_booking_creation.sql');
     ok('proof: booking proofs live in their own table, not invoice_links', /CREATE TABLE IF NOT EXISTS public\.booking_setup_proofs/.test(sql) && !/INSERT INTO invoice_links/.test(sql));
     ok('proof: the proof table is service-role only (RLS on, no policies, browser roles revoked)', /ALTER TABLE public\.booking_setup_proofs ENABLE ROW LEVEL SECURITY/.test(sql) && !/CREATE POLICY[^;]*booking_setup_proofs/i.test(sql) && /REVOKE ALL ON public\.booking_setup_proofs FROM anon/.test(sql) && /REVOKE ALL ON public\.booking_setup_proofs FROM authenticated/.test(sql) && /REVOKE ALL ON public\.booking_setup_proofs FROM PUBLIC/.test(sql));
     ok('proof: one proof per order and unique hashes (single mint)', /UNIQUE \(order_id\)/.test(sql) && /UNIQUE \(token_hash\)/.test(sql));
@@ -780,7 +780,7 @@ const noRows = (w: World, snapshot: string) => JSON.stringify(w.db) === snapshot
       ok(`wiring: ${name} is registered in supabase/config.toml (verify_jwt = false)`, new RegExp(`\\[functions\\.${name}\\]\\s*verify_jwt = false`).test(read('supabase/config.toml')));
     }
     const sql = read('supabase/migrations/20261011120000_order_event_address_line2.sql');
-    const sqlOld = read('supabase/migrations/20261010120000_payment_safety_a2_3_booking.sql');
+    const sqlOld = read('supabase/migrations/20261010120000_secure_public_booking_creation.sql');
     ok('migration: create_booking_request is revoked from PUBLIC, anon and authenticated and granted to service_role only', /REVOKE ALL ON FUNCTION public\.create_booking_request\(jsonb, text, timestamptz, uuid\) FROM PUBLIC/.test(sql) && /REVOKE ALL ON FUNCTION public\.create_booking_request\(jsonb, text, timestamptz, uuid\) FROM anon/.test(sql) && /REVOKE ALL ON FUNCTION public\.create_booking_request\(jsonb, text, timestamptz, uuid\) FROM authenticated/.test(sql) && /GRANT EXECUTE ON FUNCTION public\.create_booking_request\(jsonb, text, timestamptz, uuid\) TO service_role/.test(sql) && !/GRANT EXECUTE ON FUNCTION public\.create_booking_request[^;]*(anon|authenticated|PUBLIC)/i.test(sql));
     ok('migration: the RPC is SECURITY DEFINER with a pinned search_path', /SECURITY DEFINER\s+SET search_path = public/.test(sql));
     ok('migration: the browser roles lose upsert_contact_from_checkout', /REVOKE ALL ON FUNCTION public\.upsert_contact_from_checkout\([^)]*\) FROM anon/.test(sqlOld) && /REVOKE ALL ON FUNCTION public\.upsert_contact_from_checkout\([^)]*\) FROM authenticated/.test(sqlOld) && /REVOKE ALL ON FUNCTION public\.upsert_contact_from_checkout\([^)]*\) FROM PUBLIC/.test(sqlOld));

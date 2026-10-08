@@ -1,8 +1,8 @@
-// Payment Safety A2.1 tests: canonical order-bound portal links.
+// Secure customer portal link tests: canonical order-bound portal links.
 //
 // Nothing here touches a network or a database. Edge Function source is loaded as text, its imports are stripped, and it
 // is run with in-memory fakes plus the REAL shared helpers (_shared/auth.ts, _shared/portal-link.ts). The migration is
-// checked statically. The in-memory invoice_links fake models only the database rules A2.1 relies on (unique
+// checked statically. The in-memory invoice_links fake models only the database rules the portal links rely on (unique
 // short_code and link_token, the partial unique index of one active portal link per order, sticky revocation that
 // implies expiry); those rules are asserted against the migration text separately.
 
@@ -34,7 +34,7 @@ const ANON_KEY = 'anon-key-0123456789abcdef';
 const NOW = new Date('2026-10-09T12:00:00Z');
 const FUTURE = '2027-01-01T00:00:00Z';
 const PAST = '2026-01-01T00:00:00Z';
-const MIGRATION = 'supabase/migrations/20261009120000_payment_safety_a2_1_portal_links.sql';
+const MIGRATION = 'supabase/migrations/20261009120000_secure_customer_portal_links.sql';
 
 // ---------------------------------------------------------------------------------------------------------------
 // In-memory database
@@ -78,7 +78,7 @@ function newDb(): Db {
 const matches = (row: Row, filters: Array<[string, string, unknown]>) =>
   filters.every(([op, col, val]) => (op === 'eq' ? row[col] === val : op === 'is' ? (row[col] ?? null) === val : false));
 
-// Mirrors the database rules in the A2.1 migration for invoice_links.
+// Mirrors the database rules in the portal links migration for invoice_links.
 function violatesUnique(db: Db, row: Row, ignore?: Row): boolean {
   return db.tables.invoice_links.some((r) => {
     if (r === ignore) return false;

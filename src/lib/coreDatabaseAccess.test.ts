@@ -18,7 +18,7 @@ declare const process: { env: Record<string, string | undefined> };
 const fs = require('fs');
 const { spawnSync } = require('child_process');
 
-import { buildScenarios, buildScript, ORDER_PROJECTION_KEYS } from './coreDatabaseAccessScenarios';
+import { buildScenarios, buildScript, ORDER_PROJECTION_KEYS, SEED_SQL } from './coreDatabaseAccessScenarios';
 
 let passed = 0;
 let failed = 0;
@@ -250,7 +250,25 @@ const PRIVATE = OWNED.filter((t) => !PUBLIC_READ.includes(t));
   // -- ordering with the other migrations --
   const files: string[] = fs.readdirSync('supabase/migrations').sort();
   const idx = (n: string) => files.indexOf(n);
-  ok('static: the core-database-access migration sorts after the public-booking and delivery-unit migrations', idx('20261012120000_core_database_access_lockdown.sql') > idx('20261011120000_order_event_address_line2.sql') && idx('20261011120000_order_event_address_line2.sql') > idx('20261010120000_payment_safety_a2_3_booking.sql'));
+  // The approval timestamp column must exist before anything that lists it (create_booking_request, order-lifecycle).
+  const APPROVAL = '20261010110000_add_customer_approval_timestamp.sql';
+  const BOOKING = '20261010120000_secure_public_booking_creation.sql';
+  const DELIVERY_UNIT = '20261011120000_order_event_address_line2.sql';
+  const LOCKDOWN = '20261012120000_core_database_access_lockdown.sql';
+  ok('static: migration order is approval timestamp < secure public booking < delivery unit < core database access lockdown', [APPROVAL, BOOKING, DELIVERY_UNIT, LOCKDOWN].every((f) => idx(f) >= 0) && idx(APPROVAL) < idx(BOOKING) && idx(BOOKING) < idx(DELIVERY_UNIT) && idx(DELIVERY_UNIT) < idx(LOCKDOWN));
+  ok('static: before the booking migration the column is only mentioned by this migration and by the older approval function body (PL/pgSQL, resolved at call time, so it needs the column only when it runs, not when it is created); every statement that needs the column at creation or call time in this chain runs after the migration that adds it', files.filter((f) => f < BOOKING && /customer_approved_at/.test(read('supabase/migrations/' + f))).every((f) => f === APPROVAL || f === '20260421025937_tighten_orders_rls_replace_open_policies_with_rpc.sql'));
+  const approvalSql = read('supabase/migrations/' + APPROVAL).replace(/\/\*[\s\S]*?\*\//g, '').replace(/\s+/g, ' ').trim();
+  ok('static: the approval timestamp migration is one nullable, default-less, idempotent column add and nothing else', approvalSql === 'ALTER TABLE public.orders ADD COLUMN IF NOT EXISTS customer_approved_at timestamptz;');
+  ok('static: the booking migration still lists customer_approved_at, so the column has to come from the migration history', /customer_approved_at/.test(read('supabase/migrations/' + BOOKING)));
+  ok('static: no internal coordination label in the booking migration filename or header', !new RegExp(['payment', 'safety'].join('_') + '|a2_3|' + ['A2', '3'].join('\\.') + '|Phase|Stage').test(BOOKING +read('supabase/migrations/' + BOOKING).slice(0, 400)));
+  // No test helper may create the production column: the schema has to come from the migrations alone.
+  const addCol = new RegExp('ADD COLUMN[^;]*' + ['customer', 'approved', 'at'].join('_'), 'i');
+  const offenders: string[] = [];
+  const walk = (d: string) => { for (const e of fs.readdirSync(d, { withFileTypes: true })) { const f = d + '/' + e.name; if (e.isDirectory()) walk(f); else if (/\.(ts|tsx|js|sql)$/.test(e.name) && f !== 'src/lib/coreDatabaseAccess.test.ts' && addCol.test(read(f))) offenders.push(f); } };
+  walk('src');
+  ok('static: no test or source file adds the approval column outside the migration', offenders.length === 0);
+  ok('static: the scenario seed does not alter the schema', !/ALTER TABLE|CREATE TABLE/i.test(SEED_SQL));
+  ok('static: the core-database-access migration sorts after the public-booking and delivery-unit migrations', idx('20261012120000_core_database_access_lockdown.sql') > idx('20261011120000_order_event_address_line2.sql') && idx('20261011120000_order_event_address_line2.sql') > idx('20261010120000_secure_public_booking_creation.sql'));
   ok('static: the delivery-unit migration (which restates create_booking_request) is untouched in meaning', /event_address_line2/.test(read('supabase/migrations/20261011120000_order_event_address_line2.sql')));
 }
 

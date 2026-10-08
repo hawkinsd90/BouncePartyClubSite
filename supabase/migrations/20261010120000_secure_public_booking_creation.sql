@@ -1,5 +1,5 @@
 /*
-  # Payment Safety A2.3 — secure public booking creation
+  # Secure public booking creation
 
   NOT APPLIED BY THIS CHANGE. Review, then apply manually.
 

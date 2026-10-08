@@ -1,8 +1,8 @@
 /*
-  # Payment Safety A2.0 — immediate role / administrative RPC exposure hotfixes
+  # Role and administrative RPC exposure hotfixes
 
   Scope: small, independent fixes. This migration does NOT touch customer booking, the customer portal, invoice
-  links, orders RLS, or any A1 object, and it does not depend on the A1 migration being applied first. It is safe
+  links, orders RLS, or any payment RPC authorization object, and it does not depend on the payment RPC authorization migration being applied first. It is safe
   to apply to BOTH Dev and Production (it was written against a read-only comparison of the two).
 
   ## 1. user_roles: remove the public "service role" policy and anonymous table access
@@ -33,7 +33,7 @@
   get_user_creation_logs already use an empty search_path).
 
   ## Not changed
-  Customer/booking/portal paths, orders and invoice_links RLS, the A1 objects, get_all_role_users and
+  Customer/booking/portal paths, orders and invoice_links RLS, the payment RPC authorization objects, get_all_role_users and
   assign_role_by_email (they already check the caller), and the other analytics RPCs (deferred).
 */
 
