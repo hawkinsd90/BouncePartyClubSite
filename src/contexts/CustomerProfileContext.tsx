@@ -132,13 +132,8 @@ export function CustomerProfileProvider({ children }: { children: ReactNode }) {
               .eq('id', customerData.default_address_id)
               .maybeSingle()
           : Promise.resolve({ data: null }),
-        supabase
-          .from('orders')
-          .select('address_id, addresses!orders_address_id_fkey(*)')
-          .eq('customer_id', customerData.id)
-          .order('created_at', { ascending: false })
-          .limit(1)
-          .maybeSingle(),
+        // Orders are not readable by customers; the identity-bound RPC returns the event address of their latest order.
+        supabase.rpc('get_my_last_order_address'),
       ]);
 
       if (addressResult.data) {
@@ -150,8 +145,8 @@ export function CustomerProfileProvider({ children }: { children: ReactNode }) {
           state: addressResult.data.state,
           zip: addressResult.data.zip,
         };
-      } else if ((lastOrderResult.data as any)?.addresses) {
-        const addr = (lastOrderResult.data as any).addresses;
+      } else if (lastOrderResult.data) {
+        const addr = lastOrderResult.data as unknown as { id: string; line1: string; line2: string | null; city: string; state: string; zip: string };
         defaultAddress = {
           id: addr.id,
           line1: addr.line1,

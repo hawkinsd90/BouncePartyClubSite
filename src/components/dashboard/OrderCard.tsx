@@ -14,7 +14,7 @@ import { calculateTotalFromOrder } from '../../lib/orderSummary';
 interface OrderCardProps {
   order: Order;
   onViewReceipt: (order: Order, payment: Payment) => void;
-  onDuplicateOrder: (orderId: string) => void;
+  onDuplicateOrder: (order: Order) => void;
   onCancelOrder: (orderId: string, eventDate: string) => void;
 }
 
@@ -96,8 +96,8 @@ export function OrderCard({ order, onViewReceipt, onDuplicateOrder, onCancelOrde
               <span className="font-semibold text-gray-900">
                 {formatCurrency(calculateTotalFromOrder(
                   order,
-                  (order as any).order_discounts || [],
-                  (order as any).order_custom_fees || []
+                  order.order_discounts || [],
+                  order.order_custom_fees || []
                 ))}
               </span>
             </div>
@@ -155,7 +155,7 @@ export function OrderCard({ order, onViewReceipt, onDuplicateOrder, onCancelOrde
         </div>
         <div className="flex gap-2">
           <button
-            onClick={() => onDuplicateOrder(order.id)}
+            onClick={() => onDuplicateOrder(order)}
             className="flex-1 px-3 sm:px-4 py-2 bg-green-50 text-green-700 border border-green-200 rounded-lg hover:bg-green-100 transition-colors flex items-center justify-center gap-1.5 sm:gap-2 text-sm font-medium"
           >
             <Copy className="w-4 h-4 flex-shrink-0" />

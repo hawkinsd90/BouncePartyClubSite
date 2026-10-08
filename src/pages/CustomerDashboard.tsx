@@ -5,7 +5,7 @@ import { Package } from 'lucide-react';
 import { Order, Payment } from '../types/orders';
 import { useOrders } from '../hooks/useOrders';
 import { useOrderDuplication } from '../hooks/useOrderDuplication';
-import { loadOrderSummary, formatOrderSummary, OrderSummaryDisplay } from '../lib/orderSummary';
+import { buildOrderSummaryData, formatOrderSummary, OrderSummaryDisplay } from '../lib/orderSummary';
 import { showToast } from '../lib/notifications';
 import { CancelOrderModal } from '../components/customer-portal/CancelOrderModal';
 import { OrderCard } from '../components/dashboard/OrderCard';
@@ -18,10 +18,7 @@ export function CustomerDashboard() {
   const [searchParams, setSearchParams] = useSearchParams();
   const { duplicateOrder } = useOrderDuplication();
 
-  const { upcomingOrders, activeOrders, pastOrders, loading, reloadOrders } = useOrders(
-    user?.id,
-    user?.email
-  );
+  const { upcomingOrders, activeOrders, pastOrders, loading, reloadOrders } = useOrders(user?.id);
 
   const [selectedReceipt, setSelectedReceipt] = useState<{ order: Order; payment: Payment } | null>(null);
   const [receiptSummary, setReceiptSummary] = useState<OrderSummaryDisplay | null>(null);
@@ -53,7 +50,17 @@ export function CustomerDashboard() {
     setLoadingReceipt(true);
 
     try {
-      const summaryData = await loadOrderSummary(order.id);
+      // Built from the order the dashboard already holds (items, discounts and fees arrive inside get_my_orders), so the
+      // receipt needs no direct table access.
+      const summaryData = await buildOrderSummaryData(
+        {
+          order,
+          items: order.order_items ?? [],
+          discounts: order.order_discounts ?? [],
+          customFees: order.order_custom_fees ?? [],
+        },
+        { persistTravelMiles: false },
+      );
       if (summaryData) {
         const formattedSummary = formatOrderSummary(summaryData);
         setReceiptSummary(formattedSummary);

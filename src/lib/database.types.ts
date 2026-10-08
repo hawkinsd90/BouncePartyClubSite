@@ -1061,6 +1061,15 @@ export interface Database {
         Args: { user_id: string }
         Returns: Json
       }
+      // The signed-in customer's own orders (customer-facing fields only) and latest order address.
+      get_my_orders: {
+        Args: { p_limit?: number }
+        Returns: Json[]
+      }
+      get_my_last_order_address: {
+        Args: Record<string, never>
+        Returns: Json
+      }
       // Signatures verified against the notification_failures migration and the live Dev/production
       // function definitions.
       record_notification_failure: {

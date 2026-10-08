@@ -42,11 +42,13 @@ export interface Order {
   tip_cents?: number;
   deposit_due_cents: number;
   deposit_paid_cents: number;
-  payment_lock: boolean;
+  payment_lock?: boolean; // internal: never returned to customers
   balance_due_cents: number;
   balance_paid_cents: number;
-  created_at: string;
+  created_at?: string;
   can_stake?: boolean;
+  can_use_stakes?: boolean | null;
+  surface?: string | null;
   generator_qty?: number;
   has_pets?: boolean;
   special_details?: string | null;
@@ -74,7 +76,9 @@ export interface Order {
   } | null;
   waiver_signed_at: string | null;
   signed_waiver_url: string | null;
-  customer_id: string;
+  customer_id?: string;
   payments?: Payment[];
+  order_discounts?: Array<{ id?: string; name: string; amount_cents?: number; percentage?: number }>;
+  order_custom_fees?: Array<{ id?: string; name: string; amount_cents: number }>;
   order_items?: OrderItem[];
 }

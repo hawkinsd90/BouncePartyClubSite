@@ -3,7 +3,7 @@ import { supabase } from '../lib/supabase';
 import { Order } from '../types/orders';
 import { ORDER_STATUS } from '../lib/constants/statuses';
 
-export function useOrders(userId: string | undefined, userEmail: string | undefined) {
+export function useOrders(userId: string | undefined) {
   const [upcomingOrders, setUpcomingOrders] = useState<Order[]>([]);
   const [activeOrders, setActiveOrders] = useState<Order[]>([]);
   const [pastOrders, setPastOrders] = useState<Order[]>([]);
@@ -13,7 +13,7 @@ export function useOrders(userId: string | undefined, userEmail: string | undefi
   const currentUserIdRef = useRef<string | undefined>(undefined);
 
   const loadOrders = useCallback(async () => {
-    if (!userId || !userEmail) {
+    if (!userId) {
       setLoading(false);
       return;
     }
@@ -28,108 +28,49 @@ export function useOrders(userId: string | undefined, userEmail: string | undefi
     currentUserIdRef.current = userId;
     setLoading(true);
     try {
-      const [profileResult, emailResult] = await Promise.all([
-        supabase
-          .from('customer_profiles')
-          .select(`
-            contact_id,
-            contacts (
-              customer_id
-            )
-          `)
-          .eq('user_id', userId)
-          .maybeSingle(),
-        supabase
-          .from('customers')
-          .select('id')
-          .eq('email', userEmail),
-      ]);
-
-      const profileData = profileResult.data;
-      const emailCustomers = emailResult.data;
-
-      if (profileResult.error) {
-        console.error('Error loading customer profile:', profileResult.error);
-      }
-      if (emailResult.error) {
-        console.error('Error loading customers by email:', emailResult.error);
-      }
-
-      let customerIds: string[] = [];
-
-      const profileAny = profileData as any;
-      if (profileAny?.contacts?.customer_id) {
-        customerIds.push(profileAny.contacts.customer_id);
-      }
-
-      if (emailCustomers) {
-        customerIds.push(...emailCustomers.map(c => c.id));
-      }
-
-      customerIds = Array.from(new Set(customerIds));
-
-      if (customerIds.length === 0) {
-        return;
-      }
-
-      const { data: ordersData, error } = await supabase
-        .from('orders')
-        .select(`
-          *,
-          customers (*),
-          addresses (*),
-          payments (*),
-          order_items (
-            *,
-            units (
-              name
-            )
-          ),
-          order_discounts (*),
-          order_custom_fees (*)
-        `)
-        .in('customer_id', customerIds)
-        .order('event_date', { ascending: false })
-        .limit(50);
+      // The orders table is not readable by customers. get_my_orders() derives the caller's identity from their session
+      // on the server (no customer id, email or contact id is sent) and returns only the customer-facing fields of their
+      // own orders, with items, discounts, fees, address and payment history already attached.
+      const { data: ordersRows, error } = await supabase.rpc('get_my_orders');
 
       if (error) {
         console.error('Error loading orders:', error);
         return;
       }
 
-      if (ordersData) {
-        const today = new Date();
-        today.setHours(0, 0, 0, 0);
+      const ordersData = ((ordersRows as unknown) as Order[] | null) ?? [];
 
-        const upcoming: Order[] = [];
-        const active: Order[] = [];
-        const past: Order[] = [];
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
 
-        ordersData.forEach((order: any) => {
-          const eventDate = new Date(order.event_date + 'T12:00:00');
-          const eventEndDate = order.event_end_date ? new Date(order.event_end_date + 'T12:00:00') : eventDate;
+      const upcoming: Order[] = [];
+      const active: Order[] = [];
+      const past: Order[] = [];
 
-          if (
-            (eventDate <= today && eventEndDate >= today) ||
-            order.status === ORDER_STATUS.IN_PROGRESS
-          ) {
-            active.push(order);
-          } else if (eventDate > today && !([ORDER_STATUS.COMPLETED, ORDER_STATUS.CANCELLED, ORDER_STATUS.VOID] as string[]).includes(order.status)) {
-            upcoming.push(order);
-          } else {
-            past.push(order);
-          }
-        });
+      ordersData.forEach((order) => {
+        const eventDate = new Date(order.event_date + 'T12:00:00');
+        const eventEndDate = order.event_end_date ? new Date(order.event_end_date + 'T12:00:00') : eventDate;
 
-        upcoming.sort((a, b) => new Date(a.event_date + 'T12:00:00').getTime() - new Date(b.event_date + 'T12:00:00').getTime());
-        active.sort((a, b) => new Date(a.event_date + 'T12:00:00').getTime() - new Date(b.event_date + 'T12:00:00').getTime());
-        past.sort((a, b) => new Date(b.event_date + 'T12:00:00').getTime() - new Date(a.event_date + 'T12:00:00').getTime());
-
-        if (currentUserIdRef.current === loadingForUserId) {
-          setUpcomingOrders(upcoming);
-          setActiveOrders(active);
-          setPastOrders(past);
+        if (
+          (eventDate <= today && eventEndDate >= today) ||
+          order.status === ORDER_STATUS.IN_PROGRESS
+        ) {
+          active.push(order);
+        } else if (eventDate > today && !([ORDER_STATUS.COMPLETED, ORDER_STATUS.CANCELLED, ORDER_STATUS.VOID] as string[]).includes(order.status)) {
+          upcoming.push(order);
+        } else {
+          past.push(order);
         }
+      });
+
+      upcoming.sort((a, b) => new Date(a.event_date + 'T12:00:00').getTime() - new Date(b.event_date + 'T12:00:00').getTime());
+      active.sort((a, b) => new Date(a.event_date + 'T12:00:00').getTime() - new Date(b.event_date + 'T12:00:00').getTime());
+      past.sort((a, b) => new Date(b.event_date + 'T12:00:00').getTime() - new Date(a.event_date + 'T12:00:00').getTime());
+
+      if (currentUserIdRef.current === loadingForUserId) {
+        setUpcomingOrders(upcoming);
+        setActiveOrders(active);
+        setPastOrders(past);
       }
     } catch (error) {
       console.error('Error loading orders:', error);
@@ -143,13 +84,13 @@ export function useOrders(userId: string | undefined, userEmail: string | undefi
         loadOrders();
       }
     }
-  }, [userId, userEmail]);
+  }, [userId]);
 
   useEffect(() => {
-    if (userId && userEmail) {
+    if (userId) {
       loadOrders();
     }
-  }, [userId, userEmail, loadOrders]);
+  }, [userId, loadOrders]);
 
   return {
     upcomingOrders,

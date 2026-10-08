@@ -1,5 +1,5 @@
 import { useNavigate } from 'react-router-dom';
-import { supabase } from '../lib/supabase';
+import type { Order } from '../types/orders';
 import { SafeStorage } from '../lib/safeStorage';
 import { eventAddressLine2 } from '../lib/eventAddress';
 import { notifyError, notifyWarning, showConfirm } from '../lib/notifications';
@@ -7,61 +7,11 @@ import { notifyError, notifyWarning, showConfirm } from '../lib/notifications';
 export function useOrderDuplication() {
   const navigate = useNavigate();
 
-  async function duplicateOrder(orderId: string) {
+  // Works from the order the dashboard already loaded through get_my_orders (the customer cannot read the tables directly).
+  async function duplicateOrder(order: Order) {
     try {
-      // console.log('[Duplicate Order] Starting duplication for order:', orderId);
-
-      const { data: orderDataRaw, error: orderError } = await supabase
-        .from('orders')
-        .select(`
-          *,
-          addresses (*),
-          customers (
-            first_name,
-            last_name,
-            email,
-            phone,
-            business_name
-          )
-        `)
-        .eq('id', orderId)
-        .maybeSingle();
-
-      if (orderError || !orderDataRaw) {
-        console.error('[Duplicate Order] Failed to load order:', orderError);
-        notifyError('Failed to load order details');
-        return;
-      }
-
-      const orderData = orderDataRaw as any;
-
-      // console.log('[Duplicate Order] Order loaded, fetching items...');
-
-      const { data: itemsDataRaw, error: itemsError } = await supabase
-        .from('order_items')
-        .select(`
-          *,
-          units (
-            id,
-            name,
-            active,
-            types,
-            is_combo,
-            price_dry_cents,
-            price_water_cents
-          )
-        `)
-        .eq('order_id', orderId);
-
-      if (itemsError || !itemsDataRaw) {
-        console.error('[Duplicate Order] Failed to load items:', itemsError);
-        notifyError('Failed to load order items');
-        return;
-      }
-
-      const itemsData = itemsDataRaw as any[];
-
-      // console.log('[Duplicate Order] Loaded items:', itemsData.length);
+      const orderData = order as unknown as any;
+      const itemsData = ((order.order_items ?? []) as unknown) as any[];
 
       if (itemsData.length === 0) {
         console.warn('[Duplicate Order] No items found in order');
@@ -75,15 +25,12 @@ export function useOrderDuplication() {
       itemsData.forEach((item: any) => {
         if (item.units && item.units.active !== false) {
           validItems.push(item);
-          // console.log('[Duplicate Order] Valid item:', item.units.name);
         } else {
           const unitName = item.units?.name || 'Unknown Item';
           unavailableItems.push(unitName);
           console.warn('[Duplicate Order] Unavailable item:', unitName, 'active:', item.units?.active);
         }
       });
-
-      // console.log('[Duplicate Order] Validation complete - Valid:', validItems.length, 'Unavailable:', unavailableItems.length);
 
       if (unavailableItems.length > 0 && validItems.length === 0) {
         notifyError(
