@@ -19,7 +19,7 @@ const About = lazy(() => import('./pages/About').then(m => ({ default: m.About }
 const Admin = lazy(() => import('./pages/Admin').then(m => ({ default: m.Admin })));
 const Crew = lazy(() => import('./pages/Crew').then(m => ({ default: m.Crew })));
 const Login = lazy(() => import('./pages/Login').then(m => ({ default: m.Login })));
-const Invoice = lazy(() => import('./pages/Invoice').then(m => ({ default: m.Invoice })));
+const LegacyInvoiceRedirect = lazy(() => import('./pages/LegacyInvoiceRedirect').then(m => ({ default: m.LegacyInvoiceRedirect })));
 const PaymentComplete = lazy(() => import('./pages/PaymentComplete').then(m => ({ default: m.PaymentComplete })));
 const PaymentCanceled = lazy(() => import('./pages/PaymentCanceled').then(m => ({ default: m.PaymentCanceled })));
 const UnitForm = lazy(() => import('./pages/UnitForm').then(m => ({ default: m.UnitForm })));
@@ -77,7 +77,7 @@ function App() {
           <Route path="/signup" element={<SignUp />} />
           <Route path="/forgot-password" element={<ForgotPassword />} />
           <Route path="/reset-password" element={<ResetPassword />} />
-          <Route path="/invoice/view/:orderId" element={<Invoice />} />
+          <Route path="/invoice/view/:orderId" element={<LegacyInvoiceRedirect />} />
           <Route path="/invoice-preview" element={<InvoicePreview />} />
           <Route path="/menu-preview" element={<MenuPreview />} />
           <Route path="/sign/:orderId" element={<Sign />} />

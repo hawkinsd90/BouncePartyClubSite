@@ -3,11 +3,10 @@ import { useNavigate } from 'react-router-dom';
 import { MapPin } from 'lucide-react';
 import { formatCurrency } from '../lib/pricing';
 import { RentalTerms } from '../components/waiver/RentalTerms';
-import { createOrderBeforePayment } from '../lib/orderCreation';
+import { BookingApiError, buildBookingRequest, createBooking, startBookingCardSetup } from '../lib/bookingApi';
 import { useAuth } from '../contexts/AuthContext';
 import { useCheckoutData } from '../hooks/useCheckoutData';
 import { getPaymentAmountCentsFromTotals, getTipAmountCents, buildOrderSummary } from '../lib/checkoutUtils';
-import { checkMultipleUnitsAvailability } from '../lib/availability';
 import { showToast } from '../lib/notifications';
 import { composeUnifiedQuoteTotals } from '../lib/unifiedTotals';
 import { validateCartPackageSnapshots } from '../lib/packageDisplay';
@@ -187,99 +186,59 @@ export function Checkout() {
     setProcessing(true);
 
     try {
-      // Re-check inflatable availability before creating order (prevent race conditions)
-      const availabilityChecks = inflatableCart.map((item) => ({
-        unitId: item.unit_id,
-        eventStartDate: quoteData.event_date,
-        eventEndDate: quoteData.event_end_date,
-      }));
+      const tipCents = getTipAmountCents(tipAmount, customTip, unifiedTotals.totalCents);
 
-      const availabilityResults = availabilityChecks.length > 0
-        ? await checkMultipleUnitsAvailability(availabilityChecks)
-        : [];
-      const unavailableUnits = availabilityResults.filter((result) => !result.isAvailable);
-
-      if (unavailableUnits.length > 0) {
-        const unitNames = unavailableUnits.map((u) => {
-          const cartItem = inflatableCart.find((item) => item.unit_id === u.unitId);
-          return cartItem?.unit_name || 'Unknown unit';
-        }).join(', ');
-
+      // The server validates availability, prices the order from the live catalog, creates it atomically and returns a
+      // short-lived booking proof. The browser sends only what the customer chose. Nothing is charged.
+      let booking;
+      try {
+        booking = await createBooking(
+          buildBookingRequest({
+            quoteData,
+            priceBreakdown,
+            cart,
+            contactData,
+            billingAddress,
+            billingSameAsEvent,
+            smsConsent,
+            cardOnFileConsent,
+            paymentSelection: paymentAmount,
+            customPaymentCents: paymentAmount === 'custom' ? paymentCents : null,
+            tipCents,
+            referralSource: referralSource || null,
+            referralSourceDetail: referralSourceDetail || null,
+          }),
+        );
+      } catch (error: unknown) {
+        console.error('Error creating booking request:', error);
+        if (error instanceof BookingApiError && error.code === 'ACCOUNT_SIGN_IN_REQUIRED') {
+          // Not an error to retry: this email belongs to a registered account.
+          showToast(error.message, 'error');
+          setProcessing(false);
+          return;
+        }
         showToast(
-          `Sorry, the following units are no longer available for your selected dates: ${unitNames}. Please return to the quote page and select different units or dates.`,
+          `There was an error processing your order: ${error instanceof Error ? error.message : 'Unknown error'}. Please try again or contact us for assistance.`,
           'error'
         );
         setProcessing(false);
         return;
       }
 
-      const tipCents = getTipAmountCents(tipAmount, customTip, unifiedTotals.totalCents);
-
-      const orderId = await createOrderBeforePayment({
-        contactData,
-        quoteData,
-        priceBreakdown,
-        cart,
-        billingAddress,
-        billingSameAsEvent,
-        smsConsent,
-        cardOnFileConsent,
-        customerSelectedPaymentCents: paymentCents,
-        customerSelectedPaymentType: paymentAmount,
-        tipCents,
-        referralSource,
-        referralSourceDetail,
-      });
-
-      // For bookingMode, Stripe uses Setup Mode (card save only, no charge).
-      // depositCents in metadata = the inflatable-only deposit for later admin approval.
-      const depositCents = unifiedTotals.depositCents;
-
+      // Stripe Setup Mode: the card is saved for later, nothing is charged. Customer, deposit and tip come from the order.
       try {
-        const response = await fetch(
-          `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/stripe-checkout`,
-          {
-            method: 'POST',
-            headers: {
-              Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
-              'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-              orderId,
-              depositCents,
-              tipCents,
-              customerEmail: contactData.email,
-              customerName: `${contactData.first_name} ${contactData.last_name}`,
-              origin: window.location.origin,
-              bookingMode: true,
-            }),
-          }
-        );
-
-        const data = await response.json();
-
-        log.debug('Stripe session response', data);
-        log.debug('Success URL from server', data.successUrl);
-
-        if (!response.ok || !data.url) {
-          throw new Error(data.error || 'Failed to create checkout session');
-        }
-
-        log.info('Opening Stripe checkout', { url: data.url });
-
-        window.location.href = data.url;
-      } catch (err: any) {
+        const url = await startBookingCardSetup(booking);
+        log.info('Opening Stripe checkout');
+        window.location.href = url;
+      } catch (err: unknown) {
         log.error('Stripe checkout error', err);
-        showToast(err.message || 'Failed to initialize payment', 'error');
+        showToast(err instanceof Error && err.message ? err.message : 'Failed to initialize payment', 'error');
         setProcessing(false);
       }
-
-      return;
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Error creating order:', error);
-      const errorMessage = error?.message || 'Unknown error';
       showToast(
-        `There was an error processing your order: ${errorMessage}. Please try again or contact us for assistance.`,
+        `There was an error processing your order: ${error instanceof Error ? error.message : 'Unknown error'}. Please try again or contact us for assistance.`,
         'error'
       );
       setProcessing(false);

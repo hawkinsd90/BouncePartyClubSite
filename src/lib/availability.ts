@@ -1,5 +1,6 @@
 import { supabase } from './supabase';
 import { ORDER_STATUS } from './constants/statuses';
+import { checkUnitsAvailabilityPublic } from './bookingApi';
 
 export interface BlackoutCheckResult {
   is_full_blocked: boolean;
@@ -143,6 +144,15 @@ export async function checkMultipleUnitsAvailability(
     })
   );
   return results;
+}
+
+// PUBLIC (anonymous visitor) availability. The browser does not read orders or order_items; the check-availability Edge
+// Function applies the same rules server-side and answers true/false per unit with no booking details. Staff screens that
+// need conflict details or an excluded order keep using checkUnitAvailability / checkMultipleUnitsAvailability above.
+export async function checkMultipleUnitsAvailabilityPublic(checks: AvailabilityCheck[]): Promise<UnitAvailability[]> {
+  return checkUnitsAvailabilityPublic(
+    checks.map((c) => ({ unitId: c.unitId, eventStartDate: c.eventStartDate, eventEndDate: c.eventEndDate })),
+  );
 }
 
 export async function getUnavailableDatesForUnit(

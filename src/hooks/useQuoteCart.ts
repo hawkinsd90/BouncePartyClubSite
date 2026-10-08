@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { checkMultipleUnitsAvailability } from '../lib/availability';
+import { checkMultipleUnitsAvailabilityPublic } from '../lib/availability';
 import { SafeStorage } from '../lib/safeStorage';
 import { supabase } from '../lib/supabase';
 import { checkProductAvailability } from '../lib/queries/products';
@@ -235,7 +235,7 @@ export function useQuoteCart() {
 
       const [inflatableResults, productResults] = await Promise.all([
         hasInflatables
-          ? checkMultipleUnitsAvailability(inflatableRequests)
+          ? checkMultipleUnitsAvailabilityPublic(inflatableRequests)
           : Promise.resolve([]),
         hasEventEssentials
           ? checkProductAvailability(productAllocation, eventStartDate, eventEndDate, null)

@@ -6,10 +6,11 @@ import {
   resolveCaller,
   isStaffAdmin,
   proveOrderAccess,
-  isFreshBookingDraft,
   authFailureResponse,
 } from "../_shared/auth.ts";
 import { portalTokenFragment } from "../_shared/portal-link.ts";
+import { checkBookingProof, claimBookingProof, consumeBookingProof, releaseBookingProof } from "../_shared/booking/bookingProof.ts";
+import { resolveReturnOrigin } from "../_shared/booking/returnOrigin.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -34,8 +35,12 @@ Deno.serve(async (req: Request) => {
     const { orderId, depositCents, tipCents = 0, customerEmail, customerName, setupMode = false, invoiceMode = false, invoiceLinkToken = null, paymentState = null, bookingMode = false } = body;
     const bodyOrigin: string | undefined = body.origin;
 
+    // Stripe return URLs are built only from an allowlisted origin (production, SITE_URL / RETURN_ORIGINS, loopback dev).
     const headerOrigin = req.headers.get("origin");
-    const resolvedOrigin = headerOrigin || bodyOrigin || "https://bouncepartyclub.com";
+    const resolvedOrigin = resolveReturnOrigin(
+      [headerOrigin, bodyOrigin],
+      [Deno.env.get("SITE_URL"), Deno.env.get("RETURN_ORIGINS")],
+    );
     console.log("stripe-checkout: origin — header:", headerOrigin ?? "null", "| body:", bodyOrigin ?? "null", "| resolved:", resolvedOrigin);
 
     const ip = getIdentifier(req);
@@ -81,9 +86,10 @@ Deno.serve(async (req: Request) => {
     //   - the backend (service role) or a signed-in admin/master;
     //   - a customer proving control of THIS order: an unexpired invoice/portal link token bound to it (invoice,
     //     card-update and payment flows) or a signed-in customer who owns it;
-    //   - the public NEW-booking flow (bookingMode) for an order that is still an untouched booking draft: draft status,
-    //     not an admin invoice, no Stripe customer or payment method attached yet, created within the last 2 hours.
-    // A bare order UUID is never enough for an existing order.
+    //   - the public NEW-booking flow (bookingMode): the server-minted, order-bound, short-lived, single-use booking
+    //     proof that create-booking returned with the order (see _shared/booking/bookingProof.ts). A portal or invoice
+    //     token is NOT a booking proof and a booking proof is not a portal or invoice token.
+    // A bare order UUID, and the order's own state ("it looks like a fresh draft"), are never enough.
     const caller = await resolveCaller(
       supabaseClient,
       req.headers.get("Authorization"),
@@ -91,7 +97,10 @@ Deno.serve(async (req: Request) => {
     );
     let authorizedToCreate = caller.kind === "service" || isStaffAdmin(caller);
 
-    if (!authorizedToCreate) {
+    const bookingToken: unknown = body.bookingToken;
+    let viaBookingProof = false;
+
+    if (!authorizedToCreate && bookingMode !== true) {
       const proof = await proveOrderAccess(supabaseClient, {
         orderId,
         caller,
@@ -102,7 +111,21 @@ Deno.serve(async (req: Request) => {
     }
 
     if (!authorizedToCreate && bookingMode === true) {
-      authorizedToCreate = await isFreshBookingDraft(supabaseClient, orderId);
+      const proofCheck = await checkBookingProof(supabaseClient, orderId, bookingToken);
+      if (proofCheck.ok) {
+        authorizedToCreate = true;
+        viaBookingProof = true;
+      } else if (proofCheck.reason === "expired") {
+        return new Response(
+          JSON.stringify({ success: false, error: "This booking checkout link has expired. Please submit your booking again.", code: "BOOKING_PROOF_EXPIRED" }),
+          { status: 410, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      } else if (proofCheck.reason === "consumed") {
+        return new Response(
+          JSON.stringify({ success: false, error: "Card setup was already started for this booking.", code: "BOOKING_PROOF_USED" }),
+          { status: 409, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
     }
 
     if (!authorizedToCreate) {
@@ -134,7 +157,7 @@ Deno.serve(async (req: Request) => {
 
     const { data: order, error: orderError } = await supabaseClient
       .from("orders")
-      .select("id, stripe_customer_id, event_date, event_end_date, pickup_preference, location_type")
+      .select("id, status, customer_id, stripe_customer_id, deposit_due_cents, tip_cents, event_date, event_end_date, pickup_preference, location_type")
       .eq("id", orderId)
       .maybeSingle();
 
@@ -143,6 +166,31 @@ Deno.serve(async (req: Request) => {
         JSON.stringify({ success: false, error: "Order not found" }),
         { status: 404, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
+    }
+
+    // A booking-proof caller may only start card setup for a booking request that is still an untouched draft.
+    if (viaBookingProof && order.status !== "draft") {
+      return new Response(
+        JSON.stringify({ success: false, error: "Card setup is not available for this booking." }),
+        { status: 409, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    // In booking mode every fact comes from the order row, never from the request body.
+    let stripeEmail: string | undefined = customerEmail;
+    let stripeName: string | undefined = customerName;
+    let sessionDepositCents: number = typeof depositCents === "number" ? depositCents : 0;
+    let sessionTipCents: number = typeof tipCents === "number" ? tipCents : 0;
+    if (bookingMode === true) {
+      const { data: bookingCustomer } = await supabaseClient
+        .from("customers")
+        .select("first_name, last_name, email")
+        .eq("id", order.customer_id ?? "")
+        .maybeSingle();
+      stripeEmail = bookingCustomer?.email ?? undefined;
+      stripeName = bookingCustomer ? `${bookingCustomer.first_name} ${bookingCustomer.last_name}`.trim() : undefined;
+      sessionDepositCents = typeof order.deposit_due_cents === "number" ? order.deposit_due_cents : 0;
+      sessionTipCents = typeof order.tip_cents === "number" ? order.tip_cents : 0;
     }
 
     // TRUSTED ENFORCEMENT: Check blackout dates before creating any Stripe session.
@@ -188,16 +236,43 @@ Deno.serve(async (req: Request) => {
       }
     }
 
+    // Booking proof: claim it only now that every validation has passed. The claim is released if Stripe fails (so the
+    // customer can retry) and consumed once the session exists. A concurrent request cannot claim a claimed proof.
+    let claim: { proofId: string; claimId: string } | null = null;
+    if (viaBookingProof) {
+      const claimed = await claimBookingProof(supabaseClient, orderId, bookingToken);
+      if (!claimed.ok) {
+        // busy = another request holds the claim; consumed = another request just finished (single use).
+        const conflict = claimed.reason === "busy" || claimed.reason === "consumed";
+        const expired = claimed.reason === "expired";
+        return new Response(
+          JSON.stringify({
+            success: false,
+            error: conflict ? "Card setup is already being started for this booking." : expired ? "This booking checkout link has expired. Please submit your booking again." : "Not authorized for this order.",
+          }),
+          { status: conflict ? 409 : expired ? 410 : 403, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+      claim = { proofId: claimed.proofId, claimId: claimed.claimId };
+    }
+
+    // Public booking sessions are created with a Stripe idempotency key derived from the persisted proof id (never the
+    // token): if Stripe succeeds but the database consume write fails, any retry of the same proof gets the SAME Checkout
+    // Session back instead of minting a second one. Other flows are unchanged.
+    const bookingIdempotency = (scope: string) => (claim ? { idempotencyKey: `booking-${scope}-${claim.proofId}` } : undefined);
+
+    let session: Stripe.Checkout.Session;
+    try {
     // Create or retrieve Stripe customer
     let customerId = order.stripe_customer_id;
     if (!customerId) {
       const customer = await stripe.customers.create({
-        email: customerEmail,
-        name: customerName,
+        email: stripeEmail,
+        name: stripeName,
         metadata: {
           order_id: orderId,
         },
-      });
+      }, bookingIdempotency("customer"));
       customerId = customer.id;
 
       // Save customer ID to order
@@ -251,8 +326,8 @@ Deno.serve(async (req: Request) => {
           metadata: {
             order_id: orderId,
             payment_type: "booking_request",
-            deposit_amount: depositCents ? depositCents.toString() : "0",
-            tip_cents: tipCents.toString(),
+            deposit_amount: sessionDepositCents ? sessionDepositCents.toString() : "0",
+            tip_cents: sessionTipCents.toString(),
           },
         }
       : setupMode
@@ -266,7 +341,7 @@ Deno.serve(async (req: Request) => {
             order_id: orderId,
             payment_type: "card_update",
             deposit_amount: "0",
-            tip_cents: tipCents.toString(),
+            tip_cents: sessionTipCents.toString(),
           },
         }
       : {
@@ -278,9 +353,9 @@ Deno.serve(async (req: Request) => {
               price_data: {
                 currency: "usd",
                 product_data: {
-                  name: tipCents > 0 ? "Deposit + Tip" : "Deposit",
+                  name: sessionTipCents > 0 ? "Deposit + Tip" : "Deposit",
                 },
-                unit_amount: (depositCents ?? 0) + tipCents,
+                unit_amount: sessionDepositCents + sessionTipCents,
               },
               quantity: 1,
             },
@@ -290,12 +365,25 @@ Deno.serve(async (req: Request) => {
           metadata: {
             order_id: orderId,
             payment_type: "deposit",
-            deposit_amount: depositCents ? depositCents.toString() : "0",
-            tip_cents: tipCents.toString(),
+            deposit_amount: sessionDepositCents ? sessionDepositCents.toString() : "0",
+            tip_cents: sessionTipCents.toString(),
           },
         };
 
-    const session = await stripe.checkout.sessions.create(sessionParams);
+    session = await stripe.checkout.sessions.create(sessionParams, bookingIdempotency("session"));
+    } catch (stripeErr) {
+      // Nothing was created for the customer to use: give the booking proof back so they can retry.
+      if (claim) await releaseBookingProof(supabaseClient, claim.proofId, claim.claimId);
+      throw stripeErr;
+    }
+
+    if (claim) {
+      let consumed = await consumeBookingProof(supabaseClient, claim.proofId, claim.claimId);
+      if (!consumed) consumed = await consumeBookingProof(supabaseClient, claim.proofId, claim.claimId);
+      // If it still cannot be recorded the claim stays in place; a later retry resolves to this same Stripe session
+      // through the idempotency key above, so the proof can never yield a second distinct session.
+      if (!consumed) console.error("stripe-checkout: booking proof could not be marked consumed");
+    }
 
     return new Response(
       JSON.stringify({ url: session.url, sessionId: session.id }),

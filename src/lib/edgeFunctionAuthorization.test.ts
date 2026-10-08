@@ -15,10 +15,13 @@
 declare const require: (id: string) => any;
 const fs = require('fs');
 const ts = require('typescript');
+const nodeCrypto = require('crypto');
 
 import * as authHelpers from '../../supabase/functions/_shared/auth';
 import * as portalLinkHelpers from '../../supabase/functions/_shared/portal-link';
 import * as outcomeHelpers from '../../supabase/functions/_shared/lifecycle-outcome';
+import * as bookingProofHelpers from '../../supabase/functions/_shared/booking/bookingProof';
+import * as returnOriginHelpers from '../../supabase/functions/_shared/booking/returnOrigin';
 
 let passed = 0;
 let failed = 0;
@@ -41,7 +44,13 @@ const TOKEN_A = 'a'.repeat(64);
 const TOKEN_B = 'b'.repeat(64);
 const TOKEN_EXPIRED = 'e'.repeat(64);
 const TOKEN_INV = 'c'.repeat(64);
-const SECRETS = [SERVICE_KEY, ANON_KEY, TOKEN_A, TOKEN_B, TOKEN_EXPIRED, 'jwt-master', 'jwt-admin', 'jwt-crew', 'jwt-cust', 'jwt-other'];
+const sha256 = (v: string) => nodeCrypto.createHash('sha256').update(v).digest('hex');
+// Booking proofs (A2.3): well-formed tokens, stored only as hashes.
+const BK_FRESH = 'bk_' + 'F'.repeat(43);
+const BK_FRESH2 = 'bk_' + 'G'.repeat(43);
+const BK_EXPIRED = 'bk_' + 'X'.repeat(43);
+const BK_USED = 'bk_' + 'U'.repeat(43);
+const SECRETS = [BK_FRESH, BK_FRESH2, BK_EXPIRED, BK_USED, SERVICE_KEY, ANON_KEY, TOKEN_A, TOKEN_B, TOKEN_EXPIRED, 'jwt-master', 'jwt-admin', 'jwt-crew', 'jwt-cust', 'jwt-other'];
 
 // ---------------------------------------------------------------------------------------------------------------
 // World: an in-memory database and fake Stripe
@@ -98,7 +107,7 @@ function makeWorld() {
       customers: [
         { id: 'cust-A', user_id: 'u-cust', email: 'pat@example.com' },
         { id: 'cust-B', user_id: 'u-other', email: 'other@example.com' },
-        { id: 'cust-F', user_id: null, email: 'fresh@example.com' },
+        { id: 'cust-F', user_id: null, email: 'fresh@example.com', first_name: 'Fran', last_name: 'Fresh' },
       ] as any[],
       invoice_links: [
         { link_token: TOKEN_A, order_id: 'order-A', link_type: 'invoice', expires_at: FUTURE },
@@ -109,6 +118,12 @@ function makeWorld() {
         { link_token: TOKEN_B, order_id: 'order-B', link_type: 'invoice', expires_at: FUTURE },
         { link_token: TOKEN_EXPIRED, order_id: 'order-A', link_type: 'invoice', expires_at: PAST },
         { link_token: TOKEN_INV, order_id: 'order-invoice-draft', link_type: 'invoice', expires_at: FUTURE },
+      ] as any[],
+      booking_setup_proofs: [
+        { id: 'bp-fresh', order_id: 'order-fresh', token_hash: sha256(BK_FRESH), expires_at: FUTURE, claim_id: null, claimed_at: null, consumed_at: null },
+        { id: 'bp-fresh2', order_id: 'order-fresh2', token_hash: sha256(BK_FRESH2), expires_at: FUTURE, claim_id: null, claimed_at: null, consumed_at: null },
+        { id: 'bp-expired', order_id: 'order-stale-draft', token_hash: sha256(BK_EXPIRED), expires_at: PAST, claim_id: null, claimed_at: null, consumed_at: null },
+        { id: 'bp-used', order_id: 'order-draft-haspm', token_hash: sha256(BK_USED), expires_at: FUTURE, claim_id: 'cl-old', claimed_at: PAST, consumed_at: PAST },
       ] as any[],
       admin_settings: [{ key: 'stripe_secret_key', value: 'sk_test_fake' }] as any[],
       order_changelog: [] as any[],
@@ -126,14 +141,21 @@ function makeWorld() {
     stripeCalls: [] as Array<{ api: string; args: any }>,
     invokes: [] as any[],
     consoleLines: [] as string[],
+    failNextSessionCreate: false,
+    // Fault injection: the database rejects the booking-proof consume write (after Stripe already succeeded).
+    failProofConsume: false,
+    failProofConsumeOnce: false,
+    // Fake Stripe idempotency: key -> { fingerprint of params, result }, and the Checkout Sessions truly minted.
+    idempotency: {} as Record<string, { fingerprint: string; result: any }>,
+    mintedSessionIds: [] as string[],
   };
 }
 type World = ReturnType<typeof makeWorld>;
 
 function makeClient(w: World) {
   const from = (table: string) => {
-    const q: any = { table, op: 'select', filters: [] as any[], payload: null };
-    const rowsFor = () => (w.tables[table] ?? []).filter((r) => q.filters.every(([k, c, v]: any) => (k === 'eq' ? r[c] === v : k === 'in' ? (v as any[]).includes(r[c]) : true)));
+    const q: any = { table, op: 'select', filters: [] as any[], payload: null, returning: false };
+    const rowsFor = () => (w.tables[table] ?? []).filter((r) => q.filters.every(([k, c, v]: any) => (k === 'eq' ? r[c] === v : k === 'neq' ? r[c] !== v : k === 'is' ? (v === null ? r[c] == null : r[c] === v) : k === 'in' ? (v as any[]).includes(r[c]) : true)));
     const exec = (single: boolean, required: boolean) => {
       if (q.op === 'select') {
         const rows = rowsFor();
@@ -141,9 +163,17 @@ function makeClient(w: World) {
         return { data: rows, error: null };
       }
       if (q.op === 'update') {
+        if (table === 'booking_setup_proofs' && w.failProofConsumeOnce && q.payload && 'consumed_at' in q.payload) {
+          w.failProofConsumeOnce = false;
+          return { data: null, error: { message: 'injected: transient proof consume failure' } };
+        }
+        if (table === 'booking_setup_proofs' && w.failProofConsume && q.payload && 'consumed_at' in q.payload) {
+          return { data: null, error: { message: 'injected: proof consume write failed' } };
+        }
         w.log.push({ table, op: 'update', payload: q.payload, filters: q.filters.map((f: any) => f.slice(1)) });
-        rowsFor().forEach((r) => Object.assign(r, q.payload));
-        return { data: null, error: null };
+        const hit = rowsFor();
+        hit.forEach((r) => Object.assign(r, q.payload));
+        return { data: q.returning ? (single ? (hit[0] ?? null) : hit.map((r) => ({ ...r }))) : null, error: null };
       }
       if (q.op === 'insert') {
         w.log.push({ table, op: 'insert', payload: q.payload });
@@ -157,12 +187,12 @@ function makeClient(w: World) {
       return { data: null, error: null };
     };
     const api: any = {
-      select: () => api,
+      select: () => ((q.returning = q.op === 'update'), api),
       eq: (c: string, v: unknown) => (q.filters.push(['eq', c, v]), api),
-      neq: () => api,
+      neq: (c: string, v: unknown) => (q.filters.push(['neq', c, v]), api),
       not: () => api,
       in: (c: string, v: unknown[]) => (q.filters.push(['in', c, v]), api),
-      is: () => api,
+      is: (c: string, v: unknown) => (q.filters.push(['is', c, v]), api),
       order: () => api,
       limit: () => api,
       update: (p: unknown) => ((q.op = 'update'), (q.payload = p), api),
@@ -210,11 +240,25 @@ function makeStripeClass(w: World) {
           if (!w.sessions[id]) throw new Error('No such checkout.session');
           return w.sessions[id];
         },
-        create: async (params: unknown) => {
-          w.stripeCalls.push({ api: 'checkout.sessions.create', args: params });
-          const id = `cs_new_${w.stripeCalls.length}`;
+        create: async (params: unknown, opts?: { idempotencyKey?: string }) => {
+          w.stripeCalls.push({ api: 'checkout.sessions.create', args: params, idempotencyKey: opts?.idempotencyKey } as any);
+          if (w.failNextSessionCreate) {
+            w.failNextSessionCreate = false;
+            throw new Error('stripe unavailable');
+          }
+          const key = opts?.idempotencyKey ? `session:${opts.idempotencyKey}` : null;
+          const fingerprint = JSON.stringify(params);
+          if (key && w.idempotency[key]) {
+            // Same key: Stripe returns the original result and mints nothing new; different params is an error.
+            if (w.idempotency[key].fingerprint !== fingerprint) throw new Error('idempotency_error: keys may only be reused with identical parameters');
+            return w.idempotency[key].result;
+          }
+          const id = `cs_new_${w.mintedSessionIds.length + 1}`;
           w.sessions[id] = { status: 'open', mode: (params as any).mode, metadata: (params as any).metadata, customer: (params as any).customer };
-          return { id, url: 'https://checkout.example/x' };
+          w.mintedSessionIds.push(id);
+          const result = { id, url: 'https://checkout.example/x' };
+          if (key) w.idempotency[key] = { fingerprint, result };
+          return result;
         },
       },
     };
@@ -225,8 +269,8 @@ function makeStripeClass(w: World) {
       },
     };
     customers = {
-      create: async (params: unknown) => {
-        w.stripeCalls.push({ api: 'customers.create', args: params });
+      create: async (params: unknown, opts?: { idempotencyKey?: string }) => {
+        w.stripeCalls.push({ api: 'customers.create', args: params, idempotencyKey: opts?.idempotencyKey } as any);
         return { id: 'cus_new' };
       },
     };
@@ -271,6 +315,8 @@ function loadHandler(fnDir: string, w: World): (req: Request) => Promise<Respons
     ...authHelpers,
     ...portalLinkHelpers,
     ...outcomeHelpers,
+    ...bookingProofHelpers,
+    ...returnOriginHelpers,
     corsHeaders: { 'Access-Control-Allow-Origin': '*' },
     checkRateLimit: async () => ({ allowed: true }),
     createRateLimitResponse: () => new Response('rate limited', { status: 429 }),
@@ -592,33 +638,44 @@ const isDenied = (status: number) => status === 401 || status === 403;
   // stripe-checkout: who may create a session for which order (the proof-minting gap)
   // ===========================================================================================================
   const SC = 'stripe-checkout';
-  const booking = (orderId: string, extra: Record<string, unknown> = {}) => ({ orderId, depositCents: 5000, tipCents: 0, customerEmail: 'x@example.com', customerName: 'X Y', origin: 'https://site.example', bookingMode: true, ...extra });
+  const booking = (orderId: string, extra: Record<string, unknown> = {}) => ({ orderId, depositCents: 5000, tipCents: 0, customerEmail: 'x@example.com', customerName: 'X Y', origin: 'https://bouncepartyclub.com', bookingMode: true, ...extra });
   const cardUpdate = (orderId: string, extra: Record<string, unknown> = {}) => ({ orderId, setupMode: true, customerEmail: 'x@example.com', customerName: 'X Y', ...extra });
   const invoiceSetup = (orderId: string, token: string | null, extra: Record<string, unknown> = {}) => ({ orderId, setupMode: true, invoiceMode: true, invoiceLinkToken: token, ...extra });
   const paymentMode = (orderId: string, extra: Record<string, unknown> = {}) => ({ orderId, depositCents: 5000, customerEmail: 'x@example.com', customerName: 'X Y', ...extra });
   const createdSession = (x: { w: World }) => x.w.stripeCalls.some((c) => c.api === 'checkout.sessions.create');
   const noSessionOrCustomer = (x: { w: World }) => !createdSession(x) && !stripeUsed(x.w, 'customers.create') && !wrote(x.w, 'orders');
 
-  // Public NEW booking flow still works anonymously
-  r = track(await call(SC, { bearer: ANON_KEY, body: booking('order-fresh') }));
-  ok('checkout: an anonymous NEW booking can start its card setup', r.status === 200 && r.json?.url === 'https://checkout.example/x');
+  // Public NEW booking flow: authorized ONLY by the server-minted, order-bound booking proof (A2.3)
+  r = track(await call(SC, { bearer: ANON_KEY, body: booking('order-fresh', { bookingToken: BK_FRESH }) }));
+  ok('checkout: an anonymous NEW booking with its booking proof can start its card setup', r.status === 200 && r.json?.url === 'https://checkout.example/x');
   ok('checkout: that session is a no-charge setup session bound to the booking order', r.w.stripeCalls.some((c) => c.api === 'checkout.sessions.create' && c.args.mode === 'setup' && c.args.metadata.order_id === 'order-fresh' && c.args.metadata.payment_type === 'booking_request'));
-  r = track(await call(SC, { bearer: 'jwt-cust', body: booking('order-fresh') }));
-  ok('checkout: a signed-in customer starting a NEW booking works too', r.status === 200);
+  ok('checkout: the booking session has no line items and no PaymentIntent (nothing is charged)', !r.w.stripeCalls.some((c) => c.api === 'checkout.sessions.create' && (c.args.mode !== 'setup' || c.args.line_items)) && !stripeUsed(r.w, 'paymentIntents.create'));
+  ok('checkout: the booking session metadata takes the deposit from the ORDER, not the request body', r.w.stripeCalls.some((c) => c.api === 'checkout.sessions.create' && c.args.metadata.deposit_amount === '5000' && c.args.metadata.tip_cents === '0'));
+  ok('checkout: the Stripe customer is created from the ORDER customer, not the request body', r.w.stripeCalls.some((c) => c.api === 'customers.create' && c.args.email === 'fresh@example.com' && c.args.name === 'Fran Fresh'));
+  r = track(await call(SC, { bearer: 'jwt-cust', body: booking('order-fresh', { bookingToken: BK_FRESH }) }));
+  ok('checkout: a signed-in customer starting a NEW booking works with the proof too', r.status === 200);
 
-  // An anonymous caller cannot target an existing order, whatever the mode
+  // The order's own state is NOT proof any more (isFreshBookingDraft is gone)
   for (const [label, body] of [
+    ['a fresh draft with NO booking proof (state alone is not proof)', booking('order-fresh')],
+    ['a fresh draft with a made-up booking proof', booking('order-fresh', { bookingToken: 'bk_' + 'Z'.repeat(43) })],
+    ['a fresh draft with a malformed proof', booking('order-fresh', { bookingToken: 'nope' })],
     ['booking mode on an existing pending order', booking('order-A')],
     ['booking mode on a confirmed order', booking('order-nocard')],
     ['booking mode on an order that already has a Stripe customer', booking('order-draft-hascustomer')],
     ['booking mode on a draft that already has a payment method', booking('order-draft-haspm')],
-    ['booking mode on a stale draft (older than 2 hours)', booking('order-stale-draft')],
+    ['booking mode on a stale draft', booking('order-stale-draft')],
     ['booking mode on an admin-created invoice draft', booking('order-invoice-draft')],
     ['booking mode on an unknown order id', booking('order-missing')],
     ['card-update (setup) mode on an existing order', cardUpdate('order-A')],
     ['invoice setup mode without a token', invoiceSetup('order-A', null)],
     ['payment mode on an existing order', paymentMode('order-A')],
-    ['setup mode on a fresh draft (only bookingMode gets the fresh-draft path)', cardUpdate('order-fresh')],
+    ['setup mode on a fresh draft', cardUpdate('order-fresh')],
+    ['the fresh booking proof used on a DIFFERENT order (Order A)', booking('order-A', { bookingToken: BK_FRESH })],
+    ['the fresh booking proof used on another fresh order (Order B proof != Order A)', booking('order-fresh2', { bookingToken: BK_FRESH })],
+    ['the fresh booking proof sent as a portal/invoice token for another mode', cardUpdate('order-fresh', { invoiceLinkToken: BK_FRESH })],
+    ['an invoice/portal token presented as the booking proof', booking('order-A', { bookingToken: TOKEN_A })],
+    ['an invoice token for the same order presented as the booking proof', booking('order-fresh', { bookingToken: TOKEN_INV })],
   ] as Array<[string, Record<string, unknown>]>) {
     r = track(await call(SC, { bearer: ANON_KEY, body }));
     ok(`checkout: anonymous cannot create a session: ${label}`, r.status === 401 && noSessionOrCustomer(r));
@@ -626,16 +683,127 @@ const isDenied = (status: number) => status === 401 || status === 403;
   r = track(await call(SC, { bearer: null, body: cardUpdate('order-A') }));
   ok('checkout: no Authorization header cannot create a session', r.status === 401 && noSessionOrCustomer(r));
 
-  // A fresh draft is single-use: once setup has been started its customer is attached and the draft no longer qualifies
+  // Expired and consumed proofs
+  r = track(await call(SC, { bearer: ANON_KEY, body: booking('order-stale-draft', { bookingToken: BK_EXPIRED }) }));
+  ok('checkout: an EXPIRED booking proof is refused (410) and creates nothing', r.status === 410 && noSessionOrCustomer(r));
+  r = track(await call(SC, { bearer: ANON_KEY, body: booking('order-draft-haspm', { bookingToken: BK_USED }) }));
+  ok('checkout: a CONSUMED booking proof is refused (409) and creates nothing', r.status === 409 && noSessionOrCustomer(r));
+
+  // Single use + claim lifecycle
   {
     const w = makeWorld();
-    const first = await call(SC, { world: w, bearer: ANON_KEY, body: booking('order-fresh') });
-    ok('checkout: first booking setup for a fresh draft succeeds', first.status === 200);
+    const first = await call(SC, { world: w, bearer: ANON_KEY, body: booking('order-fresh', { bookingToken: BK_FRESH }) });
+    ok('checkout: first booking setup with the proof succeeds', first.status === 200);
     ok('checkout: that call attached a Stripe customer to the order', w.tables.orders.find((o) => o.id === 'order-fresh').stripe_customer_id === 'cus_new');
-    const second = await call(SC, { world: w, bearer: ANON_KEY, body: booking('order-fresh') });
-    ok('checkout: a second anonymous session for the SAME draft is refused (single use)', second.status === 401);
+    ok('checkout: the proof is consumed once the session exists', !!w.tables.booking_setup_proofs.find((x) => x.id === 'bp-fresh').consumed_at);
+    const sessionsBefore = w.stripeCalls.filter((c) => c.api === 'checkout.sessions.create').length;
+    const second = await call(SC, { world: w, bearer: ANON_KEY, body: booking('order-fresh', { bookingToken: BK_FRESH }) });
+    ok('checkout: a second session with the SAME proof is refused (single use)', second.status === 409 && w.stripeCalls.filter((c) => c.api === 'checkout.sessions.create').length === sessionsBefore);
     allWorlds.push(w);
   }
+  {
+    // Stripe failure: the claim is released so the customer can retry with the same proof; nothing is consumed on failure.
+    const w = makeWorld();
+    w.failNextSessionCreate = true;
+    const failed1 = await call(SC, { world: w, bearer: ANON_KEY, body: booking('order-fresh', { bookingToken: BK_FRESH }) });
+    const proofAfterFail = w.tables.booking_setup_proofs.find((x) => x.id === 'bp-fresh');
+    ok('checkout: a Stripe failure returns an error and does NOT consume the proof', failed1.status === 500 && proofAfterFail.consumed_at === null && proofAfterFail.claim_id === null);
+    const retry = await call(SC, { world: w, bearer: ANON_KEY, body: booking('order-fresh', { bookingToken: BK_FRESH }) });
+    ok('checkout: after the Stripe failure the SAME proof can retry and succeed', retry.status === 200 && !!w.tables.booking_setup_proofs.find((x) => x.id === 'bp-fresh').consumed_at);
+    allWorlds.push(w);
+  }
+  {
+    // Concurrency: two simultaneous requests with one proof mint exactly one session.
+    const w = makeWorld();
+    const [x1, x2] = await Promise.all([
+      call(SC, { world: w, bearer: ANON_KEY, body: booking('order-fresh', { bookingToken: BK_FRESH }) }),
+      call(SC, { world: w, bearer: ANON_KEY, body: booking('order-fresh', { bookingToken: BK_FRESH }) }),
+    ]);
+    const created = w.stripeCalls.filter((c) => c.api === 'checkout.sessions.create').length;
+    ok('checkout: two concurrent requests with one proof create exactly ONE session', created === 1 && [x1.status, x2.status].sort().join(',') === '200,409');
+    allWorlds.push(w);
+  }
+
+  // Stripe idempotency: one booking proof can only ever yield ONE distinct Checkout Session
+  {
+    const w = makeWorld();
+    const res = await call(SC, { world: w, bearer: ANON_KEY, body: booking('order-fresh', { bookingToken: BK_FRESH }) });
+    const sessionCall = w.stripeCalls.find((c: any) => c.api === 'checkout.sessions.create') as any;
+    const customerCall = w.stripeCalls.find((c: any) => c.api === 'customers.create') as any;
+    ok('idempotency: the booking session is created with a Stripe idempotency key derived from the persisted proof id', res.status === 200 && sessionCall.idempotencyKey === 'booking-session-bp-fresh');
+    ok('idempotency: the booking Stripe customer uses a proof-derived key too', customerCall.idempotencyKey === 'booking-customer-bp-fresh');
+    ok('idempotency: the key is not derived from the plaintext booking token and the token is never sent to Stripe', !String(sessionCall.idempotencyKey).includes(BK_FRESH) && !JSON.stringify(w.stripeCalls).includes(BK_FRESH));
+    ok('idempotency: the key is not placed in Checkout metadata', !JSON.stringify(sessionCall.args.metadata).includes('booking-session'));
+    const w2 = makeWorld();
+    await call(SC, { world: w2, bearer: ANON_KEY, body: booking('order-fresh2', { bookingToken: BK_FRESH2 }) });
+    const key2 = (w2.stripeCalls.find((c: any) => c.api === 'checkout.sessions.create') as any).idempotencyKey;
+    ok('idempotency: a different proof / order gets a different key', key2 === 'booking-session-bp-fresh2' && key2 !== sessionCall.idempotencyKey);
+    allWorlds.push(w, w2);
+
+    // Non-booking flows are unchanged (no idempotency key added)
+    const cu = await call(SC, { bearer: ANON_KEY, body: cardUpdate('order-A', { invoiceLinkToken: TOKEN_A }) });
+    ok('idempotency: other payment flows do not get a booking idempotency key', cu.status === 200 && cu.w.stripeCalls.filter((c: any) => c.api === 'checkout.sessions.create').every((c: any) => !c.idempotencyKey));
+    allWorlds.push(cu.w);
+  }
+  {
+    // Stripe succeeds, the database consume write FAILS: the same proof must never mint a second distinct session.
+    const w = makeWorld();
+    w.failProofConsume = true;
+    const proofRow = () => w.tables.booking_setup_proofs.find((x) => x.id === 'bp-fresh');
+    const first = await call(SC, { world: w, bearer: ANON_KEY, body: booking('order-fresh', { bookingToken: BK_FRESH }) });
+    ok('consume-failure: Stripe created session S1 and the caller received it', first.status === 200 && !!first.json?.sessionId && w.mintedSessionIds.length === 1);
+    ok('consume-failure: the proof is NOT marked consumed (the write failed) but stays claimed', proofRow().consumed_at === null && proofRow().claim_id !== null);
+    const immediate = await call(SC, { world: w, bearer: ANON_KEY, body: booking('order-fresh', { bookingToken: BK_FRESH }) });
+    ok('consume-failure: an immediate retry is refused while the claim is held (409) and mints nothing', immediate.status === 409 && w.mintedSessionIds.length === 1);
+    proofRow().claimed_at = PAST; // the claim goes stale
+    const retry = await call(SC, { world: w, bearer: ANON_KEY, body: booking('order-fresh', { bookingToken: BK_FRESH }) });
+    ok('consume-failure: after the claim goes stale the retry resolves to the SAME Checkout Session (S1 == S2)', retry.status === 200 && retry.json?.sessionId === first.json?.sessionId);
+    ok('consume-failure: Stripe was invoked twice but only ONE unique session exists', w.stripeCalls.filter((c: any) => c.api === 'checkout.sessions.create').length === 2 && w.mintedSessionIds.length === 1 && Object.keys(w.sessions).filter((k) => k.startsWith('cs_new_')).length === 1);
+    w.failProofConsume = false;
+    proofRow().claimed_at = PAST;
+    const third = await call(SC, { world: w, bearer: ANON_KEY, body: booking('order-fresh', { bookingToken: BK_FRESH }) });
+    ok('consume-failure: once the database recovers the same session is returned and the proof is finally consumed', third.status === 200 && third.json?.sessionId === first.json?.sessionId && !!proofRow().consumed_at && w.mintedSessionIds.length === 1);
+    const fourth = await call(SC, { world: w, bearer: ANON_KEY, body: booking('order-fresh', { bookingToken: BK_FRESH }) });
+    ok('consume-failure: after consumption the proof can never be used again', fourth.status === 409 && w.mintedSessionIds.length === 1);
+    ok('consume-failure: still setup-mode only, nothing charged', !stripeUsed(w, 'paymentIntents.create') && w.stripeCalls.filter((c: any) => c.api === 'checkout.sessions.create').every((c: any) => c.args.mode === 'setup'));
+    allWorlds.push(w);
+  }
+  {
+    // A single transient database failure while consuming is absorbed by one immediate retry
+    const w = makeWorld();
+    w.failProofConsumeOnce = true;
+    const t = await call(SC, { world: w, bearer: ANON_KEY, body: booking('order-fresh', { bookingToken: BK_FRESH }) });
+    ok('consume-failure: one transient consume failure is retried immediately and the proof ends up consumed', t.status === 200 && !!w.tables.booking_setup_proofs.find((x) => x.id === 'bp-fresh').consumed_at && w.mintedSessionIds.length === 1);
+    allWorlds.push(w);
+  }
+  {
+    // A real Stripe failure still releases the claim and the same proof retries (no permanent consumption)
+    const w = makeWorld();
+    w.failNextSessionCreate = true;
+    const f = await call(SC, { world: w, bearer: ANON_KEY, body: booking('order-fresh', { bookingToken: BK_FRESH }) });
+    const retry = await call(SC, { world: w, bearer: ANON_KEY, body: booking('order-fresh', { bookingToken: BK_FRESH }) });
+    ok('retry: a real Stripe failure mints nothing, releases the claim, and the same proof then succeeds with exactly one session', f.status === 500 && retry.status === 200 && w.mintedSessionIds.length === 1);
+    allWorlds.push(w);
+  }
+
+  // Request-body money and identity are ignored in booking mode
+  r = track(await call(SC, { bearer: ANON_KEY, body: booking('order-fresh', { bookingToken: BK_FRESH, depositCents: 1, tipCents: 99999999, customerEmail: 'attacker@example.com', customerName: 'Mallory' }) }));
+  ok('checkout: client depositCents / tipCents / email / name cannot change the booking session', r.status === 200
+    && r.w.stripeCalls.some((c) => c.api === 'checkout.sessions.create' && c.args.metadata.deposit_amount === '5000' && c.args.metadata.tip_cents === '0')
+    && r.w.stripeCalls.some((c) => c.api === 'customers.create' && c.args.email === 'fresh@example.com'));
+
+  // Return origin allowlist
+  const successUrlFor = (x: { w: World }) => x.w.stripeCalls.find((c) => c.api === 'checkout.sessions.create')?.args.success_url as string;
+  r = track(await call(SC, { bearer: ANON_KEY, body: booking('order-fresh', { bookingToken: BK_FRESH, origin: 'https://evil.example' }) }));
+  ok('checkout: an arbitrary body origin falls back to the production origin', r.status === 200 && successUrlFor(r).startsWith('https://bouncepartyclub.com/payment-complete?') && !successUrlFor(r).includes('evil.example'));
+  r = track(await call(SC, { bearer: ANON_KEY, body: booking('order-fresh', { bookingToken: BK_FRESH, origin: 'https://www.bouncepartyclub.com' }) }));
+  ok('checkout: the production www origin is allowed', r.status === 200 && successUrlFor(r).startsWith('https://www.bouncepartyclub.com/payment-complete?'));
+  r = track(await call(SC, { bearer: ANON_KEY, body: booking('order-fresh', { bookingToken: BK_FRESH, origin: 'http://localhost:5173' }) }));
+  ok('checkout: loopback development origins are allowed', r.status === 200 && successUrlFor(r).startsWith('http://localhost:5173/payment-complete?'));
+
+  // Staff may still create a booking-mode session for an order without a proof (admin tooling / backend)
+  r = track(await call(SC, { bearer: 'jwt-admin', body: booking('order-fresh') }));
+  ok('checkout: admin can create a booking-mode session without a proof', r.status === 200);
 
   // Token-bound proof (invoice, card update, payment)
   r = track(await call(SC, { bearer: ANON_KEY, body: invoiceSetup('order-A', TOKEN_A) }));
@@ -680,7 +848,7 @@ const isDenied = (status: number) => status === 401 || status === 403;
     ok('chain: so no session was minted at all to be used as proof', !Object.keys(w.sessions).some((k) => k.startsWith('cs_new_')));
 
     // 2. The attacker legitimately creates and COMPLETES a session for their OWN fresh booking.
-    const own = await call(SC, { world: w, bearer: ANON_KEY, body: booking('order-fresh2') });
+    const own = await call(SC, { world: w, bearer: ANON_KEY, body: booking('order-fresh2', { bookingToken: BK_FRESH2 }) });
     const ownSessionId = Object.keys(w.sessions).find((k) => k.startsWith('cs_new_')) as string;
     ok('chain: the attacker can create a session for their own fresh booking', own.status === 200 && !!ownSessionId);
     w.sessions[ownSessionId].status = 'complete';
@@ -701,8 +869,43 @@ const isDenied = (status: number) => status === 401 || status === 403;
     ok('chain: the legitimate booking saves its card with its own session', own2.status === 200 && own2.json?.success === true);
     const own3 = await call(LC, { world: w, bearer: ANON_KEY, body: pending('order-fresh2', { sessionId: ownSessionId }) });
     ok('chain: the legitimate booking enters pending_review with its own session', own3.status === 200 && wrote(w, 'orders', (e) => e.payload?.status === 'pending_review'));
+    // 5. End state of a completed public booking request: card stored, status pending_review, deposit still UNPAID, no charge.
+    const finalOrder = w.tables.orders.find((o) => o.id === 'order-fresh2');
+    ok('chain: the completed booking request has a stored card, is pending_review, and the deposit is still unpaid', !!finalOrder.stripe_payment_method_id && finalOrder.status === 'pending_review' && finalOrder.deposit_paid_cents === 0 && finalOrder.deposit_due_cents > 0);
+    ok('chain: nothing was charged along the way (no PaymentIntent, no payment-mode session, no payment row)', !stripeUsed(w, 'paymentIntents.create') && !w.stripeCalls.some((c) => c.api === 'checkout.sessions.create' && c.args.mode !== 'setup') && w.tables.payments.length === 0);
+    const detailsOwn = await call('complete-booking', { world: w, bearer: ANON_KEY, body: { orderId: 'order-fresh2', sessionId: ownSessionId, action: 'details' } });
+    ok('chain: complete-booking then returns that booking\'s details to the session holder', detailsOwn.status === 200 && detailsOwn.json?.success === true && detailsOwn.json?.order?.id === 'order-fresh2' && detailsOwn.json?.isAdminInvoice === false);
+    const detailsOnA = await call('complete-booking', { world: w, bearer: ANON_KEY, body: { orderId: 'order-A', sessionId: ownSessionId, action: 'details' } });
+    ok('chain: the attacker session cannot read Order A through complete-booking', isDenied(detailsOnA.status) && !detailsOnA.json?.order);
     allWorlds.push(w);
   }
+
+  // ===========================================================================================================
+  // complete-booking: post-Stripe completion data (the browser no longer reads orders / customers directly)
+  // ===========================================================================================================
+  {
+    const CB = 'complete-booking';
+    const cb = (orderId: string, sessionId: string | undefined, action = 'details') => ({ orderId, ...(sessionId ? { sessionId } : {}), action });
+    r = track(await call(CB, { bearer: ANON_KEY, body: cb('order-A', undefined) }));
+    ok('complete-booking: no session id is a 400 and reads nothing', r.status === 400 && !r.json?.order);
+    r = track(await call(CB, { bearer: ANON_KEY, body: cb('order-A', 'sess_nope') }));
+    ok('complete-booking: an unknown session is not proof (401) and returns no order', r.status === 401 && !r.json?.order);
+    r = track(await call(CB, { bearer: ANON_KEY, body: cb('order-A', 'sess_open') }));
+    ok('complete-booking: an OPEN (incomplete) session is not proof', r.status === 401 && !r.json?.order);
+    r = track(await call(CB, { bearer: ANON_KEY, body: cb('order-B', 'sess_A') }));
+    ok('complete-booking: Order A\'s completed session cannot read Order B', r.status === 401 && !r.json?.order);
+    r = track(await call(CB, { bearer: ANON_KEY, body: cb('order-A', 'sess_A') }));
+    ok('complete-booking: Order A\'s completed session reads Order A', r.status === 200 && r.json?.success === true && r.json?.order?.id === 'order-A');
+    ok('complete-booking: a read writes nothing and never touches Stripe charges', !wrote(r.w, 'orders') && !stripeUsed(r.w, 'paymentIntents.create'));
+    r = track(await call(CB, { bearer: ANON_KEY, body: cb('order-A', 'sess_A', 'mark_confirmation_sent') }));
+    ok('complete-booking: mark_confirmation_sent with a valid session only sets booking_confirmation_sent', r.status === 200 && r.w.log.filter((e) => e.table === 'orders' && e.op === 'update').every((e) => JSON.stringify(e.payload) === JSON.stringify({ booking_confirmation_sent: true })));
+    r = track(await call(CB, { bearer: ANON_KEY, body: cb('order-B', 'sess_A', 'mark_confirmation_sent') }));
+    ok('complete-booking: mark_confirmation_sent with another order\'s session is refused and writes nothing', r.status === 401 && !wrote(r.w, 'orders'));
+    r = track(await call(CB, { bearer: ANON_KEY, body: { orderId: 'order-A', sessionId: 'sess_A', action: 'set_status', status: 'confirmed' } }));
+    ok('complete-booking: unknown actions are treated as a read and cannot change status', r.status === 200 && !wrote(r.w, 'orders'));
+    allWorlds.push(r.w);
+  }
+
 
   // ===========================================================================================================
   // Static wiring: invoice cancellation token, card-update proof, crew invoice token
@@ -720,7 +923,7 @@ const isDenied = (status: number) => status === 401 || status === 403;
   ok('card-update from PaymentTab carries the order token', /setupMode: true,\s*\.\.\.\(invoiceLinkToken \? \{ invoiceLinkToken \} : \{\}\)/.test(read('src/components/customer-portal/PaymentTab.tsx')));
   ok('card-update from ApprovalModal carries the order token', /setupMode: true,[\s\S]{0,200}\.\.\.\(invoiceLinkToken \? \{ invoiceLinkToken \} : \{\}\)/.test(read('src/components/customer-portal/ApprovalModal.tsx')));
   ok('invoice setup calls from InvoiceAcceptanceView carry the invoice token', (read('src/components/customer-portal/InvoiceAcceptanceView.tsx').match(/invoiceLinkToken: invoiceToken \?\? null/g) ?? []).length >= 2);
-  ok('public booking checkout still uses bookingMode', /bookingMode: true/.test(read('src/pages/Checkout.tsx')));
+  ok('public booking checkout still uses bookingMode (through the booking API, with the booking proof)', /bookingMode: true/.test(read('src/lib/bookingApi.ts')) && /bookingToken: booking\.bookingToken/.test(read('src/lib/bookingApi.ts')) && /startBookingCardSetup/.test(read('src/pages/Checkout.tsx')));
   ok('crew invoice send uses the signed-in token (invoiceService)', /Bearer \$\{await getEdgeAuthToken\(\)\}/.test(read('src/lib/invoiceService.ts')));
   ok('CrewInvoiceBuilder sends through generateInvoice (the token-aware sender)', /generateInvoice/.test(read('src/components/crew/CrewInvoiceBuilder.tsx')));
   ok('send-invoice allows crew via the invoice-sender role list and keeps admin/master/crew only', /INVOICE_SENDER_ROLES/.test(read('supabase/functions/send-invoice/index.ts')) && /INVOICE_SENDER_ROLES[^=]*= \["admin", "master", "crew"\]/.test(read('supabase/functions/_shared/auth.ts')));

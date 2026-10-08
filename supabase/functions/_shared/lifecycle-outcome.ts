@@ -48,7 +48,6 @@ export function deriveCustomerOutcome(
 //   invoice_acceptance_no_card       Admin Invoice that needs no card and no deposit
 //   invoice_card_saved_fallback      Admin Invoice, $0 deposit, card just saved through Stripe
 //   webhook_fallback_admin_invoice   payment-complete page fallback for an Admin Invoice
-//   invoice_page_payment             legacy /invoice/view page payment for an Admin Invoice
 
 export const CUSTOMER_CONFIRM_SOURCES: readonly string[] = [
   "customer_approval_already_paid",
@@ -57,7 +56,6 @@ export const CUSTOMER_CONFIRM_SOURCES: readonly string[] = [
   "invoice_acceptance_no_card",
   "invoice_card_saved_fallback",
   "webhook_fallback_admin_invoice",
-  "invoice_page_payment",
 ];
 
 // The canonical "a card is saved" rule used by the portal projection and the approval screens.
@@ -123,9 +121,8 @@ export function evaluateCustomerConfirmation(input: CustomerConfirmationInput): 
       if (!card) return { ok: false, reason: "card_required" };
       return { ok: true, outcome: "zero_due_with_card" };
 
-    case "webhook_fallback_admin_invoice":
-    case "invoice_page_payment": {
-      // Admin Invoice payment fallbacks
+    case "webhook_fallback_admin_invoice": {
+      // Admin Invoice payment fallback
       if (!input.hasInvoiceContext) return { ok: false, reason: "invoice_context" };
       if (!inStates("draft", "confirmed")) return { ok: false, reason: "state" };
       if (due > 0) return paid >= due ? { ok: true, outcome: "charged_now" } : { ok: false, reason: "deposit_not_collected" };

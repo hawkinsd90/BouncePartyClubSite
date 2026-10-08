@@ -27,6 +27,10 @@ export const RATE_LIMIT_CONFIGS: Record<string, RateLimitConfig> = {
   // Short codes are bearer credentials: per caller IP, generous for normal retries, hopeless for brute force.
   'resolve-link': { maxRequests: 20, windowSeconds: 60 },
   'request-portal-link': { maxRequests: 5, windowSeconds: 600 },
+  // Public booking boundary (A2.3): a real customer submits once; availability checks are batched per page.
+  'create-booking': { maxRequests: 10, windowSeconds: 600 },
+  'check-availability': { maxRequests: 60, windowSeconds: 60 },
+  'complete-booking': { maxRequests: 30, windowSeconds: 60 },
 };
 
 export function getIdentifier(req: Request): string {

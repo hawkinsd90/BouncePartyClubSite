@@ -210,55 +210,6 @@ export async function userOwnsOrder(client: AuthClient, userId: string, orderId:
   }
 }
 
-// The public NEW-booking flow creates an order in the browser and immediately starts Stripe card setup for it, with no
-// token yet and (for guests) no account. The narrowest server-verifiable invariant for that flow is the order's own
-// state: it must still be an untouched booking draft. All must hold:
-//   - status is "draft";
-//   - it is not an admin-created invoice (no invoice_links row of type "invoice");
-//   - no payment method and no Stripe customer has been attached yet (so the setup can happen once, and a second
-//     session cannot be minted for the same order afterwards);
-//   - it was created within the window (default 2 hours), so abandoned drafts stop being usable.
-// This is NOT a secret: it limits the window and the order states in which an unauthenticated caller can start card
-// setup. It relies on the order UUID being unguessable and not yet enumerable (removing the open orders policy,
-// Safety A2, closes the enumeration part). Anything that fails the invariant must present a real proof instead.
-export const FRESH_BOOKING_DRAFT_WINDOW_MS = 2 * 60 * 60 * 1000;
-
-export async function isFreshBookingDraft(
-  client: AuthClient,
-  orderId: unknown,
-  options: { now?: Date; windowMs?: number } = {},
-): Promise<boolean> {
-  if (typeof orderId !== "string" || !orderId) return false;
-  const now = options.now ?? new Date();
-  const windowMs = options.windowMs ?? FRESH_BOOKING_DRAFT_WINDOW_MS;
-  try {
-    const { data: order, error } = await client
-      .from("orders")
-      .select("id, status, created_at, stripe_customer_id, stripe_payment_method_id")
-      .eq("id", orderId)
-      .maybeSingle();
-    if (error || !order) return false;
-    if (order.status !== "draft") return false;
-    if (order.stripe_customer_id || order.stripe_payment_method_id) return false;
-    const createdAt = order.created_at ? new Date(order.created_at).getTime() : NaN;
-    if (!Number.isFinite(createdAt)) return false;
-    const age = now.getTime() - createdAt;
-    if (age < 0 || age > windowMs) return false;
-
-    const { data: invoiceLink, error: linkError } = await client
-      .from("invoice_links")
-      .select("id")
-      .eq("order_id", orderId)
-      .eq("link_type", "invoice")
-      .maybeSingle();
-    // An existing admin invoice link, or an ambiguous lookup, means this is not a plain booking draft.
-    if (linkError || invoiceLink) return false;
-    return true;
-  } catch {
-    return false;
-  }
-}
-
 export interface CheckoutSessionLike {
   status?: string | null;
   mode?: string | null;

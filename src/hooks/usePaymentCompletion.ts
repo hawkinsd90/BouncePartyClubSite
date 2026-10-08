@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { supabase } from '../lib/supabase';
+import { loadCompletedBooking, markBookingConfirmationSent } from '../lib/bookingApi';
 import { SafeStorage } from '../lib/safeStorage';
 import { sendCustomerBookingConfirmationNotifications } from '../lib/orderNotificationService';
 import { ORDER_STATUS } from '../lib/constants/statuses';
@@ -68,6 +68,11 @@ export function usePaymentCompletion(orderId: string | null, sessionId: string |
       setStatus('error');
       return;
     }
+    if (!sessionId) {
+      setError('No payment session was provided. Please use the link from your Stripe confirmation.');
+      setStatus('error');
+      return;
+    }
 
     processPayment();
   }, [orderId, sessionId]);
@@ -76,30 +81,6 @@ export function usePaymentCompletion(orderId: string | null, sessionId: string |
     try {
       setStatus('loading');
 
-      if (sessionId) {
-        try {
-          const sessionResponse = await fetch(
-            `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/get-session-metadata`,
-            {
-              method: 'POST',
-              headers: {
-                Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
-                'Content-Type': 'application/json',
-              },
-              body: JSON.stringify({ sessionId }),
-            }
-          );
-
-          if (sessionResponse.ok) {
-            const sessionData = await sessionResponse.json();
-            const tipCents = parseInt(sessionData.metadata?.tip_cents || '0', 10);
-            setSessionTipCents(tipCents);
-          }
-        } catch (err) {
-          console.error('[PAYMENT-COMPLETE] Error retrieving session metadata:', err);
-        }
-      }
-
       const processedKey = `payment_processed_${orderId}`;
       const alreadyProcessed = SafeStorage.getItem(processedKey);
 
@@ -107,7 +88,9 @@ export function usePaymentCompletion(orderId: string | null, sessionId: string |
         setIsFirstVisit(true);
       }
 
-      let order = null;
+      // Everything the page needs now comes from the complete-booking function, which requires proof of the completed
+      // Stripe session. The browser no longer reads orders, customers, addresses, order items or invoice links.
+      let completed = null;
       let retries = 0;
       const maxRetries = 3;
 
@@ -116,10 +99,10 @@ export function usePaymentCompletion(orderId: string | null, sessionId: string |
           await new Promise(resolve => setTimeout(resolve, 1000));
         }
 
-        order = await fetchOrderDetails();
+        completed = await loadCompletedBooking(orderId!, sessionId!);
 
-        if (order) {
-          if (order.status !== ORDER_STATUS.DRAFT) {
+        if (completed) {
+          if (completed.order.status !== ORDER_STATUS.DRAFT) {
             break;
           }
         }
@@ -127,8 +110,8 @@ export function usePaymentCompletion(orderId: string | null, sessionId: string |
         retries++;
       }
 
-      if (order) {
-        if (order.status === ORDER_STATUS.DRAFT && sessionId) {
+      if (completed) {
+        if (completed.order.status === ORDER_STATUS.DRAFT) {
           try {
             const savePaymentMethodResponse = await fetch(
               `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/save-payment-method-from-session`,
@@ -151,20 +134,11 @@ export function usePaymentCompletion(orderId: string | null, sessionId: string |
             console.error('[PAYMENT-COMPLETE] Error saving payment method:', err);
           }
 
-          const { data: invoiceLink } = await supabase
-            .from('invoice_links' as any)
-            .select('id')
-            .eq('order_id', orderId!)
-            .eq('link_type', 'invoice')
-            .maybeSingle();
-
-          const isAdminInvoice = !!invoiceLink;
-
           let lifecycleOk = false;
           try {
             const { enterPendingReview, enterConfirmed } = await import('../lib/orderLifecycle');
             let lifecycleResult;
-            if (isAdminInvoice) {
+            if (completed.isAdminInvoice) {
               lifecycleResult = await enterConfirmed(orderId!, 'webhook_fallback_admin_invoice', 'charged_now', undefined, { sessionId });
             } else {
               lifecycleResult = await enterPendingReview(orderId!, 'webhook_fallback_standard', { sessionId });
@@ -181,13 +155,21 @@ export function usePaymentCompletion(orderId: string | null, sessionId: string |
             return;
           }
 
-          order = await fetchOrderDetails();
+          completed = await loadCompletedBooking(orderId!, sessionId!);
+          if (!completed) {
+            setError('Unable to load order details');
+            setStatus('error');
+            return;
+          }
         }
 
+        const order = completed.order as OrderDetails & { booking_confirmation_sent?: boolean };
         setOrderDetails(order);
-        const adminInvoice = await checkIfAdminInvoice();
+        setSessionTipCents(completed.tipCents);
+        const adminInvoice = completed.isAdminInvoice;
+        setIsAdminInvoice(adminInvoice);
 
-        if (!alreadyProcessed && order && !adminInvoice) {
+        if (!alreadyProcessed && !adminInvoice) {
           await sendNotificationsIfNeeded(order);
           SafeStorage.setItem(processedKey, 'true');
         }
@@ -211,77 +193,8 @@ export function usePaymentCompletion(orderId: string | null, sessionId: string |
     }
   }
 
-  async function fetchOrderDetails(): Promise<OrderDetails | null> {
-    const { data: order, error: orderError } = await supabase
-      .from('orders')
-      .select(
-        `
-        *,
-        customer:customers!customer_id (
-          first_name,
-          last_name,
-          email,
-          phone
-        ),
-        addresses (
-          line1,
-          city,
-          state,
-          zip
-        ),
-        order_items (
-          qty,
-          wet_or_dry,
-          unit_price_cents,
-          unit_id,
-          product_id,
-          bundle_id,
-          item_name,
-          pricing_context,
-          component_snapshot,
-          units (
-            name
-          )
-        )
-      `
-      )
-      .eq('id', orderId!)
-      .maybeSingle();
-
-    if (orderError) {
-      console.error('[PAYMENT-COMPLETE] Error fetching order:', orderError);
-      return null;
-    }
-
-    if (!order) {
-      console.error('[PAYMENT-COMPLETE] No order found with ID:', orderId);
-      return null;
-    }
-
-    return order as unknown as OrderDetails;
-  }
-
-  async function checkIfAdminInvoice(): Promise<boolean> {
-    const { data: invoiceLink } = await supabase
-      .from('invoice_links' as any)
-      .select('id')
-      .eq('order_id', orderId!)
-      .eq('link_type', 'invoice')
-      .maybeSingle();
-
-    const result = !!invoiceLink;
-    setIsAdminInvoice(result);
-    return result;
-  }
-
-  async function sendNotificationsIfNeeded(order: OrderDetails) {
-    const { data: orderCheck } = await supabase
-      .from('orders')
-      .select('booking_confirmation_sent')
-      .eq('id', orderId!)
-      .maybeSingle();
-
-    if (orderCheck?.booking_confirmation_sent) {
+  async function sendNotificationsIfNeeded(order: OrderDetails & { booking_confirmation_sent?: boolean }) {
+    if (order.booking_confirmation_sent) {
       setEmailSent(true);
       setEmailError(null);
       return;
@@ -292,10 +205,7 @@ export function usePaymentCompletion(orderId: string | null, sessionId: string |
     setEmailError(result.emailError || null);
 
     if (result.emailSent) {
-      await supabase
-        .from('orders')
-        .update({ booking_confirmation_sent: true })
-        .eq('id', orderId!);
+      await markBookingConfirmationSent(orderId!, sessionId!);
     }
   }
 

@@ -5,7 +5,7 @@ import { SafeStorage } from '../lib/safeStorage';
 import { Users, Maximize, Zap, Droplets, Download, Search, XCircle, CheckCircle, Tag } from 'lucide-react';
 import { notifyError } from '../lib/notifications';
 import { DatePickerInput } from '../components/ui/DatePickerInput';
-import { checkUnitAvailability } from '../lib/availability';
+import { checkMultipleUnitsAvailabilityPublic } from '../lib/availability';
 
 
 interface Unit {
@@ -120,14 +120,12 @@ export function Catalog() {
     setAvailabilityChecked(false);
 
     try {
-      const results = await Promise.all(
-        units.map(unit =>
-          checkUnitAvailability({
-            unitId: unit.id,
-            eventStartDate: eventDate,
-            eventEndDate: eventDate,
-          })
-        )
+      const results = await checkMultipleUnitsAvailabilityPublic(
+        units.map(unit => ({
+          unitId: unit.id,
+          eventStartDate: eventDate,
+          eventEndDate: eventDate,
+        }))
       );
 
       const unavailable = new Set<string>();

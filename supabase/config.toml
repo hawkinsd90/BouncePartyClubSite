@@ -129,3 +129,12 @@ verify_jwt = false
 
 [functions.customer-portal-action]
 verify_jwt = false
+
+[functions.create-booking]
+verify_jwt = false
+
+[functions.check-availability]
+verify_jwt = false
+
+[functions.complete-booking]
+verify_jwt = false

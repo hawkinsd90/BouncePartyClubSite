@@ -1,0 +1,221 @@
+// GENERATED COPY of src/lib/pricing.ts (sliced). Do not edit here.
+// Edit the source and run: node node_modules/jiti/bin/jiti.js src/lib/bookingSharedCopy.ts --write
+// A test fails if this file differs from its source. Used by create-booking so the server prices exactly like the Quote.
+
+import { calculateTravelFeeFromDistance } from './travelFeeFromDistance.ts';
+
+export interface PricingRules {
+  base_radius_miles: number;
+  included_city_list_json: string[];
+  included_cities?: string[];
+  per_mile_after_base_cents: number;
+  zone_overrides_json: Array<{ zip: string; flat_cents: number }>;
+  surface_sandbag_fee_cents: number;
+  residential_multiplier: number;
+  commercial_multiplier: number;
+  overnight_holiday_only: boolean;
+  extra_day_pct: number;
+  generator_price_cents: number;
+  deposit_per_unit_cents?: number;
+  same_day_pickup_fee_cents?: number;
+  generator_fee_single_cents?: number;
+  generator_fee_multiple_cents?: number;
+  apply_taxes_by_default?: boolean;
+  same_day_weekday_delivery_fee_cents?: number;
+  same_day_matrix_json?: Array<{ units: number; generator: boolean; subtotal_ge_cents: number; fee_cents: number }> | null;
+  ee_only_deposit_base_threshold_cents?: number;
+  ee_only_deposit_base_cents?: number;
+  ee_only_deposit_subtotal_step_cents?: number;
+  ee_only_deposit_step_cents?: number;
+  event_essentials_setup_minimum_cents?: number;
+}
+
+export interface CartItem {
+  unit_id: string;
+  wet_or_dry: 'dry' | 'water';
+  unit_price_cents: number;
+  qty: number;
+}
+
+export interface PriceCalculationInput {
+  items: CartItem[];
+  location_type: 'residential' | 'commercial';
+  surface: 'grass' | 'cement';
+  can_use_stakes: boolean;
+  overnight_allowed: boolean;
+  num_days: number;
+  distance_miles: number;
+  city: string;
+  zip: string;
+  has_generator: boolean;
+  generator_qty?: number;
+  is_same_day_weekday_delivery?: boolean;
+  rules: PricingRules;
+}
+
+export interface PriceBreakdown {
+  subtotal_cents: number;
+  travel_fee_cents: number;
+  travel_total_miles: number;
+  travel_base_radius_miles: number;
+  travel_chargeable_miles: number;
+  travel_per_mile_cents: number;
+  travel_is_flat_fee: boolean;
+  travel_fee_display_name: string;
+  surface_fee_cents: number;
+  same_day_pickup_fee_cents: number;
+  same_day_weekday_delivery_fee_cents: number;
+  generator_fee_cents: number;
+  tax_cents: number;
+  tax_applied: boolean;
+  total_cents: number;
+  deposit_due_cents: number;
+  balance_due_cents: number;
+  event_essentials_subtotal_cents: number;
+}
+
+export function isSameDayWeekdayDelivery(eventDateYMD: string): boolean {
+  if (!eventDateYMD) return false;
+  const todayYMD = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Detroit' });
+  if (eventDateYMD !== todayYMD) return false;
+  const [year, month, day] = eventDateYMD.split('-').map(Number);
+  const dow = new Date(year, month - 1, day).getDay();
+  return dow >= 1 && dow <= 5;
+}
+
+export function calculatePrice(input: PriceCalculationInput): PriceBreakdown {
+  const {
+    items,
+    location_type,
+    surface,
+    can_use_stakes,
+    overnight_allowed,
+    num_days,
+    distance_miles,
+    city,
+    zip,
+    has_generator,
+    generator_qty = 0,
+    is_same_day_weekday_delivery = false,
+    rules,
+  } = input;
+
+  let day_1_subtotal = items.reduce((sum, item) => {
+    return sum + item.unit_price_cents * item.qty;
+  }, 0);
+
+  const location_multiplier =
+    location_type === 'residential'
+      ? rules.residential_multiplier
+      : rules.commercial_multiplier;
+  day_1_subtotal = Math.round(day_1_subtotal * location_multiplier);
+
+  let subtotal_cents = day_1_subtotal;
+  if (num_days > 1) {
+    const extra_days = num_days - 1;
+    const extra_day_rate = rules.extra_day_pct / 100;
+    subtotal_cents += Math.round(day_1_subtotal * extra_day_rate * extra_days);
+  }
+
+  // Use shared travel fee calculation logic
+  const travelFeeResult = calculateTravelFeeFromDistance({
+    distance_miles,
+    city,
+    zip,
+    baseRadiusMiles: rules.base_radius_miles,
+    perMileAfterBaseCents: rules.per_mile_after_base_cents,
+    includedCities: rules.included_cities || rules.included_city_list_json || [],
+    zoneOverrides: rules.zone_overrides_json || [],
+  });
+
+  const travel_fee_cents = travelFeeResult.travel_fee_cents;
+  const travel_total_miles = distance_miles;
+  const travel_base_radius_miles = rules.base_radius_miles;
+  const travel_chargeable_miles = travelFeeResult.chargeable_miles;
+  const travel_per_mile_cents = rules.per_mile_after_base_cents;
+  const travel_is_flat_fee = travelFeeResult.is_flat_fee;
+
+  let surface_fee_cents = 0;
+  if (surface === 'cement' || (surface === 'grass' && !can_use_stakes)) {
+    surface_fee_cents = rules.surface_sandbag_fee_cents;
+  }
+
+  const total_units = items.reduce((sum, item) => sum + item.qty, 0);
+  let same_day_pickup_fee_cents = 0;
+
+  const needs_same_day_fee =
+    location_type === 'commercial' || !overnight_allowed;
+
+  if (needs_same_day_fee && rules.same_day_pickup_fee_cents) {
+    same_day_pickup_fee_cents = rules.same_day_pickup_fee_cents;
+  }
+
+  const same_day_weekday_delivery_fee_cents =
+    is_same_day_weekday_delivery && rules.same_day_weekday_delivery_fee_cents
+      ? rules.same_day_weekday_delivery_fee_cents
+      : 0;
+
+  let generator_fee_cents = 0;
+  const actual_generator_qty = generator_qty > 0 ? generator_qty : (has_generator ? 1 : 0);
+  if (actual_generator_qty > 0) {
+    const single_fee = rules.generator_fee_single_cents || rules.generator_price_cents || 10000;
+    const multiple_fee = rules.generator_fee_multiple_cents || rules.generator_price_cents || 7500;
+
+    if (actual_generator_qty === 1) {
+      generator_fee_cents = single_fee;
+    } else {
+      // First generator at single price, rest at multiple price
+      generator_fee_cents = single_fee + (multiple_fee * (actual_generator_qty - 1));
+    }
+  }
+
+  const shouldApplyTaxes = rules.apply_taxes_by_default ?? true;
+  const tax_cents = shouldApplyTaxes
+    ? Math.round((subtotal_cents + travel_fee_cents + surface_fee_cents + generator_fee_cents) * 0.06)
+    : 0;
+
+  const total_cents =
+    subtotal_cents +
+    travel_fee_cents +
+    surface_fee_cents +
+    same_day_pickup_fee_cents +
+    same_day_weekday_delivery_fee_cents +
+    generator_fee_cents +
+    tax_cents;
+
+  const deposit_due_cents = total_units * (rules.deposit_per_unit_cents || 5000);
+
+  const balance_due_cents = Math.max(0, total_cents - deposit_due_cents);
+
+  // Build display-friendly travel fee name showing TOTAL miles driven
+  let travel_fee_display_name = 'Travel Fee';
+  if (travel_fee_cents > 0) {
+    // Always show total driving distance, not just chargeable miles
+    travel_fee_display_name = `Travel Fee (${travel_total_miles.toFixed(1)} mi)`;
+  }
+
+  return {
+    subtotal_cents,
+    travel_fee_cents,
+    travel_total_miles,
+    travel_base_radius_miles,
+    travel_chargeable_miles,
+    travel_per_mile_cents,
+    travel_is_flat_fee,
+    travel_fee_display_name,
+    surface_fee_cents,
+    same_day_pickup_fee_cents,
+    same_day_weekday_delivery_fee_cents,
+    generator_fee_cents,
+    tax_cents,
+    tax_applied: shouldApplyTaxes,
+    total_cents,
+    deposit_due_cents,
+    balance_due_cents,
+    event_essentials_subtotal_cents: 0,
+  };
+}
+
+export function formatCurrency(cents: number): string {
+  return `$${(cents / 100).toFixed(2)}`;
+}

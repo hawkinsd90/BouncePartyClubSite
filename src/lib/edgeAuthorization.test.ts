@@ -19,8 +19,6 @@ import {
   sessionCustomerId,
   proveOrderAccess,
   authFailureResponse,
-  isFreshBookingDraft,
-  FRESH_BOOKING_DRAFT_WINDOW_MS,
   INVOICE_SENDER_ROLES,
   STAFF_ADMIN_ROLES,
   type Caller,
@@ -230,34 +228,6 @@ const world = (): World => ({
   eq('a bad token falls through to a good session', await proveOrderAccess(c, { orderId: 'order-A', caller: anon, token: 'Z'.repeat(64), sessionId: 'sess_A', retrieveCheckoutSession: retrieve }), 'stripe_session');
   eq('service caller is not an owner', await proveOrderAccess(c, { orderId: 'order-A', caller: { kind: 'service' } }), null);
 
-  // ---- fresh public booking draft (the only anonymous path to start card setup) ----
-  const iso = (msAgo: number) => new Date(Date.now() - msAgo).toISOString();
-  const draftWorld = (orders: any[], links: any[] = []): any => ({ ...world(), orders, links });
-  const mkDraft = (over: Record<string, unknown> = {}) => ({ id: 'o-fresh', status: 'draft', created_at: iso(10 * 60_000), stripe_customer_id: null, stripe_payment_method_id: null, customer_id: null, ...over });
-  const fresh = (orders: any[], links: any[] = [], id = 'o-fresh', opts: any = {}) => isFreshBookingDraft(makeClient(draftWorld(orders, links)), id, opts);
-
-  ok('fresh draft: an untouched recent booking draft qualifies', await fresh([mkDraft()]));
-  ok('fresh draft: unknown order does not', !(await fresh([mkDraft()], [], 'o-missing')));
-  ok('fresh draft: non-string / empty id does not', !(await fresh([mkDraft()], [], '' as any)) && !(await isFreshBookingDraft(makeClient(draftWorld([mkDraft()])), 42 as any)));
-  for (const status of ['pending_review', 'awaiting_customer_approval', 'confirmed', 'in_progress', 'completed', 'cancelled', 'void']) {
-    ok(`fresh draft: a ${status} order does not qualify`, !(await fresh([mkDraft({ status })])));
-  }
-  ok('fresh draft: a Stripe customer already attached disqualifies (single use)', !(await fresh([mkDraft({ stripe_customer_id: 'cus_1' })])));
-  ok('fresh draft: a payment method already attached disqualifies', !(await fresh([mkDraft({ stripe_payment_method_id: 'pm_1' })])));
-  ok('fresh draft: 1h59m old still qualifies', await fresh([mkDraft({ created_at: iso(119 * 60_000) })]));
-  ok('fresh draft: 2h01m old does not', !(await fresh([mkDraft({ created_at: iso(121 * 60_000) })])));
-  ok('fresh draft: a custom window is honored', !(await fresh([mkDraft({ created_at: iso(10 * 60_000) })], [], 'o-fresh', { windowMs: 5 * 60_000 })));
-  ok('fresh draft: a future-dated created_at does not qualify', !(await fresh([mkDraft({ created_at: new Date(Date.now() + 3_600_000).toISOString() })])));
-  ok('fresh draft: a missing created_at does not qualify', !(await fresh([mkDraft({ created_at: null })])));
-  ok('fresh draft: an unparseable created_at does not qualify', !(await fresh([mkDraft({ created_at: 'not a date' })])));
-  ok('fresh draft: an admin-created invoice draft does not qualify', !(await fresh([mkDraft()], [{ order_id: 'o-fresh', link_type: 'invoice', link_token: 'x'.repeat(64), expires_at: FUTURE }])));
-  ok('fresh draft: an ambiguous invoice-link lookup fails closed', !(await fresh([mkDraft()], [
-    { order_id: 'o-fresh', link_type: 'invoice', link_token: 'x'.repeat(64), expires_at: FUTURE },
-    { order_id: 'o-fresh', link_type: 'invoice', link_token: 'y'.repeat(64), expires_at: FUTURE },
-  ])));
-  ok('fresh draft: a non-invoice link type does not block', await fresh([mkDraft()], [{ order_id: 'o-fresh', link_type: 'portal_shortlink', link_token: 'x'.repeat(64), expires_at: FUTURE }]));
-  ok('fresh draft: a throwing client fails closed', !(await isFreshBookingDraft({ from: () => { throw new Error('x'); } }, 'o-fresh')));
-  eq('fresh draft: the default window is 2 hours', FRESH_BOOKING_DRAFT_WINDOW_MS, 2 * 60 * 60 * 1000);
   eq('invoice senders are admin, master and crew only', INVOICE_SENDER_ROLES, ['admin', 'master', 'crew']);
   eq('staff admins exclude crew', STAFF_ADMIN_ROLES, ['admin', 'master']);
   ok('requireRoles with the invoice-sender list admits crew', requireRoles(await caller('tok-crew'), INVOICE_SENDER_ROLES).ok === true);
