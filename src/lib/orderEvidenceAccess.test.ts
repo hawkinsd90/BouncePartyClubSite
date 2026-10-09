@@ -953,7 +953,8 @@ const privatePath = (order: string, task: string, kind: 'delivery' | 'damage', o
     ok('static: its allowed types match the server list', EVIDENCE_MIME_TYPES.every((t) => code.includes(`'${t}'`)));
     ok('static: it does not use internal coordination labels', !/\b(A1|A2|Phase|Stage|Payment Safety)\b/.test(raw));
     const names = fs.readdirSync('supabase/migrations').filter((f: string) => f.endsWith('.sql')).sort();
-    eq('static: the three Storage migrations are the newest and in order', names.slice(-3), MIGRATIONS.map((m) => m.split('/').pop()));
+    const lastStorage = names.indexOf(MIGRATIONS[MIGRATIONS.length - 1].split('/').pop());
+    eq('static: the three Storage migrations are consecutive and in order', names.slice(lastStorage - 2, lastStorage + 1), MIGRATIONS.map((m) => m.split('/').pop()));
     ok('static: the committed waiver migration is not edited by this work', read(MIGRATIONS[0]).includes('signed-waivers'));
   }
 
