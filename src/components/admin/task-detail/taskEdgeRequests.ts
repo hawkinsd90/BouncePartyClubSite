@@ -5,7 +5,8 @@
 // (so a missing session still sends "Bearer undefined"). The body is parsed as JSON BEFORE `ok` is
 // checked; a non-OK response throws `new Error(data.error || fallbackMessage)`.
 //
-// postTaskSms: the three equivalent anon-key SMS sends (En Route, Arrived, Drop-Off Complete). It only
+// postTaskSms: the three equivalent SMS sends (En Route, Arrived, Drop-Off Complete), authenticated with the signed-in
+// staff member's session token (the relay rejects the public anon key). It only
 // projects the outcome; callers keep their own warnings, failure rows and sequencing. The pickup
 // template SMS and email stay inline in the modal, and this is not the global sendSms.
 /* eslint-disable @typescript-eslint/no-explicit-any */
@@ -14,8 +15,8 @@ export interface EdgeRequestDeps {
   fetch?: typeof fetch;
   // Defaults to import.meta.env.VITE_SUPABASE_URL (read lazily so tests can inject).
   baseUrl?: string;
-  // Defaults to import.meta.env.VITE_SUPABASE_ANON_KEY (postTaskSms only).
-  anonKey?: string;
+  // The signed-in user's access token (postTaskSms only). Defaults to the current session's token.
+  accessToken?: string;
 }
 
 export interface SessionEdgeRequest {
@@ -58,13 +59,25 @@ export type TaskSmsOutcome =
 // POSTs the given body to send-sms-notification. Never throws; every failure is projected exactly as
 // the inline blocks did: a non-OK response is "SMS failed to send" / "SMS endpoint returned <status>"
 // (after logging the response text under `label`), and a thrown error is "SMS failed: <message>".
+// The current session's access token, or undefined when nobody is signed in.
+export async function currentAccessToken(): Promise<string | undefined> {
+  try {
+    const { supabase } = await import('../../../lib/supabase');
+    const { data } = await supabase.auth.getSession();
+    return data.session?.access_token ?? undefined;
+  } catch {
+    return undefined;
+  }
+}
+
 export async function postTaskSms(body: Record<string, unknown>, label: string, deps: EdgeRequestDeps = {}): Promise<TaskSmsOutcome> {
   const doFetch = deps.fetch ?? fetch;
   const baseUrl = deps.baseUrl ?? import.meta.env.VITE_SUPABASE_URL;
-  const anonKey = deps.anonKey ?? import.meta.env.VITE_SUPABASE_ANON_KEY;
+  const accessToken = deps.accessToken ?? (await currentAccessToken());
+  if (!accessToken) return { ok: false, warning: 'SMS failed: not signed in', failureError: 'Not signed in' };
   try {
     const r = await doFetch(`${baseUrl}/functions/v1/send-sms-notification`, {
-      method: 'POST', headers: { Authorization: `Bearer ${anonKey}`, 'Content-Type': 'application/json' },
+      method: 'POST', headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
       body: JSON.stringify(body),
     });
     if (!r.ok) {

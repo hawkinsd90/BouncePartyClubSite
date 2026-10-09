@@ -1,4 +1,5 @@
 import { createClient, SupabaseClient } from 'npm:@supabase/supabase-js@2.57.4';
+import { authorizeRelayCaller, checkEmailPayload, relayDenied } from '../_shared/auth.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -76,6 +77,9 @@ Deno.serve(async (req: Request) => {
   let emailSubject: string | undefined;
   let emailHtml: string | undefined;
   let emailText: string | undefined;
+  // Set only after the caller is authorized. The error handler below records failures and sends the admin fallback, which
+  // must never happen for a request that was not allowed to use the relay.
+  let relayAuthorized = false;
 
   try {
     body = await req.json();
@@ -87,11 +91,24 @@ Deno.serve(async (req: Request) => {
       });
     }
 
-    const { to, from, subject, html, text, attachments, context, skipFallback, templateName, orderId, replyTo } = body;
-
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
+
+    // Who may send: the backend (service role), a signed-in Admin / Master, or Crew for an order's own template email.
+    // The public anon key and ordinary customers are rejected here, before anything below can run.
+    const authorization = await authorizeRelayCaller(supabase, req.headers.get('Authorization'), supabaseServiceKey, 'email', body);
+    if (!authorization.ok) return relayDenied(authorization, corsHeaders);
+    const payloadCheck = checkEmailPayload(body as unknown as Record<string, unknown>);
+    if (!payloadCheck.ok) {
+      return new Response(JSON.stringify({ error: payloadCheck.error }), {
+        status: 400,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+    relayAuthorized = true;
+
+    const { to, from, subject, html, text, attachments, context, skipFallback, templateName, orderId, replyTo } = body;
 
     emailTo = to;
     emailSubject = subject;
@@ -324,7 +341,7 @@ Deno.serve(async (req: Request) => {
     const errorMsg = error instanceof Error ? error.message : 'Internal server error';
     const { to, subject, html, text, context, skipFallback } = body || {} as EmailRequest;
 
-    if (to && subject) {
+    if (relayAuthorized && to && subject) {
       const supabase = createClient(
         Deno.env.get('SUPABASE_URL')!,
         Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!

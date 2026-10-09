@@ -28,7 +28,7 @@ import {
   buildEnRouteMessage, buildEnRouteResultMessage, buildArrivedMessage, buildArrivedResultMessage,
   buildDropOffRulesMessage, buildDropOffResultMessage, buildPickupCompletionSummary,
 } from './task-detail/taskNotificationMessages';
-import { postSessionEdge, postTaskSms } from './task-detail/taskEdgeRequests';
+import { postSessionEdge, postTaskSms, currentAccessToken } from './task-detail/taskEdgeRequests';
 
 export type { Task };
 
@@ -381,17 +381,21 @@ export function TaskDetailModal({ task, allTasks, onClose, onUpdate, onRefresh, 
       const taskStatusId = await ensureTaskStatus();
 
       let smsWarn: string | null = null;
+      // The notification relays accept the signed-in staff member's session token, not the public anon key.
+      const relayToken = await currentAccessToken();
       try {
+        if (!relayToken) throw new Error('not signed in');
         const r = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/send-sms-notification`, {
-          method: 'POST', headers: { Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`, 'Content-Type': 'application/json' },
+          method: 'POST', headers: { Authorization: `Bearer ${relayToken}`, 'Content-Type': 'application/json' },
           body: JSON.stringify({ templateKey: 'pickup_thanks_sms', orderId: task.orderId }),
         });
         if (!r.ok) { const d = await r.json().catch(() => ({})); smsWarn = d.error || 'SMS failed to send'; }
       } catch (e: any) { smsWarn = 'SMS failed: ' + e.message; }
 
       try {
+        if (!relayToken) throw new Error('not signed in');
         const r = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/send-email`, {
-          method: 'POST', headers: { Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`, 'Content-Type': 'application/json' },
+          method: 'POST', headers: { Authorization: `Bearer ${relayToken}`, 'Content-Type': 'application/json' },
           body: JSON.stringify({ templateName: 'pickup_complete', orderId: task.orderId }),
         });
         if (!r.ok) console.warn('Pickup complete email failed (non-blocking)');

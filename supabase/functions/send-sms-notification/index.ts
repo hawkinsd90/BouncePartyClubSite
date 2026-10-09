@@ -1,6 +1,7 @@
 import "jsr:@supabase/functions-js@2/edge-runtime.d.ts";
 import { createClient, SupabaseClient } from "npm:@supabase/supabase-js@2.57.4";
 import { formatOrderId } from "../_shared/format-order-id.ts";
+import { authorizeRelayCaller, checkSmsPayload, relayDenied } from "../_shared/auth.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -82,6 +83,9 @@ Deno.serve(async (req: Request) => {
   // outer catch can report a pre-acceptance transport failure for a template send (whose recipient and message
   // are resolved internally and are absent from the raw request). Stays null for template-preparation failures.
   let twilioAttempt: { to: string; message: string } | null = null;
+  // Set only after the caller is authorized. The error handler records failures and sends the admin fallback email, which
+  // must never happen for a request that was not allowed to use the relay.
+  let relayAuthorized = false;
 
   try {
     requestBody = await req.json();
@@ -98,6 +102,19 @@ Deno.serve(async (req: Request) => {
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
+
+    // Who may send: the backend (service role), a signed-in Admin / Master, or Crew texting the customer of an order.
+    // The public anon key and ordinary customers are rejected here, before any lookup, Twilio request or log write.
+    const authorization = await authorizeRelayCaller(supabase, req.headers.get("Authorization"), supabaseServiceKey, "sms", requestBody);
+    if (!authorization.ok) return relayDenied(authorization, corsHeaders);
+    const payloadCheck = checkSmsPayload(requestBody as unknown as Record<string, unknown>);
+    if (!payloadCheck.ok) {
+      return new Response(JSON.stringify({ error: payloadCheck.error }), {
+        status: 400,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+    relayAuthorized = true;
 
     let toPhone = requestBody.to;
     let messageBody = requestBody.message;
@@ -396,7 +413,7 @@ Deno.serve(async (req: Request) => {
     const to = rawTo && rawMessage ? rawTo : twilioAttempt?.to;
     const messageBody = rawTo && rawMessage ? rawMessage : twilioAttempt?.message;
 
-    if (to && messageBody) {
+    if (relayAuthorized && to && messageBody) {
       const supabase = createClient(
         Deno.env.get('SUPABASE_URL')!,
         Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!

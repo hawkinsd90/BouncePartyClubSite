@@ -366,3 +366,148 @@ export function authFailureResponse(
     headers: { ...corsHeaders, "Content-Type": "application/json" },
   });
 }
+
+// ---------------------------------------------------------------------------
+// Outbound notification relays (send-email, send-sms-notification)
+// ---------------------------------------------------------------------------
+//
+// The relays spend Bounce Party Club's email and SMS capacity under the business identity, so they must not be reachable
+// with only the public anon key (it ships in the website bundle and passes `verify_jwt = true`). A request is accepted only
+// from one of:
+//   - the service-role key: trusted Edge Functions (payments, lifecycle, invoices, contact form, webhooks). Matched by value
+//     against the function's own environment key, never by decoding a JWT.
+//   - a signed-in Admin or Master (database-backed user_roles check): manual messages, approval/rejection notices, edit
+//     notices, permission-change notices. Their recipients are not restricted.
+//   - a signed-in Crew member, order-bound only: the task flow (En Route / Arrived / Drop-off / Pickup) texts or emails the
+//     customer of the order the task belongs to. Crew may use a stored template for an order, or send a message to that
+//     order's own customer phone. Crew can never choose another recipient, send raw email, attach media, or relay for
+//     anything that is not an existing order.
+// Everything else (no Authorization, the anon key, an unresolvable token, an ordinary customer) is rejected before any
+// provider request, message persistence, success/failure logging or secondary function call.
+//
+// Customer-triggered confirmations do not use the relay directly: they go through an order-bound server action
+// (complete-booking / customer-portal-action) that looks up the customer's own address and calls the relay as the backend.
+//
+
+export type RelayKind = "email" | "sms";
+
+export type RelayAuthorization =
+  | { ok: true; actor: "service" | "staff" | "crew"; userId?: string }
+  | { ok: false; status: 401 | 403; error: string };
+
+const RELAY_UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const SMS_KEYS = ["to", "message", "orderId", "templateKey", "mediaUrls", "skipFallback"];
+const EMAIL_KEYS_CREW = ["templateName", "orderId", "skipFallback", "context"];
+// The only stored templates the Crew task flow uses (TaskDetailModal, Complete Pickup). Every other template - including the
+// Admin-addressed ones (booking_received_admin, lot_pictures_uploaded_admin, order_cancellation_admin) - is backend / staff only.
+export const CREW_SMS_TEMPLATES: readonly string[] = ["pickup_thanks_sms"];
+export const CREW_EMAIL_TEMPLATES: readonly string[] = ["pickup_complete"];
+
+type RelayObj = Record<string, unknown>;
+const isRelayObj = (v: unknown): v is RelayObj => typeof v === "object" && v !== null && !Array.isArray(v);
+const relayDigits = (v: unknown): string => (typeof v === "string" ? v.replace(/\D/g, "") : "");
+// Compare phone numbers by their last ten digits, the same way a US number is normalised when it is sent.
+const relaySameUsPhone = (a: unknown, b: unknown): boolean => {
+  const x = relayDigits(a);
+  const y = relayDigits(b);
+  return x.length >= 10 && y.length >= 10 && x.slice(-10) === y.slice(-10);
+};
+
+const relayUnauthorized = (): RelayAuthorization => ({ ok: false, status: 401, error: "Unauthorized" });
+const relayForbidden = (): RelayAuthorization => ({ ok: false, status: 403, error: "Forbidden" });
+
+// The customer of an order, read with the backend client. Null when the order does not exist.
+async function orderCustomer(client: AuthClient, orderId: unknown): Promise<{ phone: string | null; email: string | null } | null> {
+  if (typeof orderId !== "string" || !RELAY_UUID_RE.test(orderId)) return null;
+  try {
+    const { data, error } = await client.from("orders").select("id, customers(phone, email)").eq("id", orderId).maybeSingle();
+    if (error || !data) return null;
+    const c = Array.isArray(data.customers) ? data.customers[0] : data.customers;
+    return { phone: (c?.phone as string | null) ?? null, email: (c?.email as string | null) ?? null };
+  } catch {
+    return null;
+  }
+}
+
+async function crewMayRelay(client: AuthClient, kind: RelayKind, body: unknown): Promise<boolean> {
+  if (!isRelayObj(body)) return false;
+  const customer = await orderCustomer(client, body.orderId);
+  if (!customer) return false;
+
+  if (kind === "email") {
+    // Stored template for an order only: the function addresses it to the order's customer. No raw `to`, html, text,
+    // attachments, reply-to or sender from Crew (a missing customer email would otherwise fall back to `to`).
+    if (!Object.keys(body).every((k) => EMAIL_KEYS_CREW.includes(k))) return false;
+    return typeof body.templateName === "string" && CREW_EMAIL_TEMPLATES.includes(body.templateName);
+  }
+
+  if (!Object.keys(body).every((k) => SMS_KEYS.includes(k))) return false;
+  if (body.templateKey !== undefined) {
+    // Template mode: only the pickup thank-you, which the function addresses to the order's customer. No recipient or message of
+    // Crew's own, and never an Admin-addressed template.
+    return typeof body.templateKey === "string" && CREW_SMS_TEMPLATES.includes(body.templateKey) && body.to === undefined && body.message === undefined;
+  }
+  if (typeof body.message !== "string" || body.message.trim().length === 0) return false;
+  if (Array.isArray(body.mediaUrls) ? body.mediaUrls.length > 0 : body.mediaUrls !== undefined) return false;
+  return relaySameUsPhone(body.to, customer.phone);
+}
+
+export async function authorizeRelayCaller(
+  client: AuthClient,
+  authHeader: string | null | undefined,
+  serviceRoleKey: string | undefined,
+  kind: RelayKind,
+  body: unknown,
+): Promise<RelayAuthorization> {
+  const caller = await resolveCaller(client, authHeader, serviceRoleKey);
+  if (caller.kind === "anonymous") return relayUnauthorized();
+  if (caller.kind === "service") return { ok: true, actor: "service" };
+
+  const staff = requireRoles(caller, STAFF_ADMIN_ROLES);
+  if (staff.ok) return { ok: true, actor: "staff", userId: staff.userId };
+
+  if (callerHasAnyRole(caller, ["crew"]) && (await crewMayRelay(client, kind, body))) {
+    return { ok: true, actor: "crew", userId: caller.userId };
+  }
+  return relayForbidden();
+}
+
+// ---------------------------------------------------------------------------------------------------------------------
+// Narrow payload checks, applied only AFTER the caller is authorized and BEFORE any provider request.
+// ---------------------------------------------------------------------------------------------------------------------
+export type PayloadCheck = { ok: true } | { ok: false; error: string };
+
+export function checkEmailPayload(body: RelayObj): PayloadCheck {
+  const { to, subject, replyTo, attachments, templateName } = body;
+  if (to !== undefined && (typeof to !== "string" || to.length > 320 || /[\r\n]/.test(to))) return { ok: false, error: "Invalid recipient" };
+  if (subject !== undefined && (typeof subject !== "string" || subject.length > 998 || /[\r\n]/.test(subject))) return { ok: false, error: "Invalid subject" };
+  if (replyTo !== undefined && (typeof replyTo !== "string" || replyTo.length > 320 || /[\r\n]/.test(replyTo))) return { ok: false, error: "Invalid reply-to" };
+  if (templateName !== undefined && typeof templateName !== "string") return { ok: false, error: "Invalid template" };
+  if (attachments !== undefined) {
+    if (!Array.isArray(attachments) || attachments.length > 5) return { ok: false, error: "Invalid attachments" };
+    for (const a of attachments) {
+      if (!isRelayObj(a) || typeof a.filename !== "string" || typeof a.content !== "string" || a.filename.length > 200) return { ok: false, error: "Invalid attachments" };
+    }
+  }
+  return { ok: true };
+}
+
+export function checkSmsPayload(body: RelayObj): PayloadCheck {
+  const { to, message, mediaUrls, templateKey } = body;
+  if (to !== undefined && (typeof to !== "string" || to.length > 40)) return { ok: false, error: "Invalid recipient" };
+  if (message !== undefined && (typeof message !== "string" || message.length > 1600)) return { ok: false, error: "Invalid message" };
+  if (templateKey !== undefined && typeof templateKey !== "string") return { ok: false, error: "Invalid template" };
+  if (mediaUrls !== undefined) {
+    if (!Array.isArray(mediaUrls) || mediaUrls.length > 10 || mediaUrls.some((u) => typeof u !== "string" || !/^https:\/\//i.test(u) || u.length > 2048)) {
+      return { ok: false, error: "Invalid media" };
+    }
+  }
+  return { ok: true };
+}
+
+export function relayDenied(auth: { status: 401 | 403; error: string }, corsHeaders: Record<string, string>): Response {
+  return new Response(JSON.stringify({ error: auth.error }), {
+    status: auth.status,
+    headers: { ...corsHeaders, "Content-Type": "application/json", "Cache-Control": "no-store" },
+  });
+}

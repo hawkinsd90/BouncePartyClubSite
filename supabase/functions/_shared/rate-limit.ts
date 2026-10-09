@@ -31,6 +31,8 @@ export const RATE_LIMIT_CONFIGS: Record<string, RateLimitConfig> = {
   'create-booking': { maxRequests: 10, windowSeconds: 600 },
   'check-availability': { maxRequests: 60, windowSeconds: 60 },
   'complete-booking': { maxRequests: 30, windowSeconds: 60 },
+  // A customer's own booking confirmation, per order (a real customer needs one, perhaps a retry).
+  'customer-notice': { maxRequests: 3, windowSeconds: 600 },
 };
 
 export function getIdentifier(req: Request): string {

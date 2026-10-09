@@ -181,9 +181,28 @@ export async function loadCompletedBooking(orderId: string, sessionId: string): 
   };
 }
 
-export async function markBookingConfirmationSent(orderId: string, sessionId: string): Promise<boolean> {
-  const { ok } = await post('complete-booking', { orderId, sessionId, action: 'mark_confirmation_sent' });
-  return ok;
+export interface BookingConfirmationNotice {
+  emailSubject: string;
+  emailHtml: string;
+  smsMessage?: string;
+}
+
+// Asks the server to send the customer's booking confirmation. The server addresses it to the customer on the order (the
+// Stripe session proves the order); the browser supplies the wording only.
+export async function sendBookingConfirmation(
+  orderId: string,
+  sessionId: string,
+  notice: BookingConfirmationNotice,
+): Promise<{ emailSent: boolean; emailError: string | null }> {
+  const { ok, data } = await post<{ emailSent?: boolean; emailError?: string | null }>('complete-booking', {
+    orderId,
+    sessionId,
+    action: 'send_confirmation',
+    notice,
+  });
+  if (!ok) return { emailSent: false, emailError: data.error || 'Confirmation could not be sent' };
+  // A busy answer means another request is sending it right now: not sent yet, so report it as such and let a later visit retry.
+  return { emailSent: data.emailSent === true, emailError: data.emailSent === true ? null : (data.emailError ?? 'Confirmation email could not be sent') };
 }
 
 export interface UnitAvailabilityCheck {

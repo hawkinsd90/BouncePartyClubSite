@@ -16,7 +16,8 @@ export type PortalActionName =
   | "register_order_pictures"
   | "request_picture_upload"
   | "discard_unregistered_pictures"
-  | "check_unit_availability";
+  | "check_unit_availability"
+  | "send_confirmation";
 
 export const PORTAL_ACTION_NAMES: readonly PortalActionName[] = [
   "invoice_accept_details",
@@ -30,6 +31,7 @@ export const PORTAL_ACTION_NAMES: readonly PortalActionName[] = [
   "request_picture_upload",
   "discard_unregistered_pictures",
   "check_unit_availability",
+  "send_confirmation",
 ];
 
 // Same values the ReferralSourceSelect offers.
@@ -46,6 +48,37 @@ type Obj = Record<string, unknown>;
 const isObj = (v: unknown): v is Obj => typeof v === "object" && v !== null && !Array.isArray(v);
 const isCents = (v: unknown): v is number => typeof v === "number" && Number.isInteger(v) && v >= 0 && v <= MAX_CENTS;
 const str = (v: unknown, max: number): string | null => (typeof v === "string" && v.trim().length > 0 && v.length <= max ? v.trim() : null);
+
+// The wording of a customer's own confirmation (email and / or text). The recipient is never part of the payload: the server
+// addresses the message to the customer on the order.
+export interface CustomerNotice {
+  emailSubject?: string;
+  emailHtml?: string;
+  smsMessage?: string;
+}
+export const MAX_NOTICE_SUBJECT = 200;
+export const MAX_NOTICE_HTML = 200_000;
+export const MAX_NOTICE_SMS = 1_000;
+
+// Exact shape check: only the three known keys, an email needs a subject and a body together, and at least one message.
+export function validateCustomerNotice(payload: unknown): CustomerNotice | null {
+  if (!isObj(payload)) return null;
+  if (!Object.keys(payload).every((k) => ["emailSubject", "emailHtml", "smsMessage"].includes(k))) return null;
+  const out: CustomerNotice = {};
+  const { emailSubject, emailHtml, smsMessage } = payload;
+  if (emailSubject !== undefined || emailHtml !== undefined) {
+    if (typeof emailSubject !== "string" || typeof emailHtml !== "string") return null;
+    if (emailSubject.trim().length === 0 || emailSubject.length > MAX_NOTICE_SUBJECT || /[\r\n]/.test(emailSubject)) return null;
+    if (emailHtml.trim().length === 0 || emailHtml.length > MAX_NOTICE_HTML) return null;
+    out.emailSubject = emailSubject;
+    out.emailHtml = emailHtml;
+  }
+  if (smsMessage !== undefined) {
+    if (typeof smsMessage !== "string" || smsMessage.trim().length === 0 || smsMessage.length > MAX_NOTICE_SMS) return null;
+    out.smsMessage = smsMessage;
+  }
+  return out.emailHtml === undefined && out.smsMessage === undefined ? null : out;
+}
 
 // True when the object has no keys outside the allowed set.
 function onlyKeys(o: Obj, allowed: readonly string[]): boolean {
@@ -148,6 +181,10 @@ export function validateAction(name: unknown, payload: unknown, orderId: string)
       if (!onlyKeys(p, ["amountCents", "type"])) return null;
       if (!isCents(p.amountCents) || typeof p.type !== "string" || !PAYMENT_TYPES.includes(p.type)) return null;
       return { name: "invoice_select_payment", payload: { amountCents: p.amountCents, type: p.type } };
+    }
+    case "send_confirmation": {
+      const notice = validateCustomerNotice(p);
+      return notice ? { name: "send_confirmation", payload: notice as unknown as Obj } : null;
     }
     case "invoice_confirm_no_card":
     case "check_unit_availability": {

@@ -3,6 +3,8 @@ import { createClient } from "npm:@supabase/supabase-js@2.57.4";
 import Stripe from "npm:stripe@20.0.0";
 import { checkRateLimit, createRateLimitResponse, getIdentifier, buildRateLimitKey } from "../_shared/rate-limit.ts";
 import { resolveCaller, proveOrderAccess, authFailureResponse, type AuthClient } from "../_shared/auth.ts";
+import { sendOrderCustomerNotice } from "../_shared/customer-notice.ts";
+import { validateCustomerNotice } from "../_shared/portal-actions.ts";
 
 // Post-Stripe completion data for the public booking flow (Payment Safety A2.3).
 //
@@ -14,7 +16,12 @@ import { resolveCaller, proveOrderAccess, authFailureResponse, type AuthClient }
 //
 //   action "details"                -> a narrow projection of the order for the confirmation page (the secure portal link is
 //                                      obtained separately from portal-link with the same Stripe session proof)
-//   action "mark_confirmation_sent" -> sets booking_confirmation_sent (false -> true only)
+//   action "send_confirmation"      -> sends the booking confirmation email / text to the customer ON THE ORDER (never to an address the
+//                                      browser supplies), through the notification relays as the backend. The sent state belongs to
+//                                      the server: the order is CLAIMED atomically before anything is sent (claim_booking_confirmation),
+//                                      and only a delivered email finalizes it (booking_confirmation_sent = true). A failed delivery
+//                                      releases the claim; a crashed request leaves a claim that goes stale and can be taken over.
+//                                      A request that finds a live claim is told "busy", never "sent".
 //
 // This function never charges, never changes status or payment columns, and never returns Stripe or admin fields.
 const corsHeaders = {
@@ -29,6 +36,10 @@ function respond(status: number, body: unknown): Response {
     headers: { ...corsHeaders, "Content-Type": "application/json", "Cache-Control": "no-store" },
   });
 }
+
+// A claim older than this is an abandoned one (its request crashed) and may be taken over. An Edge Function request is cut off
+// well before ten minutes, so a live request is never overtaken.
+const CONFIRMATION_CLAIM_STALE_SECONDS = 600;
 
 const ORDER_PROJECTION = `
   id, status, event_date, start_window, end_window, location_type, surface, special_details,
@@ -61,7 +72,7 @@ Deno.serve(async (req: Request) => {
       return createRateLimitResponse(rate, corsHeaders);
     }
 
-    let body: { orderId?: unknown; sessionId?: unknown; action?: unknown } = {};
+    let body: { orderId?: unknown; sessionId?: unknown; action?: unknown; notice?: unknown } = {};
     try {
       body = await req.json();
     } catch {
@@ -69,7 +80,7 @@ Deno.serve(async (req: Request) => {
     }
     const orderId = typeof body.orderId === "string" ? body.orderId : "";
     const sessionId = typeof body.sessionId === "string" ? body.sessionId : "";
-    const action = body.action === "mark_confirmation_sent" ? "mark_confirmation_sent" : "details";
+    const action = body.action === "send_confirmation" ? "send_confirmation" : "details";
     if (!orderId || !sessionId) return respond(400, { success: false, error: "Missing order or session" });
 
     const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
@@ -94,14 +105,52 @@ Deno.serve(async (req: Request) => {
       );
     }
 
-    if (action === "mark_confirmation_sent") {
-      const { error } = await supabase
-        .from("orders")
-        .update({ booking_confirmation_sent: true })
-        .eq("id", orderId)
-        .eq("booking_confirmation_sent", false)
-        .neq("status", "draft");
-      return respond(error ? 500 : 200, { success: !error });
+    if (action === "send_confirmation") {
+      const notice = validateCustomerNotice(body.notice);
+      if (!notice) return respond(400, { success: false, error: "Invalid request" });
+
+      // Take the claim first. The claim id is generated here and is the only key that can finalize or release it.
+      const claimId = crypto.randomUUID();
+      const { data: claim, error: claimError } = await supabase.rpc("claim_booking_confirmation", {
+        p_order_id: orderId,
+        p_claim_id: claimId,
+        p_stale_seconds: CONFIRMATION_CLAIM_STALE_SECONDS,
+      });
+      if (claimError) return respond(500, { success: false, error: "Could not send your confirmation." });
+      if (claim === "invalid") return respond(409, { success: false, error: "Order is not ready for a confirmation" });
+      if (claim === "already_sent") return respond(200, { success: true, alreadySent: true, emailSent: true, emailError: null, smsSent: false });
+      // Another request is sending it right now: say so. It is not "sent" until that request finalizes it.
+      if (claim === "busy") {
+        return respond(200, { success: true, busy: true, alreadySent: false, emailSent: false, emailError: "Your confirmation is already being sent.", smsSent: false });
+      }
+      if (claim !== "claimed") return respond(500, { success: false, error: "Could not send your confirmation." });
+
+      let sent = { emailSent: false, emailError: "Confirmation could not be sent" as string | null, smsSent: false };
+      let delivered = false;
+      // Whether the database accepted the finalize / release. A resolved RPC is not a successful one: supabase-js reports database
+      // failures as { error } without throwing, and the functions return false when this request no longer owns the claim.
+      let stateRecorded = false;
+      try {
+        sent = await sendOrderCustomerNotice(supabase, { supabaseUrl: Deno.env.get("SUPABASE_URL") ?? "", serviceKey }, orderId, notice, fetch);
+        // "Sent" keeps its existing meaning: the customer's confirmation email went out (a text alone failing does not matter).
+        delivered = notice.emailHtml !== undefined ? sent.emailSent : sent.smsSent;
+      } finally {
+        // Delivered: finalize with the exact claim. Anything else - including no provider attempt and a thrown error - releases the
+        // same claim so the confirmation can be retried. Neither can touch a claim this request does not own.
+        try {
+          const { data, error } = await supabase.rpc(delivered ? "finalize_booking_confirmation" : "release_booking_confirmation", { p_order_id: orderId, p_claim_id: claimId });
+          stateRecorded = !error && data === true;
+        } catch {
+          stateRecorded = false;
+        }
+        if (!stateRecorded) {
+          // Delivered but not recorded: the email really went out, so it is reported as sent and NOT re-sent in this request; the claim
+          // stays until it goes stale. Not delivered and not released: the claim also stays until it goes stale, so a retry in the
+          // meantime is told "busy". Nothing about the database failure is shown to the customer.
+          console.error(`[complete-booking] could not record the confirmation state (delivered=${delivered})`);
+        }
+      }
+      return respond(200, { success: true, ...sent, stateRecorded });
     }
 
     const { data: order, error: orderError } = await supabase.from("orders").select(ORDER_PROJECTION).eq("id", orderId).maybeSingle();

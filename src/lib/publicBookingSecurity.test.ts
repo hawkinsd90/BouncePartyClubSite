@@ -812,13 +812,13 @@ const noRows = (w: World, snapshot: string) => JSON.stringify(w.db) === snapshot
     // Post-Stripe completion goes through hardened server functions
     const hook = read('src/hooks/usePaymentCompletion.ts');
     ok('completion: the hook loads order details through complete-booking (Stripe-session proof)', /loadCompletedBooking\(/.test(hook) && !/fetchOrderDetails|supabase\./.test(hook));
-    ok('completion: card save, lifecycle entry and notifications flag use server functions', /save-payment-method-from-session/.test(hook) && /enterPendingReview/.test(hook) && /markBookingConfirmationSent/.test(hook));
+    ok('completion: card save, lifecycle entry and the confirmation use server functions (the server owns the sent flag)', /save-payment-method-from-session/.test(hook) && /enterPendingReview/.test(hook) && hook.includes('sendCustomerBookingConfirmationNotifications(order, sessionId!)') && !/markBookingConfirmationSent/.test(hook));
     ok('completion: the hook requires a Stripe session id (a bare order id loads nothing)', /No payment session was provided/.test(hook));
     const cb = read('supabase/functions/complete-booking/index.ts');
     ok('completion: complete-booking accepts ONLY a completed Stripe session bound to the order', /accept:\s*\["stripe_session"\]/.test(cb) && /proveOrderAccess\(/.test(cb));
     const projection = cb.slice(cb.indexOf('const ORDER_PROJECTION'), cb.indexOf('async function retrieveCheckoutSession'));
     ok('completion: the order projection returns no Stripe, admin, token or payment-ledger fields', !/stripe_|admin_message|link_token|payment_method|signature|waiver|cancel|refund|custom_deposit|invoice_/.test(projection));
-    ok('completion: mark_confirmation_sent only flips false -> true on a non-draft order', /\.eq\("booking_confirmation_sent", false\)/.test(cb) && /\.neq\("status", "draft"\)/.test(cb));
+    ok('completion: the confirmation sent state is claimed, finalized and released only through the claim functions (no direct flag write, no browser-callable mark action)', /claim_booking_confirmation/.test(cb) && /finalize_booking_confirmation/.test(cb) && /release_booking_confirmation/.test(cb) && !/mark_confirmation_sent/.test(cb) && !/booking_confirmation_sent:\s*(true|false)/.test(cb));
     ok('completion: complete-booking never touches payments, status, deposit or Stripe charges', !/deposit_paid_cents|status:\s*["']|paymentIntents|from\("payments"\)/.test(cb.replace(/\.neq\("status", "draft"\)/, '')));
 
     // Legacy invoice route

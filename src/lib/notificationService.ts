@@ -17,13 +17,26 @@ interface NotificationResult {
   error?: string;
 }
 
+// The notification relays accept only the backend, a signed-in Admin / Master, or Crew for an order's own customer. The browser
+// therefore authenticates with the signed-in user's session token, never the public anon key (which the relays reject).
+async function staffAccessToken(): Promise<string | null> {
+  try {
+    const { data } = await supabase.auth.getSession();
+    return data.session?.access_token ?? null;
+  } catch {
+    return null;
+  }
+}
+
 export async function sendEmail(options: EmailOptions): Promise<NotificationResult> {
   try {
+    const accessToken = await staffAccessToken();
+    if (!accessToken) return { success: false, error: 'You must be signed in to send email' };
     const apiUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/send-email`;
     const response = await fetch(apiUrl, {
       method: 'POST',
       headers: {
-        Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
+        Authorization: `Bearer ${accessToken}`,
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
@@ -57,11 +70,13 @@ export async function sendSms(options: SmsOptions): Promise<NotificationResult> 
   }
 
   try {
+    const accessToken = await staffAccessToken();
+    if (!accessToken) return { success: false, error: 'You must be signed in to send SMS' };
     const apiUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/send-sms-notification`;
     const response = await fetch(apiUrl, {
       method: 'POST',
       headers: {
-        Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
+        Authorization: `Bearer ${accessToken}`,
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({

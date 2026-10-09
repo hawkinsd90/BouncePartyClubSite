@@ -15,6 +15,8 @@ declare const require: (id: string) => any;
 const fs = require('fs');
 const ts = require('typescript');
 
+import { authorizeRelayCaller, checkSmsPayload, relayDenied } from '../../supabase/functions/_shared/auth';
+
 let passed = 0;
 let failed = 0;
 
@@ -50,7 +52,7 @@ function loadHandler(env: Record<string, string>, createClientFake: (url: string
   const js = ts.transpileModule(stripped, { compilerOptions: { target: ts.ScriptTarget.ES2020, module: ts.ModuleKind.ESNext } }).outputText;
   let handler: ((req: Request) => Promise<Response>) | null = null;
   const Deno = { serve: (fn: any) => { handler = fn; }, env: { get: (k: string) => env[k] } };
-  new Function('Deno', 'createClient', 'formatOrderId', 'fetch', js)(Deno, createClientFake, (id: string) => `#${String(id).slice(0, 8)}`, fetchFake);
+  new Function('Deno', 'createClient', 'formatOrderId', 'authorizeRelayCaller', 'checkSmsPayload', 'relayDenied', 'fetch', js)(Deno, createClientFake, (id: string) => `#${String(id).slice(0, 8)}`, authorizeRelayCaller, checkSmsPayload, relayDenied, fetchFake);
   if (!handler) throw new Error('handler not registered');
   return handler as (req: Request) => Promise<Response>;
 }
@@ -147,7 +149,8 @@ async function run(sc: Scenario) {
   console.error = (...a: any[]) => { consoleErrors.push(a); }; console.warn = () => {}; console.log = () => {};
   let status = 0; let body: any = null; let threw: any = null;
   try {
-    const res = await handler(new Request('https://x.test/fn', { method: 'POST', body: sc.rawBody ?? JSON.stringify(sc.body) }));
+    // The relay only serves the backend: these scenarios are failure recording for an authorized (service-role) caller.
+    const res = await handler(new Request('https://x.test/fn', { method: 'POST', headers: { Authorization: 'Bearer svc' }, body: sc.rawBody ?? JSON.stringify(sc.body) }));
     status = res.status; body = await res.json();
   } catch (e) { threw = e; } finally { console.error = realErr; console.warn = realWarn; console.log = realLog; }
   const failureCalls = rpcCalls.filter(c => c.name === 'record_notification_failure');

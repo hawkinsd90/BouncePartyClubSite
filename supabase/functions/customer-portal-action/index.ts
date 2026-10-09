@@ -1,6 +1,8 @@
 import "jsr:@supabase/functions-js@2/edge-runtime.d.ts";
 import { createClient } from "npm:@supabase/supabase-js@2.57.4";
 import { resolveCaller, authorizePortalOrder, hasCurrentInvoiceLink } from "../_shared/auth.ts";
+import { checkRateLimit } from "../_shared/rate-limit.ts";
+import { sendOrderCustomerNotice, type CustomerNotice } from "../_shared/customer-notice.ts";
 import {
   validateAction,
   paymentSelectionIsValid,
@@ -255,6 +257,16 @@ Deno.serve(async (req: Request) => {
         });
         if (logError) console.error("[customer-portal-action] changelog insert failed");
         return json({ success: true });
+      }
+
+      case "send_confirmation": {
+        // The customer's own booking confirmation (email and / or text) after the booking was confirmed. Addressed to the customer
+        // ON THE ORDER by the backend; the browser supplies wording only, never a recipient.
+        if (!["pending_review", "confirmed"].includes(order.status)) return wrongStatus();
+        const rate = await checkRateLimit("customer-notice", `customer-notice:${orderId}`, undefined, true);
+        if (!rate.allowed) return json({ success: false, error: "rate_limited" }, 429);
+        const sent = await sendOrderCustomerNotice(db, { supabaseUrl, serviceKey }, orderId, action.payload as CustomerNotice, fetch);
+        return json({ success: true, ...sent });
       }
 
       case "register_lot_pictures": {

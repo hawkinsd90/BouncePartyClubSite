@@ -46,7 +46,7 @@ const flat = norm(sql);
 // STATIC
 // ---------------------------------------------------------------------------------------------------------------
 const files: string[] = fs.readdirSync(MIG_DIR).filter((f: string) => f.endsWith('.sql')).sort();
-ok('static: the migration sorts after every other migration (it is the newest)', files[files.length - 1] === MIG_NAME);
+ok('static: the migration sorts after every migration that existed when it was written', files.indexOf(MIG_NAME) > files.indexOf('20261015123000_create_private_order_evidence_storage.sql') && files.indexOf(MIG_NAME) >= 0);
 ok('static: exactly one migration was added for this repair', files.filter((f: string) => f.includes('repair_role_assignment_and_signup_provisioning')).length === 1);
 ok('static: the migration name is descriptive and carries no internal label', !/(^|[^a-z])(phase|stage)[ _-]?[a-z0-9]|_a1_|_a_/i.test(MIG_NAME) && !/\b(Phase|Stage)\s?[A-Z0-9]|\bA1\b/.test(raw));
 

@@ -310,7 +310,7 @@ const responses: Array<[string, Scripted]> = [
   const newSms = async (body: any, label: string, fetch: any) => {
     console.warn = (...a: any[]) => { warns.push(a); };
     try {
-      const out = await postTaskSms(body, label, { fetch, baseUrl: BASE, anonKey: ANON });
+      const out = await postTaskSms(body, label, { fetch, baseUrl: BASE, accessToken: ANON });
       return out.ok ? { smsWarning: null, smsFailureError: undefined } : { smsWarning: out.warning, smsFailureError: out.failureError };
     } finally { console.warn = realWarn; }
   };
@@ -347,17 +347,17 @@ const responses: Array<[string, Scripted]> = [
   }
   {
     const f = fakeFetch({ ok: true });
-    await postTaskSms(smsBodyMedia, 'Drop-off', { fetch: f.fn, baseUrl: BASE, anonKey: ANON });
-    eq('sms: exact request (anon key, body serialized as given)', f.calls, [{
+    await postTaskSms(smsBodyMedia, 'Drop-off', { fetch: f.fn, baseUrl: BASE, accessToken: ANON });
+    eq('sms: exact request (session access token, body serialized as given)', f.calls, [{
       url: `${BASE}/functions/v1/send-sms-notification`, method: 'POST',
       headers: { Authorization: `Bearer ${ANON}`, 'Content-Type': 'application/json' },
       body: '{"to":"+15555550123","message":"Hello","orderId":"ord-1","mediaUrls":[]}',
     }]);
     const f2 = fakeFetch({ ok: false, status: 500, text: async () => 'x' });
-    const r2 = await postTaskSms(smsBody, 'En Route', { fetch: f2.fn, baseUrl: BASE, anonKey: ANON });
+    const r2 = await postTaskSms(smsBody, 'En Route', { fetch: f2.fn, baseUrl: BASE, accessToken: ANON });
     eq('sms: failure projection', r2, { ok: false, warning: 'SMS failed to send', failureError: 'SMS endpoint returned 500' });
     const f3 = fakeFetch({ ok: true, throwOnFetch: new Error('offline') });
-    const r3 = await postTaskSms(smsBody, 'En Route', { fetch: f3.fn, baseUrl: BASE, anonKey: ANON });
+    const r3 = await postTaskSms(smsBody, 'En Route', { fetch: f3.fn, baseUrl: BASE, accessToken: ANON });
     eq('sms: thrown projection', r3, { ok: false, warning: 'SMS failed: offline', failureError: 'offline' });
   }
 

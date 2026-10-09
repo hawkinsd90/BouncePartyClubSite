@@ -10,6 +10,7 @@ import {
 } from './emailTemplateBase';
 import { formatOrderId, createShortPortalLink } from './utils';
 import { supabase } from './supabase';
+import { sendBookingConfirmation } from './bookingApi';
 
 interface SendOrderEditNotificationsParams {
   order: any;
@@ -173,27 +174,31 @@ export type CustomerBookingEmailResult =
   | { success: true }
   | { success: false; error: string };
 
-export async function sendCustomerBookingConfirmationNotifications(order: BookingOrderDetails): Promise<{ emailSent: boolean; emailError: string | null }> {
-  const { generateCustomerBookingEmail, generateCustomerSMS } = await import('./bookingEmailTemplates');
-
-  let emailResult: CustomerBookingEmailResult;
+// The customer's own booking confirmation after paying. The browser builds the wording; the server (complete-booking, which
+// requires the completed Stripe session for this order) sends it to the customer on the order. The public anon key can no
+// longer send arbitrary email or text through the notification relays.
+export async function sendCustomerBookingConfirmationNotifications(order: BookingOrderDetails, sessionId: string): Promise<{ emailSent: boolean; emailError: string | null }> {
   try {
-    emailResult = await sendCustomerBookingEmail(order, generateCustomerBookingEmail);
+    const { generateCustomerBookingEmail, generateCustomerSMS } = await import('./bookingEmailTemplates');
+    const emailHtml = generateCustomerBookingEmail(order);
+    let smsMessage: string | undefined;
+    try {
+      if (order.customer.phone) smsMessage = generateCustomerSMS(order);
+    } catch (smsErr) {
+      console.error('[NOTIFICATION] Error building customer booking SMS:', smsErr);
+    }
+    const result = await sendBookingConfirmation(order.id, sessionId, {
+      emailSubject: 'Booking Request Received - Bounce Party Club',
+      emailHtml,
+      ...(smsMessage ? { smsMessage } : {}),
+    });
+    if (!result.emailSent) console.error('[NOTIFICATION] Error sending customer booking email:', result.emailError);
+    return result;
   } catch (emailErr: any) {
-    emailResult = { success: false, error: emailErr?.message || 'Unknown email error' };
+    const message = emailErr?.message || 'Unknown email error';
+    console.error('[NOTIFICATION] Error sending customer booking email:', message);
+    return { emailSent: false, emailError: message };
   }
-
-  try {
-    await sendCustomerBookingSMS(order, generateCustomerSMS);
-  } catch (smsErr) {
-    console.error('[NOTIFICATION] Error sending customer booking SMS:', smsErr);
-  }
-
-  if (emailResult.success) {
-    return { emailSent: true, emailError: null };
-  }
-  console.error('[NOTIFICATION] Error sending customer booking email:', emailResult.error);
-  return { emailSent: false, emailError: emailResult.error };
 }
 
 async function sendCustomerBookingEmail(order: BookingOrderDetails, generateEmail: (order: any) => string): Promise<CustomerBookingEmailResult> {

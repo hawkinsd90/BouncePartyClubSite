@@ -1,8 +1,9 @@
 import { useState, useEffect } from 'react';
-import { loadCompletedBooking, markBookingConfirmationSent } from '../lib/bookingApi';
+import { loadCompletedBooking } from '../lib/bookingApi';
 import { SafeStorage } from '../lib/safeStorage';
 import { sendCustomerBookingConfirmationNotifications } from '../lib/orderNotificationService';
 import { ORDER_STATUS } from '../lib/constants/statuses';
+import { confirmationSettled } from '../lib/confirmationRetry';
 
 interface OrderDetails {
   id: string;
@@ -170,8 +171,10 @@ export function usePaymentCompletion(orderId: string | null, sessionId: string |
         setIsAdminInvoice(adminInvoice);
 
         if (!alreadyProcessed && !adminInvoice) {
-          await sendNotificationsIfNeeded(order);
-          SafeStorage.setItem(processedKey, 'true');
+          // Remember this visit as handled only when the confirmation is settled. A failed or still-in-progress send must stay
+          // retryable on the next visit; the server decides whether anything is actually sent.
+          const settled = await sendNotificationsIfNeeded(order);
+          if (settled) SafeStorage.setItem(processedKey, 'true');
         }
 
         if (adminInvoice) {
@@ -193,20 +196,18 @@ export function usePaymentCompletion(orderId: string | null, sessionId: string |
     }
   }
 
-  async function sendNotificationsIfNeeded(order: OrderDetails & { booking_confirmation_sent?: boolean }) {
+  async function sendNotificationsIfNeeded(order: OrderDetails & { booking_confirmation_sent?: boolean }): Promise<boolean> {
     if (order.booking_confirmation_sent) {
       setEmailSent(true);
       setEmailError(null);
-      return;
+      return confirmationSettled(true, null);
     }
 
-    const result = await sendCustomerBookingConfirmationNotifications(order);
+    const result = await sendCustomerBookingConfirmationNotifications(order, sessionId!);
     setEmailSent(result.emailSent);
     setEmailError(result.emailError || null);
-
-    if (result.emailSent) {
-      await markBookingConfirmationSent(orderId!, sessionId!);
-    }
+    // complete-booking marks the confirmation sent itself, once the email has actually gone out.
+    return confirmationSettled(false, result);
   }
 
   function clearLocalStorage() {

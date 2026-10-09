@@ -17,7 +17,6 @@ import { CancelOrderModal } from './CancelOrderModal';
 import { showToast } from '../../lib/notifications';
 import { portalAction } from '../../lib/customerPortalApi';
 import { checkEventEssentialsAvailability } from '../../lib/queries/products';
-import { sendNotificationToCustomer } from '../../lib/notificationService';
 import { enterConfirmed } from '../../lib/orderLifecycle';
 import {
   generateConfirmationReceiptEmail,
@@ -310,14 +309,17 @@ export function InvoiceAcceptanceView({
             portalUrl,
           });
 
-          await sendNotificationToCustomer({
-            phone: smsConsent && phone ? phone : undefined,
-            email: email || undefined,
-            smsMessage,
-            emailSubject: `Booking Confirmed - Receipt for Order #${formatOrderId(order.id)}`,
-            emailHtml,
-            orderId: order.id,
-          });
+          // Sent by the server to the customer on this order; the browser supplies only the wording (and whether the
+          // customer agreed to texts), never a recipient.
+          const confirmation: Record<string, string> = {};
+          if (email) {
+            confirmation.emailSubject = `Booking Confirmed - Receipt for Order #${formatOrderId(order.id)}`;
+            confirmation.emailHtml = emailHtml;
+          }
+          if (smsConsent && phone) confirmation.smsMessage = smsMessage;
+          if (Object.keys(confirmation).length > 0) {
+            await portalAction(order.id, invoiceToken, 'send_confirmation', confirmation);
+          }
         } catch (notifError: any) {
           console.error('[InvoiceAcceptanceView] confirmation notification failed (non-fatal):', notifError);
         }

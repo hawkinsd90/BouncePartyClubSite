@@ -280,12 +280,10 @@ export function ApprovalModal({
 </table>
 </body></html>`;
 
-            await supabase.functions.invoke('send-email', {
-              body: {
-                to: customer.email,
-                subject: `Booking Confirmed - Order #${shortId}`,
-                html: emailHtml,
-              },
+            // Sent by the server to the customer on this order; the browser supplies only the wording.
+            await portalAction(order.id, invoiceLinkToken, 'send_confirmation', {
+              emailSubject: `Booking Confirmed - Order #${shortId}`,
+              emailHtml,
             });
           }
         } catch (notifyErr) {
