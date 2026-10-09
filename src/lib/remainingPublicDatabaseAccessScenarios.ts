@@ -113,6 +113,9 @@ END $p$;
 CREATE FUNCTION pg_temp.consumed_receipts() RETURNS bigint LANGUAGE sql SECURITY DEFINER AS $p$
   SELECT CASE WHEN is_called THEN last_value ELSE last_value - 1 END FROM public.receipt_number_seq;
 $p$;
+-- Functions created by the migration role no longer start out executable by PUBLIC; scenarios call these as other roles.
+GRANT EXECUTE ON FUNCTION pg_temp.probe(text) TO PUBLIC;
+GRANT EXECUTE ON FUNCTION pg_temp.consumed_receipts() TO PUBLIC;
 `;
 
 const denied = 'ERR:42501';
@@ -159,9 +162,9 @@ export function buildRemainingScenarios(): Scenario[] {
   // ---- table privileges nothing needs ----
   add('table privileges: no public table can be truncated or have triggers / references created by anon', 'service_role', null, `SELECT count(*)::text FROM pg_class c WHERE c.relnamespace = 'public'::regnamespace AND c.relkind IN ('r', 'p') AND (has_table_privilege('anon', c.oid, 'TRUNCATE') OR has_table_privilege('anon', c.oid, 'TRIGGER') OR has_table_privilege('anon', c.oid, 'REFERENCES'))`, '0');
   add('table privileges: signed-in users cannot truncate any public table either', 'service_role', null, `SELECT count(*)::text FROM pg_class c WHERE c.relnamespace = 'public'::regnamespace AND c.relkind IN ('r', 'p') AND (has_table_privilege('authenticated', c.oid, 'TRUNCATE') OR has_table_privilege('authenticated', c.oid, 'TRIGGER') OR has_table_privilege('authenticated', c.oid, 'REFERENCES'))`, '0');
-  add('table privileges: anon keeps write privileges only on tables that have an anon / PUBLIC write policy', 'service_role', null, `SELECT string_agg(c.relname, ',' ORDER BY c.relname) FROM pg_class c WHERE c.relnamespace = 'public'::regnamespace AND c.relkind IN ('r', 'p') AND (has_table_privilege('anon', c.oid, 'INSERT') OR has_table_privilege('anon', c.oid, 'UPDATE') OR has_table_privilege('anon', c.oid, 'DELETE'))`, 'pending_signups_consent,site_events');
+  add('table privileges: anon keeps write privileges only on tables that have an anon / PUBLIC write policy', 'service_role', null, `SELECT string_agg(c.relname, ',' ORDER BY c.relname) FROM pg_class c WHERE c.relnamespace = 'public'::regnamespace AND c.relkind IN ('r', 'p') AND (has_table_privilege('anon', c.oid, 'INSERT') OR has_table_privilege('anon', c.oid, 'UPDATE') OR has_table_privilege('anon', c.oid, 'DELETE'))`, 'pending_signups_consent');
   add('table privileges: every anon write policy is on a table anon can still write', 'service_role', null, `SELECT count(*)::text FROM pg_policies p JOIN pg_class c ON c.relname = p.tablename AND c.relnamespace = 'public'::regnamespace WHERE p.schemaname = 'public' AND p.cmd IN ('INSERT', 'UPDATE', 'DELETE', 'ALL') AND (p.roles && ARRAY['anon', 'public']::name[]) AND NOT has_table_privilege('anon', c.oid, CASE p.cmd WHEN 'ALL' THEN 'INSERT,UPDATE,DELETE' ELSE p.cmd END)`, '0');
-  add('table privileges: anonymous analytics event insert still works (site_events)', 'anon', null, `WITH i AS (INSERT INTO public.site_events (event_name) VALUES ('page_view') RETURNING 1) SELECT count(*)::text FROM i`, '1');
+  add('table privileges: anonymous analytics events are no longer written straight to site_events (the ingestion function writes them)', 'anon', null, `WITH i AS (INSERT INTO public.site_events (event_name) VALUES ('page_view') RETURNING 1) SELECT count(*)::text FROM i`, denied);
   add('table privileges: anonymous public catalog read still works (units, pricing)', 'anon', null, `SELECT ((SELECT count(*) FROM public.units) >= 1 AND (SELECT count(*) FROM public.pricing_rules) >= 0)::text`, 'true');
 
   // ---- function privileges ----------------------------------------------------------------------------------------------
@@ -208,7 +211,7 @@ export function buildRemainingScenarios(): Scenario[] {
   add('get_unresolved_failures_count: the backend sees the real count', 'service_role', null, `SELECT public.get_unresolved_failures_count()->>'total'`, '1');
   add('user_has_role: anonymous caller cannot probe roles', 'anon', null, `SELECT public.user_has_role('${ADMIN}', 'ADMIN')::text`, denied);
   add('user_has_role: signed-in customer cannot probe another user\'s role', 'authenticated', A, `SELECT public.user_has_role('${ADMIN}', 'ADMIN')::text`, denied);
-  add('user_has_role: the backend still answers', 'service_role', null, `SELECT public.user_has_role('${A}', 'CUSTOMER')::text`, 'true');
+  add('user_has_role: the backend still answers', 'service_role', null, `SELECT public.user_has_role('${A}', 'customer')::text`, 'true');
   add('get_user_highest_role: signed-in customer cannot probe another user\'s role', 'authenticated', A, `SELECT public.get_user_highest_role('${ADMIN}')`, denied);
   add('get_user_highest_role: anonymous caller denied', 'anon', null, `SELECT public.get_user_highest_role('${ADMIN}')`, denied);
   add('assign_user_role: anonymous caller denied before the function body', 'anon', null, `SELECT public.assign_user_role('${A}', 'master')::text`, denied);

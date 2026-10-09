@@ -31,6 +31,13 @@ export const RATE_LIMIT_CONFIGS: Record<string, RateLimitConfig> = {
   'create-booking': { maxRequests: 10, windowSeconds: 600 },
   'check-availability': { maxRequests: 60, windowSeconds: 60 },
   'complete-booking': { maxRequests: 30, windowSeconds: 60 },
+  // Website analytics: a browsing session sends a handful of events a minute (a quote flow fires about ten in its busiest minute),
+  // and visitors behind one address share the allowance. 120 a minute is far above that and still bounds a flood to ~170k rows a day.
+  'record-site-event': { maxRequests: 120, windowSeconds: 60 },
+  // A ceiling on ALL website analytics, whoever sends them. The per-address allowance above relies on the request address, which this
+  // codebase takes from forwarding headers; if a caller could rotate that value, this bucket still bounds the total. A real site sees a
+  // handful of events a day (Dev holds ~1,000 in six months), so 240 a minute is several orders of magnitude above real use.
+  'record-site-event-global': { maxRequests: 240, windowSeconds: 60 },
   // A customer's own booking confirmation, per order (a real customer needs one, perhaps a retry).
   'customer-notice': { maxRequests: 3, windowSeconds: 600 },
 };
@@ -65,12 +72,17 @@ export function buildRateLimitKey(ip: string, secondaryId?: string, prefix?: str
   return parts.join('|');
 }
 
+// failClosed: when the limiter cannot make a valid decision (the check_rate_limit call errors, throws, or answers with something that is
+// not an allow / deny result) the request is DENIED with reason 'limiter_unavailable' instead of allowed. The default (false) keeps the
+// historical behaviour every existing caller relies on. Only endpoints whose protection IS the limiter (public ingestion) opt in.
 export async function checkRateLimit(
   endpoint: string,
   identifier: string,
   customConfig?: Partial<RateLimitConfig>,
-  requireIdentifier: boolean = false
+  requireIdentifier: boolean = false,
+  failClosed: boolean = false
 ): Promise<RateLimitResult> {
+  const undecided: RateLimitResult = failClosed ? { allowed: false, reason: 'limiter_unavailable' } : { allowed: true };
   // Enforce identifier requirement for payment endpoints
   if (requireIdentifier && !identifier) {
     return {
@@ -98,13 +110,18 @@ export async function checkRateLimit(
 
     if (error) {
       console.error('Rate limit check error:', error);
-      return { allowed: true };
+      return undecided;
+    }
+
+    if (failClosed && !(data && typeof data === 'object' && typeof (data as RateLimitResult).allowed === 'boolean')) {
+      console.error('Rate limit check returned an unusable result');
+      return undecided;
     }
 
     return data as RateLimitResult;
   } catch (error) {
     console.error('Rate limit check failed:', error);
-    return { allowed: true };
+    return undecided;
   }
 }
 

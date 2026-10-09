@@ -267,7 +267,7 @@ const PRIVATE = OWNED.filter((t) => !PUBLIC_READ.includes(t));
   const walk = (d: string) => { for (const e of fs.readdirSync(d, { withFileTypes: true })) { const f = d + '/' + e.name; if (e.isDirectory()) walk(f); else if (/\.(ts|tsx|js|sql)$/.test(e.name) && f !== 'src/lib/coreDatabaseAccess.test.ts' && addCol.test(read(f))) offenders.push(f); } };
   walk('src');
   ok('static: no test or source file adds the approval column outside the migration', offenders.length === 0);
-  ok('static: the scenario seed does not alter the schema', !/ALTER TABLE|CREATE TABLE/i.test(SEED_SQL));
+  ok('static: the scenario seed does not alter the schema', !/ALTER TABLE(?! auth.users DISABLE TRIGGER USER;)|CREATE TABLE/i.test(SEED_SQL));
   ok('static: the core-database-access migration sorts after the public-booking and delivery-unit migrations', idx('20261012120000_core_database_access_lockdown.sql') > idx('20261011120000_order_event_address_line2.sql') && idx('20261011120000_order_event_address_line2.sql') > idx('20261010120000_secure_public_booking_creation.sql'));
   ok('static: the delivery-unit migration (which restates create_booking_request) is untouched in meaning', /event_address_line2/.test(read('supabase/migrations/20261011120000_order_event_address_line2.sql')));
 }

@@ -37,11 +37,13 @@ export const IDS = {
 };
 
 export const SEED_SQL = `
+-- The fixture creates its own role rows, so the sign-up trigger (which would add a customer role) stays out of the way.
+ALTER TABLE auth.users DISABLE TRIGGER USER;
 INSERT INTO auth.users (id, email) VALUES
   ('${IDS.uAdmin}', 'admin@example.com'), ('${IDS.uCrew}', 'crew@example.com'),
   ('${IDS.uA}', 'a@example.com'), ('${IDS.uB}', 'b@example.com'), ('${IDS.uLegacy}', 'legacy@example.com');
 INSERT INTO public.user_roles (user_id, role) VALUES
-  ('${IDS.uAdmin}', 'ADMIN'), ('${IDS.uCrew}', 'CREW'), ('${IDS.uA}', 'CUSTOMER'), ('${IDS.uB}', 'CUSTOMER');
+  ('${IDS.uAdmin}', 'admin'), ('${IDS.uCrew}', 'crew'), ('${IDS.uA}', 'customer'), ('${IDS.uB}', 'customer');
 INSERT INTO public.customers (id, first_name, last_name, email, phone, user_id) VALUES
   ('${IDS.custA}', 'Ann', 'A', 'a@example.com', '5550000001', '${IDS.uA}'),
   ('${IDS.custB}', 'Bob', 'B', 'b@example.com', '5550000002', '${IDS.uB}'),
@@ -319,6 +321,11 @@ BEGIN
   GET DIAGNOSTICS c = ROW_COUNT;
   RETURN c;
 END $g$;
+-- Functions created by the migration role no longer start out executable by PUBLIC, and these helpers are called while a scenario is
+-- running as anon / authenticated / service_role.
+GRANT EXECUTE ON FUNCTION pg_temp.n(text) TO PUBLIC;
+GRANT EXECUTE ON FUNCTION pg_temp.as_role(text, uuid, text) TO PUBLIC;
+GRANT EXECUTE ON FUNCTION pg_temp.book(text, uuid, text) TO PUBLIC;
 DO $run$
 BEGIN
 ${calls.join('\n')}

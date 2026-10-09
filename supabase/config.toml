@@ -139,5 +139,8 @@ verify_jwt = false
 [functions.check-availability]
 verify_jwt = false
 
+[functions.record-site-event]
+verify_jwt = false
+
 [functions.complete-booking]
 verify_jwt = false

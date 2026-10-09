@@ -1,5 +1,4 @@
 import { supabase } from './supabase';
-import type { Json } from './database.types';
 import { redactCredentialsInPath } from './portalToken';
 
 let sessionId: string | null = null;
@@ -76,13 +75,16 @@ export async function trackEvent(
     if (adminOrMaster) return;
 
     const pagePath = redactCredentialsInPath(window.location.pathname);
-    await supabase.from('site_events').insert({
-      event_name: eventName,
-      session_id: getSessionId(),
-      unit_id: options.unitId || null,
-      order_id: options.orderId || null,
-      page_path: pagePath,
-      metadata: (options.metadata as Json) || null,
+    // Events go through the ingestion function: the table no longer accepts direct writes from the browser.
+    await supabase.functions.invoke('record-site-event', {
+      body: {
+        event_name: eventName,
+        session_id: getSessionId(),
+        ...(options.unitId ? { unit_id: options.unitId } : {}),
+        ...(options.orderId ? { order_id: options.orderId } : {}),
+        page_path: pagePath,
+        ...(options.metadata ? { metadata: options.metadata } : {}),
+      },
     });
   } catch {
     // Tracking failures must never break the user experience
