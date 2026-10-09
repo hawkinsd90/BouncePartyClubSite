@@ -14,6 +14,8 @@ export type PortalActionName =
   | "register_lot_pictures"
   | "delete_lot_picture"
   | "register_order_pictures"
+  | "request_picture_upload"
+  | "discard_unregistered_pictures"
   | "check_unit_availability";
 
 export const PORTAL_ACTION_NAMES: readonly PortalActionName[] = [
@@ -25,6 +27,8 @@ export const PORTAL_ACTION_NAMES: readonly PortalActionName[] = [
   "register_lot_pictures",
   "delete_lot_picture",
   "register_order_pictures",
+  "request_picture_upload",
+  "discard_unregistered_pictures",
   "check_unit_availability",
 ];
 
@@ -46,6 +50,39 @@ const str = (v: unknown, max: number): string | null => (typeof v === "string" &
 // True when the object has no keys outside the allowed set.
 function onlyKeys(o: Obj, allowed: readonly string[]): boolean {
   return Object.keys(o).every((k) => allowed.includes(k));
+}
+
+// The two customer photo categories. The browser names a KIND; the server maps it to a bucket, so a caller can never choose a
+// bucket. The mime lists mirror what each bucket accepts and what the upload screens offer (images only).
+export type PictureKind = "lot_picture" | "order_picture";
+export const PICTURE_KINDS: Record<PictureKind, { bucket: string; maxFiles: number; mimeTypes: Record<string, string> }> = {
+  lot_picture: {
+    bucket: "lot-pictures",
+    maxFiles: MAX_LOT_PICTURES,
+    mimeTypes: { "image/jpeg": "jpg", "image/jpg": "jpg", "image/png": "png", "image/webp": "webp", "image/heic": "heic" },
+  },
+  order_picture: {
+    bucket: "order-pictures",
+    maxFiles: 20,
+    mimeTypes: { "image/jpeg": "jpg", "image/jpg": "jpg", "image/png": "png", "image/webp": "webp", "image/heic": "heic", "image/heif": "heif", "image/gif": "gif" },
+  },
+};
+const PICTURE_UUID = "[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}";
+// An order id is used verbatim as the folder name, so it may contain only characters that are inert in a path and a pattern.
+const ORDER_FOLDER_RE = /^[A-Za-z0-9_-]{1,64}$/;
+
+// The exact object path the server issues for a new upload: <order id>/<random id>.<extension>. The browser never chooses it.
+export function issuedPicturePath(orderId: string, objectId: string, mimeType: string, kind: PictureKind): string | null {
+  const ext = PICTURE_KINDS[kind].mimeTypes[mimeType];
+  if (!ext || !ORDER_FOLDER_RE.test(orderId) || !UUID_RE.test(objectId)) return null;
+  return `${orderId}/${objectId.toLowerCase()}.${ext}`;
+}
+
+// True only for a path of the shape issuedPicturePath produces, inside THIS order's folder, for this kind's extensions.
+export function isIssuedPicturePath(path: unknown, orderId: string, kind: PictureKind): path is string {
+  if (typeof path !== "string" || !ORDER_FOLDER_RE.test(orderId)) return false;
+  const exts = Array.from(new Set(Object.values(PICTURE_KINDS[kind].mimeTypes))).join("|");
+  return new RegExp(`^${orderId}/${PICTURE_UUID}\\.(?:${exts})$`).test(path);
 }
 
 // A storage object path must live in the order's own folder and may not climb out of it.
@@ -139,7 +176,7 @@ export function validateAction(name: unknown, payload: unknown, orderId: string)
       for (const f of p.files) {
         if (!isObj(f) || !onlyKeys(f, ["path", "name"])) return null;
         const name = str(f.name, 255);
-        if (!isOrderStoragePath(f.path, orderId) || !name) return null;
+        if (!isIssuedPicturePath(f.path, orderId, "lot_picture") || !name) return null;
         files.push({ path: f.path, name });
       }
       return { name: "register_lot_pictures", payload: { files } };
@@ -156,7 +193,7 @@ export function validateAction(name: unknown, payload: unknown, orderId: string)
         const name = str(f.name, 255);
         const mime = typeof f.mimeType === "string" && f.mimeType.length <= 100 ? f.mimeType : "";
         const size = typeof f.size === "number" && Number.isInteger(f.size) && f.size >= 0 && f.size <= MAX_PICTURE_BYTES ? f.size : null;
-        if (!isOrderStoragePath(f.path, orderId) || !name || size === null || !/^(image\/|application\/pdf$)/.test(mime)) return null;
+        if (!isIssuedPicturePath(f.path, orderId, "order_picture") || !name || size === null || !(mime in PICTURE_KINDS.order_picture.mimeTypes)) return null;
         files.push({ path: f.path, name, size, mimeType: mime });
       }
       let notes: string | null = null;
@@ -165,6 +202,28 @@ export function validateAction(name: unknown, payload: unknown, orderId: string)
         if (!notes) return null;
       }
       return { name: "register_order_pictures", payload: { files, notes } };
+    }
+    case "request_picture_upload": {
+      if (!onlyKeys(p, ["kind", "files"]) || typeof p.kind !== "string" || !(p.kind in PICTURE_KINDS)) return null;
+      const kind = p.kind as PictureKind;
+      const rules = PICTURE_KINDS[kind];
+      if (!Array.isArray(p.files) || p.files.length < 1 || p.files.length > rules.maxFiles) return null;
+      const files: Obj[] = [];
+      for (const f of p.files) {
+        if (!isObj(f) || !onlyKeys(f, ["name", "size", "mimeType"])) return null;
+        const name = str(f.name, 255);
+        const size = typeof f.size === "number" && Number.isInteger(f.size) && f.size > 0 && f.size <= MAX_PICTURE_BYTES ? f.size : null;
+        if (!name || size === null || typeof f.mimeType !== "string" || !(f.mimeType in rules.mimeTypes)) return null;
+        files.push({ name, size, mimeType: f.mimeType });
+      }
+      return { name: "request_picture_upload", payload: { kind, files } };
+    }
+    case "discard_unregistered_pictures": {
+      if (!onlyKeys(p, ["kind", "paths"]) || typeof p.kind !== "string" || !(p.kind in PICTURE_KINDS)) return null;
+      const kind = p.kind as PictureKind;
+      if (!Array.isArray(p.paths) || p.paths.length < 1 || p.paths.length > PICTURE_KINDS[kind].maxFiles) return null;
+      if (!p.paths.every((x) => isIssuedPicturePath(x, orderId, kind))) return null;
+      return { name: "discard_unregistered_pictures", payload: { kind, paths: p.paths } };
     }
   }
   return null;

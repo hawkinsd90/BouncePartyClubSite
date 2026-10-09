@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '../lib/supabase';
+import { fetchTaskEvidenceViews } from '../lib/taskEvidenceApi';
 import { normalizeAdminPhotos, countPhotosBySource } from '../lib/adminPhotoNormalizers';
 import type {
   TaskStatusRow, LotPictureRow, AddressLotPictureRow, OrderPictureRow, UnitMediaRow, CarouselRow,
@@ -152,6 +153,25 @@ export function useAdminPhotos() {
           .select('id, address_id, file_path'),
       ]);
 
+      // lot-pictures and order-pictures are private buckets: the signed-in admin asks Storage for short-lived signed URLs.
+      const signedUrls = new Map<string, string>();
+      const signPaths = async (bucket: string, rows: Array<{ file_path: string }> | null) => {
+        const paths = Array.from(new Set((rows || []).map((r) => r.file_path).filter(Boolean)));
+        if (paths.length === 0) return;
+        const { data } = await supabase.storage.from(bucket).createSignedUrls(paths, 3600);
+        for (const entry of data || []) {
+          if (entry.path && entry.signedUrl) signedUrls.set(`${bucket}/${entry.path}`, entry.signedUrl);
+        }
+      };
+      await Promise.all([
+        signPaths('lot-pictures', lotRes.data as Array<{ file_path: string }> | null),
+        signPaths('order-pictures', orderPicRes.data as Array<{ file_path: string }> | null),
+      ]);
+
+      // Delivery / damage evidence is private too: the task-evidence function reads each task's references and returns
+      // signed viewing URLs (and drops references it does not trust).
+      const evidenceViews = await fetchTaskEvidenceViews(((taskRes.data || []) as Array<{ id: string }>).map((t) => t.id));
+
       const normalized = normalizeAdminPhotos(
         {
           taskRows: (taskRes.data || []) as unknown as TaskStatusRow[],
@@ -162,7 +182,11 @@ export function useAdminPhotos() {
           savedLotRows: (savedLotRes.data || []) as unknown as AddressLotPictureRow[],
         },
         {
-          getPublicUrl: (bucket, path) => supabase.storage.from(bucket).getPublicUrl(path).data.publicUrl,
+          resolveMediaUrl: (bucket, path) => signedUrls.get(`${bucket}/${path}`) ?? '',
+          resolveEvidence: (taskStatusId, kind, _ref, index) => {
+            const view = evidenceViews[taskStatusId]?.[kind]?.[index];
+            return view && view.bucket ? { url: view.url, bucket: view.bucket, path: view.path } : null;
+          },
           nowIso: () => new Date().toISOString(),
         },
       );

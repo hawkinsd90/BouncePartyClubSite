@@ -2,7 +2,7 @@
 //
 // Six source-specific mappings (task delivery, task damage, lot, order, unit, carousel) into the one AdminPhoto
 // model, the final newest-first sort, and the per-source counts. The hook keeps the queries, state, effects and
-// the storage binding. The two non-pure dependencies are injected: `getPublicUrl(bucket, path)` (the Supabase
+// the storage binding. The two non-pure dependencies are injected: `resolveMediaUrl(bucket, path)` (the Supabase
 // storage lookup) and `nowIso()` (the "now" fallback used when a source row has no timestamp).
 //
 // Preserved quirks (do not "fix" here): delivery/damage ids use the LAST 16 characters of the URL, so two photos
@@ -98,8 +98,12 @@ export interface AdminPhotoSourceRows {
 }
 
 export interface AdminPhotoNormalizerDeps {
-  // Public URL for a storage object (the hook binds this to supabase.storage.from(bucket).getPublicUrl(path)).
-  getPublicUrl: (bucket: string, path: string) => string;
+  // Viewing URL for an object in a private photo bucket (the hook binds this to a short-lived signed URL).
+  resolveMediaUrl: (bucket: string, path: string) => string;
+  // Delivery / damage evidence is private too. The server resolves each stored reference of a task (it reads the references
+  // from the database) to a signed URL plus the bucket and path it came from; null means the reference is not trusted
+  // (external URL, another bucket, another order) and the photo is left out of the library.
+  resolveEvidence: (taskStatusId: string, kind: 'delivery' | 'damage', ref: string, index: number) => { url: string | null; bucket: string | null; path: string | null } | null;
   // Current time as an ISO string; called only where the old code used `new Date().toISOString()`.
   nowIso: () => string;
 }
@@ -122,7 +126,7 @@ export function buildCustomerName(
 }
 
 export function normalizeAdminPhotos(rows: AdminPhotoSourceRows, deps: AdminPhotoNormalizerDeps): AdminPhoto[] {
-  const { getPublicUrl, nowIso } = deps;
+  const { resolveMediaUrl, resolveEvidence, nowIso } = deps;
   const normalized: AdminPhoto[] = [];
 
   // Build a lookup: "address_id|file_path" -> address_lot_picture id
@@ -142,16 +146,18 @@ export function normalizeAdminPhotos(rows: AdminPhotoSourceRows, deps: AdminPhot
     const eventDate = orderData?.event_date ?? undefined;
 
     // delivery_images
-    for (const url of (row.delivery_images || [])) {
+    for (const [index, url] of (row.delivery_images || []).entries()) {
       if (!url || typeof url !== 'string') continue;
-      const filePath = extractPathFromPublicUrl(url, 'public-assets');
+      const evidence = resolveEvidence(row.id, 'delivery', url, index);
+      if (!evidence || !evidence.bucket) continue;
+      const filePath = evidence.path;
       const fileName = filePath ? filePath.split('/').pop() ?? 'delivery-photo.jpg' : 'delivery-photo.jpg';
       normalized.push({
         id: `delivery-${row.id}-${url.slice(-16)}`,
         source: 'delivery',
-        public_url: url,
+        public_url: evidence.url ?? '',
         file_path: filePath,
-        bucket: 'public-assets',
+        bucket: evidence.bucket,
         file_name: fileName,
         created_at: row.created_at ?? nowIso(),
         order_id: row.order_id,
@@ -166,16 +172,18 @@ export function normalizeAdminPhotos(rows: AdminPhotoSourceRows, deps: AdminPhot
     }
 
     // damage_images
-    for (const url of (row.damage_images || [])) {
+    for (const [index, url] of (row.damage_images || []).entries()) {
       if (!url || typeof url !== 'string') continue;
-      const filePath = extractPathFromPublicUrl(url, 'public-assets');
+      const evidence = resolveEvidence(row.id, 'damage', url, index);
+      if (!evidence || !evidence.bucket) continue;
+      const filePath = evidence.path;
       const fileName = filePath ? filePath.split('/').pop() ?? 'damage-photo.jpg' : 'damage-photo.jpg';
       normalized.push({
         id: `damage-${row.id}-${url.slice(-16)}`,
         source: 'damage',
-        public_url: url,
+        public_url: evidence.url ?? '',
         file_path: filePath,
-        bucket: 'public-assets',
+        bucket: evidence.bucket,
         file_name: fileName,
         created_at: row.created_at ?? nowIso(),
         order_id: row.order_id,
@@ -191,7 +199,7 @@ export function normalizeAdminPhotos(rows: AdminPhotoSourceRows, deps: AdminPhot
 
   // --- Lot pictures ---
   for (const row of rows.lotRows) {
-    const publicUrl = getPublicUrl('lot-pictures', row.file_path);
+    const publicUrl = resolveMediaUrl('lot-pictures', row.file_path);
     const orderData = Array.isArray(row.orders) ? row.orders[0] : row.orders;
     const addr = orderData?.addresses
       ? (Array.isArray(orderData.addresses) ? orderData.addresses[0] : orderData.addresses)
@@ -224,7 +232,7 @@ export function normalizeAdminPhotos(rows: AdminPhotoSourceRows, deps: AdminPhot
 
   // --- Order pictures ---
   for (const row of rows.orderPicRows) {
-    const publicUrl = getPublicUrl('order-pictures', row.file_path);
+    const publicUrl = resolveMediaUrl('order-pictures', row.file_path);
     const orderData = Array.isArray(row.orders) ? row.orders[0] : row.orders;
     const addr = orderData?.addresses
       ? (Array.isArray(orderData.addresses) ? orderData.addresses[0] : orderData.addresses)

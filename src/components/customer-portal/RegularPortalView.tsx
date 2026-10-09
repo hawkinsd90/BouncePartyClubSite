@@ -5,8 +5,8 @@ import { FileText, CreditCard, CheckCircle, Image as ImageIcon, MapPin, Printer,
 import { useNavigate, useLocation, useSearchParams } from 'react-router-dom';
 import { formatCurrency } from '../../lib/pricing';
 import { formatOrderId } from '../../lib/utils';
-import { supabase } from '../../lib/supabase';
 import { portalAction, type PortalDeliveryState } from '../../lib/customerPortalApi';
+import { uploadPortalPictures, discardPortalPictures } from '../../lib/portalPictureUpload';
 import { resolveCustomerPortalTab, buildTabUrlParam, type PortalTabKey, type PortalNavSection } from '../../lib/customerPortalTab';
 import WaiverTab from '../waiver/WaiverTab';
 import { PaymentTab } from './PaymentTab';
@@ -71,10 +71,8 @@ export function RegularPortalView({ order, orderId, orderItems: _orderItems, ord
   const deliveryImages = Array.isArray(portalExtras?.delivery?.delivery_images) ? portalExtras!.delivery!.delivery_images : [];
   const deliveryPhotosAvailable = deliveryImages.length > 0;
   const isDelivered = portalExtras?.delivery?.status === 'completed';
-  const existingPictures = (portalExtras?.pictures ?? []).map((pic: any) => {
-    const { data: urlData } = supabase.storage.from('order-pictures').getPublicUrl(pic.file_path);
-    return { ...pic, url: urlData.publicUrl };
-  });
+  // Each picture arrives with a short-lived signed read URL from the portal payload (the bucket is private).
+  const existingPictures = (portalExtras?.pictures ?? []).map((pic: any) => ({ ...pic, url: pic.url ?? '' }));
   const [restoredTipCents, setRestoredTipCents] = useState<number | null>(null);
   const refreshPortal = async () => {
     if (onSilentReload) await onSilentReload();
@@ -126,18 +124,16 @@ export function RegularPortalView({ order, orderId, orderItems: _orderItems, ord
 
   async function handleSubmitPictures(files: File[], notes: string) {
     try {
-      // Files go to storage first (storage access is a separate, later hardening step); the database record is then
-      // created by the server, which checks the paths belong to this order.
-      const uploaded = await Promise.all(files.map(async (file) => {
-        const fileExt = file.name.split('.').pop();
-        const fileName = `${orderId}/${Date.now()}-${Math.random().toString(36).substring(7)}.${fileExt}`;
-        const { error: uploadError } = await supabase.storage
-          .from('order-pictures')
-          .upload(fileName, file, { cacheControl: '3600', upsert: false });
-        if (uploadError) throw uploadError;
-        return { path: fileName, name: file.name, size: file.size, mimeType: file.type };
-      }));
-      await portalAction(orderId, invoiceLinkToken, 'register_order_pictures', { files: uploaded, notes: notes || null });
+      // The server issues an upload authorization for this order (it chooses the bucket and the file paths); the files go
+      // only to those objects, and the database record is then created by the server.
+      const uploaded = await uploadPortalPictures(orderId, invoiceLinkToken, 'order_picture', files);
+      try {
+        await portalAction(orderId, invoiceLinkToken, 'register_order_pictures', { files: uploaded, notes: notes || null });
+      } catch (registerError) {
+        // The server already removes unregistered objects when it rejects a registration; this covers a lost response.
+        await discardPortalPictures(orderId, invoiceLinkToken, 'order_picture', uploaded.map((u) => u.path));
+        throw registerError;
+      }
       showToast(`Successfully uploaded ${files.length} picture${files.length > 1 ? 's' : ''}`, 'success');
       await refreshPortal();
     } catch (error) {

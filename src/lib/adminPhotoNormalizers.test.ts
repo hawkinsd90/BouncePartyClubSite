@@ -54,6 +54,15 @@ function oldExtractPathFromPublicUrl(fullUrl: string, bucket: string): string | 
   return fullUrl.slice(idx + marker.length);
 }
 
+// Delivery / damage evidence is private: a server-side resolver (faked here) returns the bucket, path and a signed URL for
+// every trusted reference of a task, and null for anything untrusted, which the library leaves out.
+function fakeEvidence(_taskId: string, _kind: 'delivery' | 'damage', ref: string): { url: string | null; bucket: string | null; path: string | null } | null {
+  const m = ref.match(/\/public\/public-assets\/(.+)$/);
+  if (m) return { bucket: 'public-assets', path: m[1], url: `https://cdn.test/sign/public-assets/${m[1]}` };
+  if (!/^https?:/.test(ref) && ref.includes('/')) return { bucket: 'order-evidence', path: ref, url: `https://cdn.test/sign/order-evidence/${ref}` };
+  return null;
+}
+
 function oldBuildCustomerName(customers: { first_name: string; last_name: string } | null): string | undefined {
   if (!customers) return undefined;
   return `${customers.first_name} ${customers.last_name}`.trim() || undefined;
@@ -82,14 +91,16 @@ function oracleNormalize(rows: AdminPhotoSourceRows, supabaseStorage: { from: (b
 
     for (const url of (row.delivery_images || [])) {
       if (!url || typeof url !== 'string') continue;
-      const filePath = oldExtractPathFromPublicUrl(url, 'public-assets');
+      const ev = fakeEvidence(row.id, 'delivery', url);
+      if (!ev || !ev.bucket) continue;
+      const filePath = ev.path;
       const fileName = filePath ? filePath.split('/').pop() ?? 'delivery-photo.jpg' : 'delivery-photo.jpg';
       normalized.push({
         id: `delivery-${row.id}-${url.slice(-16)}`,
         source: 'delivery',
-        public_url: url,
+        public_url: ev.url ?? '',
         file_path: filePath,
-        bucket: 'public-assets',
+        bucket: ev.bucket,
         file_name: fileName,
         created_at: row.created_at ?? Date_.toISO(),
         order_id: row.order_id,
@@ -104,14 +115,16 @@ function oracleNormalize(rows: AdminPhotoSourceRows, supabaseStorage: { from: (b
 
     for (const url of (row.damage_images || [])) {
       if (!url || typeof url !== 'string') continue;
-      const filePath = oldExtractPathFromPublicUrl(url, 'public-assets');
+      const ev = fakeEvidence(row.id, 'damage', url);
+      if (!ev || !ev.bucket) continue;
+      const filePath = ev.path;
       const fileName = filePath ? filePath.split('/').pop() ?? 'damage-photo.jpg' : 'damage-photo.jpg';
       normalized.push({
         id: `damage-${row.id}-${url.slice(-16)}`,
         source: 'damage',
-        public_url: url,
+        public_url: ev.url ?? '',
         file_path: filePath,
-        bucket: 'public-assets',
+        bucket: ev.bucket,
         file_name: fileName,
         created_at: row.created_at ?? Date_.toISO(),
         order_id: row.order_id,
@@ -260,7 +273,8 @@ function run(label: string, rows: AdminPhotoSourceRows) {
   const expected = oracleNormalize(rows, storage, oc);
   const nc = counterClock();
   const actual = normalizeAdminPhotos(rows, {
-    getPublicUrl: (bucket, path) => { resolverCalls.push([bucket, path]); return `https://cdn.test/${bucket}/${path}`; },
+    resolveMediaUrl: (bucket, path) => { resolverCalls.push([bucket, path]); return `https://cdn.test/${bucket}/${path}`; },
+    resolveEvidence: (taskId, kind, ref) => fakeEvidence(taskId, kind, ref),
     nowIso: nc.now,
   });
   ok(`${label}: full AdminPhoto[] equals the old normalization`, same(actual, expected));
@@ -345,7 +359,7 @@ const URL = (name: string) => `https://x.supabase.co/storage/v1/object/public/pu
   eq('empty storage_path counts as no storage path', [actual.find((p) => p.id === 'c4')?.bucket, actual.find((p) => p.id === 'c4')?.file_path], [null, '']);
   eq('lot with no timestamps falls back to "now" via the injected clock', actual.find((p) => p.id === 'l2')?.created_at.startsWith('2030-'), true);
   eq('lot falls back to uploaded_at before "now"', actual.find((p) => p.id === 'l1')?.created_at, '2026-06-09T00:00:00Z');
-  eq('non-string and empty delivery entries are skipped; foreign URLs get the default file name and a null path; an empty path also gets the default name', actual.filter((p) => p.source === 'delivery').map((p) => [p.file_name, p.file_path]).sort(), [['delivery-photo.jpg', ''], ['delivery-photo.jpg', null], ['delivery-photo.jpg', null], ['leaf.png', 'nested/dir/leaf.png']]);
+  eq('non-string and empty delivery entries are skipped; references the server does not trust (foreign hosts, other buckets, empty paths) are left out of the library', actual.filter((p) => p.source === 'delivery').map((p) => [p.file_name, p.file_path]).sort(), [['leaf.png', 'nested/dir/leaf.png']]);
 }
 
 // ---- KNOWN QUIRK: URL-suffix ids can collide within one task status ----

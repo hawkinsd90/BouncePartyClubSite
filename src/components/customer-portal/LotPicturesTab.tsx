@@ -1,8 +1,8 @@
 import { useState, useRef } from 'react';
 import { Upload, Image as ImageIcon, CheckCircle, X, Maximize, Trash2 } from 'lucide-react';
-import { supabase } from '../../lib/supabase';
 import { notifyError, notifySuccess } from '../../lib/notifications';
 import { portalAction } from '../../lib/customerPortalApi';
+import { uploadPortalPictures, discardPortalPictures } from '../../lib/portalPictureUpload';
 import { SimpleConfirmModal } from '../common/SimpleConfirmModal';
 import { ORDER_STATUS } from '../../lib/constants/statuses';
 
@@ -26,6 +26,8 @@ interface LotPicture {
   file_name: string;
   notes: string | null;
   uploaded_at: string;
+  // Short-lived signed read URL from the portal payload (the bucket is private); null when it could not be signed.
+  url?: string | null;
 }
 
 export function LotPicturesTab({ orderId, orderStatus, pictures, invoiceLinkToken, onChanged, onUploadComplete, suppressRefreshRef }: LotPicturesTabProps) {
@@ -57,7 +59,7 @@ export function LotPicturesTab({ orderId, orderStatus, pictures, invoiceLinkToke
     setUploadError(null);
 
     try {
-      const uploaded: Array<{ path: string; name: string }> = [];
+      let uploaded: Array<{ path: string; name: string }> = [];
       try {
         for (const file of Array.from(files)) {
           // Validate file type
@@ -69,32 +71,19 @@ export function LotPicturesTab({ orderId, orderStatus, pictures, invoiceLinkToke
           if (file.size > 10 * 1024 * 1024) {
             throw new Error(`${file.name} is too large (max 10MB)`);
           }
-
-          // Create unique file name
-          const fileExt = file.name.split('.').pop();
-          const fileName = `${orderId}/${Date.now()}-${Math.random().toString(36).substring(7)}.${fileExt}`;
-
-          // Upload to storage (storage access is a separate, later hardening step)
-          const { error: storageUploadError } = await supabase.storage
-            .from('lot-pictures')
-            .upload(fileName, file, {
-              cacheControl: '3600',
-              upsert: false,
-            });
-
-          if (storageUploadError) {
-            console.error('[LotPicturesTab] Storage upload error:', storageUploadError.message);
-            throw new Error(`Storage upload failed: ${storageUploadError.message}`);
-          }
-          uploaded.push({ path: fileName, name: file.name });
         }
+
+        // The server issues an upload authorization for this order (it chooses the bucket and the file path); the files go
+        // only to those objects.
+        const sent = await uploadPortalPictures(orderId, invoiceLinkToken, 'lot_picture', Array.from(files));
+        uploaded = sent.map((s) => ({ path: s.path, name: s.name }));
 
         // The server records the pictures for this order and tells the admin when they were requested.
         await portalAction(orderId, invoiceLinkToken, 'register_lot_pictures', { files: uploaded });
       } catch (uploadError) {
-        // Do not leave orphaned files behind if the record could not be saved.
+        // Do not leave orphaned files behind if the record could not be saved (the server removes unregistered objects).
         if (uploaded.length > 0) {
-          await supabase.storage.from('lot-pictures').remove(uploaded.map((u) => u.path));
+          await discardPortalPictures(orderId, invoiceLinkToken, 'lot_picture', uploaded.map((u) => u.path));
         }
         throw uploadError;
       }
@@ -129,10 +118,8 @@ export function LotPicturesTab({ orderId, orderStatus, pictures, invoiceLinkToke
     }
   };
 
-  const getPictureUrl = (filePath: string) => {
-    const { data } = supabase.storage.from('lot-pictures').getPublicUrl(filePath);
-    return data.publicUrl;
-  };
+  // The pictures arrive with signed read URLs from the portal payload; the bucket is private.
+  const getPictureUrl = (picture: LotPicture) => picture.url ?? '';
 
   const handleDeleteClick = (picture: LotPicture) => {
     if (!canDelete) {
@@ -241,7 +228,7 @@ export function LotPicturesTab({ orderId, orderStatus, pictures, invoiceLinkToke
               <div key={picture.id} className="group relative">
                 <div className="aspect-square bg-slate-100 rounded-lg overflow-hidden border-2 border-slate-200 hover:border-blue-400 transition-colors relative">
                   <img
-                    src={getPictureUrl(picture.file_path)}
+                    src={getPictureUrl(picture)}
                     alt={picture.file_name}
                     className="w-full h-full object-cover cursor-pointer"
                     loading="lazy"
@@ -309,7 +296,7 @@ export function LotPicturesTab({ orderId, orderStatus, pictures, invoiceLinkToke
 
             {/* Image */}
             <img
-              src={getPictureUrl(selectedPicture.file_path)}
+              src={getPictureUrl(selectedPicture)}
               alt={selectedPicture.file_name}
               className="max-w-full max-h-[90vh] object-contain rounded-lg"
               onClick={(e) => e.stopPropagation()}

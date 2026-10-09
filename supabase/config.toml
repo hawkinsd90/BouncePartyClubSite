@@ -61,6 +61,9 @@ verify_jwt = false
 [functions.promote-media]
 verify_jwt = true
 
+[functions.task-evidence]
+verify_jwt = true
+
 [functions.reconcile-balance-payment]
 verify_jwt = false
 

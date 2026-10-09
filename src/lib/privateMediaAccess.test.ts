@@ -266,7 +266,7 @@ const sql = stripSql(raw);
   const allowedPublic = new Set(['carousel-media', 'event-essentials-media', 'unit-images', 'public-assets', 'lot-pictures', 'order-pictures', 'BUCKET', 'bucket', 'sourceBucket']);
   ok('source: every remaining getPublicUrl is for a reviewed public bucket (marketing media, or the documented residual buckets)', publicUrlUsers.every((b) => allowedPublic.has(b)));
   const delivery = read('src/components/admin/task-detail/taskPhotoUpload.ts');
-  ok('source (residual, documented): delivery / damage photos are still uploaded to the public public-assets bucket', /from\('public-assets'\)/.test(delivery));
+  ok('source: delivery / damage photos are no longer uploaded to public-assets (private evidence bucket, see the order evidence suite)', !/public-assets/.test(delivery) && /uploadToSignedUrl/.test(delivery));
   const removers = storageCalls.filter((c) => c.op === 'remove').map((c) => `${c.file}:${c.bucket}`);
   ok('source: every browser storage delete targets a reviewed bucket (marketing media, or the portal\'s own failed-upload cleanup)', removers.filter((r) => r.startsWith('src/')).every((r) => /carousel-media|event-essentials-media|BUCKET|lot-pictures/.test(r)));
   ok('source: the portal deletes registered lot pictures through the service-role action, with an order-ownership check', /db\.storage\.from\("lot-pictures"\)\.remove\(\[picture\.file_path\]\)/.test(read('supabase/functions/customer-portal-action/index.ts')));

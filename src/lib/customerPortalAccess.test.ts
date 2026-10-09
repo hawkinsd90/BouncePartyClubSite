@@ -33,6 +33,10 @@ import { loadPortalOrder } from './portalOrderLoader';
 import { PortalAccessError, fetchPortalData, portalAction, PortalActionError } from './customerPortalApi';
 import { createPortalRefreshController, type RefreshEnv } from './portalRefreshController';
 
+// Server-issued picture object ids (the portal chooses these; the browser never does).
+const OBJ = '00000000-0000-4000-8000-000000000001';
+const OBJ2 = '00000000-0000-4000-8000-000000000002';
+
 let passed = 0;
 let failed = 0;
 function ok(label: string, cond: boolean) {
@@ -98,7 +102,7 @@ function fixture(): Harness {
     { id: '22222222-2222-4222-8222-222222222222', order_id: 'order-appr2', file_path: 'order-appr2/b.jpg', file_name: 'b.jpg', notes: null, uploaded_at: '2026-10-04T00:00:00Z' },
   );
   db.tables.order_pictures.push({ id: 'p-1', order_id: 'order-act', file_path: 'order-act/p.jpg', file_name: 'p.jpg', file_size: 10, mime_type: 'image/jpeg', notes: 'n', uploaded_by: null, created_at: '2026-10-05T00:00:00Z' });
-  db.tables.task_status.push({ id: 't-1', order_id: 'order-act', task_type: 'drop-off', status: 'completed', delivery_images: ['https://img/1.jpg'], damage_images: ['https://img/damage.jpg'], notes: 'crew note', crew_notes: 'crew only', admin_notes: 'admin only', gps_lat: 1, gps_lng: 2, completed_time: '2026-10-06T00:00:00Z', updated_at: '2026-10-06T00:00:01Z', created_at: '2026-10-06T00:00:00Z' });
+  db.tables.task_status.push({ id: 't-1', order_id: 'order-act', task_type: 'drop-off', status: 'completed', delivery_images: ['order-act/t-1/delivery/00000000-0000-4000-8000-0000000000d1.jpg', 'https://img/not-trusted.jpg'], damage_images: ['https://img/damage.jpg'], notes: 'crew note', crew_notes: 'crew only', admin_notes: 'admin only', gps_lat: 1, gps_lng: 2, completed_time: '2026-10-06T00:00:00Z', updated_at: '2026-10-06T00:00:01Z', created_at: '2026-10-06T00:00:00Z' });
   return makeHarness(db);
 }
 
@@ -176,8 +180,8 @@ function fixture(): Harness {
     ok('projection: changelog is only returned for pending/approval statuses', Array.isArray(p.changelog) && p.changelog.length === 0);
     const appr = await call('jwt-A', { orderId: 'order-appr' });
     ok('projection: the approval changelog carries only field / old / new / time (no staff user or notes)', appr.json.data.changelog.length === 1 && Object.keys(appr.json.data.changelog[0]).every((k) => ['field_changed', 'old_value', 'new_value', 'created_at'].includes(k)) && !appr.text.includes('internal staff note'));
-    ok('projection: delivery omits damage photos and crew / admin notes', p.delivery.delivery_images.length === 1 && !/damage|crew note|crew only|admin only|gps/.test(owner.text));
-    ok('projection: customer pictures carry display facts only', p.pictures.length === 1 && Object.keys(p.pictures[0]).every((k) => ['id', 'file_path', 'file_name', 'notes', 'created_at'].includes(k)));
+    ok('projection: delivery omits damage photos and crew / admin notes', p.delivery.delivery_images.length === 1 && p.delivery.delivery_images[0].includes('/object/sign/order-evidence/order-act/t-1/delivery/') && !/not-trusted/.test(owner.text) && !/damage|crew note|crew only|admin only|gps/.test(owner.text));
+    ok('projection: customer pictures carry display facts only', p.pictures.length === 1 && Object.keys(p.pictures[0]).every((k) => ['id', 'file_path', 'file_name', 'notes', 'created_at', 'url'].includes(k)));
     ok('projection: lot pictures omit the uploader', !appr.text.includes('"uploaded_by"'));
     ok('projection: pricing configuration (public) is included for the summary builder', p.pricing?.base_radius_miles === 10);
     const lotOnly = await call('jwt-A', { orderId: 'order-appr', sections: ['lotPictures'] });
@@ -237,9 +241,9 @@ function fixture(): Harness {
     ok('validator: tip and payment amounts must be whole non-negative cents', v('invoice_accept_details', { cardOnFileConsent: true, smsConsent: true, tipCents: -1 }) === null && v('invoice_accept_details', { cardOnFileConsent: true, smsConsent: true, tipCents: 1.5 }) === null && v('invoice_select_payment', { amountCents: '5000', type: 'deposit' }) === null && v('invoice_select_payment', { amountCents: 5000, type: 'free' }) === null);
     ok('validator: approve accepts only payment selection + tip', v('approve_changes', { selectedPaymentCents: 100, selectedPaymentType: 'deposit' }) !== null && v('approve_changes', { selectedPaymentCents: 100, selectedPaymentType: 'deposit', status: 'confirmed' }) === null && v('approve_changes', { selectedPaymentCents: 100, selectedPaymentType: 'deposit', deposit_paid_cents: 9 }) === null && v('approve_changes', { selectedPaymentCents: 100, selectedPaymentType: 'deposit', customer_id: 'c' }) === null);
     ok('validator: no-payload actions take no payload', v('invoice_confirm_no_card', { status: 'confirmed' }) === null && v('check_unit_availability', { unit_id: 'u' }) === null && v('invoice_confirm_no_card', {}) !== null);
-    ok('validator: storage paths must live in this order\'s folder', v('register_lot_pictures', { files: [{ path: 'order-act/a.jpg', name: 'a.jpg' }] }) !== null && v('register_lot_pictures', { files: [{ path: 'order-other/a.jpg', name: 'a.jpg' }] }) === null && v('register_lot_pictures', { files: [{ path: 'order-act/../order-other/a.jpg', name: 'a.jpg' }] }) === null && v('register_lot_pictures', { files: [{ path: '/etc/passwd', name: 'a' }] }) === null);
-    ok('validator: at most four lot pictures per request, none empty', v('register_lot_pictures', { files: Array(5).fill({ path: 'order-act/a.jpg', name: 'a' }) }) === null && v('register_lot_pictures', { files: [] }) === null);
-    ok('validator: order pictures: size, type and keys are checked', v('register_order_pictures', { files: [{ path: 'order-act/a.jpg', name: 'a', size: 100, mimeType: 'image/jpeg' }] }) !== null && v('register_order_pictures', { files: [{ path: 'order-act/a.exe', name: 'a', size: 100, mimeType: 'application/x-msdownload' }] }) === null && v('register_order_pictures', { files: [{ path: 'order-act/a.jpg', name: 'a', size: 99999999, mimeType: 'image/jpeg' }] }) === null && v('register_order_pictures', { files: [{ path: 'order-act/a.jpg', name: 'a', size: 1, mimeType: 'image/jpeg', uploaded_by: 'x' }] }) === null);
+    ok('validator: storage paths must be a server-issued object inside this order\'s folder', v('register_lot_pictures', { files: [{ path: `order-act/${OBJ}.jpg`, name: 'a.jpg' }] }) !== null && v('register_lot_pictures', { files: [{ path: `order-other/${OBJ}.jpg`, name: 'a.jpg' }] }) === null && v('register_lot_pictures', { files: [{ path: 'order-act/a.jpg', name: 'a.jpg' }] }) === null && v('register_lot_pictures', { files: [{ path: `order-act/../order-other/${OBJ}.jpg`, name: 'a.jpg' }] }) === null && v('register_lot_pictures', { files: [{ path: '/etc/passwd', name: 'a' }] }) === null);
+    ok('validator: at most four lot pictures per request, none empty', v('register_lot_pictures', { files: Array(5).fill({ path: `order-act/${OBJ}.jpg`, name: 'a' }) }) === null && v('register_lot_pictures', { files: [] }) === null);
+    ok('validator: order pictures: size, type and keys are checked', v('register_order_pictures', { files: [{ path: `order-act/${OBJ}.jpg`, name: 'a', size: 100, mimeType: 'image/jpeg' }] }) !== null && v('register_order_pictures', { files: [{ path: `order-act/${OBJ}.exe`, name: 'a', size: 100, mimeType: 'application/x-msdownload' }] }) === null && v('register_order_pictures', { files: [{ path: `order-act/${OBJ}.jpg`, name: 'a', size: 99999999, mimeType: 'image/jpeg' }] }) === null && v('register_order_pictures', { files: [{ path: `order-act/${OBJ}.jpg`, name: 'a', size: 1, mimeType: 'image/jpeg', uploaded_by: 'x' }] }) === null);
     ok('validator: delete takes a uuid only', v('delete_lot_picture', { pictureId: 'not-a-uuid' }) === null && v('delete_lot_picture', { pictureId: '11111111-1111-4111-8111-111111111111', order_id: 'x' }) === null);
     ok('validator: payment selection check uses the order\'s own figures', actions.paymentSelectionIsValid({ amountCents: 5000, type: 'deposit' }, { deposit_due_cents: 5000, balance_due_cents: 15000 }) && actions.paymentSelectionIsValid({ amountCents: 20000, type: 'full' }, { deposit_due_cents: 5000, balance_due_cents: 15000 }) && !actions.paymentSelectionIsValid({ amountCents: 1, type: 'deposit' }, { deposit_due_cents: 5000, balance_due_cents: 15000 }) && !actions.paymentSelectionIsValid({ amountCents: 4999, type: 'custom' }, { deposit_due_cents: 5000, balance_due_cents: 15000 }) && !actions.paymentSelectionIsValid({ amountCents: 20001, type: 'custom' }, { deposit_due_cents: 5000, balance_due_cents: 15000 }));
   }
@@ -257,9 +261,9 @@ function fixture(): Harness {
     { action: 'invoice_confirm_no_card', kind: 'invoice', payload: {}, A: 'order-nocard', B: 'order-nocard2', effect: (db, id) => order(db, id).same_day_responsibility_accepted === true && order(db, id).status === 'draft' },
     { action: 'approve_changes', kind: 'portal', payload: { selectedPaymentCents: 5000, selectedPaymentType: 'deposit' }, A: 'order-appr', B: 'order-appr2', effect: (db, id) => order(db, id).customer_selected_payment_cents === 5000 && order(db, id).status === 'awaiting_customer_approval' },
     { action: 'reject_changes', kind: 'portal', payload: { reason: 'changed my mind' }, A: 'order-appr', B: 'order-appr2', effect: (db, id) => order(db, id).status === 'cancelled' && order(db, id).cancellation_reason === 'changed my mind' },
-    { action: 'register_lot_pictures', kind: 'portal', payload: { files: [{ path: 'order-act/new.jpg', name: 'new.jpg' }] }, A: 'order-act', B: 'order-act2', effect: (db, id) => db.tables.order_lot_pictures.some((r) => r.order_id === id && r.file_name === 'new.jpg') },
+    { action: 'register_lot_pictures', kind: 'portal', payload: { files: [{ path: `order-act/${OBJ}.jpg`, name: 'new.jpg' }] }, A: 'order-act', B: 'order-act2', effect: (db, id) => db.tables.order_lot_pictures.some((r) => r.order_id === id && r.file_name === 'new.jpg') },
     { action: 'delete_lot_picture', kind: 'portal', payload: { pictureId: '11111111-1111-4111-8111-111111111111' }, A: 'order-appr', B: 'order-appr2', effect: (db) => !db.tables.order_lot_pictures.some((r) => r.id === '11111111-1111-4111-8111-111111111111') },
-    { action: 'register_order_pictures', kind: 'portal', payload: { files: [{ path: 'order-act/pic.jpg', name: 'pic.jpg', size: 1000, mimeType: 'image/jpeg' }], notes: 'hi' }, A: 'order-act', B: 'order-act2', effect: (db, id) => db.tables.order_pictures.some((r) => r.order_id === id && r.file_name === 'pic.jpg') },
+    { action: 'register_order_pictures', kind: 'portal', payload: { files: [{ path: `order-act/${OBJ}.jpg`, name: 'pic.jpg', size: 1000, mimeType: 'image/jpeg' }], notes: 'hi' }, A: 'order-act', B: 'order-act2', effect: (db, id) => db.tables.order_pictures.some((r) => r.order_id === id && r.file_name === 'pic.jpg') },
     { action: 'check_unit_availability', kind: 'portal', payload: {}, A: 'order-act', B: 'order-act2', effect: () => true },
   ];
   for (const c of cases) {
@@ -268,6 +272,8 @@ function fixture(): Harness {
     const ownRevoked = c.kind === 'invoice' ? tir : tr;
     const run = async (bearer: string | null, orderId: string, token?: string, payload: Record<string, unknown> = c.payload, action = c.action) => {
       const h = fixture();
+      // Objects the server would have authorized and the browser uploaded before registering them.
+      for (const f of ((payload.files as Array<{ path: string }> | undefined) ?? [])) h.db.storageObjects.push(`lot-pictures:${f.path}`, `order-pictures:${f.path}`);
       const res = await callFunction(loadFunction('customer-portal-action', h), bearer, { orderId, ...(token ? { token } : {}), action, payload });
       return { h, res, writes: h.db.writes.length };
     };
@@ -348,6 +354,8 @@ function fixture(): Harness {
   {
     const act = async (bearer: string | null, orderId: string, action: string, payload: Record<string, unknown>, token?: string, h: Harness = fixture()) => ({
       h,
+      // Pictures to register were uploaded to the private buckets under server-issued paths before registration.
+      seeded: ((payload.files as Array<{ path: string }> | undefined) ?? []).forEach((f) => h.db.storageObjects.push(`lot-pictures:${f.path}`, `order-pictures:${f.path}`)),
       res: await callFunction(loadFunction('customer-portal-action', h), bearer, { orderId, ...(token ? { token } : {}), action, payload }),
     });
 
@@ -430,17 +438,17 @@ ok('approval: records the payment selection and tip but does NOT confirm the ord
     ok('rejection: recording a selection does not confirm, so the customer can still reject (cancel) the changes', rejectLater.res.status === 200 && order(afterSelection.db, 'order-appr').status === 'cancelled');
 
     // lot pictures / pictures
-    x = await act(ANON_KEY, 'order-act', 'register_lot_pictures', { files: [{ path: 'order-act/1.jpg', name: '1.jpg' }, { path: 'order-act/2.jpg', name: '2.jpg' }] }, tp('order-act'));
+    x = await act(ANON_KEY, 'order-act', 'register_lot_pictures', { files: [{ path: `order-act/${OBJ}.jpg`, name: '1.jpg' }, { path: `order-act/${OBJ2}.jpg`, name: '2.jpg' }] }, tp('order-act'));
     ok('lot pictures: records are created for this order only', x.res.status === 200 && x.h.db.tables.order_lot_pictures.filter((r) => r.order_id === 'order-act').length === 2);
     ok('lot pictures: the admin is told by the server when pictures were requested (no browser relay)', x.h.fetches.some((f) => /send-email$/.test(f.url) && JSON.parse(f.init.body).to === 'admin@example.test') && x.h.fetches.some((f) => /send-sms-notification$/.test(f.url)) && x.h.fetches.every((f) => f.init.headers.Authorization === `Bearer ${SERVICE_KEY}`));
     ok('lot pictures: nothing sent to the admin leaks a token', !x.h.fetches.some((f) => /tok-/.test(String(f.init.body))));
     {
       const h = fixture();
       for (let i = 0; i < 3; i++) h.db.tables.order_lot_pictures.push({ id: `x${i}`, order_id: 'order-act', file_path: `order-act/x${i}.jpg`, file_name: 'x', uploaded_at: 'z' });
-      x = await act(ANON_KEY, 'order-act', 'register_lot_pictures', { files: [{ path: 'order-act/a.jpg', name: 'a' }, { path: 'order-act/b.jpg', name: 'b' }] }, tp('order-act'), h);
+      x = await act(ANON_KEY, 'order-act', 'register_lot_pictures', { files: [{ path: `order-act/${OBJ}.jpg`, name: 'a' }, { path: `order-act/${OBJ2}.jpg`, name: 'b' }] }, tp('order-act'), h);
       ok('lot pictures: more than four in total is refused', x.res.status === 400 && h.db.tables.order_lot_pictures.filter((r) => r.order_id === 'order-act').length === 3);
     }
-    x = await act(ANON_KEY, 'order-act', 'register_lot_pictures', { files: [{ path: 'order-act2/steal.jpg', name: 'steal.jpg' }] }, tp('order-act'));
+    x = await act(ANON_KEY, 'order-act', 'register_lot_pictures', { files: [{ path: `order-act2/${OBJ}.jpg`, name: 'steal.jpg' }] }, tp('order-act'));
     ok('lot pictures: a path in another order\'s folder is refused', x.res.status === 400 && x.h.db.writes.length === 0);
     x = await act(ANON_KEY, 'order-appr', 'delete_lot_picture', { pictureId: '11111111-1111-4111-8111-111111111111' }, tp('order-appr'));
     ok('lot pictures: delete removes the storage object and the record', x.res.status === 200 && x.h.db.storageRemoved.includes('lot-pictures:order-appr/a.jpg') && !x.h.db.tables.order_lot_pictures.some((r) => r.id === '11111111-1111-4111-8111-111111111111'));
@@ -448,7 +456,7 @@ ok('approval: records the payment selection and tip but does NOT confirm the ord
     ok('lot pictures: another order\'s picture id cannot be deleted', x.res.status === 404 && x.h.db.tables.order_lot_pictures.some((r) => r.id === '22222222-2222-4222-8222-222222222222') && x.h.db.storageRemoved.length === 0);
     x = await act(ANON_KEY, 'order-act', 'delete_lot_picture', { pictureId: '11111111-1111-4111-8111-111111111111' }, tp('order-act'));
     ok('lot pictures: deletion is limited to before approval (409 on a confirmed order)', x.res.status === 409);
-    x = await act(ANON_KEY, 'order-act', 'register_order_pictures', { files: [{ path: 'order-act/z.jpg', name: 'z.jpg', size: 12, mimeType: 'image/jpeg' }], notes: 'note' }, tp('order-act'));
+    x = await act(ANON_KEY, 'order-act', 'register_order_pictures', { files: [{ path: `order-act/${OBJ}.jpg`, name: 'z.jpg', size: 12, mimeType: 'image/jpeg' }], notes: 'note' }, tp('order-act'));
     ok('order pictures: a record is created with no uploader id', x.h.db.tables.order_pictures.some((r) => r.file_name === 'z.jpg' && r.uploaded_by === null && r.notes === 'note'));
 
     // availability (server-side, on the order's own items)

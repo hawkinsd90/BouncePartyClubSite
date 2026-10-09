@@ -9,6 +9,9 @@ import {
   orderTotalCents,
   INVOICE_ONLY_ACTIONS,
   MAX_LOT_PICTURES,
+  PICTURE_KINDS,
+  issuedPicturePath,
+  type PictureKind,
 } from "../_shared/portal-actions.ts";
 
 // Customer Portal write boundary (Payment Safety A2.2).
@@ -256,12 +259,24 @@ Deno.serve(async (req: Request) => {
 
       case "register_lot_pictures": {
         const files = (action.payload as { files: { path: string; name: string }[] }).files;
+        const paths = files.map((f) => f.path);
         const { data: existing } = await db.from("order_lot_pictures").select("id").eq("order_id", orderId);
-        if ((existing?.length ?? 0) + files.length > MAX_LOT_PICTURES) return badRequest();
+        if ((existing?.length ?? 0) + files.length > MAX_LOT_PICTURES) {
+          await discardUnregistered(db, "lot_picture", orderId, paths);
+          return badRequest();
+        }
+        const problem = await registrationProblem(db, "lot_picture", orderId, paths);
+        if (problem) {
+          if (problem !== "already_registered") await discardUnregistered(db, "lot_picture", orderId, paths);
+          return json({ success: false, error: problem }, 409);
+        }
         const { error } = await db
           .from("order_lot_pictures")
           .insert(files.map((f) => ({ order_id: orderId, file_path: f.path, file_name: f.name })));
-        if (error) return json({ success: false, error: "save_failed" }, 500);
+        if (error) {
+          await discardUnregistered(db, "lot_picture", orderId, paths);
+          return json({ success: false, error: "save_failed" }, 500);
+        }
         if (order.lot_pictures_requested) await notifyAdminOfLotPictures(db, supabaseUrl, serviceKey, order, files.length);
         return json({ success: true });
       }
@@ -285,6 +300,12 @@ Deno.serve(async (req: Request) => {
 
       case "register_order_pictures": {
         const p = action.payload as { files: { path: string; name: string; size: number; mimeType: string }[]; notes: string | null };
+        const paths = p.files.map((f) => f.path);
+        const problem = await registrationProblem(db, "order_picture", orderId, paths);
+        if (problem) {
+          if (problem !== "already_registered") await discardUnregistered(db, "order_picture", orderId, paths);
+          return json({ success: false, error: problem }, 409);
+        }
         const { error } = await db.from("order_pictures").insert(
           p.files.map((f) => ({
             order_id: orderId,
@@ -296,7 +317,43 @@ Deno.serve(async (req: Request) => {
             uploaded_by: null,
           })),
         );
-        return error ? json({ success: false, error: "save_failed" }, 500) : json({ success: true });
+        if (error) {
+          await discardUnregistered(db, "order_picture", orderId, paths);
+          return json({ success: false, error: "save_failed" }, 500);
+        }
+        return json({ success: true });
+      }
+
+      case "request_picture_upload": {
+        // The caller has proven access to THIS order. The server picks the bucket (from the kind), the object path and the
+        // extension; it returns a signed upload authorization for exactly that object. Nothing the browser sends can name
+        // a bucket, an order folder or a file name.
+        const p = action.payload as { kind: PictureKind; files: { name: string; size: number; mimeType: string }[] };
+        const rules = PICTURE_KINDS[p.kind];
+        if (p.kind === "lot_picture") {
+          const { data: existing } = await db.from("order_lot_pictures").select("id").eq("order_id", orderId);
+          if ((existing?.length ?? 0) + p.files.length > MAX_LOT_PICTURES) return badRequest();
+        }
+        const uploads: { name: string; path: string; token: string }[] = [];
+        for (const f of p.files) {
+          const path = issuedPicturePath(orderId, crypto.randomUUID(), f.mimeType, p.kind);
+          if (!path) return badRequest();
+          const { data, error } = await db.storage.from(rules.bucket).createSignedUploadUrl(path);
+          if (error || !data?.token) {
+            await discardUnregistered(db, p.kind, orderId, uploads.map((u) => u.path));
+            return json({ success: false, error: "upload_unavailable" }, 500);
+          }
+          uploads.push({ name: f.name, path, token: data.token });
+        }
+        return json({ success: true, bucket: rules.bucket, uploads });
+      }
+
+      case "discard_unregistered_pictures": {
+        // The browser's cleanup after a failed upload: the server removes objects it issued for this order that were never
+        // registered. A registered picture is never removed here (delete_lot_picture is the only removal of those).
+        const p = action.payload as { kind: PictureKind; paths: string[] };
+        await discardUnregistered(db, p.kind, orderId, p.paths);
+        return json({ success: true });
       }
 
       case "check_unit_availability": {
@@ -309,6 +366,38 @@ Deno.serve(async (req: Request) => {
     return json({ success: false, error: "unavailable" }, 500);
   }
 });
+
+const PICTURE_TABLES: Record<PictureKind, string> = { lot_picture: "order_lot_pictures", order_picture: "order_pictures" };
+
+// Paths of this kind already recorded for the order (any order: a path is one picture's identity).
+async function registeredPaths(db: Db, kind: PictureKind, paths: string[]): Promise<Set<string>> {
+  const { data } = await db.from(PICTURE_TABLES[kind]).select("file_path").in("file_path", paths);
+  return new Set(((data as { file_path: string }[] | null) ?? []).map((r) => r.file_path));
+}
+
+// Why a registration cannot proceed, or null when every path is a fresh, really uploaded object of this order.
+async function registrationProblem(db: Db, kind: PictureKind, orderId: string, paths: string[]): Promise<"already_registered" | "upload_missing" | null> {
+  if (new Set(paths).size !== paths.length) return "already_registered";
+  if ((await registeredPaths(db, kind, paths)).size > 0) return "already_registered";
+  const bucket = PICTURE_KINDS[kind].bucket;
+  const { data: listed } = await db.storage.from(bucket).list(orderId, { limit: 1000 });
+  const present = new Set(((listed as { name: string }[] | null) ?? []).map((o) => `${orderId}/${o.name}`));
+  return paths.every((p) => present.has(p)) ? null : "upload_missing";
+}
+
+// Removes objects the server issued for this order that no picture row points at. Failure to remove is not an error for the
+// caller: the object stays private either way.
+async function discardUnregistered(db: Db, kind: PictureKind, orderId: string, paths: string[]): Promise<void> {
+  try {
+    const own = paths.filter((p) => p.startsWith(`${orderId}/`));
+    if (own.length === 0) return;
+    const registered = await registeredPaths(db, kind, own);
+    const doomed = own.filter((p) => !registered.has(p));
+    if (doomed.length > 0) await db.storage.from(PICTURE_KINDS[kind].bucket).remove(doomed);
+  } catch {
+    console.error("[customer-portal-action] picture cleanup failed");
+  }
+}
 
 // An Admin Invoice context: the visit came through an invoice-type token, or (signed-in owner / backend) the order has a
 // current invoice-type link that is unexpired and unrevoked. Ownership alone never turns an ordinary draft booking into

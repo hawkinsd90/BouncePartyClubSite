@@ -308,7 +308,7 @@ export function TaskDetailModal({ task, allTasks, onClose, onUpdate, onRefresh, 
           { files, orderId: task.orderId, taskType: task.type, taskStatusId, isDamage },
           { client: supabase },
         );
-        if (result.uploadedUrls.length > 0) {
+        if (result.uploadedPaths.length > 0) {
           refresh();
         }
 
@@ -733,6 +733,7 @@ export function TaskDetailModal({ task, allTasks, onClose, onUpdate, onRefresh, 
           {/* Photos */}
           {(task.taskStatus?.deliveryImages?.length || task.taskStatus?.damageImages?.length) ? (
             <TaskDetailPhotosGrid
+              taskStatusId={task.taskStatus.id}
               deliveryImages={task.taskStatus.deliveryImages}
               damageImages={task.taskStatus.damageImages}
             />

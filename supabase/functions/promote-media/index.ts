@@ -1,6 +1,7 @@
 import "jsr:@supabase/functions-js@2/edge-runtime.d.ts";
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { corsHeaders, handleCorsPreflightSync } from "../_shared/cors.ts";
+import { parseEvidenceReference, evidenceReferenceInScope } from "../_shared/evidence-media.ts";
 
 // Source types eligible for promotion
 const ELIGIBLE_SOURCE_TYPES = ["lot", "order", "delivery"] as const;
@@ -167,7 +168,7 @@ Deno.serve(async (req: Request) => {
 
       const { data: tsRow, error: tsErr } = await adminClient
         .from("task_status")
-        .select("id, delivery_images")
+        .select("id, order_id, delivery_images")
         .eq("id", taskStatusId)
         .maybeSingle();
 
@@ -183,14 +184,14 @@ Deno.serve(async (req: Request) => {
         return json400("Delivery photo not found in task_status.delivery_images — cannot promote arbitrary URLs");
       }
 
-      // Extract storage path from verified public URL
-      const marker = "/public/public-assets/";
-      const markerIdx = verifiedUrl.indexOf(marker);
-      if (markerIdx < 0) {
-        return json400("Could not extract storage path from verified delivery photo URL");
+      // The stored reference is either a private evidence path or (historical rows) a public-assets URL. Only a reference
+      // that belongs to this task's own order is used; the source is read below with the service-role client.
+      const parsedSource = parseEvidenceReference(verifiedUrl);
+      if (!parsedSource || !evidenceReferenceInScope(parsedSource, { orderId: String(tsRow.order_id), taskStatusId: String(tsRow.id), kind: "delivery" })) {
+        return json400("Could not resolve the verified delivery photo reference");
       }
-      sourceStoragePath = verifiedUrl.slice(markerIdx + marker.length);
-      sourceBucket = "public-assets";
+      sourceStoragePath = parsedSource.path;
+      sourceBucket = parsedSource.bucket;
       derivedFileName = sourceStoragePath.split("/").pop() ?? "delivery-photo.jpg";
     }
 

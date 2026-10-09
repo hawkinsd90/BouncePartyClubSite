@@ -14,6 +14,8 @@ import {
   projectPayment,
   projectPricing,
 } from "../_shared/portal-projection.ts";
+import { signStoredMedia } from "../_shared/media-paths.ts";
+import { resolveEvidenceUrls } from "../_shared/evidence-media.ts";
 
 // Customer Portal read boundary (Payment Safety A2.2).
 //
@@ -40,6 +42,20 @@ function json(body: unknown, status = 200): Response {
 }
 
 const denied = () => json({ success: false, error: "access_required" }, 403);
+
+// The customer photo buckets are private. Each picture of THIS order gets a short-lived signed read URL from the server; the
+// stored file_path stays a bare object path. A row whose path is not inside this order's own folder is never signed.
+// deno-lint-ignore no-explicit-any
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+async function withSignedUrls(client: any, bucket: string, orderId: string, rows: Record<string, unknown>[]) {
+  return await Promise.all(
+    rows.map(async (row) => {
+      const path = typeof row.file_path === "string" ? row.file_path : "";
+      const url = path.startsWith(`${orderId}/`) ? await signStoredMedia(client, bucket, path) : null;
+      return { ...row, url };
+    }),
+  );
+}
 
 const ALL_SECTIONS = ["core", "summary", "changelog", "invoiceLink", "lotPictures", "pictures", "delivery", "payment"] as const;
 const CHANGELOG_STATUSES = ["awaiting_customer_approval", "pending_review"];
@@ -147,7 +163,7 @@ Deno.serve(async (req: Request) => {
         .select("*")
         .eq("order_id", orderId)
         .order("uploaded_at", { ascending: false });
-      data.lotPictures = ((rows as Record<string, unknown>[] | null) ?? []).map(projectLotPicture);
+      data.lotPictures = await withSignedUrls(supabase, "lot-pictures", orderId, ((rows as Record<string, unknown>[] | null) ?? []).map(projectLotPicture));
     }
 
     if (want.has("pictures")) {
@@ -156,18 +172,26 @@ Deno.serve(async (req: Request) => {
         .select("*")
         .eq("order_id", orderId)
         .order("created_at", { ascending: false });
-      data.pictures = ((rows as Record<string, unknown>[] | null) ?? []).map(projectPicture);
+      data.pictures = await withSignedUrls(supabase, "order-pictures", orderId, ((rows as Record<string, unknown>[] | null) ?? []).map(projectPicture));
     }
 
     if (want.has("delivery")) {
       const { data: rows } = await supabase
         .from("task_status")
-        .select("delivery_images, completed_time, updated_at, status")
+        .select("id, delivery_images, completed_time, updated_at, status")
         .eq("order_id", orderId)
         .eq("task_type", "drop-off")
         .order("created_at", { ascending: false })
         .limit(1);
-      data.delivery = projectDelivery(((rows as Record<string, unknown>[] | null) ?? [])[0] ?? null);
+      // The delivery proof photos are private evidence. The portal gets short-lived signed URLs for THIS order's own delivery
+      // photos only (damage photos are never part of the customer portal); anything untrusted or out of scope is dropped.
+      const latest = ((rows as Record<string, unknown>[] | null) ?? [])[0] ?? null;
+      let delivery: Record<string, unknown> | null = null;
+      if (latest) {
+        const resolved = await resolveEvidenceUrls(supabase, latest.delivery_images, { orderId, taskStatusId: String(latest.id), kind: "delivery" });
+        delivery = { ...latest, delivery_images: resolved.map((r) => r.url).filter((u): u is string => !!u) };
+      }
+      data.delivery = projectDelivery(delivery);
     }
 
     if (want.has("payment") && typeof body.paymentId === "string") {

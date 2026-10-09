@@ -1,12 +1,15 @@
-// Crew task photo pipeline, extracted verbatim from TaskDetailModal.handleImageUpload.
+// Crew task photo pipeline (delivery / pickup / damage proof photos).
 //
 // Feature-local (not a site-wide image service). Owns HEIC detection, canvas compression, per-file
-// processing, storage upload, skip classification, and the read-merge-write of the task_status image
-// column. The modal keeps the file picker, busy state, ensureTaskStatus, refresh and the alert.
+// processing, the signed upload into the PRIVATE order-evidence bucket, skip classification and the
+// registration of the uploaded photos on the task. The modal keeps the file picker, busy state,
+// ensureTaskStatus, refresh and the alert.
 //
-// Current semantics kept on purpose: files are processed sequentially in picker order; a non-size
-// storage error aborts the batch before anything is persisted (earlier uploads become orphans); the
-// persistence step is a non-atomic read-merge-write.
+// Semantics kept on purpose: files are processed sequentially in picker order; a non-size storage error
+// aborts the batch before anything is persisted; the task is only updated after every upload of the batch
+// finished. What changed: the browser no longer writes to a public bucket or stores a public URL. The
+// task-evidence function authorizes each object (the server chooses bucket and path), records the bare
+// object paths, and removes objects of a failed batch.
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
 const BUCKET_LIMIT_BYTES = 10 * 1024 * 1024; // 10 MB — matches live bucket limit
@@ -53,16 +56,16 @@ export async function compressImage(file: File): Promise<Blob | null> {
 }
 
 export interface TaskPhotoClient {
+  // Signed uploads into the private evidence bucket: the browser sends a file only to an object the server authorized.
   storage: { from(bucket: string): any };
-  from(table: string): any;
+  // The task-evidence Edge Function (authorization, registration, cleanup).
+  functions: { invoke(name: string, options: { body: any }): Promise<any> };
 }
 
 export interface TaskPhotoUploadDeps {
   client: TaskPhotoClient;
   // Replaceable so tests need no DOM. Defaults to the canvas compressor above.
   compress?: (file: File) => Promise<Blob | null>;
-  // Replaceable so tests control filename timestamps. Defaults to Date.now.
-  now?: () => number;
 }
 
 export interface TaskPhotoUploadInput {
@@ -74,100 +77,136 @@ export interface TaskPhotoUploadInput {
 }
 
 export interface TaskPhotoUploadResult {
-  uploadedUrls: string[];
+  // Stable private object paths now recorded on the task (never URLs).
+  uploadedPaths: string[];
   skippedHeic: string[];
   skippedLarge: string[];
 }
 
-// Uploads the selected files one at a time, then persists the URLs. Returns only after persistence
-// succeeded (or immediately when nothing was uploaded). Throws on a fatal storage or persistence error.
+// Image types the private evidence bucket accepts (the same list the server enforces).
+const EVIDENCE_UPLOAD_TYPES = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp', 'image/heic', 'image/heif', 'image/gif'];
+
+async function invokeEvidence(deps: TaskPhotoUploadDeps, body: Record<string, unknown>): Promise<any> {
+  const { data, error } = await deps.client.functions.invoke('task-evidence', { body });
+  if (error || !data?.success) throw new Error('Photo upload was not authorized');
+  return data;
+}
+
+// Uploads the selected files one at a time to the private evidence bucket, then records them on the task. Returns only after
+// the server confirmed the photos are saved on the task (or immediately when nothing was uploaded). Throws on a fatal
+// authorization, storage or persistence error; objects uploaded before a fatal error are removed by the server.
 export async function uploadTaskPhotos(
-  { files, orderId, taskType, taskStatusId, isDamage }: TaskPhotoUploadInput,
+  { files, taskStatusId, isDamage }: TaskPhotoUploadInput,
   deps: TaskPhotoUploadDeps,
 ): Promise<TaskPhotoUploadResult> {
   const supabase = deps.client;
   const compress = deps.compress ?? compressImage;
-  const now = deps.now ?? Date.now;
+  const kind = isDamage ? 'damage' : 'delivery';
 
-  const uploadedUrls: string[] = [];
+  const uploadedPaths: string[] = [];
+  const issuedPaths: string[] = [];
   const skippedHeic: string[] = [];
   const skippedLarge: string[] = [];
 
-  for (const file of files) {
-    const heic = isHeicFile(file);
-    const effectiveType = file.type || (heic ? 'image/heic' : 'unknown');
-    console.log(`[photos] Processing: ${file.name} | type: ${effectiveType} | size: ${(file.size / 1024 / 1024).toFixed(2)} MB`);
+  try {
+    for (const file of files) {
+      const heic = isHeicFile(file);
+      const effectiveType = file.type || (heic ? 'image/heic' : 'unknown');
+      console.log(`[photos] Processing: ${file.name} | type: ${effectiveType} | size: ${(file.size / 1024 / 1024).toFixed(2)} MB`);
 
-    let uploadBlob: Blob = file;
-    let uploadName = `${orderId}-${taskType}-${now()}-${file.name.replace(/[^a-zA-Z0-9._-]/g, '_')}`;
+      let uploadBlob: Blob = file;
+      let uploadLabel = file.name.replace(/[^a-zA-Z0-9._-]/g, '_');
+      let uploadType = effectiveType.toLowerCase();
 
-    if (heic) {
-      if (file.size <= BUCKET_LIMIT_BYTES) {
-        console.log(`[photos] HEIC within limit, uploading as-is`);
+      if (heic) {
+        if (file.size <= BUCKET_LIMIT_BYTES) {
+          console.log(`[photos] HEIC within limit, uploading as-is`);
+          if (!EVIDENCE_UPLOAD_TYPES.includes(uploadType)) uploadType = 'image/heic';
+        } else {
+          console.warn(`[photos] HEIC too large to upload: ${file.name} (${(file.size / 1024 / 1024).toFixed(2)} MB)`);
+          skippedHeic.push(file.name);
+          continue;
+        }
       } else {
-        console.warn(`[photos] HEIC too large to upload: ${file.name} (${(file.size / 1024 / 1024).toFixed(2)} MB)`);
-        skippedHeic.push(file.name);
-        continue;
+        const compressed = await compress(file);
+        if (compressed) {
+          console.log(`[photos] Compressed: ${(file.size / 1024 / 1024).toFixed(2)} MB → ${(compressed.size / 1024 / 1024).toFixed(2)} MB`);
+          uploadBlob = compressed;
+          uploadLabel = uploadLabel.replace(/\.[^.]+$/, '') + '.jpg';
+          uploadType = 'image/jpeg';
+        } else {
+          // Canvas could not decode (unsupported type or no context); try original if within limit
+          if (file.size > BUCKET_LIMIT_BYTES) {
+            console.warn(`[photos] Uncompressible and too large: ${file.name}`);
+            skippedLarge.push(file.name);
+            continue;
+          }
+          if (!EVIDENCE_UPLOAD_TYPES.includes(uploadType)) {
+            console.warn(`[photos] Unsupported image type, skipped: ${file.name}`);
+            skippedLarge.push(file.name);
+            continue;
+          }
+          console.log(`[photos] Compression unavailable, uploading original`);
+        }
       }
-    } else {
-      const compressed = await compress(file);
-      if (compressed) {
-        console.log(`[photos] Compressed: ${(file.size / 1024 / 1024).toFixed(2)} MB → ${(compressed.size / 1024 / 1024).toFixed(2)} MB`);
-        uploadBlob = compressed;
-        uploadName = uploadName.replace(/\.[^.]+$/, '') + '.jpg';
-      } else {
-        // Canvas could not decode (unsupported type or no context); try original if within limit
-        if (file.size > BUCKET_LIMIT_BYTES) {
-          console.warn(`[photos] Uncompressible and too large: ${file.name}`);
+
+      // The server derives the order from the task, chooses the bucket and the object path, and authorizes this one object.
+      const grant = await invokeEvidence(deps, {
+        action: 'request_upload',
+        taskStatusId,
+        kind,
+        files: [{ name: uploadLabel, size: uploadBlob.size, mimeType: uploadType }],
+      });
+      const target = grant.uploads?.[0];
+      if (!target?.path || !target?.token) throw new Error('Photo upload was not authorized');
+      issuedPaths.push(target.path);
+
+      const { error } = await supabase.storage
+        .from(grant.bucket)
+        .uploadToSignedUrl(target.path, target.token, uploadBlob, { contentType: uploadType, cacheControl: '3600' });
+
+      if (error) {
+        console.error(`[photos] Upload failed for ${file.name}:`, error);
+        // Treat storage-side size rejections as skipped, not fatal
+        if (error.message?.toLowerCase().includes('size') || error.message?.toLowerCase().includes('maximum')) {
           skippedLarge.push(file.name);
           continue;
         }
-        console.log(`[photos] Compression unavailable, uploading original`);
+        throw error;
       }
+
+      uploadedPaths.push(target.path);
+      console.log(`[photos] Uploaded successfully: ${file.name}`);
     }
 
-    const { data, error } = await supabase.storage
-      .from('public-assets')
-      .upload(uploadName, uploadBlob, { cacheControl: '3600', upsert: false });
-
-    if (error) {
-      console.error(`[photos] Upload failed for ${file.name}:`, error);
-      // Treat storage-side size rejections as skipped, not fatal
-      if (error.message?.toLowerCase().includes('size') || error.message?.toLowerCase().includes('maximum')) {
-        skippedLarge.push(file.name);
-        continue;
-      }
-      throw error;
+    // Persist any successfully uploaded photos before showing messages (the server appends them to the task's column).
+    if (uploadedPaths.length > 0) {
+      await invokeEvidence(deps, { action: 'register', taskStatusId, kind, paths: uploadedPaths });
+      console.log(`[photos] Saved ${uploadedPaths.length} photo(s) to the ${kind} evidence of the task`);
     }
-
-    const { data: urlData } = supabase.storage.from('public-assets').getPublicUrl(data.path);
-    uploadedUrls.push(urlData.publicUrl);
-    console.log(`[photos] Uploaded successfully: ${file.name}`);
+  } catch (e) {
+    // Objects already uploaded for this batch are removed by the server (the browser never deletes from Storage).
+    if (issuedPaths.length > 0) {
+      try {
+        await deps.client.functions.invoke('task-evidence', { body: { action: 'discard', taskStatusId, kind, paths: issuedPaths } });
+      } catch {
+        /* the objects stay private */
+      }
+    }
+    throw e;
   }
 
-  // Persist any successfully uploaded URLs before showing messages
-  if (uploadedUrls.length > 0) {
-    const col = isDamage ? 'damage_images' : 'delivery_images';
-    const { data: cur, error: fetchErr } = await supabase
-      .from('task_status').select(col).eq('id', taskStatusId).maybeSingle();
-    if (fetchErr) throw fetchErr;
-    const merged = [...((cur as any)?.[col] || []), ...uploadedUrls];
-    const { error: updErr } = await supabase.from('task_status').update({ [col]: merged }).eq('id', taskStatusId);
-    if (updErr) throw updErr;
-    console.log(`[photos] Saved ${uploadedUrls.length} URL(s) to task_status.${col}`);
-  }
-
-  return { uploadedUrls, skippedHeic, skippedLarge };
+  return { uploadedPaths, skippedHeic, skippedLarge };
 }
 
 // The alert text for a completed (non-throwing) upload run.
 export function buildPhotoUploadSummary(
-  { uploadedUrls, skippedHeic, skippedLarge }: TaskPhotoUploadResult,
+  { uploadedPaths, skippedHeic, skippedLarge }: TaskPhotoUploadResult,
   isDamage?: boolean,
 ): string {
   const totalSkipped = skippedHeic.length + skippedLarge.length;
 
-  if (uploadedUrls.length === 0 && totalSkipped > 0) {
+  if (uploadedPaths.length === 0 && totalSkipped > 0) {
     if (skippedHeic.length > 0) {
       return (
         'These photos could not be uploaded because the HEIC format is too large to process.\n\n' +
@@ -177,10 +216,10 @@ export function buildPhotoUploadSummary(
     return 'Photo is too large. Please try again, or take a lower-resolution photo.';
   } else if (totalSkipped > 0) {
     return (
-      `${uploadedUrls.length} photo(s) uploaded successfully.\n` +
+      `${uploadedPaths.length} photo(s) uploaded successfully.\n` +
       `${totalSkipped} photo(s) were skipped — they were too large or in an unsupported format. ` +
       `Please retake those using a lower resolution or JPEG mode.`
     );
   }
-  return `${uploadedUrls.length} ${isDamage ? 'damage' : 'delivery'} photo(s) uploaded and saved successfully!`;
+  return `${uploadedPaths.length} ${isDamage ? 'damage' : 'delivery'} photo(s) uploaded and saved successfully!`;
 }

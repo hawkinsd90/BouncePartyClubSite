@@ -32,6 +32,8 @@ export function LotPicturesDisplay({ orderId, onPromptCustomer, lotPicturesReque
   const [addressPictures, setAddressPictures] = useState<AddressLotPicture[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
+  // lot-pictures is a private bucket: the signed-in admin asks Storage for short-lived signed URLs.
+  const [signedUrls, setSignedUrls] = useState<Record<string, string>>({});
 
   useEffect(() => {
     loadPictures();
@@ -75,6 +77,7 @@ export function LotPicturesDisplay({ orderId, onPromptCustomer, lotPicturesReque
       if (lotError) throw lotError;
       const currentPictures: LotPicture[] = (lotData as any) || [];
       setPictures(currentPictures);
+      const signedFor: string[] = currentPictures.map((p) => p.file_path);
 
       // Resolve the order's address_id, then load address lot pictures
       const { data: orderData, error: orderError } = await supabase
@@ -102,8 +105,19 @@ export function LotPicturesDisplay({ orderId, onPromptCustomer, lotPicturesReque
           (p: AddressLotPicture) => !currentFilePaths.has(p.file_path)
         );
         setAddressPictures(filteredAddr);
+        signedFor.push(...filteredAddr.map((p: AddressLotPicture) => p.file_path));
       } else {
         setAddressPictures([]);
+      }
+
+      const wanted = Array.from(new Set(signedFor.filter(Boolean)));
+      if (wanted.length > 0) {
+        const { data: signed } = await supabase.storage.from('lot-pictures').createSignedUrls(wanted, 3600);
+        const next: Record<string, string> = {};
+        for (const entry of signed || []) {
+          if (entry.path && entry.signedUrl) next[entry.path] = entry.signedUrl;
+        }
+        setSignedUrls(next);
       }
     } catch (error: unknown) {
       console.error('Error loading lot pictures:', error);
@@ -113,10 +127,7 @@ export function LotPicturesDisplay({ orderId, onPromptCustomer, lotPicturesReque
     }
   };
 
-  const getPictureUrl = (filePath: string) => {
-    const { data } = supabase.storage.from('lot-pictures').getPublicUrl(filePath);
-    return data.publicUrl;
-  };
+  const getPictureUrl = (filePath: string) => signedUrls[filePath] ?? '';
 
   if (loading) {
     return (

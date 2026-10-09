@@ -16,6 +16,7 @@ import * as actions from '../../supabase/functions/_shared/portal-actions';
 import * as portalLink from '../../supabase/functions/_shared/portal-link';
 import * as lifecycleOutcome from '../../supabase/functions/_shared/lifecycle-outcome';
 import * as mediaPaths from '../../supabase/functions/_shared/media-paths';
+import * as evidenceMedia from '../../supabase/functions/_shared/evidence-media';
 
 export type Row = Record<string, any>;
 
@@ -36,6 +37,11 @@ export interface Db {
   storageUploads: string[];
   // Objects the fake Storage handed out for download, as "bucket:path".
   storageDownloads: string[];
+  // Upload authorizations the fake Storage issued, as "bucket:path", and the objects that currently exist, as "bucket:path".
+  storageUploadGrants: string[];
+  storageObjects: string[];
+  // Buckets that are private: a client that is not the service role cannot read or sign their objects.
+  privateBuckets: string[];
   rpcResults: Record<string, any>;
   invokes: Array<{ name: string; opts: any }>;
   seq: number;
@@ -95,6 +101,9 @@ export function newDb(): Db {
     storageSigned: [],
     storageUploads: [],
     storageDownloads: [],
+    storageUploadGrants: [],
+    storageObjects: [],
+    privateBuckets: [],
     invokes: [],
     rpcResults: { check_date_blackout: { is_full_blocked: false, is_same_day_pickup_blocked: false } },
     seq: 0,
@@ -117,11 +126,20 @@ function matches(row: Row, filters: Array<[string, string, unknown]>): boolean {
   });
 }
 
-export function makeClient(db: Db): any {
+export interface ClientContext {
+  // Authorization header the client was created with (a caller-scoped client), and the key it was created with.
+  bearer?: string | null;
+  key?: string;
+}
+
+export function makeClient(db: Db, ctx: ClientContext = {}): any {
+  // A private bucket answers only the service role; a caller-scoped client has no Storage access to it.
+  const mayRead = (bucket: string) => !db.privateBuckets.includes(bucket) || ctx.key === undefined || ctx.key === SERVICE_KEY;
+  const notAllowed = { data: null, error: { message: 'Object not found' } };
   return {
     auth: {
-      getUser: async (token: string) => {
-        const id = USERS[token];
+      getUser: async (token?: string) => {
+        const id = USERS[token ?? String(ctx.bearer ?? '').replace(/^Bearer\s+/i, '')];
         return id ? { data: { user: { id } }, error: null } : { data: { user: null }, error: { message: 'invalid' } };
       },
     },
@@ -135,17 +153,30 @@ export function makeClient(db: Db): any {
       from: (bucket: string) => ({
         remove: async (paths: string[]) => {
           db.storageRemoved.push(...paths.map((p) => `${bucket}:${p}`));
+          db.storageObjects = db.storageObjects.filter((o) => !paths.some((p) => o === `${bucket}:${p}`));
           return { error: null };
+        },
+        createSignedUploadUrl: async (path: string) => {
+          db.storageUploadGrants.push(`${bucket}:${path}`);
+          return { data: { signedUrl: `https://fake.supabase.co/storage/v1/object/upload/sign/${bucket}/${path}?token=UP`, token: `UP:${bucket}:${path}`, path }, error: null };
+        },
+        list: async (folder: string, opts?: { limit?: number }) => {
+          const prefix = `${bucket}:${folder}/`;
+          const names = db.storageObjects.filter((o) => o.startsWith(prefix) && !o.slice(prefix.length).includes('/')).map((o) => ({ name: o.slice(prefix.length) }));
+          return { data: opts?.limit ? names.slice(0, opts.limit) : names, error: null };
         },
         upload: async (path: string) => {
           db.storageUploads.push(`${bucket}:${path}`);
           return { data: { path }, error: null };
         },
+        getPublicUrl: (path: string) => ({ data: { publicUrl: `https://fake.supabase.co/storage/v1/object/public/${bucket}/${path}` } }),
         download: async (path: string) => {
+          if (!mayRead(bucket)) return notAllowed;
           db.storageDownloads.push(`${bucket}:${path}`);
           return { data: { arrayBuffer: async () => new Uint8Array([137, 80, 78, 71]).buffer }, error: null };
         },
         createSignedUrl: async (path: string, expiresIn: number) => {
+          if (!mayRead(bucket)) return notAllowed;
           db.storageSigned.push(`${bucket}:${path}`);
           return { data: { signedUrl: `https://fake.supabase.co/storage/v1/object/sign/${bucket}/${path}?token=T&ttl=${expiresIn}` }, error: null };
         },
@@ -247,14 +278,24 @@ export interface Harness {
 
 export const makeHarness = (db: Db = newDb()): Harness => ({ db, logs: [], fetches: [], stripeSessions: {}, pending: [] });
 
+// Transpiling an Edge Function is the slow part of loading it, and handler tests load the same function once per request, so the
+// output is cached by source text (a changed file is a different key, so a mutated source is never served a stale result).
+const transpiled = new Map<string, string>();
+
 export function loadFunction(fnDir: string, h: Harness): (req: Request) => Promise<Response> {
   const src: string = fs.readFileSync(`supabase/functions/${fnDir}/index.ts`, 'utf8');
-  const js: string = ts.transpileModule(src.replace(/^import[^;]*;/gm, ''), { compilerOptions: { target: ts.ScriptTarget.ES2020, module: ts.ModuleKind.CommonJS } }).outputText;
+  let js = transpiled.get(src);
+  if (js === undefined) {
+    js = ts.transpileModule(src.replace(/^import[^;]*;/gm, ''), { compilerOptions: { target: ts.ScriptTarget.ES2020, module: ts.ModuleKind.CommonJS } }).outputText as string;
+    transpiled.set(src, js);
+  }
   let captured: any = null;
-  const env: Record<string, string> = { SUPABASE_URL: 'https://fake.supabase.co', SUPABASE_SERVICE_ROLE_KEY: SERVICE_KEY };
+  const env: Record<string, string> = { SUPABASE_URL: 'https://fake.supabase.co', SUPABASE_SERVICE_ROLE_KEY: SERVICE_KEY, SUPABASE_ANON_KEY: ANON_KEY };
   const scope: Record<string, unknown> = {
     Deno: { env: { get: (k: string) => env[k] }, serve: (fn: any) => { captured = fn; } },
-    createClient: () => makeClient(h.db),
+    createClient: (_url: string, key: string, opts?: any) => makeClient(h.db, { bearer: opts?.global?.headers?.Authorization, key }),
+    corsHeaders: {},
+    handleCorsPreflightSync: (req: Request) => (req.method === 'OPTIONS' ? new Response(null, { status: 200 }) : null),
     EdgeRuntime: { waitUntil: (p: Promise<unknown>) => { h.pending.push(p); } },
     console: {
       log: (...a: unknown[]) => h.logs.push(a.map(String).join(' ')),
@@ -273,6 +314,7 @@ export function loadFunction(fnDir: string, h: Harness): (req: Request) => Promi
     ...portalLink,
     ...lifecycleOutcome,
     ...mediaPaths,
+    ...evidenceMedia,
     formatCurrency: (c: number) => `$${((c ?? 0) / 100).toFixed(2)}`,
     formatOrderId: (id: string) => String(id).slice(0, 8),
     Stripe: class {},
