@@ -22,6 +22,7 @@ import * as portalLinkHelpers from '../../supabase/functions/_shared/portal-link
 import * as outcomeHelpers from '../../supabase/functions/_shared/lifecycle-outcome';
 import * as bookingProofHelpers from '../../supabase/functions/_shared/booking/bookingProof';
 import * as returnOriginHelpers from '../../supabase/functions/_shared/booking/returnOrigin';
+import * as paymentOperationHelpers from '../../supabase/functions/_shared/payment-operations';
 
 let passed = 0;
 let failed = 0;
@@ -206,9 +207,26 @@ function makeClient(w: World) {
   };
   return {
     from,
-    rpc: (name: string, args: unknown) => {
+    rpc: (name: string, args: any) => {
       w.log.push({ op: 'rpc', name, args });
-      const res = { data: null, error: null };
+      // This file tests WHO may start a payment. The payment operation functions themselves (amount derivation, leases,
+      // finalization) are tested against a real database in paymentOperations.test.ts and paymentCharging.test.ts; here a
+      // minimal stand-in lets an authorized request reach the provider step.
+      let data: any = null;
+      if (name === 'claim_payment_operation') {
+        const o = w.tables.orders.find((x: any) => x.id === args.p_order_id);
+        if (!o) data = { outcome: 'not_found' };
+        else if (args.p_purpose === 'balance') {
+          const bd = Math.max(0, o.balance_due_cents ?? 0);
+          data = args.p_requested_principal_cents > bd
+            ? { outcome: 'over_balance', balance_due_cents: bd }
+            : { outcome: 'claimed', payment_id: 'pay-1', operation_key: 'bpc-pay-test', payment_type: 'balance', principal_cents: args.p_requested_principal_cents, tip_cents: args.p_requested_tip_cents ?? 0, gross_cents: args.p_requested_principal_cents + (args.p_requested_tip_cents ?? 0), provider_payment_intent_id: null, checkout_session_id: null, order_status: o.status };
+        } else {
+          data = { outcome: 'claimed', payment_id: 'pay-1', operation_key: 'bpc-pay-test', payment_type: 'deposit', principal_cents: o.deposit_due_cents, tip_cents: args.p_requested_tip_cents ?? 0, gross_cents: o.deposit_due_cents + (args.p_requested_tip_cents ?? 0), provider_payment_intent_id: null, checkout_session_id: null, order_status: o.status };
+        }
+      } else if (name === 'record_payment_operation_provider' || name === 'release_payment_operation' || name === 'mark_payment_operation_provider_attempt') data = true;
+      else if (name === 'finalize_payment_operation') data = { outcome: 'applied', applied: true, payment_type: 'balance', status_changed: false, tip_cents: 0 };
+      const res = { data, error: null };
       const p: any = Promise.resolve(res);
       p.maybeSingle = async () => res;
       return p;
@@ -317,6 +335,7 @@ function loadHandler(fnDir: string, w: World): (req: Request) => Promise<Respons
     ...outcomeHelpers,
     ...bookingProofHelpers,
     ...returnOriginHelpers,
+    ...paymentOperationHelpers,
     corsHeaders: { 'Access-Control-Allow-Origin': '*' },
     checkRateLimit: async () => ({ allowed: true }),
     createRateLimitResponse: () => new Response('rate limited', { status: 429 }),
@@ -811,7 +830,7 @@ const isDenied = (status: number) => status === 401 || status === 403;
   r = track(await call(SC, { bearer: ANON_KEY, body: cardUpdate('order-A', { invoiceLinkToken: TOKEN_A }) }));
   ok('checkout: a valid Order A token creates a card-update session for Order A', r.status === 200);
   r = track(await call(SC, { bearer: ANON_KEY, body: paymentMode('order-A', { invoiceLinkToken: TOKEN_A }) }));
-  ok('checkout: a valid Order A token creates a payment session for Order A', r.status === 200);
+  ok('checkout: payment mode is retired: even a valid Order A token gets 410 and no session', r.status === 410 && noSessionOrCustomer(r));
   r = track(await call(SC, { bearer: ANON_KEY, body: invoiceSetup('order-B', TOKEN_A) }));
   ok('checkout: the Order A token cannot create a session for Order B (cross-order)', r.status === 401 && noSessionOrCustomer(r));
   r = track(await call(SC, { bearer: ANON_KEY, body: cardUpdate('order-B', { invoiceLinkToken: TOKEN_A }) }));

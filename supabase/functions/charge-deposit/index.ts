@@ -17,6 +17,14 @@ import {
   authFailureResponse,
   type AuthClient,
 } from "../_shared/auth.ts";
+import {
+  claimPaymentOperation,
+  chargeSavedCard,
+  resolveCheckoutOperation,
+  releaseOperation,
+  isCents,
+  type PaymentOperation,
+} from "../_shared/payment-operations.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -36,6 +44,30 @@ async function retrieveCheckoutSession(supabaseClient: AuthClient, sessionId: st
   return await stripe.checkout.sessions.retrieve(sessionId);
 }
 
+function reply(status: number, body: Record<string, unknown>): Response {
+  return new Response(JSON.stringify(body), {
+    status,
+    headers: { ...corsHeaders, "Content-Type": "application/json" },
+  });
+}
+
+// How each refusal from the payment operation claim is reported. Nothing here has touched Stripe.
+const CLAIM_REFUSALS: Record<string, { status: number; code: string; error: string }> = {
+  busy: { status: 409, code: "PAYMENT_IN_PROGRESS", error: "This order is already being processed. Please refresh and try again." },
+  invalid_status: { status: 409, code: "ORDER_STATUS_NOT_PAYABLE", error: "This order is not in a state where this payment can be taken. Please refresh and try again." },
+  order_changed: { status: 409, code: "ORDER_CHANGED", error: "This order changed while you were reviewing it. Please refresh and review the updated amounts." },
+  catch_up_required: { status: 409, code: "DEPOSIT_CATCH_UP_REQUIRED", error: "This order's deposit changed after a payment was made. The difference cannot be collected here yet; please contact us." },
+  no_deposit_due: { status: 400, code: "NO_DEPOSIT_DUE", error: "No deposit amount configured for this order" },
+  selection_invalid: { status: 409, code: "PAYMENT_SELECTION_INVALID", error: "The selected payment amount is no longer valid for this order. Please refresh and choose again." },
+  ledger_conflict: { status: 409, code: "PAYMENT_RECORDS_CONFLICT", error: "This order's payment records need review before it can be charged. Please contact us." },
+  over_balance: { status: 409, code: "BALANCE_CHANGED", error: "The balance due has changed. Please refresh and try again." },
+  invalid_amount: { status: 400, code: "INVALID_AMOUNT", error: "Invalid payment amount." },
+  not_found: { status: 404, code: "ORDER_NOT_FOUND", error: "Order not found" },
+  invalid_request: { status: 400, code: "INVALID_REQUEST", error: "Invalid request." },
+  payment_status_unknown: { status: 202, code: "PAYMENT_STATUS_UNKNOWN", error: "We could not confirm whether an earlier attempt at this payment went through yet. Please wait a moment and try again; it will not be charged twice." },
+  error: { status: 500, code: "PAYMENT_UNAVAILABLE", error: "The payment could not be started. No charge was made. Please try again." },
+};
+
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") {
     return new Response("ok", { status: 200, headers: corsHeaders });
@@ -48,8 +80,10 @@ Deno.serve(async (req: Request) => {
     });
   }
 
-  let releaseClaim: (() => Promise<void>) | null = null;
-  let stripeChargeSucceeded = false;
+  // The operation this request owns, once it has one. An unexpected failure gives the lease back WITHOUT closing the
+  // operation, so a retry resumes the same operation (and the same Stripe idempotency key).
+  let ownedOp: PaymentOperation | null = null;
+  let supabaseForRelease: Any = null;
 
   try {
     const body = await req.json();
@@ -58,6 +92,7 @@ Deno.serve(async (req: Request) => {
       paymentAmountCents: requestPaymentAmountCents,
       tipCents: requestTipCents,
       selectedPaymentType: requestSelectedPaymentType,
+      expectedDepositDueCents: requestExpectedDepositDueCents,
       invoiceToken,
       sessionId,
     } = body;
@@ -66,16 +101,7 @@ Deno.serve(async (req: Request) => {
     const identifier = buildRateLimitKey(ip, orderId, "deposit");
 
     if (!ip && !orderId) {
-      return new Response(
-        JSON.stringify({
-          success: false,
-          error: "Invalid request: unable to identify client",
-        }),
-        {
-          status: 400,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        }
-      );
+      return reply(400, { success: false, error: "Invalid request: unable to identify client" });
     }
 
     const rateLimitResult = await checkRateLimit(
@@ -87,39 +113,37 @@ Deno.serve(async (req: Request) => {
 
     if (!rateLimitResult.allowed) {
       if (rateLimitResult.reason === "missing_identifier") {
-        return new Response(
-          JSON.stringify({
-            success: false,
-            error: "Invalid request: unable to identify client",
-          }),
-          {
-            status: 400,
-            headers: { ...corsHeaders, "Content-Type": "application/json" },
-          }
-        );
+        return reply(400, { success: false, error: "Invalid request: unable to identify client" });
       }
 
       return createRateLimitResponse(rateLimitResult, corsHeaders);
     }
 
-    if (!orderId) {
-      return new Response(
-        JSON.stringify({ success: false, error: "Missing orderId" }),
-        {
-          status: 400,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        }
-      );
+    if (!orderId || typeof orderId !== "string") {
+      return reply(400, { success: false, error: "Missing orderId" });
+    }
+
+    // A browser may express a SELECTION. Anything that is not a whole, non-negative number of cents is refused before
+    // anything else happens (and so before Stripe).
+    if (requestTipCents !== undefined && requestTipCents !== null && !isCents(requestTipCents)) {
+      return reply(400, { success: false, code: "INVALID_TIP", error: "Invalid tip amount." });
+    }
+    if (requestPaymentAmountCents !== undefined && requestPaymentAmountCents !== null && !isCents(requestPaymentAmountCents)) {
+      return reply(400, { success: false, code: "INVALID_AMOUNT", error: "Invalid payment amount." });
+    }
+    if (requestExpectedDepositDueCents !== undefined && requestExpectedDepositDueCents !== null && !isCents(requestExpectedDepositDueCents)) {
+      return reply(400, { success: false, code: "INVALID_REQUEST", error: "Invalid request." });
     }
 
     const supabaseClient = createClient(
       Deno.env.get("SUPABASE_URL") ?? "",
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? ""
     );
+    supabaseForRelease = supabaseClient;
 
-    // ── Authorization (Payment Safety A1) ───────────────────────────────────
+    // ── Authorization ────────────────────────────────────────────────────────
     // The public anon key is not proof of anything. A card charge is allowed only for:
-    //   - a signed-in admin/master (any amount/type this function supports, including balance charges), or
+    //   - a signed-in admin/master (a deposit approval or a balance charge), or
     //   - a customer proving control of THIS order with an unexpired invoice token bound to it, a signed-in
     //     customer who owns it, or a completed Stripe Checkout session whose metadata.order_id is this order.
     // Crew are not admin and may not charge cards. Customers may not run balance charges here (customer balance
@@ -158,6 +182,11 @@ Deno.serve(async (req: Request) => {
       }
     }
 
+    const isBalanceCharge = staffCaller && requestSelectedPaymentType === "balance";
+    if (isBalanceCharge && !isCents(requestPaymentAmountCents)) {
+      return reply(400, { success: false, code: "INVALID_AMOUNT", error: "Invalid payment amount." });
+    }
+
     const { data: stripeKeyData, error: keyError } = await supabaseClient
       .from("admin_settings")
       .select("value")
@@ -165,107 +194,31 @@ Deno.serve(async (req: Request) => {
       .maybeSingle();
 
     if (keyError || !stripeKeyData?.value) {
-      return new Response(
-        JSON.stringify({ success: false, error: "Stripe not configured" }),
-        {
-          status: 500,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        }
-      );
+      return reply(500, { success: false, error: "Stripe not configured" });
     }
 
     const stripe = new Stripe(stripeKeyData.value, {
       apiVersion: "2024-10-28.acacia",
     });
 
-    // Scalar-only fetch — no nested joins in the critical path
+    // Scalar-only fetch. No amount is read here: the permitted amounts come from the payment operation claim.
     const { data: order, error: orderError } = await supabaseClient
       .from("orders")
-      .select(
-        "id, stripe_customer_id, stripe_payment_method_id, deposit_due_cents, tip_cents, deposit_paid_cents, balance_paid_cents, balance_due_cents, status, customer_selected_payment_cents, customer_selected_payment_type, subtotal_cents, travel_fee_cents, surface_fee_cents, same_day_pickup_fee_cents, same_day_weekday_delivery_fee_cents, generator_fee_cents, tax_cents, event_date, event_end_date"
-      )
+      .select("id, status, stripe_customer_id, stripe_payment_method_id, event_date, event_end_date")
       .eq("id", orderId)
       .maybeSingle();
 
     if (orderError) {
       console.error("[charge-deposit] Order query error:", orderError);
-      return new Response(
-        JSON.stringify({
-          success: false,
-          error: `Order query failed: ${orderError.message}`,
-        }),
-        {
-          status: 500,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        }
-      );
+      return reply(500, { success: false, error: `Order query failed: ${orderError.message}` });
     }
 
     if (!order) {
-      return new Response(
-        JSON.stringify({ success: false, error: "Order not found" }),
-        {
-          status: 404,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        }
-      );
-    }
-
-    // Fetch custom fees in a separate guarded query (non-fatal)
-    let customFeesCents = 0;
-    try {
-      const { data: customFees } = await supabaseClient
-        .from("order_custom_fees")
-        .select("amount_cents")
-        .eq("order_id", orderId);
-
-      customFeesCents = (customFees || []).reduce(
-        (sum: number, f: { amount_cents: number }) => sum + (f.amount_cents || 0),
-        0
-      );
-    } catch (feeQueryErr) {
-      console.error(
-        "[charge-deposit] Custom fees query failed (non-fatal):",
-        feeQueryErr
-      );
-    }
-
-    // Fetch discounts from order_discounts table (discount_cents does not exist on orders)
-    let discountCents = 0;
-    try {
-      const { data: orderDiscounts } = await supabaseClient
-        .from("order_discounts")
-        .select("amount_cents, percentage")
-        .eq("order_id", orderId);
-
-      discountCents = (orderDiscounts || []).reduce(
-        (sum: number, d: { amount_cents: number; percentage: number }) => {
-          if (d.percentage > 0) {
-            return sum + Math.round((order.subtotal_cents || 0) * (d.percentage / 100));
-          }
-          if (d.amount_cents > 0) return sum + d.amount_cents;
-          return sum;
-        },
-        0
-      );
-    } catch (discountQueryErr) {
-      console.error(
-        "[charge-deposit] Discounts query failed (non-fatal):",
-        discountQueryErr
-      );
+      return reply(404, { success: false, error: "Order not found" });
     }
 
     if (!order.stripe_customer_id) {
-      return new Response(
-        JSON.stringify({
-          success: false,
-          error: "No payment method on file for this order",
-        }),
-        {
-          status: 400,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        }
-      );
+      return reply(400, { success: false, error: "No payment method on file for this order" });
     }
 
     let resolvedPaymentMethodId = order.stripe_payment_method_id;
@@ -292,112 +245,7 @@ Deno.serve(async (req: Request) => {
     }
 
     if (!resolvedPaymentMethodId) {
-      return new Response(
-        JSON.stringify({
-          success: false,
-          error: "No payment method on file for this order",
-        }),
-        {
-          status: 400,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        }
-      );
-    }
-
-    // Use request values if explicitly provided; otherwise use the stored
-    // deposit_due_cents as the authoritative charge amount for booking approval.
-    // customer_selected_payment_cents is NOT used for the approval charge —
-    // it remains stored separately for customer intent and future workflows.
-    const paymentAmountCents =
-      typeof requestPaymentAmountCents === "number" && requestPaymentAmountCents > 0
-        ? requestPaymentAmountCents
-        : order.deposit_due_cents;
-
-    const tipCents =
-      typeof requestTipCents === "number"
-        ? requestTipCents
-        : (order.tip_cents ?? 0);
-
-    const persistedPaymentType =
-      typeof requestSelectedPaymentType === "string" && requestSelectedPaymentType
-        ? requestSelectedPaymentType
-        : order.customer_selected_payment_type || "deposit";
-
-    const isBalanceCharge = persistedPaymentType === "balance";
-
-    if (!paymentAmountCents || paymentAmountCents <= 0) {
-      return new Response(
-        JSON.stringify({
-          success: false,
-          error: "No deposit amount configured for this order",
-        }),
-        {
-          status: 400,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        }
-      );
-    }
-
-    // If already paid (positive value), persist the latest payment selection and confirm (avoid double charge)
-    // Skipped for balance charges — a balance charge must never be blocked by a previously-paid deposit.
-    if (
-      !isBalanceCharge &&
-      order.deposit_paid_cents &&
-      order.deposit_paid_cents > 0 &&
-      order.deposit_paid_cents >= paymentAmountCents
-    ) {
-      const alreadyPaidUpdate: Record<string, unknown> = {
-        status: "confirmed",
-        customer_selected_payment_cents: paymentAmountCents,
-        customer_selected_payment_type: persistedPaymentType,
-        tip_cents: tipCents,
-      };
-
-      const { error: updateError } = await supabaseClient
-        .from("orders")
-        .update(alreadyPaidUpdate)
-        .eq("id", orderId);
-
-      if (updateError) {
-        console.error("Failed to update order status:", updateError);
-        return new Response(
-          JSON.stringify({
-            success: false,
-            error: `Failed to update order: ${updateError.message}`,
-          }),
-          {
-            status: 500,
-            headers: { ...corsHeaders, "Content-Type": "application/json" },
-          }
-        );
-      }
-
-      try {
-        const { data: lcData, error: lcError } = await supabaseClient.functions.invoke("order-lifecycle", {
-          body: {
-            action: "enter_confirmed",
-            orderId,
-            source: "charge_deposit_already_paid",
-            paymentOutcome: "already_paid",
-            oldStatusHint: order.status,
-          },
-        });
-        if (lcError) {
-          console.error("[charge-deposit] order-lifecycle transport error (already_paid):", lcError);
-        } else if (lcData && !lcData.success && !lcData.alreadySent) {
-          console.error("[charge-deposit] order-lifecycle returned success=false (already_paid):", lcData.error);
-        }
-      } catch (lifecycleErr) {
-        console.error("[charge-deposit] order-lifecycle invoke threw (non-fatal):", lifecycleErr);
-      }
-
-      return new Response(
-        JSON.stringify({ success: true, alreadyCharged: true }),
-        {
-          status: 200,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        }
-      );
+      return reply(400, { success: false, error: "No payment method on file for this order" });
     }
 
     // Server-side availability check before charging — last line of defense
@@ -441,253 +289,175 @@ Deno.serve(async (req: Request) => {
           });
 
           if (hasConflict) {
-            return new Response(
-              JSON.stringify({
-                success: false,
-                error:
-                  "One or more items in this order are no longer available for the event date. Please contact support to reschedule.",
-              }),
-              {
-                status: 409,
-                headers: { ...corsHeaders, "Content-Type": "application/json" },
-              }
-            );
+            return reply(409, {
+              success: false,
+              error:
+                "One or more items in this order are no longer available for the event date. Please contact support to reschedule.",
+            });
           }
         }
       }
     } catch (availabilityErr) {
       console.error("[charge-deposit] Availability check error:", availabilityErr);
-      return new Response(
-        JSON.stringify({
-          success: false,
-          error: "Unable to verify item availability. Please try again or contact support.",
-        }),
-        {
-          status: 503,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
+      return reply(503, {
+        success: false,
+        error: "Unable to verify item availability. Please try again or contact support.",
+      });
+    }
+
+    // ── The payment operation ────────────────────────────────────────────────
+    // The database derives the permitted principal and tip from the order row under its lock; the request only carries a
+    // selection. The operation exists (and owns the order's single open payment) BEFORE Stripe is called.
+    const claimId = crypto.randomUUID();
+    let claim = await claimPaymentOperation(supabaseClient, {
+      orderId,
+      purpose: isBalanceCharge ? "balance" : "deposit",
+      actor: staffCaller ? "staff" : "customer",
+      claimId,
+      // A customer's persisted Deposit / Full / Custom selection decides the principal; an admin approval always charges the
+      // required deposit.
+      useSelection: !staffCaller,
+      requestedPrincipalCents: isBalanceCharge ? (requestPaymentAmountCents as number) : null,
+      requestedTipCents: isCents(requestTipCents) && (!staffCaller || isBalanceCharge) ? requestTipCents : null,
+      expectedDepositDueCents: !staffCaller && isCents(requestExpectedDepositDueCents) ? requestExpectedDepositDueCents : null,
+    }, stripe);
+
+    // An open checkout operation (a customer who started paying on Stripe's page) is settled before anything new starts.
+    if (claim.ok && claim.op.checkoutSessionId) {
+      const resolution = await resolveCheckoutOperation(supabaseClient, stripe, claim.op, null);
+      if (resolution.kind === "paid") {
+        return reply(200, { success: true, alreadyCharged: true });
+      }
+      if (resolution.kind !== "superseded") {
+        const refusal = CLAIM_REFUSALS.busy;
+        return reply(refusal.status, { success: false, code: refusal.code, error: refusal.error });
+      }
+      claim = await claimPaymentOperation(supabaseClient, {
+        orderId,
+        purpose: isBalanceCharge ? "balance" : "deposit",
+        actor: staffCaller ? "staff" : "customer",
+        claimId: crypto.randomUUID(),
+        useSelection: !staffCaller,
+        requestedPrincipalCents: isBalanceCharge ? (requestPaymentAmountCents as number) : null,
+        requestedTipCents: isCents(requestTipCents) && (!staffCaller || isBalanceCharge) ? requestTipCents : null,
+        expectedDepositDueCents: !staffCaller && isCents(requestExpectedDepositDueCents) ? requestExpectedDepositDueCents : null,
+      }, stripe);
+    }
+
+    if (!claim.ok) {
+      if (claim.outcome === "already_paid") {
+        if (claim.detail.status_changed === true) {
+          try {
+            const { data: lcData, error: lcError } = await supabaseClient.functions.invoke("order-lifecycle", {
+              body: {
+                action: "enter_confirmed",
+                orderId,
+                source: "charge_deposit_already_paid",
+                paymentOutcome: "already_paid",
+                oldStatusHint: order.status,
+              },
+            });
+            if (lcError) {
+              console.error("[charge-deposit] order-lifecycle transport error (already_paid):", lcError);
+            } else if (lcData && !lcData.success && !lcData.alreadySent) {
+              console.error("[charge-deposit] order-lifecycle returned success=false (already_paid):", lcData.error);
+            }
+          } catch (lifecycleErr) {
+            console.error("[charge-deposit] order-lifecycle invoke threw (non-fatal):", lifecycleErr);
+          }
         }
-      );
+        return reply(200, { success: true, alreadyCharged: true });
+      }
+      // A stale admin screen asking for a balance that was already paid is not an error.
+      if (claim.outcome === "over_balance" && staffCaller && claim.detail.balance_due_cents === 0) {
+        return reply(200, { success: true, alreadyCharged: true });
+      }
+      const refusal = CLAIM_REFUSALS[claim.outcome] ?? CLAIM_REFUSALS.error;
+      if (claim.outcome === "error") console.error("[charge-deposit] claim failed:", claim.detail?.message);
+      return reply(refusal.status, { success: false, code: refusal.code, error: refusal.error, ...(claim.outcome === "catch_up_required" ? { requiresCatchUp: true } : {}) });
     }
 
-    // Atomic race guard: claim this order for charging by doing a conditional UPDATE.
-    const { data: claimedRows, error: claimError } = await supabaseClient
-      .from("orders")
-      .update({ payment_lock: true })
-      .eq("id", orderId)
-      .eq("payment_lock", false)
-      .select("id");
+    const op = claim.op;
+    ownedOp = op;
+    const isBalance = op.paymentType === "balance";
 
-    if (claimError) {
-      console.error("[charge-deposit] Claim update failed (code:", claimError.code, "message:", claimError.message, "details:", claimError.details, ")");
-      return new Response(
-        JSON.stringify({ success: false, error: "Failed to claim order for payment. Please try again." }),
-        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
-    }
+    // A fresh operation validates the card before Stripe is asked to charge it; a resumed operation already has its
+    // provider charge and must not be blocked by what the card looks like today.
+    if (!op.providerPaymentIntentId) {
+      const validation = await validatePaymentMethod(resolvedPaymentMethodId, stripe);
 
-    if (!claimedRows || claimedRows.length === 0) {
-      return new Response(
-        JSON.stringify({ success: false, error: "This order is already being processed. Please refresh and try again." }),
-        { status: 409, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
-    }
-
-    releaseClaim = async () => {
-      try {
-        await supabaseClient
-          .from("orders")
-          .update({ payment_lock: false })
-          .eq("id", orderId)
-          .eq("payment_lock", true);
-      } catch (e) {
-        console.error("[charge-deposit] Failed to release payment lock:", e);
-      }
-    };
-
-    // Fresh balance guard: for balance charges, re-read balance after acquiring the lock
-    // to prevent a stale request from charging an already-paid balance.
-    let currentBalancePaid = order.balance_paid_cents ?? 0;
-    let currentBalanceDue = order.balance_due_cents ?? 0;
-    let currentStatus = order.status;
-
-    if (isBalanceCharge) {
-      const { data: freshOrder, error: freshError } = await supabaseClient
-        .from("orders")
-        .select("balance_paid_cents, balance_due_cents, status")
-        .eq("id", orderId)
-        .maybeSingle();
-
-      if (freshError || !freshOrder) {
-        await releaseClaim();
-        return new Response(
-          JSON.stringify({ success: false, error: "Failed to re-read order balance. Please refresh and try again." }),
-          { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-        );
-      }
-
-      currentBalancePaid = freshOrder.balance_paid_cents ?? 0;
-      currentBalanceDue = freshOrder.balance_due_cents ?? 0;
-      currentStatus = freshOrder.status;
-
-      if (currentBalanceDue <= 0) {
-        await releaseClaim();
-        return new Response(
-          JSON.stringify({ success: true, alreadyCharged: true }),
-          { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-        );
-      }
-
-      if (paymentAmountCents > currentBalanceDue) {
-        await releaseClaim();
-        return new Response(
-          JSON.stringify({ success: false, error: "The balance due has changed. Please refresh and try again." }),
-          { status: 409, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-        );
-      }
-    }
-
-    const validation = await validatePaymentMethod(resolvedPaymentMethodId, stripe);
-
-    if (!validation.valid) {
-      await releaseClaim();
-      return new Response(
-        JSON.stringify({
+      if (!validation.valid) {
+        await releaseOperation(supabaseClient, op, "failed");
+        ownedOp = null;
+        return reply(400, {
           success: false,
+          code: "PAYMENT_METHOD_INVALID",
           error: validation.reason,
           needsNewCard: validation.needsNewCard,
-        }),
-        {
-          status: 400,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        }
-      );
-    }
-
-    if (validation.expMonth && validation.expYear && validation.last4) {
-      await supabaseClient
-        .from("orders")
-        .update({
-          payment_method_validated_at: new Date().toISOString(),
-          payment_method_exp_month: validation.expMonth,
-          payment_method_exp_year: validation.expYear,
-          payment_method_last_four: validation.last4,
-        })
-        .eq("id", orderId);
-    }
-
-    // Charge the payment amount + tip
-    const chargeAmountCents = paymentAmountCents + tipCents;
-
-    const paymentIntent = await stripe.paymentIntents.create({
-      amount: chargeAmountCents,
-      currency: "usd",
-      customer: order.stripe_customer_id,
-      payment_method: resolvedPaymentMethodId,
-      off_session: true,
-      confirm: true,
-      metadata: {
-        order_id: orderId,
-        payment_type: persistedPaymentType,
-      },
-    });
-
-    if (paymentIntent.status !== "succeeded") {
-      await releaseClaim();
-      return new Response(
-        JSON.stringify({
-          success: false,
-          error: `Payment could not be completed (status: ${paymentIntent.status}). Please try again or contact support.`,
-          paymentIntentId: paymentIntent.id,
-        }),
-        {
-          status: 400,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        }
-      );
-    }
-
-    // ---- Stripe charge succeeded — all failures below must NOT return decline UI ----
-    stripeChargeSucceeded = true;
-
-    // Conditional order update: deposit vs balance
-    let orderUpdate: Record<string, unknown>;
-
-    if (isBalanceCharge) {
-      const newBalancePaid = currentBalancePaid + paymentAmountCents;
-      const newBalanceDue = Math.max(0, currentBalanceDue - paymentAmountCents);
-
-      orderUpdate = {
-        status: currentStatus,
-        balance_paid_cents: newBalancePaid,
-        balance_due_cents: newBalanceDue,
-        tip_cents: tipCents,
-        customer_selected_payment_cents: paymentAmountCents,
-        customer_selected_payment_type: persistedPaymentType,
-        payment_lock: false,
-      };
-    } else {
-      // Recalculate balance_due_cents (deposit path)
-      const orderTotal =
-        (order.subtotal_cents || 0) +
-        (order.travel_fee_cents || 0) +
-        (order.surface_fee_cents || 0) +
-        (order.same_day_pickup_fee_cents || 0) +
-        (order.same_day_weekday_delivery_fee_cents || 0) +
-        (order.generator_fee_cents || 0) +
-        (order.tax_cents || 0) +
-        customFeesCents -
-        discountCents;
-
-      const newBalanceDue = Math.max(0, orderTotal - paymentAmountCents);
-
-      orderUpdate = {
-        status: "confirmed",
-        deposit_paid_cents: paymentAmountCents,
-        stripe_payment_status: "paid",
-        balance_due_cents: newBalanceDue,
-        tip_cents: tipCents,
-        customer_selected_payment_cents: paymentAmountCents,
-        customer_selected_payment_type: persistedPaymentType,
-        payment_lock: false,
-      };
-    }
-
-    const { error: updateError } = await supabaseClient
-      .from("orders")
-      .update(orderUpdate)
-      .eq("id", orderId);
-
-    if (updateError) {
-      console.error("[charge-deposit] Post-charge order update failed:", updateError);
-      try {
-        await supabaseClient.from("order_changelog").insert({
-          order_id: orderId,
-          user_id: null,
-          change_type: "payment_error",
-          field_changed: isBalanceCharge ? "balance_paid_cents" : "deposit_paid_cents",
-          old_value: String(isBalanceCharge ? currentBalancePaid : (order.deposit_paid_cents ?? 0)),
-          new_value: String(paymentAmountCents),
-          notes: `PARTIAL_CHARGE_FAILURE: Stripe charged ${chargeAmountCents} cents (PI: ${paymentIntent.id}) but order DB update failed: ${updateError.message}`,
         });
-      } catch (clErr) {
-        console.error("[charge-deposit] Failed to write partial-charge changelog (non-fatal):", clErr);
       }
-      return new Response(
-        JSON.stringify({
-          success: false,
-          chargeSucceeded: true,
-          error: "Payment was processed but order update failed. Please contact support.",
-          paymentIntentId: paymentIntent.id,
-        }),
-        {
-          status: 200,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        }
-      );
+
+      if (validation.expMonth && validation.expYear && validation.last4) {
+        await supabaseClient
+          .from("orders")
+          .update({
+            payment_method_validated_at: new Date().toISOString(),
+            payment_method_exp_month: validation.expMonth,
+            payment_method_exp_year: validation.expYear,
+            payment_method_last_four: validation.last4,
+          })
+          .eq("id", orderId);
+      }
     }
 
-    // Invoke lifecycle for admin alerting and changelog — deposit path only
-    if (!isBalanceCharge) {
+    const result = await chargeSavedCard({
+      db: supabaseClient,
+      stripe,
+      op,
+      orderId,
+      stripeCustomerId: order.stripe_customer_id,
+      paymentMethodId: resolvedPaymentMethodId,
+    });
+    ownedOp = null;
+
+    if (result.kind === "declined") {
+      return reply(400, {
+        success: false,
+        code: "CARD_DECLINED",
+        error: `Payment could not be completed: ${result.message}`,
+        paymentIntentId: result.paymentIntentId,
+      });
+    }
+    if (result.kind === "invalid") {
+      return reply(400, { success: false, code: "PAYMENT_REQUEST_INVALID", error: result.message });
+    }
+    if (result.kind === "unconfirmed") {
+      return reply(202, {
+        success: false,
+        code: result.code,
+        retrySafe: true,
+        error: "We could not confirm whether this payment went through yet. It is safe to try again: the same payment will be resumed, never charged twice.",
+        paymentIntentId: result.paymentIntentId,
+      });
+    }
+    if (result.kind === "finalize_failed") {
+      console.error("[charge-deposit] charge succeeded but could not be applied; the webhook or a retry will apply it", { paymentIntentId: result.paymentIntentId });
+      return reply(200, {
+        success: false,
+        chargeSucceeded: true,
+        code: "FINALIZATION_PENDING",
+        error: "Payment was processed but the order update is pending. Please contact support if it does not update shortly.",
+        paymentIntentId: result.paymentIntentId,
+      });
+    }
+
+    // ---- The charge succeeded and the payment is applied to the order ----
+    const paymentIntent = result.paymentIntent;
+    const fin = result.finalize;
+    const details = result.details;
+
+    // Whoever applied the payment (this request or the webhook) is the one that notifies; the other stays quiet.
+    if (fin.applied && !isBalance) {
       try {
         const { data: lcData, error: lcError } = await supabaseClient.functions.invoke("order-lifecycle", {
           body: {
@@ -706,86 +476,84 @@ Deno.serve(async (req: Request) => {
       } catch (lifecycleErr) {
         console.error("[charge-deposit] order-lifecycle invoke threw (non-fatal):", lifecycleErr);
       }
-    }
 
-    // Get payment method details and Stripe fees
-    let paymentMethod = null;
-    let paymentBrand = null;
-    let paymentLast4 = null;
-    let stripeFee = 0;
-    let stripeNet = chargeAmountCents;
-
-    if (paymentIntent.payment_method) {
-      const pmId =
-        typeof paymentIntent.payment_method === "string"
-          ? paymentIntent.payment_method
-          : paymentIntent.payment_method.id;
-
-      try {
-        const pm = await stripe.paymentMethods.retrieve(pmId);
-
-        if (pm.type === "card" && pm.card) {
-          paymentMethod = "card";
-          paymentBrand = pm.card.brand;
-          paymentLast4 = pm.card.last4;
-        } else if (pm.type === "us_bank_account") {
-          paymentMethod = "bank_account";
-          paymentLast4 = pm.us_bank_account?.last4;
-        } else {
-          paymentMethod = pm.type;
-        }
-      } catch (pmError) {
-        console.error("Failed to retrieve payment method details:", pmError);
-      }
-    }
-
-    if (paymentIntent.latest_charge) {
-      try {
-        const chargeId =
-          typeof paymentIntent.latest_charge === "string"
-            ? paymentIntent.latest_charge
-            : paymentIntent.latest_charge.id;
-
-        const charge = await stripe.charges.retrieve(chargeId, {
-          expand: ["balance_transaction"],
-        });
-
-        const balanceTx = charge.balance_transaction;
-
-        if (balanceTx && typeof balanceTx === "object") {
-          stripeFee = balanceTx.fee || 0;
-          stripeNet = balanceTx.net || chargeAmountCents;
-        } else {
-          console.warn("[Fees] balance_transaction not expanded, fees will be 0");
-        }
-      } catch (feeError) {
-        console.error("Failed to retrieve Stripe fee data:", feeError);
-      }
-    }
-
-    // Record payment — non-fatal (charge already succeeded)
-    try {
-      await supabaseClient.from("payments").insert({
-        order_id: orderId,
-        stripe_payment_intent_id: paymentIntent.id,
-        amount_cents: chargeAmountCents,
-        type: isBalanceCharge ? "balance" : "deposit",
-        status: "succeeded",
-        paid_at: new Date().toISOString(),
-        payment_method: paymentMethod,
-        payment_brand: paymentBrand,
-        payment_last4: paymentLast4,
-        stripe_fee_amount: stripeFee,
-        stripe_net_amount: stripeNet,
-        currency: "usd",
+      await sendDepositConfirmationEmail(supabaseClient, {
+        orderId,
+        principalCents: op.principalCents,
+        grossCents: op.grossCents,
+        paymentMethod: details.paymentMethod,
+        paymentBrand: details.paymentBrand,
+        paymentLast4: details.paymentLast4,
       });
-    } catch (paymentError) {
-      console.error("Failed to record payment (non-fatal):", paymentError);
     }
 
-    // Build and send rich booking confirmation + receipt email — deposit path only
-    if (!isBalanceCharge) {
-      try {
+    return reply(200, {
+      success: true,
+      operationId: op.paymentId,
+      paymentDetails: {
+        paymentIntentId: paymentIntent.id,
+        chargeId: details.chargeId ?? paymentIntent.latest_charge ?? null,
+        amountCents: op.grossCents,
+        principalCents: op.principalCents,
+        depositPrincipalCents: op.depositPrincipalCents,
+        balancePrincipalCents: op.balancePrincipalCents,
+        tipCents: op.tipCents,
+        paymentMethod: details.paymentMethod,
+        paymentBrand: details.paymentBrand,
+        paymentLast4: details.paymentLast4,
+      },
+    });
+  } catch (error: unknown) {
+    console.error("charge-deposit error:", error);
+    const message = error instanceof Error ? error.message : "Unknown error";
+
+    // Give the lease back but keep the operation open: a retry resumes it with the same Stripe idempotency key.
+    if (ownedOp && supabaseForRelease) {
+      await releaseOperation(supabaseForRelease, ownedOp, null);
+    }
+
+    return reply(500, { success: false, error: message });
+  }
+});
+
+// deno-lint-ignore no-explicit-any
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type Any = any;
+
+// Customer-facing booking confirmation and receipt for a collected deposit. Notification only: nothing here changes money.
+async function sendDepositConfirmationEmail(
+  supabaseClient: Any,
+  p: { orderId: string; principalCents: number; grossCents: number; paymentMethod: string | null; paymentBrand: string | null; paymentLast4: string | null },
+): Promise<void> {
+  const { orderId, grossCents: chargeAmountCents, paymentMethod, paymentBrand, paymentLast4 } = p;
+  const paymentAmountCents = p.principalCents;
+
+  let discountCents = 0;
+  try {
+    const { data: orderDiscounts } = await supabaseClient
+      .from("order_discounts")
+      .select("amount_cents, percentage")
+      .eq("order_id", orderId);
+    const { data: subtotalRow } = await supabaseClient
+      .from("orders")
+      .select("subtotal_cents")
+      .eq("id", orderId)
+      .maybeSingle();
+    discountCents = (orderDiscounts || []).reduce(
+      (sum: number, d: { amount_cents: number; percentage: number }) => {
+        if (d.percentage > 0) {
+          return sum + Math.round((subtotalRow?.subtotal_cents || 0) * (d.percentage / 100));
+        }
+        if (d.amount_cents > 0) return sum + d.amount_cents;
+        return sum;
+      },
+      0
+    );
+  } catch (discountQueryErr) {
+    console.error("[charge-deposit] Discounts query failed (non-fatal):", discountQueryErr);
+  }
+
+  try {
         const { data: fullOrder } = await supabaseClient
           .from("orders")
           .select(`
@@ -1048,42 +816,7 @@ Deno.serve(async (req: Request) => {
             },
           });
         }
-      } catch (emailError) {
-        console.error("Failed to send booking confirmation email:", emailError);
-      }
-    }
-
-    return new Response(
-      JSON.stringify({
-        success: true,
-        paymentDetails: {
-          paymentIntentId: paymentIntent.id,
-          chargeId: paymentIntent.latest_charge,
-          amountCents: chargeAmountCents,
-          paymentMethod,
-          paymentBrand,
-          paymentLast4,
-        },
-      }),
-      {
-        status: 200,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      }
-    );
-  } catch (error: unknown) {
-    console.error("charge-deposit error:", error);
-    const message = error instanceof Error ? error.message : "Unknown error";
-
-    if (releaseClaim && !stripeChargeSucceeded) {
-      await releaseClaim();
-    }
-
-    return new Response(
-      JSON.stringify({ success: false, error: message }),
-      {
-        status: 500,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      }
-    );
+  } catch (emailError) {
+    console.error("Failed to send booking confirmation email:", emailError);
   }
-});
+}

@@ -27,6 +27,8 @@ export interface NotificationChannelResult {
   errors: string[];
 }
 
+const NOT_A_DECLINE_CODES = ['PAYMENT_IN_PROGRESS', 'ORDER_STATUS_NOT_PAYABLE', 'DEPOSIT_CATCH_UP_REQUIRED', 'PAYMENT_RECORDS_CONFLICT', 'PAYMENT_STATUS_UNKNOWN', 'PAYMENT_PROCESSING', 'PAYMENT_REQUEST_INVALID', 'ORDER_NOT_FOUND', 'NO_DEPOSIT_DUE'];
+
 export async function approveOrder(
   orderId: string,
   sendSms: (message: string) => Promise<boolean>
@@ -170,6 +172,12 @@ export async function approveOrder(
         ? data.error.trim()
         : 'Failed to charge card.';
 
+      // Only a refused card is a reason to tell the customer their card was declined. A payment already in progress, an order
+      // that is not in a chargeable state, or a deposit that needs a catch-up are not declines.
+      if (typeof data?.code === 'string' && NOT_A_DECLINE_CODES.includes(data.code)) {
+        throw new Error(safePaymentReason);
+      }
+
       let declineNotificationResult: NotificationChannelResult;
       try {
         const { data: fullOrderRaw, error: fullOrderError } = await supabase
@@ -215,17 +223,19 @@ export async function approveOrder(
     // Use Stripe's actual charge amount as the source of truth for receipts and invoice
     // This prevents drift between what was charged vs what we record in accounting
     const stripeGrossCents = data.paymentDetails?.amountCents ?? null;
-    const tipAmountCents = orderData.tip_cents ?? 0;
+    // The server reports how the charge divides into rental principal and tip; the tip charged is the one the server decided,
+    // not whatever the order row said before the charge.
+    const tipAmountCents: number =
+      typeof data.paymentDetails?.tipCents === 'number' ? data.paymentDetails.tipCents : 0;
     // For booking approval, the charge amount is always deposit_due_cents.
     // customer_selected_payment_cents is NOT used for the approval charge.
-    const depositAmountCents =
-      stripeGrossCents != null
-        ? Math.max(0, stripeGrossCents - tipAmountCents)
-        : (orderData.deposit_due_cents ?? 0);
-    const paidAmountCents =
-      stripeGrossCents != null
-        ? Math.max(0, stripeGrossCents - tipAmountCents)
-        : depositAmountCents;
+    const depositAmountCents: number =
+      typeof data.paymentDetails?.principalCents === 'number'
+        ? data.paymentDetails.principalCents
+        : stripeGrossCents != null
+          ? Math.max(0, stripeGrossCents - tipAmountCents)
+          : (orderData.deposit_due_cents ?? 0);
+    const paidAmountCents: number = depositAmountCents;
 
     // Log deposit transaction and notify admin with grouped receipts
     if (customerData && orderData.customer_id) {

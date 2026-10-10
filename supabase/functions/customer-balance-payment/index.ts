@@ -1,21 +1,21 @@
 /**
  * CUSTOMER BALANCE PAYMENT - Supabase Edge Function
  *
- * Charges the remaining balance (and optional tip) for a confirmed order.
+ * Charges (part of) the remaining balance and an optional tip for a confirmed order.
+ *
+ * The browser sends a SELECTION: how much of the balance to pay now and an optional tip. The amounts that are actually
+ * charged come from the payment operation the database creates (claim_payment_operation): principal is bounded by the order's
+ * current balance_due_cents under the order's row lock, the tip is validated separately and never increases the principal, and
+ * the operation exists before Stripe is called. Every Stripe request for an operation uses that operation's stable
+ * idempotency key, so a double click, a retry or a crash can never create a second charge. The financial application
+ * (finalize_payment_operation) is shared with the webhook and the reconciler and happens exactly once.
  *
  * Path A – Card on file:
- *   Creates a PaymentIntent with off_session=true + confirm=true.
- *   On success: writes balance_paid_cents and tip_cents to orders,
- *   inserts one payment row (type=balance), logs a transaction receipt,
- *   and returns { success: true }.
- *   The stripe-webhook payment_intent.succeeded handler is intentionally
- *   written to skip the order-write if payment row already exists for that PI
- *   to prevent double-writes.
+ *   Charges the saved card for the operation. On success the payment is applied once and a receipt is sent.
  *
- * Path B – No card / card invalid:
- *   Creates a Stripe Checkout session.
- *   Returns { url } for redirect.
- *   The webhook owns all DB writes for that path (checkout.session.completed).
+ * Path B – No card / card declined:
+ *   Creates a Stripe Checkout session for a NEW operation. The webhook (or reconcile-balance-payment) applies it
+ *   when the customer pays; either one finds the operation through the session and finalizes it.
  */
 
 import "jsr:@supabase/functions-js@2/edge-runtime.d.ts";
@@ -27,6 +27,18 @@ import { logTransaction } from "../_shared/transaction-logger.ts";
 import { formatCurrency, formatPaymentMethodLabel } from "../_shared/fmt.ts";
 import { resolveCaller, proveOrderAccess, authFailureResponse } from "../_shared/auth.ts";
 import { buildPortalUrl, portalTokenFragment } from "../_shared/portal-link.ts";
+import {
+  claimPaymentOperation,
+  chargeSavedCard,
+  resolveCheckoutOperation,
+  adoptProviderPaymentIntent,
+  recordProvider,
+  releaseOperation,
+  operationIdempotencyKey,
+  isCents,
+  CHECKOUT_SESSION_SECONDS,
+  type PaymentOperation,
+} from "../_shared/payment-operations.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -37,38 +49,64 @@ const corsHeaders = {
 
 interface BalancePaymentRequest {
   orderId: string;
+  // How much of the balance to pay now (a selection: the server bounds it by the balance it reads itself).
   amountCents: number;
   tipCents?: number;
   // Order-bound customer proof (an unexpired invoice/portal link token for this order).
   invoiceToken?: string;
 }
 
+// deno-lint-ignore no-explicit-any
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type Any = any;
+
+function reply(status: number, body: Record<string, unknown>): Response {
+  return new Response(JSON.stringify(body), { status, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+}
+
+// How each refusal from the payment operation claim is reported. Nothing here has touched Stripe.
+const CLAIM_REFUSALS: Record<string, { status: number; code: string; error: string }> = {
+  busy: { status: 409, code: "PAYMENT_IN_PROGRESS", error: "A payment for this order is already in progress. Please wait a moment and refresh." },
+  invalid_status: { status: 409, code: "ORDER_STATUS_NOT_PAYABLE", error: "This order cannot take a balance payment right now." },
+  over_balance: { status: 400, code: "OVER_BALANCE", error: "Payment amount exceeds the balance due on this order." },
+  invalid_amount: { status: 400, code: "INVALID_AMOUNT", error: "Invalid request: orderId required and total must be > 0." },
+  not_found: { status: 404, code: "ORDER_NOT_FOUND", error: "Order not found." },
+  invalid_request: { status: 400, code: "INVALID_REQUEST", error: "Invalid request." },
+  order_changed: { status: 409, code: "ORDER_CHANGED", error: "This order changed. Please refresh and try again." },
+  payment_status_unknown: { status: 202, code: "PAYMENT_STATUS_UNKNOWN", error: "We could not confirm whether an earlier attempt at this payment went through yet. Please wait a moment and try again; it will not be charged twice." },
+  error: { status: 500, code: "PAYMENT_UNAVAILABLE", error: "The payment could not be started. No charge was made. Please try again." },
+};
+
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") {
     return new Response("ok", { status: 200, headers: corsHeaders });
   }
 
+  let ownedOp: PaymentOperation | null = null;
+  let supabaseForRelease: Any = null;
+
   try {
     const body: BalancePaymentRequest = await req.json();
     const { orderId, amountCents, tipCents: rawTipCents = 0, invoiceToken } = body;
 
-    const tipCents = Math.max(0, Math.round(Number(rawTipCents) || 0));
-    const balanceCents = Math.max(0, Math.round(Number(amountCents) || 0));
-    const totalChargeAmount = balanceCents + tipCents;
-
-    if (!orderId || totalChargeAmount <= 0) {
-      return new Response(
-        JSON.stringify({ error: "Invalid request: orderId required and total must be > 0." }),
-        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
+    // Whole, non-negative cents only. Nothing is rounded or clamped into shape: a malformed amount is refused before any
+    // lookup, and so before Stripe.
+    if (!orderId || typeof orderId !== "string" || !isCents(amountCents) || !isCents(rawTipCents)) {
+      return reply(400, { error: "Invalid request: orderId required and total must be > 0.", code: "INVALID_AMOUNT" });
+    }
+    const balanceCents: number = amountCents;
+    const tipCents: number = rawTipCents;
+    if (balanceCents + tipCents <= 0) {
+      return reply(400, { error: "Invalid request: orderId required and total must be > 0.", code: "INVALID_AMOUNT" });
     }
 
     const supabaseClient = createClient(
       Deno.env.get("SUPABASE_URL") ?? "",
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? ""
     );
+    supabaseForRelease = supabaseClient;
 
-    // ── Authorization (Payment Safety A1) ───────────────────────────────────
+    // ── Authorization ────────────────────────────────────────────────────────
     // This charges the order's saved card, so an order UUID alone is not enough. The caller must prove control of
     // THIS order: an unexpired invoice/portal link token bound to it, or a signed-in customer who owns it.
     const caller = await resolveCaller(
@@ -99,18 +137,14 @@ Deno.serve(async (req: Request) => {
       .maybeSingle();
 
     if (keyError || !stripeKeyData?.value) {
-      return new Response(
-        JSON.stringify({ error: "Stripe not configured." }),
-        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
+      return reply(500, { error: "Stripe not configured." });
     }
 
     const stripe = new Stripe(stripeKeyData.value, {
       apiVersion: "2024-10-28.acacia",
     });
 
-    // Load order with contact details for notifications
-    // balance_paid_cents is read here so we can ACCUMULATE on top of it (not overwrite)
+    // Load the order with contact details for the receipt. The amounts charged do NOT come from this read.
     const { data: order, error: orderError } = await supabaseClient
       .from("orders")
       .select(`
@@ -128,20 +162,7 @@ Deno.serve(async (req: Request) => {
 
     if (orderError || !order) {
       console.error("[customer-balance-payment] Order query failed:", JSON.stringify(orderError), "orderId:", orderId);
-      return new Response(
-        JSON.stringify({ error: "Order not found.", detail: orderError?.message }),
-        { status: 404, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
-    }
-
-    // The balance portion of the charge can never exceed what the order currently owes (server-read). A tip may be
-    // added on top of the balance.
-    const authorizedBalanceCents = Math.max(0, order.balance_due_cents ?? 0);
-    if (balanceCents > authorizedBalanceCents) {
-      return new Response(
-        JSON.stringify({ error: "Payment amount exceeds the balance due on this order." }),
-        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
+      return reply(404, { error: "Order not found.", detail: orderError?.message });
     }
 
     // Determine origin for Stripe Checkout redirect URLs
@@ -153,278 +174,163 @@ Deno.serve(async (req: Request) => {
     }
     siteOrigin = siteOrigin || "https://bouncepartyclub.com";
 
+    const claimParams = () => ({
+      orderId,
+      purpose: "balance" as const,
+      actor: "customer" as const,
+      claimId: crypto.randomUUID(),
+      requestedPrincipalCents: balanceCents,
+      requestedTipCents: tipCents,
+    });
+
+    // ── The payment operation ────────────────────────────────────────────────
+    let claim = await claimPaymentOperation(supabaseClient, claimParams(), stripe);
+
+    // A Checkout Session that is still open for this order is settled before anything new starts: the customer may have
+    // paid it, or it may be reused as is, or it is closed so a second session can never be paid on top of it.
+    if (claim.ok && claim.op.checkoutSessionId) {
+      const resolution = await resolveCheckoutOperation(supabaseClient, stripe, claim.op, { principalCents: balanceCents, tipCents });
+      if (resolution.kind === "paid") {
+        return reply(200, { success: true, alreadyPaid: true });
+      }
+      if (resolution.kind === "reusable") {
+        return reply(200, { url: resolution.url });
+      }
+      if (resolution.kind === "busy") {
+        const refusal = CLAIM_REFUSALS.busy;
+        return reply(refusal.status, { error: refusal.error, code: refusal.code });
+      }
+      claim = await claimPaymentOperation(supabaseClient, claimParams(), stripe);
+    }
+
+    if (!claim.ok) {
+      const refusal = CLAIM_REFUSALS[claim.outcome] ?? CLAIM_REFUSALS.error;
+      if (claim.outcome === "error") console.error("[customer-balance-payment] claim failed:", claim.detail?.message);
+      return reply(refusal.status, { error: refusal.error, code: refusal.code });
+    }
+
+    let op = claim.op;
+    ownedOp = op;
+
     const paymentMethodId = order.stripe_payment_method_id;
     const stripeCustomerId = order.stripe_customer_id;
 
+    // An earlier request for this very operation may have charged the card without learning the result. Find out before anything
+    // else is offered, so the customer can never be asked to pay twice for one balance.
+    const cardAttemptPossible = op.resumed && !op.checkoutSessionId;
+    if (cardAttemptPossible && op.providerAttemptedAt && !op.providerPaymentIntentId) {
+      await adoptProviderPaymentIntent(supabaseClient, stripe, op);
+    }
+
     // ─── PATH A: Card on file ────────────────────────────────────────────────
-    if (paymentMethodId && stripeCustomerId) {
-      const validation = await validatePaymentMethod(paymentMethodId, stripe);
+    if (((paymentMethodId && stripeCustomerId) || op.providerPaymentIntentId) && !op.checkoutSessionId) {
+      const validation = op.providerPaymentIntentId ? { valid: true } : await validatePaymentMethod(paymentMethodId as string, stripe);
 
       if (validation.valid) {
-        // BPC-SECURITY-HARDENING: COMMENTED OUT FOR PRODUCTION.
-        // Restore only after a true dev/staging environment and explicit safe gating are in place.
-        // Previously logged a Stripe payment method ID (pm_xxx) — sensitive payment token.
-        // console.log("[customer-balance-payment] Charging card on file:", paymentMethodId);
+        const result = await chargeSavedCard({
+          db: supabaseClient,
+          stripe,
+          op,
+          orderId,
+          stripeCustomerId: stripeCustomerId ?? '',
+          paymentMethodId: paymentMethodId ?? '',
+          description: `Balance payment for Order #${formatOrderId(orderId)}`,
+        });
+        ownedOp = null;
 
-        let paymentIntent: Stripe.PaymentIntent;
-        try {
-          paymentIntent = await stripe.paymentIntents.create({
-            amount: totalChargeAmount,
-            currency: "usd",
-            customer: stripeCustomerId,
-            payment_method: paymentMethodId,
-            off_session: true,
-            confirm: true,
-            metadata: {
-              order_id: orderId,
-              payment_type: "balance",
-              tip_cents: String(tipCents),
-              // Signal to webhook that edge fn already wrote DB so it can skip
-              source: "customer_balance_payment_edge_fn",
-            },
-            description: `Balance payment for Order #${formatOrderId(orderId)}`,
+        if (result.kind === "unconfirmed") {
+          return reply(202, {
+            success: false,
+            code: result.code,
+            retrySafe: true,
+            error: "We could not confirm whether this payment went through yet. It is safe to try again: the same payment will be resumed, never charged twice.",
           });
-        } catch (stripeErr: any) {
-          // Card declined / authentication required — fall through to Checkout
-          console.warn("[customer-balance-payment] Off-session charge failed, falling back to Checkout:", stripeErr?.message);
-          return await createCheckoutSession(
-            stripe, supabaseClient, order, stripeCustomerId, balanceCents, tipCents, orderId, siteOrigin, corsHeaders, portalTokenFragment(invoiceToken)
-          );
+        }
+        if (result.kind === "finalize_failed") {
+          console.error("[customer-balance-payment] charge succeeded but could not be applied; the webhook or a retry will apply it");
+          return reply(200, {
+            success: false,
+            chargeSucceeded: true,
+            code: "FINALIZATION_PENDING",
+            error: "Your payment was processed. Your balance may take a moment to update.",
+          });
         }
 
-        if (paymentIntent.status !== "succeeded") {
-          // Requires action — fall through to Checkout
-          console.warn("[customer-balance-payment] PaymentIntent status:", paymentIntent.status, "— falling back to Checkout");
-          // Cancel the intent so it doesn't sit open
-          try { await stripe.paymentIntents.cancel(paymentIntent.id); } catch { /* ignore */ }
-          return await createCheckoutSession(
-            stripe, supabaseClient, order, stripeCustomerId, balanceCents, tipCents, orderId, siteOrigin, corsHeaders, portalTokenFragment(invoiceToken)
-          );
-        }
+        if (result.kind === "succeeded") {
+          const { details, finalize: fin } = result;
 
-        // Charge succeeded — retrieve card details first so we can save them to orders
-        let paymentMethodType: string | null = "card";
-        let paymentBrand: string | null = order.payment_method_brand || null;
-        let paymentLast4: string | null = order.payment_method_last_four || null;
-        let latestChargeId: string | null = null;
-        let stripeFee = 0;
-        let stripeNet = totalChargeAmount;
-        let resolvedPaymentMethodId: string | null = paymentMethodId;
-
-        try {
-          const expandedPI = await stripe.paymentIntents.retrieve(paymentIntent.id, {
-            expand: ["payment_method", "latest_charge"],
-          });
-          latestChargeId = typeof expandedPI.latest_charge === "string"
-            ? expandedPI.latest_charge
-            : (expandedPI.latest_charge as any)?.id || null;
-
-          const pm = expandedPI.payment_method;
-          if (pm && typeof pm === "object") {
-            paymentMethodType = (pm as any).type || "card";
-            resolvedPaymentMethodId = (pm as any).id || resolvedPaymentMethodId;
-            if ((pm as any).card) {
-              paymentBrand = (pm as any).card.brand || paymentBrand;
-              paymentLast4 = (pm as any).card.last4 || paymentLast4;
-            }
+          // Save card brand/last4 to orders (non-financial)
+          const brand = details.paymentBrand || order.payment_method_brand || null;
+          const last4 = details.paymentLast4 || order.payment_method_last_four || null;
+          if (details.paymentBrand || details.paymentLast4) {
+            await supabaseClient
+              .from("orders")
+              .update({
+                ...(details.paymentBrand ? { payment_method_brand: details.paymentBrand } : {}),
+                ...(details.paymentLast4 ? { payment_method_last_four: details.paymentLast4 } : {}),
+              })
+              .eq("id", orderId);
           }
 
-          if (latestChargeId) {
-            const charge = await stripe.charges.retrieve(latestChargeId, {
-              expand: ["balance_transaction"],
-            });
-            const balanceTx = charge.balance_transaction;
-            if (balanceTx && typeof balanceTx === "object") {
-              stripeFee = (balanceTx as any).fee || 0;
-              stripeNet = (balanceTx as any).net || totalChargeAmount;
-            }
-          }
-        } catch (expandErr) {
-          console.warn("[customer-balance-payment] Failed to expand PI details:", expandErr);
-        }
-
-        // Insert payment row FIRST — this is the distributed mutex for the race-safe model.
-        // The unique constraint on stripe_payment_intent_id means exactly one writer wins.
-        // If this process crashes before the orders UPDATE below, the webhook's 23505 branch
-        // will detect the existing row and call apply_balance_payment_financials to repair.
-        const { data: paymentRecord, error: paymentInsertError } = await supabaseClient
-          .from("payments")
-          .insert({
-            order_id: orderId,
-            stripe_payment_intent_id: paymentIntent.id,
-            amount_cents: totalChargeAmount,
-            type: "balance",
-            status: "succeeded",
-            paid_at: new Date().toISOString(),
-            payment_method: paymentMethodType,
-            payment_brand: paymentBrand,
-            payment_last4: paymentLast4,
-            stripe_fee_amount: stripeFee,
-            stripe_net_amount: stripeNet,
-            currency: "usd",
-            order_financials_applied: false,
-          })
-          .select("id")
-          .maybeSingle();
-
-        if (paymentInsertError) {
-          if (paymentInsertError.code === "23505") {
-            // Another writer (webhook) already inserted this PI's payment row.
-            // Call apply_balance_payment_financials so that if that row still has
-            // order_financials_applied=false (prior crash), financials are applied now.
-            // The RPC is idempotent — if already applied it returns applied=false and is a no-op.
-            // Do NOT fall through into the hand-rolled orders.update below.
-            console.warn("[customer-balance-payment] 23505 on payment insert — calling RPC to ensure financials applied", { orderId, piId: paymentIntent.id });
-            const { error: rpc23505Err } = await supabaseClient
-              .rpc("apply_balance_payment_financials", {
-                p_pi_id: paymentIntent.id,
-                p_order_id: orderId,
-                p_balance_cents: balanceCents,
-                p_tip_cents: tipCents,
-                p_pm_id: resolvedPaymentMethodId || null,
-                p_customer_id: stripeCustomerId || null,
-              });
-            if (rpc23505Err) {
-              console.error("[customer-balance-payment] apply_balance_payment_financials failed on 23505 path", { orderId, piId: paymentIntent.id, rpc23505Err });
-              throw new Error(`apply_balance_payment_financials failed (23505): ${rpc23505Err.message}`);
-            }
-            return new Response(
-              JSON.stringify({ success: true }),
-              { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-            );
-          }
-          console.error("[customer-balance-payment] CRITICAL: Failed to insert payment row", { orderId, piId: paymentIntent.id, paymentInsertError });
-          throw new Error(`Payment row insert failed: ${paymentInsertError.message}`);
-        }
-
-        // Apply order financials through the atomic RPC — same path used by stripe-webhook
-        // and reconcile-balance-payment. The RPC holds a row lock on the payment row for
-        // the full read-apply-mark sequence, eliminating the double-apply race.
-        // It also writes stripe_payment_method_id / stripe_customer_id non-financially.
-        const { error: applyErr } = await supabaseClient
-          .rpc("apply_balance_payment_financials", {
-            p_pi_id: paymentIntent.id,
-            p_order_id: orderId,
-            p_balance_cents: balanceCents,
-            p_tip_cents: tipCents,
-            p_pm_id: resolvedPaymentMethodId || null,
-            p_customer_id: stripeCustomerId || null,
-          });
-
-        if (applyErr) {
-          console.error("[customer-balance-payment] CRITICAL: apply_balance_payment_financials failed on Path A happy path", { orderId, piId: paymentIntent.id, applyErr });
-          throw new Error(`apply_balance_payment_financials failed: ${applyErr.message}`);
-        }
-
-        // Save card brand/last4 to orders (non-financial; RPC handles pm_id + customer_id already)
-        if (paymentBrand || paymentLast4) {
-          await supabaseClient
-            .from("orders")
-            .update({
-              ...(paymentBrand ? { payment_method_brand: paymentBrand } : {}),
-              ...(paymentLast4 ? { payment_method_last_four: paymentLast4 } : {}),
-            })
-            .eq("id", orderId);
-        }
-
-        // Log transaction receipt
-        if (paymentRecord && order.customer_id) {
-          await logTransaction(supabaseClient, {
-            transactionType: "balance",
-            orderId,
-            customerId: order.customer_id,
-            paymentId: paymentRecord.id,
-            amountCents: totalChargeAmount,
-            paymentMethod: paymentMethodType,
-            paymentMethodBrand: paymentBrand,
-            stripeChargeId: latestChargeId,
-            stripePaymentIntentId: paymentIntent.id,
-            notes: tipCents > 0
-              ? `Balance payment ($${(balanceCents / 100).toFixed(2)}) + tip ($${(tipCents / 100).toFixed(2)})`
-              : "Customer portal balance payment",
-          });
-        }
-
-        // Send customer receipt email
-        try {
-          const customer = Array.isArray(order.customers) ? order.customers[0] : order.customers;
-          if (customer?.email) {
-            const { data: bizSettings } = await supabaseClient
-              .from("admin_settings")
-              .select("key, value")
-              .in("key", ["business_name", "business_phone", "logo_url"]);
-            const biz: Record<string, string> = {};
-            bizSettings?.forEach((s: { key: string; value: string | null }) => {
-              if (s.value) biz[s.key] = s.value;
-            });
-
-            const { data: emailCustomFees } = await supabaseClient
-              .from("order_custom_fees")
-              .select("name, amount_cents")
-              .eq("order_id", orderId);
-
-            const { data: emailDiscounts } = await supabaseClient
-              .from("order_discounts")
-              .select("name, amount_cents, percentage")
-              .eq("order_id", orderId);
-
-            const emailPayload = {
-              to: customer.email,
-              subject: `Payment Received - Order #${formatOrderId(orderId)}`,
-              html: buildReceiptEmail({
-                portalUrl: (await buildPortalUrl(supabaseClient, orderId, "https://bouncepartyclub.com")) ?? "https://bouncepartyclub.com",
-                contactName: customer.first_name ? `${customer.first_name} ${customer.last_name || ""}`.trim() : "Customer",
+          // The receipt and the email are sent by whoever applied the payment (this request or the webhook), never both.
+          if (fin.applied) {
+            if (order.customer_id) {
+              await logTransaction(supabaseClient, {
+                transactionType: "balance",
                 orderId,
-                balanceCents,
-                tipCents,
-                totalChargeAmount,
-                cardBrand: paymentBrand,
-                cardLast4: paymentLast4,
-                eventDate: order.event_date,
-                order,
-                biz,
-                customFees: emailCustomFees || [],
-                discounts: emailDiscounts || [],
-              }),
-            };
-
-            const emailResp = await fetch(
-              `${Deno.env.get("SUPABASE_URL")}/functions/v1/send-email`,
-              {
-                method: "POST",
-                headers: {
-                  "Content-Type": "application/json",
-                  "Authorization": `Bearer ${Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")}`,
-                  "Apikey": Deno.env.get("SUPABASE_ANON_KEY") ?? "",
-                },
-                body: JSON.stringify(emailPayload),
-              }
-            );
-            if (!emailResp.ok) {
-              const emailErrText = await emailResp.text().catch(() => "");
-              console.warn("[customer-balance-payment] send-email returned error (non-fatal):", emailResp.status, emailErrText);
+                customerId: order.customer_id,
+                paymentId: op.paymentId,
+                amountCents: op.grossCents,
+                paymentMethod: details.paymentMethod,
+                paymentMethodBrand: details.paymentBrand,
+                stripeChargeId: details.chargeId,
+                stripePaymentIntentId: result.paymentIntent.id,
+                notes: op.tipCents > 0
+                  ? `Balance payment ($${(op.principalCents / 100).toFixed(2)}) + tip ($${(op.tipCents / 100).toFixed(2)})`
+                  : "Customer portal balance payment",
+              });
             }
+            await sendBalanceReceipt(supabaseClient, order, orderId, op, brand, last4);
           }
-        } catch (emailErr) {
-          // Non-fatal — log and continue
-          console.warn("[customer-balance-payment] Failed to send receipt email:", emailErr);
+
+          return reply(200, { success: true });
         }
 
-        // BPC-SECURITY-HARDENING: COMMENTED OUT FOR PRODUCTION.
-        // Restore only after a true dev/staging environment and explicit safe gating are in place.
-        // Previously logged a Stripe PaymentIntent ID (pi_xxx) — sensitive payment token.
-        // console.log("[customer-balance-payment] COF charge succeeded:", paymentIntent.id);
-
-        return new Response(
-          JSON.stringify({ success: true }),
-          { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-        );
+        // The card was declined or needs authentication: fall through to Checkout with a NEW operation.
+        console.warn("[customer-balance-payment] Off-session charge not completed, falling back to Checkout");
+        const next = await claimPaymentOperation(supabaseClient, claimParams(), stripe);
+        if (!next.ok) {
+          const refusal = CLAIM_REFUSALS[next.outcome] ?? CLAIM_REFUSALS.error;
+          return reply(refusal.status, { error: refusal.error, code: refusal.code });
+        }
+        op = next.op;
+        ownedOp = op;
+      } else {
+        console.warn("[customer-balance-payment] Card on file invalid:", (validation as Any).reason, "— falling back to Checkout");
       }
-
-      console.warn("[customer-balance-payment] Card on file invalid:", validation.reason, "— falling back to Checkout");
     }
 
     // ─── PATH B: No valid card — Stripe Checkout ─────────────────────────────
+    if (cardAttemptPossible) {
+      // The card path was tried for this operation and cannot be repeated now (no usable card). If a provider request was ever
+      // started for it, only the provider can say what happened (never a timer): the operation stays open and nothing new is offered.
+      // One that never started a request cannot have charged anything and is closed, and Checkout then gets a new operation.
+      if (op.providerPaymentIntentId || op.providerAttemptedAt) {
+        await releaseOperation(supabaseClient, op, null);
+        ownedOp = null;
+        const refusal = CLAIM_REFUSALS.payment_status_unknown;
+        return reply(refusal.status, { error: refusal.error, code: refusal.code });
+      }
+      await releaseOperation(supabaseClient, op, 'cancelled');
+      ownedOp = null;
+      const next = await claimPaymentOperation(supabaseClient, claimParams(), stripe);
+      if (!next.ok) {
+        const refusal = CLAIM_REFUSALS[next.outcome] ?? CLAIM_REFUSALS.error;
+        return reply(refusal.status, { error: refusal.error, code: refusal.code });
+      }
+      op = next.op;
+      ownedOp = op;
+    }
     let customerId = stripeCustomerId;
     if (!customerId) {
       const customer = Array.isArray(order.customers) ? order.customers[0] : order.customers;
@@ -432,7 +338,7 @@ Deno.serve(async (req: Request) => {
         email: customer?.email,
         name: customer?.first_name ? `${customer.first_name} ${customer.last_name || ""}`.trim() : undefined,
         metadata: { order_id: orderId },
-      });
+      }, { idempotencyKey: operationIdempotencyKey(op, "customer") });
       customerId = newCustomer.id;
       await supabaseClient
         .from("orders")
@@ -440,31 +346,109 @@ Deno.serve(async (req: Request) => {
         .eq("id", orderId);
     }
 
-    return await createCheckoutSession(
-      stripe, supabaseClient, order, customerId!, balanceCents, tipCents, orderId, siteOrigin, corsHeaders, portalTokenFragment(invoiceToken)
+    const url = await createCheckoutSession(
+      stripe, supabaseClient, op, customerId!, orderId, siteOrigin, portalTokenFragment(invoiceToken)
     );
+    ownedOp = null;
+    return reply(200, { url });
   } catch (error: unknown) {
     console.error("[customer-balance-payment] Fatal error:", error);
     const message = error instanceof Error ? error.message : "Unknown error";
-    return new Response(
-      JSON.stringify({ error: message }),
-      { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-    );
+    // Give the lease back but keep the operation open: a retry resumes it with the same Stripe idempotency key.
+    if (ownedOp && supabaseForRelease) {
+      await releaseOperation(supabaseForRelease, ownedOp, null);
+    }
+    return reply(500, { error: message });
   }
 });
 
+// Customer receipt for a card-on-file balance payment. Notification only: nothing here changes money.
+async function sendBalanceReceipt(
+  supabaseClient: Any,
+  order: Any,
+  orderId: string,
+  op: PaymentOperation,
+  paymentBrand: string | null,
+  paymentLast4: string | null,
+): Promise<void> {
+  try {
+    const customer = Array.isArray(order.customers) ? order.customers[0] : order.customers;
+    if (customer?.email) {
+      const { data: bizSettings } = await supabaseClient
+        .from("admin_settings")
+        .select("key, value")
+        .in("key", ["business_name", "business_phone", "logo_url"]);
+      const biz: Record<string, string> = {};
+      bizSettings?.forEach((s: { key: string; value: string | null }) => {
+        if (s.value) biz[s.key] = s.value;
+      });
+
+      const { data: emailCustomFees } = await supabaseClient
+        .from("order_custom_fees")
+        .select("name, amount_cents")
+        .eq("order_id", orderId);
+
+      const { data: emailDiscounts } = await supabaseClient
+        .from("order_discounts")
+        .select("name, amount_cents, percentage")
+        .eq("order_id", orderId);
+
+      const emailPayload = {
+        to: customer.email,
+        subject: `Payment Received - Order #${formatOrderId(orderId)}`,
+        html: buildReceiptEmail({
+          portalUrl: (await buildPortalUrl(supabaseClient, orderId, "https://bouncepartyclub.com")) ?? "https://bouncepartyclub.com",
+          contactName: customer.first_name ? `${customer.first_name} ${customer.last_name || ""}`.trim() : "Customer",
+          orderId,
+          balanceCents: op.principalCents,
+          tipCents: op.tipCents,
+          totalChargeAmount: op.grossCents,
+          cardBrand: paymentBrand,
+          cardLast4: paymentLast4,
+          eventDate: order.event_date,
+          order,
+          biz,
+          customFees: emailCustomFees || [],
+          discounts: emailDiscounts || [],
+        }),
+      };
+
+      const emailResp = await fetch(
+        `${Deno.env.get("SUPABASE_URL")}/functions/v1/send-email`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "Authorization": `Bearer ${Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")}`,
+            "Apikey": Deno.env.get("SUPABASE_ANON_KEY") ?? "",
+          },
+          body: JSON.stringify(emailPayload),
+        }
+      );
+      if (!emailResp.ok) {
+        const emailErrText = await emailResp.text().catch(() => "");
+        console.warn("[customer-balance-payment] send-email returned error (non-fatal):", emailResp.status, emailErrText);
+      }
+    }
+  } catch (emailErr) {
+    // Non-fatal — log and continue
+    console.warn("[customer-balance-payment] Failed to send receipt email:", emailErr);
+  }
+}
+
+// Creates the Stripe Checkout Session for an operation the caller owns. The amounts are the operation's, the idempotency key
+// is the operation's, and the session is recorded on the operation so the webhook and the reconciler can find it.
 async function createCheckoutSession(
   stripe: Stripe,
-  _supabaseClient: any,
-  _order: any,
+  supabaseClient: Any,
+  op: PaymentOperation,
   customerId: string,
-  balanceCents: number,
-  tipCents: number,
   orderId: string,
   siteOrigin: string,
-  corsHeaders: Record<string, string>,
   returnFragment = ""
-): Promise<Response> {
+): Promise<string | null> {
+  const balanceCents = op.principalCents;
+  const tipCents = op.tipCents;
   const lineItems: Stripe.Checkout.SessionCreateParams.LineItem[] = [];
 
   if (balanceCents > 0) {
@@ -500,6 +484,15 @@ async function createCheckoutSession(
   const success_url = `${siteOrigin}/customer-portal/${orderId}?payment=success&session_id={CHECKOUT_SESSION_ID}${returnFragment}`;
   const cancel_url = `${siteOrigin}/customer-portal/${orderId}?tab=payment&tip=${tipCents}${returnFragment}`;
 
+  const metadata = {
+    order_id: orderId,
+    payment_type: "balance",
+    tip_cents: String(tipCents),
+    principal_cents: String(balanceCents),
+    payment_operation_key: op.operationKey,
+    payment_id: op.paymentId,
+  };
+
   const session = await stripe.checkout.sessions.create({
     customer: customerId,
     mode: "payment",
@@ -507,30 +500,20 @@ async function createCheckoutSession(
     line_items: lineItems,
     success_url,
     cancel_url,
+    expires_at: Math.floor(Date.now() / 1000) + CHECKOUT_SESSION_SECONDS,
     payment_intent_data: {
       setup_future_usage: "off_session",
-      metadata: {
-        order_id: orderId,
-        payment_type: "balance",
-        tip_cents: String(tipCents),
-      },
+      metadata,
     },
-    metadata: {
-      order_id: orderId,
-      payment_type: "balance",
-      tip_cents: String(tipCents),
-    },
-  });
+    metadata,
+  }, { idempotencyKey: operationIdempotencyKey(op, "cs") });
 
-  // BPC-SECURITY-HARDENING: COMMENTED OUT FOR PRODUCTION.
-  // Restore only after a true dev/staging environment and explicit safe gating are in place.
-  // Previously logged a Stripe Checkout Session ID (cs_xxx) — sensitive payment token.
-  // console.log("[customer-balance-payment] Checkout session created:", session.id);
+  const recorded = await recordProvider(supabaseClient, op, { checkoutSessionId: session.id });
+  if (!recorded) console.error("[customer-balance-payment] could not record the Checkout Session on the operation");
+  // The customer now pays on Stripe's page. The operation stays open (nobody holds the lease) until it is paid or closed.
+  await releaseOperation(supabaseClient, op, null);
 
-  return new Response(
-    JSON.stringify({ url: session.url }),
-    { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-  );
+  return session.url;
 }
 
 function buildReceiptEmail(opts: {

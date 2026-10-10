@@ -144,7 +144,9 @@ export function PaymentTab({ orderId, order, balanceDue, orderSummary, onPayment
       (order.generator_fee_waived ? 0 : (order.generator_fee_cents || 0)) +
       (order.tax_waived ? 0 : (order.tax_cents || 0));
 
-  const tipCents = calculateTipCents(tipAmount, customTipAmount, orderTotal);
+  // Typed text can parse to NaN or a negative number; the payment only ever receives a whole, non-negative tip.
+  const rawTipCents = calculateTipCents(tipAmount, customTipAmount, orderTotal);
+  const tipCents = Number.isFinite(rawTipCents) && rawTipCents > 0 ? Math.round(rawTipCents) : 0;
   const totalDueNow = balanceDue + tipCents;
 
   // Prefer order-level fields; fall back to the most recent succeeded payment row.
@@ -194,9 +196,17 @@ export function PaymentTab({ orderId, order, balanceDue, orderSummary, onPayment
         showToast('Payment processed successfully!', 'success');
         setShowConfirmModal(false);
         onPaymentComplete();
+      } else if (data.chargeSucceeded) {
+        // The card was charged and the balance is still being applied (the server finishes it); nothing is charged again.
+        showToast(data.error || 'Your payment was processed. Your balance may take a moment to update.', 'success');
+        setShowConfirmModal(false);
+        onPaymentComplete();
       } else if (data.url) {
         // Checkout redirect — tip state is preserved in the URL via metadata
         window.location.href = data.url;
+      } else if (data.error) {
+        // For example a payment that could not be confirmed yet; retrying resumes the same payment and never charges twice.
+        throw new Error(data.error);
       } else {
         throw new Error('Unexpected response from payment processor');
       }

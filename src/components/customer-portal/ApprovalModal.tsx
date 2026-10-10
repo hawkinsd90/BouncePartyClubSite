@@ -76,6 +76,7 @@ export function ApprovalModal({
       });
     } catch (err) {
       if (err instanceof PortalActionError && err.code === 'invalid_status') throw new Error('This order can no longer be approved.');
+      if (err instanceof PortalActionError && err.code === 'invalid_selection') throw new Error('This order changed while you were reviewing it. Please refresh the page and review the updated amounts.');
       if (err instanceof PortalActionError && err.code === 'card_required') throw new Error('Please add a payment method before confirming.');
       throw new Error('Failed to save your approval. Please try again.');
     }
@@ -295,8 +296,11 @@ export function ApprovalModal({
           'success'
         );
       } else {
-        // Customer hasn't paid yet and deposit > $0 — send all charge params in the request body.
-        // charge-deposit uses these as source of truth; no pre-charge DB write needed.
+        // Customer hasn't paid yet and deposit > $0. The selection is saved first: the server checks it against the order as it is
+        // NOW (a stale page is refused here). The charge then uses only the persisted selection and the order's own figures;
+        // the browser sends no authoritative amount, just the tip it chose and the deposit it was shown.
+        await approveChanges(selectedPaymentBaseCents, resolvedPaymentType);
+
         const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
         const anonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
 
@@ -314,9 +318,8 @@ export function ApprovalModal({
             },
             body: JSON.stringify({
               orderId: order.id,
-              paymentAmountCents: selectedPaymentBaseCents,
               tipCents: keepOriginalPayment ? (order.tip_cents || 0) : newTipCents,
-              selectedPaymentType: resolvedPaymentType,
+              expectedDepositDueCents: order.deposit_due_cents ?? 0,
               // Order-bound proof; a signed-in owner is also recognized from the Authorization token.
               ...(invoiceLinkToken ? { invoiceToken: invoiceLinkToken } : {}),
             }),
@@ -327,6 +330,15 @@ export function ApprovalModal({
 
         // chargeSucceeded means Stripe charged but a post-charge DB step failed.
         // Do NOT show the decline UI — the customer was charged successfully.
+        const NOT_A_DECLINE = ['ORDER_CHANGED', 'PAYMENT_IN_PROGRESS', 'DEPOSIT_CATCH_UP_REQUIRED', 'ORDER_STATUS_NOT_PAYABLE', 'PAYMENT_SELECTION_INVALID', 'PAYMENT_RECORDS_CONFLICT', 'PAYMENT_STATUS_UNKNOWN', 'PAYMENT_PROCESSING', 'INVALID_TIP', 'INVALID_AMOUNT'];
+        if (!chargeData?.success && !chargeData?.chargeSucceeded && NOT_A_DECLINE.includes(chargeData?.code)) {
+          // The card was not refused; the order or the request was. Say so instead of asking for a new card.
+          showToast(chargeData?.error || 'This payment could not be started. Please refresh and try again.', 'error');
+          if (isMountedRef.current) setSubmitting(false);
+          onProcessingCancel?.();
+          return;
+        }
+
         if (!chargeData?.success && !chargeData?.chargeSucceeded) {
           const errMsg =
             chargeData?.error ||

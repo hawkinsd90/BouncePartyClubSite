@@ -32,7 +32,7 @@ Deno.serve(async (req: Request) => {
 
   try {
     const body = await req.json();
-    const { orderId, depositCents, tipCents = 0, customerEmail, customerName, setupMode = false, invoiceMode = false, invoiceLinkToken = null, paymentState = null, bookingMode = false } = body;
+    const { orderId, tipCents = 0, customerEmail, customerName, setupMode = false, invoiceMode = false, invoiceLinkToken = null, paymentState = null, bookingMode = false } = body;
     const bodyOrigin: string | undefined = body.origin;
 
     // Stripe return URLs are built only from an allowlisted origin (production, SITE_URL / RETURN_ORIGINS, loopback dev).
@@ -65,7 +65,7 @@ Deno.serve(async (req: Request) => {
       return createRateLimitResponse(rateLimitResult, corsHeaders);
     }
 
-    if (!orderId || (!depositCents && !setupMode && !bookingMode)) {
+    if (!orderId) {
       return new Response(
         JSON.stringify({ success: false, error: "Missing required fields" }),
         { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
@@ -138,6 +138,16 @@ Deno.serve(async (req: Request) => {
       );
     }
 
+    // This function only saves a card (booking request, invoice card save, card update). It never creates a charge: the
+    // payment mode that used to take a deposit and tip amount from the request has no caller and is retired. Money is
+    // collected by payment operations (charge-deposit, customer-balance-payment) whose amounts the server derives.
+    if (setupMode !== true && bookingMode !== true) {
+      return new Response(
+        JSON.stringify({ success: false, code: "PAYMENT_MODE_RETIRED", error: "Payment mode is no longer available." }),
+        { status: 410, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
     const { data: stripeKeyData, error: keyError } = await supabaseClient
       .from("admin_settings")
       .select("value")
@@ -179,7 +189,7 @@ Deno.serve(async (req: Request) => {
     // In booking mode every fact comes from the order row, never from the request body.
     let stripeEmail: string | undefined = customerEmail;
     let stripeName: string | undefined = customerName;
-    let sessionDepositCents: number = typeof depositCents === "number" ? depositCents : 0;
+    let sessionDepositCents = 0;
     let sessionTipCents: number = typeof tipCents === "number" ? tipCents : 0;
     if (bookingMode === true) {
       const { data: bookingCustomer } = await supabaseClient
@@ -330,8 +340,7 @@ Deno.serve(async (req: Request) => {
             tip_cents: sessionTipCents.toString(),
           },
         }
-      : setupMode
-      ? {
+      : {
           payment_method_types: ["card"],
           mode: "setup",
           customer: customerId,
@@ -341,31 +350,6 @@ Deno.serve(async (req: Request) => {
             order_id: orderId,
             payment_type: "card_update",
             deposit_amount: "0",
-            tip_cents: sessionTipCents.toString(),
-          },
-        }
-      : {
-          payment_method_types: ["card"],
-          mode: "payment",
-          customer: customerId,
-          line_items: [
-            {
-              price_data: {
-                currency: "usd",
-                product_data: {
-                  name: sessionTipCents > 0 ? "Deposit + Tip" : "Deposit",
-                },
-                unit_amount: sessionDepositCents + sessionTipCents,
-              },
-              quantity: 1,
-            },
-          ],
-          success_url: successUrl,
-          cancel_url: cancelUrl,
-          metadata: {
-            order_id: orderId,
-            payment_type: "deposit",
-            deposit_amount: sessionDepositCents ? sessionDepositCents.toString() : "0",
             tip_cents: sessionTipCents.toString(),
           },
         };

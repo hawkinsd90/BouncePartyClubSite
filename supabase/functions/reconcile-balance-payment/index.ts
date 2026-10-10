@@ -5,26 +5,24 @@
  * Verifies the session directly with Stripe and idempotently writes any DB state
  * that the webhook may not have written yet.
  *
- * Race-safety model:
- * ─────────────────
- * The payments table has a unique constraint on stripe_payment_intent_id.
- * This function inserts the payment row FIRST (before any order mutation).
- * Whichever concurrent writer (reconcile or webhook) inserts first wins the
- * constraint and proceeds to update order totals and log the receipt.
- * The loser receives a 23505 unique-violation, detects it, and returns
- * { alreadyReconciled: true } without touching order totals.
+ * Convergence model:
+ * ───────────────────
+ * The Checkout Session was created for a payment OPERATION (customer-balance-payment) and names it in its metadata.
+ * The stripe-webhook, the charging request and this function all apply a paid session through the SAME database function
+ * (finalize_payment_operation), which applies it exactly once. Whichever caller gets there first applies it and sends the
+ * receipt; every other caller is told it is already applied and changes nothing. A session that names no operation is never
+ * turned into a payment from its raw amount.
  *
- * This guarantees:
- * - Exactly one writer increments balance_paid_cents / decrements balance_due_cents
- * - Exactly one payment row exists per PaymentIntent
- * - Exactly one transaction receipt exists per PaymentIntent
- * - Safe to call multiple times; all calls after the first are no-ops
+ * This function has no caller authentication of its own: its authority is the Stripe session retrieved by id (a paid payment
+ * mode session whose metadata names this order and one of this application's operations), and the amount and the principal /
+ * tip split come from the operation, never from the request.
  */
 
 import "jsr:@supabase/functions-js@2/edge-runtime.d.ts";
 import Stripe from "npm:stripe@20.0.0";
 import { createClient } from "npm:@supabase/supabase-js@2.57.4";
 import { buildPortalUrl } from "../_shared/portal-link.ts";
+import { finalizeOperation } from "../_shared/payment-operations.ts";
 import { formatCurrency, formatPaymentMethodLabel } from "../_shared/fmt.ts";
 
 const corsHeaders = {
@@ -135,9 +133,6 @@ Deno.serve(async (req: Request) => {
 
     const piId = pi.id;
     const amountPaid = session.amount_total || 0;
-    const tipCentsStr = session.metadata?.tip_cents || "0";
-    const safeTipCents = Math.max(0, parseInt(tipCentsStr, 10) || 0);
-    const balanceOnly = Math.max(0, amountPaid - safeTipCents);
 
     const stripeCustomerId =
       typeof session.customer === "string"
@@ -185,99 +180,58 @@ Deno.serve(async (req: Request) => {
       console.warn("[reconcile-balance-payment] Could not fetch charge fee details:", err);
     }
 
-    // ── 4. RACE-SAFE + REPAIR-SAFE: Insert payment row FIRST ──────────────────
-    // The unique constraint on stripe_payment_intent_id is our distributed mutex.
-    //
-    // order_financials_applied starts FALSE. The winner sets it TRUE only after
-    // the order UPDATE succeeds. On 23505, the caller reads the flag:
-    //   TRUE  → financial work is complete; skip safely (idempotent)
-    //   FALSE → prior winner partially failed (order UPDATE crashed); this caller
-    //            performs the repair, then marks the flag TRUE.
-    //
-    // This guarantees: even after a partial failure, the next retry (reconcile or
-    // webhook) automatically repairs stale order totals — without double-writing.
-    const { data: paymentRecord, error: paymentInsertError } = await supabaseClient
-      .from("payments")
-      .insert({
-        order_id: orderId,
-        stripe_payment_intent_id: piId,
-        amount_cents: amountPaid,
-        type: "balance",
-        status: "succeeded",
-        paid_at: new Date().toISOString(),
-        payment_method: paymentMethodType,
-        payment_brand: paymentBrand,
-        payment_last4: paymentLast4,
-        stripe_fee_amount: stripeFee,
-        stripe_net_amount: stripeNet,
-        currency: "usd",
-        order_financials_applied: false,
-      })
-      .select("id")
-      .maybeSingle();
-
-    if (paymentInsertError) {
-      if (paymentInsertError.code === "23505") {
-        // Another writer already inserted this PI's payment row (webhook or a prior reconcile).
-        // Call the same atomic RPC — it will lock the row, check the applied flag, and apply
-        // financials exactly once if not yet done. Identical to the winner path below.
-        console.warn("[reconcile-balance-payment] 23505 on insert — delegating to RPC", { orderId, piId });
-        const { data: repairRows, error: repairErr } = await supabaseClient
-          .rpc("apply_balance_payment_financials", {
-            p_pi_id: piId,
-            p_order_id: orderId,
-            p_balance_cents: balanceOnly,
-            p_tip_cents: safeTipCents,
-            p_pm_id: expandedPmId || null,
-            p_customer_id: stripeCustomerId || null,
-          });
-        if (repairErr) {
-          console.error("[reconcile-balance-payment] apply_balance_payment_financials failed on 23505 path", { orderId, piId, repairErr });
-        } else {
-          const _r = Array.isArray(repairRows) ? repairRows[0] : repairRows;
-          // console.log("[reconcile-balance-payment] 23505 RPC result", { orderId, piId, applied: _r?.applied, payment_row_found: _r?.payment_row_found });
-        }
-        return new Response(
-          JSON.stringify({ success: true, alreadyReconciled: true }),
-          { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-        );
-      }
-
-      console.error("[reconcile-balance-payment] Payment insert failed:", paymentInsertError);
+    // ── 4. Finalize the payment operation ─────────────────────────────────────
+    // The Checkout Session was created for a payment operation (see customer-balance-payment) and names it in its metadata.
+    // The webhook, the charging request and this reconciler all apply a payment through the SAME database function, which
+    // applies it exactly once: whichever caller gets there first applies it and notifies, the others are told it is already
+    // applied. A session with no operation is never turned into a payment from its raw amount.
+    const operationKey = session.metadata?.payment_operation_key;
+    const operationPaymentId = session.metadata?.payment_id;
+    if (!operationKey || !operationPaymentId) {
       return new Response(
-        JSON.stringify({ error: "Failed to insert payment record" }),
-        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        JSON.stringify({ error: "This payment is not linked to a payment operation and needs manual reconciliation", code: "PAYMENT_OPERATION_MISSING" }),
+        { status: 409, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 
-    // ── 5. We inserted the row — apply order financials through the atomic RPC ─
-    // The RPC locks the payment row we just inserted, verifies applied=false,
-    // reads+updates order totals, and marks applied=true — all in one transaction.
-    // This prevents any concurrent caller (pi.succeeded, a second reconcile) from
-    // racing with us: they will block on the row lock until we commit, then see
-    // applied=true and skip.
-    const { data: applyRows, error: applyErr } = await supabaseClient
-      .rpc("apply_balance_payment_financials", {
-        p_pi_id: piId,
-        p_order_id: orderId,
-        p_balance_cents: balanceOnly,
-        p_tip_cents: safeTipCents,
-        p_pm_id: expandedPmId || null,
-        p_customer_id: stripeCustomerId || null,
-      });
+    const fin = await finalizeOperation(supabaseClient, {
+      paymentId: operationPaymentId,
+      operationKey,
+      paymentIntentId: piId,
+      checkoutSessionId: session.id,
+      amountReceivedCents: amountPaid,
+      paymentMethod: paymentMethodType,
+      paymentBrand,
+      paymentLast4,
+      feeCents: stripeFee,
+      netCents: stripeNet,
+      paymentMethodId: expandedPmId,
+      stripeCustomerId,
+    });
 
-    if (applyErr) {
-      console.error("[reconcile-balance-payment] apply_balance_payment_financials failed", { orderId, piId, applyErr });
-      // Payment row is committed with order_financials_applied=FALSE.
-      // Next retry (reconcile or webhook pi.succeeded) will call the RPC and repair.
+    if (fin.outcome === "error") {
+      console.error("[reconcile-balance-payment] finalize failed", { orderId, piId });
+      // Nothing was applied; the webhook or the next reconcile retries.
       return new Response(
-        JSON.stringify({ error: "Order financial update failed after payment insert" }),
+        JSON.stringify({ error: "Order financial update failed" }),
         { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
-
-    const _applyResult = Array.isArray(applyRows) ? applyRows[0] : applyRows;
-    // console.log("[reconcile-balance-payment] RPC applied financials", { orderId, piId, applied: _applyResult?.applied });
+    if (!fin.ok) {
+      console.error("[reconcile-balance-payment] payment could not be applied:", fin.outcome);
+      return new Response(
+        JSON.stringify({ error: "Payment could not be applied and needs manual reconciliation", code: fin.outcome }),
+        { status: 409, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+    if (!fin.applied) {
+      return new Response(
+        JSON.stringify({ success: true, alreadyReconciled: true }),
+        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+    const safeTipCents = fin.tipCents;
+    const balanceOnly = Math.max(0, amountPaid - safeTipCents);
 
     // Fetch full order data for receipt logging and email
     const { data: currentOrder } = await supabaseClient
@@ -297,7 +251,7 @@ Deno.serve(async (req: Request) => {
       .maybeSingle();
 
     // ── 6. Log transaction receipt (idempotent via unique PI id constraint) ────
-    if (paymentRecord && currentOrder?.customer_id) {
+    if (currentOrder?.customer_id) {
       try {
         await supabaseClient
           .from("transaction_receipts")
@@ -305,7 +259,7 @@ Deno.serve(async (req: Request) => {
             transaction_type: "balance",
             order_id: orderId,
             customer_id: currentOrder.customer_id,
-            payment_id: paymentRecord.id,
+            payment_id: operationPaymentId,
             amount_cents: amountPaid,
             payment_method: paymentMethodType,
             payment_method_brand: paymentBrand,

@@ -58,8 +58,9 @@ ok('static: the three migrations sort after the booking-confirmation claim migra
   const i = names.indexOf('20261017120000_add_booking_confirmation_claim.sql');
   return i >= 0 && names[i + 1] === '20261018120000_restrict_future_database_privileges.sql' && names[i + 2] === '20261018120100_secure_site_event_ingestion.sql' && names[i + 3] === '20261018120200_restrict_role_lookup_and_profile_ownership.sql';
 })());
-ok('static: file names describe behaviour and carry no internal planning label', names.slice(-3).every((n) => !/phase|stage|a1|a2|priority|security_phase/i.test(n)) && !/\b(Phase|Stage) ?[A-Z0-9]\b|\bA1\b|\bA2\b/.test(allRaw));
-ok('static: no earlier migration was edited', names.slice(0, -3).every((n) => !/restrict_future_database_privileges|secure_site_event_ingestion/.test(n)));
+const hardeningMigrations = ['20261018120000_restrict_future_database_privileges.sql', '20261018120100_secure_site_event_ingestion.sql', '20261018120200_restrict_role_lookup_and_profile_ownership.sql'];
+ok('static: file names describe behaviour and carry no internal planning label', hardeningMigrations.every((n) => !/phase|stage|a1|a2|priority|security_phase/i.test(n)) && !/\b(Phase|Stage) ?[A-Z0-9]\b|\bA1\b|\bA2\b/.test(allRaw));
+ok('static: no earlier migration was edited', names.filter((n) => !hardeningMigrations.includes(n)).every((n) => !/restrict_future_database_privileges|secure_site_event_ingestion/.test(n)));
 ok('static: default privileges target only the proven migration owner role (postgres)', (sql.defaults.match(/ALTER DEFAULT PRIVILEGES FOR ROLE (\w+)/g) ?? []).every((s) => s === 'ALTER DEFAULT PRIVILEGES FOR ROLE postgres') && (sql.defaults.match(/ALTER DEFAULT PRIVILEGES/g) ?? []).length === (sql.defaults.match(/ALTER DEFAULT PRIVILEGES FOR ROLE postgres/g) ?? []).length);
 ok('static: the migration documents its cross-schema audit (owners per schema, the extensions exception, the owner-wide statement)', /owner-wide/.test(raw.defaults) && /extensions\s+49 owned by postgres/.test(raw.defaults) && /supabase_auth_admin/.test(raw.defaults) && /never by postgres/.test(raw.defaults) && !/limited to public/i.test(raw.defaults));
 ok('static: the application anon / authenticated / service_role defaults are scoped to the public schema; only the PUBLIC function revoke is owner-wide, with the extensions compatibility exception', (() => {

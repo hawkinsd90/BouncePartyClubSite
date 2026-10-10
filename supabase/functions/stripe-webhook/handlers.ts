@@ -1,5 +1,6 @@
 import Stripe from "npm:stripe@20.0.0";
 import { logTransaction } from "../_shared/transaction-logger.ts";
+import { collectPaymentDetails, finalizeOperation } from "../_shared/payment-operations.ts";
 import { sendCheckoutBalanceReceiptEmail, sendDepositReceiptEmail } from "./emails.ts";
 
 export async function invokeLifecycle(
@@ -24,13 +25,206 @@ export async function invokeLifecycle(
   }
 }
 
+// A Stripe event can only change an order's money through a payment OPERATION that this application created before the
+// provider was called. Money that arrives without one is recorded for a person to reconcile; it is never guessed into a
+// deposit, a balance or a tip.
+async function reportUnmatchedPayment(
+  supabaseClient: any,
+  orderId: string | null,
+  reference: string,
+  note: string
+): Promise<void> {
+  console.error(`[WEBHOOK] payment needs reconciliation: ${note} (${reference})`);
+  if (!orderId) return;
+  try {
+    await supabaseClient.from("order_changelog").insert({
+      order_id: orderId,
+      user_id: null,
+      change_type: "payment_error",
+      field_changed: "payment_operation",
+      old_value: null,
+      new_value: reference,
+      notes: `PAYMENT_NEEDS_RECONCILIATION: ${note}`,
+    });
+  } catch (err) {
+    console.error("[WEBHOOK] could not record the reconciliation note:", err);
+  }
+}
+
+async function loadOrderForReceipt(supabaseClient: any, orderId: string): Promise<any> {
+  const { data } = await supabaseClient
+    .from("orders")
+    .select(`
+      customer_id, event_date,
+      subtotal_cents, travel_fee_cents, surface_fee_cents,
+      same_day_pickup_fee_cents, generator_fee_cents, tax_cents,
+      travel_fee_waived, surface_fee_waived, same_day_pickup_fee_waived,
+      generator_fee_waived, tax_waived,
+      deposit_paid_cents, balance_due_cents,
+      addresses(line1, city, state, zip),
+      order_items(qty, unit_price_cents, units(name)),
+      customers(email, first_name, last_name)
+    `)
+    .eq("id", orderId)
+    .maybeSingle();
+  return data;
+}
+
+async function loadBusinessSettings(supabaseClient: any): Promise<Record<string, string>> {
+  const { data } = await supabaseClient
+    .from("admin_settings")
+    .select("key, value")
+    .in("key", ["business_name", "business_phone", "logo_url"]);
+  const biz: Record<string, string> = {};
+  data?.forEach((s: { key: string; value: string | null }) => { if (s.value) biz[s.key] = s.value; });
+  return biz;
+}
+
+export interface ProviderPayment {
+  orderId: string;
+  metadata: Record<string, string> | null | undefined;
+  paymentIntent: Stripe.PaymentIntent | null;
+  paymentIntentId: string | null;
+  checkoutSessionId: string | null;
+  amountReceivedCents: number;
+  stripeCustomerId: string | null;
+  source: string;
+}
+
+// The one way a Stripe event applies a payment: find the operation the metadata names, then finalize it through the same
+// database function the charging request uses. Applying twice is impossible (the function reports already_applied), and
+// whichever caller applied first is the one that notifies.
+export async function applyProviderPayment(
+  supabaseClient: any,
+  stripe: Stripe,
+  p: ProviderPayment
+): Promise<"applied" | "already_applied" | "unmatched" | "refused"> {
+  const operationKey = p.metadata?.payment_operation_key || null;
+  const paymentId = p.metadata?.payment_id || null;
+  const reference = p.paymentIntentId || p.checkoutSessionId || "unknown";
+
+  if (!operationKey || !paymentId) {
+    await reportUnmatchedPayment(supabaseClient, p.orderId, reference, `a successful ${p.source} payment of ${p.amountReceivedCents} cents has no payment operation`);
+    return "unmatched";
+  }
+
+  let pi = p.paymentIntent;
+  if (!pi && p.paymentIntentId) {
+    try {
+      pi = await stripe.paymentIntents.retrieve(p.paymentIntentId, { expand: ["payment_method", "latest_charge"] });
+    } catch (err) {
+      console.error("[WEBHOOK] Failed to retrieve PI with expansions:", err);
+    }
+  }
+  const details = pi ? await collectPaymentDetails(stripe, pi) : null;
+
+  const fin = await finalizeOperation(supabaseClient, {
+    paymentId,
+    operationKey,
+    paymentIntentId: p.paymentIntentId,
+    checkoutSessionId: p.checkoutSessionId,
+    amountReceivedCents: p.amountReceivedCents,
+    paymentMethod: details?.paymentMethod,
+    paymentBrand: details?.paymentBrand,
+    paymentLast4: details?.paymentLast4,
+    feeCents: details?.feeCents,
+    netCents: details?.netCents,
+    paymentMethodId: details?.paymentMethodId,
+    stripeCustomerId: p.stripeCustomerId,
+  });
+
+  if (fin.outcome === "error") {
+    // A transient database failure: let Stripe deliver the event again.
+    throw new Error(`finalize_payment_operation failed: ${String(fin.detail?.message ?? "unknown")}`);
+  }
+  if (!fin.ok) {
+    await reportUnmatchedPayment(supabaseClient, p.orderId, reference, `a successful ${p.source} payment could not be applied (${fin.outcome})`);
+    return "refused";
+  }
+  if (!fin.applied) return "already_applied";
+
+  // This delivery applied the payment, so it also notifies.
+  try {
+    if (fin.paymentType === "deposit") {
+      if (fin.statusChanged) {
+        await invokeLifecycle(supabaseClient, "enter_confirmed", p.orderId, `webhook_${p.source}_deposit`, "charged_now", fin.previousStatus ?? undefined);
+      }
+      const order = await loadOrderForReceipt(supabaseClient, p.orderId);
+      const customer = Array.isArray(order?.customers) ? order.customers[0] : order?.customers;
+      if (customer?.email) {
+        const biz = await loadBusinessSettings(supabaseClient);
+        await sendDepositReceiptEmail(
+          supabaseClient, p.orderId, order, customer, biz,
+          p.amountReceivedCents, p.amountReceivedCents - fin.tipCents, fin.tipCents, details?.paymentBrand ?? null, details?.paymentLast4 ?? null
+        );
+      }
+    } else {
+      const order = await loadOrderForReceipt(supabaseClient, p.orderId);
+      if (order?.customer_id) {
+        await logTransaction(supabaseClient, {
+          transactionType: "balance",
+          orderId: p.orderId,
+          customerId: order.customer_id,
+          paymentId,
+          amountCents: p.amountReceivedCents,
+          paymentMethod: details?.paymentMethod,
+          paymentMethodBrand: details?.paymentBrand,
+          stripeChargeId: details?.chargeId,
+          stripePaymentIntentId: p.paymentIntentId,
+          notes: "Customer portal balance payment",
+        });
+      }
+      const customer = Array.isArray(order?.customers) ? order.customers[0] : order?.customers;
+      if (customer?.email) {
+        const biz = await loadBusinessSettings(supabaseClient);
+        await sendCheckoutBalanceReceiptEmail(
+          supabaseClient, p.orderId, order, customer, biz,
+          p.amountReceivedCents, p.amountReceivedCents - fin.tipCents, fin.tipCents, details?.paymentBrand ?? null, details?.paymentLast4 ?? null
+        );
+      }
+    }
+  } catch (notifyErr) {
+    console.warn("[WEBHOOK] Failed to send payment notifications (non-fatal):", notifyErr);
+  }
+  return "applied";
+}
+
+// An Admin Invoice is confirmed by a successful payment. Saving a card is not a payment: while any required principal is
+// still unpaid the order stays as it is, and the charge that follows the card save decides. Only an invoice with nothing to
+// collect (an explicit $0 deposit, or a deposit already paid) is confirmed by the card save.
+async function setupConfirmation(
+  supabaseClient: any,
+  orderId: string
+): Promise<{ isAdminInvoice: boolean; principalOutstanding: boolean; currentStatus: string; depositDue: number }> {
+  const { data: invoiceLinks } = await supabaseClient
+    .from("invoice_links")
+    .select("id")
+    .eq("order_id", orderId)
+    .eq("link_type", "invoice")
+    .limit(1);
+
+  const { data: current } = await supabaseClient
+    .from("orders")
+    .select("status, deposit_due_cents, deposit_paid_cents")
+    .eq("id", orderId)
+    .maybeSingle();
+
+  const due = current?.deposit_due_cents || 0;
+  const paid = current?.deposit_paid_cents || 0;
+  return {
+    isAdminInvoice: Array.isArray(invoiceLinks) && invoiceLinks.length > 0,
+    principalOutstanding: due > 0 && paid < due,
+    currentStatus: current?.status || "",
+    depositDue: due,
+  };
+}
+
 export async function handleCheckoutSessionCompleted(
   session: Stripe.Checkout.Session,
   supabaseClient: any,
   stripe: Stripe
 ): Promise<void> {
   const orderId = session.metadata?.order_id || null;
-  const paymentType = session.metadata?.payment_type || "deposit";
 
   const stripeCustomerId =
     typeof session.customer === "string"
@@ -51,8 +245,6 @@ export async function handleCheckoutSessionCompleted(
     typeof session.payment_method === "string"
       ? session.payment_method
       : null;
-
-  const amountPaid = session.amount_total || 0;
 
   if (!orderId) {
     console.warn("[WEBHOOK] No order_id in session metadata, skipping");
@@ -84,22 +276,10 @@ export async function handleCheckoutSessionCompleted(
       }
     }
 
-    const { data: invoiceLink } = await supabaseClient
-      .from("invoice_links")
-      .select("id")
-      .eq("order_id", orderId)
-      .eq("link_type", "invoice")
-      .maybeSingle();
-
-    const isAdminInvoice = !!invoiceLink;
-    const newStatus = isAdminInvoice ? "confirmed" : "pending_review";
-
-    const { data: setupCurrentOrder } = await supabaseClient
-      .from("orders")
-      .select("status")
-      .eq("id", orderId)
-      .maybeSingle();
-    const setupSafeToAdvance = ["draft", "quote", "pending_review"].includes(setupCurrentOrder?.status || "");
+    const { isAdminInvoice, principalOutstanding, currentStatus, depositDue } = await setupConfirmation(supabaseClient, orderId);
+    // A booking request goes to review. An Admin Invoice is confirmed only when no principal is left to collect.
+    const newStatus = isAdminInvoice ? (principalOutstanding ? null : "confirmed") : "pending_review";
+    const setupSafeToAdvance = newStatus !== null && ["draft", "quote", "pending_review"].includes(currentStatus);
 
     const { error: updateError } = await supabaseClient
       .from("orders")
@@ -117,7 +297,7 @@ export async function handleCheckoutSessionCompleted(
       console.error(`[WEBHOOK] Error updating order ${orderId}:`, updateError);
     } else if (setupSafeToAdvance) {
       if (isAdminInvoice) {
-        await invokeLifecycle(supabaseClient, "enter_confirmed", orderId, "webhook_setup_session_admin_invoice", "charged_now", "draft");
+        await invokeLifecycle(supabaseClient, "enter_confirmed", orderId, "webhook_setup_session_admin_invoice", depositDue > 0 ? "charged_now" : "zero_due_with_card", "draft");
       } else {
         await invokeLifecycle(supabaseClient, "enter_pending_review", orderId, "webhook_setup_session_checkout", undefined, "draft");
       }
@@ -125,383 +305,21 @@ export async function handleCheckoutSessionCompleted(
     return;
   }
 
-  if (paymentType === "balance") {
-    await handleBalancePayment(session, supabaseClient, stripe, orderId, stripeCustomerId, paymentIntentId, amountPaid);
-  } else {
-    await handleDepositPayment(session, supabaseClient, stripe, orderId, stripeCustomerId, paymentIntentId, paymentMethodId, amountPaid);
-  }
-}
-
-async function handleBalancePayment(
-  session: Stripe.Checkout.Session,
-  supabaseClient: any,
-  stripe: Stripe,
-  orderId: string,
-  stripeCustomerId: string | null,
-  piId: string | null,
-  amountPaid: number
-): Promise<void> {
-  let latestChargeId: string | null = null;
-  let paymentMethodType: string | null = null;
-  let paymentBrand: string | null = null;
-  let paymentLast4: string | null = null;
-  let expandedPaymentMethodId: string | null = null;
-
-  if (piId) {
-    try {
-      const pi = await stripe.paymentIntents.retrieve(piId, {
-        expand: ['payment_method', 'latest_charge'],
-      });
-
-      latestChargeId =
-        typeof pi.latest_charge === "string"
-          ? pi.latest_charge
-          : pi.latest_charge?.id || null;
-
-      const pm = pi.payment_method;
-      if (pm && typeof pm === 'object') {
-        // @ts-ignore -- pm is expanded PaymentMethod
-        paymentMethodType = pm.type || null;
-        // @ts-ignore -- pm is expanded PaymentMethod
-        expandedPaymentMethodId = pm.id || null;
-        // @ts-ignore -- pm is expanded PaymentMethod
-        if (pm.card) {
-          // @ts-ignore -- pm is expanded PaymentMethod
-          paymentBrand = pm.card.brand || null;
-          // @ts-ignore -- pm is expanded PaymentMethod
-          paymentLast4 = pm.card.last4 || null;
-        }
-      }
-    } catch (err) {
-      console.error("[WEBHOOK] Failed to retrieve PI with expansions:", err);
-    }
-  }
-
-  let stripeFee = 0;
-  let stripeNet = amountPaid;
-  let currency = 'usd';
-
-  if (latestChargeId) {
-    try {
-      const charge = await stripe.charges.retrieve(latestChargeId, {
-        expand: ['balance_transaction'],
-      });
-
-      currency = charge.currency || 'usd';
-
-      const balanceTx = charge.balance_transaction;
-      if (balanceTx && typeof balanceTx === 'object') {
-        // @ts-ignore -- balanceTx is expanded BalanceTransaction
-        stripeFee = balanceTx.fee || 0;
-        // @ts-ignore -- balanceTx is expanded BalanceTransaction
-        stripeNet = balanceTx.net || amountPaid;
-      } else {
-        console.warn('[WEBHOOK] balance_transaction was not expanded; fee tracking may be inaccurate', {
-          latestChargeId,
-          balance_transaction: charge.balance_transaction,
-        });
-      }
-    } catch (err) {
-      console.error('[WEBHOOK] Failed to retrieve charge fee data:', err);
-    }
-  }
-
-  const balanceTipCents = parseInt(session.metadata?.tip_cents || "0", 10);
-  const safeTipCents = Number.isFinite(balanceTipCents) ? balanceTipCents : 0;
-  const balanceOnly = Math.max(0, amountPaid - safeTipCents);
-
-  if (!piId) {
-    console.error("[WEBHOOK] Balance payment has no PaymentIntent ID — cannot record safely");
-    return;
-  }
-
-  const { data: paymentRecord, error: balancePaymentInsertError } = await supabaseClient
-    .from("payments")
-    .insert({
-      order_id: orderId,
-      stripe_payment_intent_id: piId,
-      amount_cents: amountPaid,
-      type: "balance",
-      status: "succeeded",
-      paid_at: new Date().toISOString(),
-      payment_method: paymentMethodType,
-      payment_brand: paymentBrand,
-      payment_last4: paymentLast4,
-      stripe_fee_amount: stripeFee,
-      stripe_net_amount: stripeNet,
-      currency: currency,
-      order_financials_applied: false,
-    })
-    .select('id')
-    .maybeSingle();
-
-  if (balancePaymentInsertError) {
-    if (balancePaymentInsertError.code === "23505") {
-      console.warn("[WEBHOOK] 23505 on balance insert — delegating to RPC", { orderId, piId });
-      const { data: repairRows, error: repairErr } = await supabaseClient
-        .rpc("apply_balance_payment_financials", {
-          p_pi_id: piId,
-          p_order_id: orderId,
-          p_balance_cents: balanceOnly,
-          p_tip_cents: safeTipCents,
-          p_pm_id: expandedPaymentMethodId || null,
-          p_customer_id: stripeCustomerId || null,
-        });
-      if (repairErr) {
-        console.error("[WEBHOOK] apply_balance_payment_financials failed on 23505 path", { orderId, piId, repairErr });
-        throw new Error(`apply_balance_payment_financials failed (23505 path): ${repairErr.message}`);
-      }
-      const _r = Array.isArray(repairRows) ? repairRows[0] : repairRows;
-      void _r;
-
-      const { data: existingPayment23505 } = await supabaseClient
-        .from("payments")
-        .select("id, order_id")
-        .eq("stripe_payment_intent_id", piId)
-        .eq("order_id", orderId)
-        .maybeSingle();
-
-      try {
-        const { data: order23505 } = await supabaseClient
-          .from("orders")
-          .select(`
-            customer_id, event_date,
-            subtotal_cents, travel_fee_cents, surface_fee_cents,
-            same_day_pickup_fee_cents, generator_fee_cents, tax_cents,
-            travel_fee_waived, surface_fee_waived, same_day_pickup_fee_waived,
-            generator_fee_waived, tax_waived,
-            deposit_paid_cents, balance_due_cents,
-            addresses(line1, city, state, zip),
-            order_items(qty, unit_price_cents, units(name)),
-            customers(email, first_name, last_name)
-          `)
-          .eq("id", orderId)
-          .maybeSingle();
-
-        if (order23505 && existingPayment23505) {
-          await logTransaction(supabaseClient, {
-            transactionType: 'balance',
-            orderId,
-            customerId: order23505.customer_id,
-            paymentId: existingPayment23505.id,
-            amountCents: amountPaid,
-            paymentMethod: paymentMethodType,
-            paymentMethodBrand: paymentBrand,
-            stripeChargeId: latestChargeId,
-            stripePaymentIntentId: piId,
-            notes: 'Customer portal balance payment',
-          });
-        }
-
-        const customer23505 = Array.isArray(order23505?.customers) ? order23505.customers[0] : order23505?.customers;
-        if (customer23505?.email) {
-          const { data: bizSettings23505 } = await supabaseClient
-            .from("admin_settings")
-            .select("key, value")
-            .in("key", ["business_name", "business_phone", "logo_url"]);
-          const biz23505: Record<string, string> = {};
-          bizSettings23505?.forEach((s: { key: string; value: string | null }) => { if (s.value) biz23505[s.key] = s.value; });
-          await sendCheckoutBalanceReceiptEmail(
-            supabaseClient, orderId, order23505, customer23505, biz23505,
-            amountPaid, balanceOnly, safeTipCents, paymentBrand, paymentLast4
-          );
-        }
-      } catch (emailErr23505) {
-        console.warn("[WEBHOOK] Failed to send 23505-path balance receipt email:", emailErr23505);
-      }
+  if (session.mode === "payment") {
+    if (session.payment_status !== "paid") {
+      // Not paid yet (or an unsupported delayed method): nothing is applied until the provider says the money arrived.
       return;
     }
-    console.error("[WEBHOOK] CRITICAL: Failed to insert balance payment row", { orderId, piId, balancePaymentInsertError });
-    throw new Error(`Balance payment insert failed: ${balancePaymentInsertError.message}`);
-  }
-
-  const { data: applyRows, error: applyErr } = await supabaseClient
-    .rpc("apply_balance_payment_financials", {
-      p_pi_id: piId,
-      p_order_id: orderId,
-      p_balance_cents: balanceOnly,
-      p_tip_cents: safeTipCents,
-      p_pm_id: expandedPaymentMethodId || null,
-      p_customer_id: stripeCustomerId || null,
-    });
-  if (applyErr) {
-    console.error("[WEBHOOK] CRITICAL: apply_balance_payment_financials failed", { orderId, piId, applyErr });
-    throw new Error(`apply_balance_payment_financials failed: ${applyErr.message}`);
-  }
-
-  const _applyResult = Array.isArray(applyRows) ? applyRows[0] : applyRows;
-  void _applyResult;
-
-  if (paymentBrand || paymentLast4 || expandedPaymentMethodId) {
-    await supabaseClient
-      .from("orders")
-      .update({
-        ...(expandedPaymentMethodId ? { stripe_payment_method_id: expandedPaymentMethodId } : {}),
-        ...(paymentBrand ? { payment_method_brand: paymentBrand } : {}),
-        ...(paymentLast4 ? { payment_method_last_four: paymentLast4 } : {}),
-      })
-      .eq("id", orderId);
-  }
-
-  const { data: order } = await supabaseClient
-    .from("orders")
-    .select(`
-      customer_id, event_date,
-      subtotal_cents, travel_fee_cents, surface_fee_cents,
-      same_day_pickup_fee_cents, generator_fee_cents, tax_cents,
-      travel_fee_waived, surface_fee_waived, same_day_pickup_fee_waived,
-      generator_fee_waived, tax_waived,
-      deposit_paid_cents, balance_due_cents,
-      addresses(line1, city, state, zip),
-      order_items(qty, unit_price_cents, units(name)),
-      customers(email, first_name, last_name)
-    `)
-    .eq("id", orderId)
-    .maybeSingle();
-
-  if (order && paymentRecord) {
-    await logTransaction(supabaseClient, {
-      transactionType: 'balance',
+    await applyProviderPayment(supabaseClient, stripe, {
       orderId,
-      customerId: order.customer_id,
-      paymentId: paymentRecord.id,
-      amountCents: amountPaid,
-      paymentMethod: paymentMethodType,
-      paymentMethodBrand: paymentBrand,
-      stripeChargeId: latestChargeId,
-      stripePaymentIntentId: piId,
-      notes: 'Customer portal balance payment',
+      metadata: session.metadata as Record<string, string> | null,
+      paymentIntent: null,
+      paymentIntentId,
+      checkoutSessionId: session.id,
+      amountReceivedCents: session.amount_total || 0,
+      stripeCustomerId,
+      source: "checkout",
     });
-  }
-
-  try {
-    const customer = Array.isArray(order?.customers) ? order.customers[0] : order?.customers;
-    if (customer?.email) {
-      const { data: bizSettings } = await supabaseClient
-        .from("admin_settings")
-        .select("key, value")
-        .in("key", ["business_name", "business_phone", "logo_url"]);
-      const biz: Record<string, string> = {};
-      bizSettings?.forEach((s: { key: string; value: string | null }) => {
-        if (s.value) biz[s.key] = s.value;
-      });
-      await sendCheckoutBalanceReceiptEmail(
-        supabaseClient, orderId, order, customer, biz,
-        amountPaid, balanceOnly, safeTipCents, paymentBrand, paymentLast4
-      );
-    }
-  } catch (emailErr) {
-    console.warn("[WEBHOOK] Failed to send checkout balance receipt email:", emailErr);
-  }
-}
-
-async function handleDepositPayment(
-  session: Stripe.Checkout.Session,
-  supabaseClient: any,
-  stripe: Stripe,
-  orderId: string,
-  stripeCustomerId: string | null,
-  paymentIntentId: string | null,
-  paymentMethodId: string | null,
-  amountPaid: number
-): Promise<void> {
-  const tipCents = parseInt(session.metadata?.tip_cents || "0", 10);
-  const depositOnly = Math.max(0, amountPaid - (Number.isFinite(tipCents) ? tipCents : 0));
-
-  let depositCardBrand: string | null = null;
-  let depositCardLast4: string | null = null;
-  if (paymentMethodId) {
-    try {
-      const pm = await stripe.paymentMethods.retrieve(paymentMethodId);
-      depositCardBrand = pm.card?.brand || null;
-      depositCardLast4 = pm.card?.last4 || null;
-    } catch (err) {
-      console.error("[WEBHOOK] Failed to retrieve PM for deposit:", err);
-    }
-  }
-
-  const { data: invoiceLink } = await supabaseClient
-    .from("invoice_links")
-    .select("id")
-    .eq("order_id", orderId)
-    .eq("link_type", "invoice")
-    .maybeSingle();
-
-  const isAdminInvoice = !!invoiceLink;
-  const newStatus = isAdminInvoice ? "confirmed" : "pending_review";
-
-  const { data: currentOrder } = await supabaseClient
-    .from("orders")
-    .select("status")
-    .eq("id", orderId)
-    .maybeSingle();
-  const safeToAdvanceStatus = ["draft", "quote", "pending_review"].includes(currentOrder?.status || "");
-
-  const { error: updateError } = await supabaseClient
-    .from("orders")
-    .update({
-      ...(safeToAdvanceStatus ? { status: newStatus } : {}),
-      stripe_payment_status: "paid",
-      ...(paymentMethodId ? { stripe_payment_method_id: paymentMethodId } : {}),
-      ...(stripeCustomerId ? { stripe_customer_id: stripeCustomerId } : {}),
-      deposit_paid_cents: depositOnly,
-      ...(tipCents > 0 ? { tip_cents: tipCents } : {}),
-      ...(depositCardBrand ? { payment_method_brand: depositCardBrand } : {}),
-      ...(depositCardLast4 ? { payment_method_last_four: depositCardLast4 } : {}),
-    })
-    .eq("id", orderId);
-
-  if (updateError) {
-    console.error(`[WEBHOOK] Error updating order ${orderId}:`, updateError);
-  } else if (safeToAdvanceStatus) {
-    if (isAdminInvoice) {
-      await invokeLifecycle(supabaseClient, "enter_confirmed", orderId, "webhook_checkout_deposit_admin_invoice", "charged_now", "draft");
-    } else {
-      await invokeLifecycle(supabaseClient, "enter_pending_review", orderId, "webhook_checkout_deposit_standard", undefined, "draft");
-    }
-  }
-
-  if (paymentIntentId) {
-    await supabaseClient
-      .from("payments")
-      .update({
-        status: "succeeded",
-        paid_at: new Date().toISOString(),
-      })
-      .eq("stripe_payment_intent_id", paymentIntentId);
-  }
-
-  try {
-    const { data: depositOrder } = await supabaseClient
-      .from("orders")
-      .select(`
-        customer_id, event_date,
-        subtotal_cents, travel_fee_cents, surface_fee_cents,
-        same_day_pickup_fee_cents, generator_fee_cents, tax_cents,
-        travel_fee_waived, surface_fee_waived, same_day_pickup_fee_waived,
-        generator_fee_waived, tax_waived,
-        balance_due_cents,
-        addresses(line1, city, state, zip),
-        order_items(qty, unit_price_cents, units(name)),
-        customers(email, first_name, last_name)
-      `)
-      .eq("id", orderId)
-      .maybeSingle();
-    const depositCustomer = Array.isArray(depositOrder?.customers) ? depositOrder.customers[0] : depositOrder?.customers;
-    if (depositCustomer?.email) {
-      const { data: depositBizSettings } = await supabaseClient
-        .from("admin_settings")
-        .select("key, value")
-        .in("key", ["business_name", "business_phone", "logo_url"]);
-      const depositBiz: Record<string, string> = {};
-      depositBizSettings?.forEach((s: { key: string; value: string | null }) => { if (s.value) depositBiz[s.key] = s.value; });
-      await sendDepositReceiptEmail(
-        supabaseClient, orderId, depositOrder, depositCustomer, depositBiz,
-        amountPaid, depositOnly, tipCents, depositCardBrand, depositCardLast4
-      );
-    }
-  } catch (depositEmailErr) {
-    console.warn("[WEBHOOK] Failed to send deposit receipt email:", depositEmailErr);
   }
 }
 
@@ -513,6 +331,29 @@ export async function handlePaymentIntentSucceeded(
   const orderId = paymentIntent.metadata?.order_id || null;
   const paymentType = paymentIntent.metadata?.payment_type || null;
 
+  const stripeCustomerId =
+    typeof paymentIntent.customer === "string"
+      ? paymentIntent.customer
+      : paymentIntent.customer?.id || null;
+
+  // Operations created by this application name themselves in the metadata.
+  if (paymentIntent.metadata?.payment_operation_key) {
+    if (!orderId) return;
+    await applyProviderPayment(supabaseClient, stripe, {
+      orderId,
+      metadata: paymentIntent.metadata as Record<string, string>,
+      paymentIntent,
+      paymentIntentId: paymentIntent.id,
+      checkoutSessionId: null,
+      amountReceivedCents: paymentIntent.amount_received || 0,
+      stripeCustomerId,
+      source: "payment_intent",
+    });
+    return;
+  }
+
+  // A PaymentIntent from before payment operations existed: its own request wrote its ledger row. Only that row's
+  // provider details are refreshed; no order financials are applied from a raw Stripe amount.
   let paymentMethodType: string | null = null;
   let paymentBrand: string | null = null;
   let paymentLast4: string | null = null;
@@ -530,7 +371,7 @@ export async function handlePaymentIntentSucceeded(
     }
   }
 
-  await supabaseClient
+  const { data: legacyRows } = await supabaseClient
     .from("payments")
     .update({
       status: "succeeded",
@@ -539,102 +380,12 @@ export async function handlePaymentIntentSucceeded(
       payment_brand: paymentBrand,
       payment_last4: paymentLast4
     })
-    .eq("stripe_payment_intent_id", paymentIntent.id);
+    .eq("stripe_payment_intent_id", paymentIntent.id)
+    .is("operation_key", null)
+    .select("id");
 
-  if (!orderId) return;
-
-  const paymentMethodId =
-    typeof paymentIntent.payment_method === "string"
-      ? paymentIntent.payment_method
-      : paymentIntent.payment_method?.id || null;
-
-  const stripeCustomerId =
-    typeof paymentIntent.customer === "string"
-      ? paymentIntent.customer
-      : paymentIntent.customer?.id || null;
-
-  const amountReceived = paymentIntent.amount_received || 0;
-
-  if (paymentType === "balance") {
-    const tipCentsFromMeta = parseInt(paymentIntent.metadata?.tip_cents || "0", 10) || 0;
-    const balanceOnlyFromMeta = Math.max(0, amountReceived - tipCentsFromMeta);
-
-    const { data: piApplyRows, error: piApplyErr } = await supabaseClient
-      .rpc("apply_balance_payment_financials", {
-        p_pi_id: paymentIntent.id,
-        p_order_id: orderId,
-        p_balance_cents: balanceOnlyFromMeta,
-        p_tip_cents: tipCentsFromMeta,
-        p_pm_id: paymentMethodId || null,
-        p_customer_id: stripeCustomerId || null,
-      });
-
-    if (piApplyErr) {
-      console.error("[WEBHOOK] pi.succeeded apply_balance_payment_financials failed", { orderId, piId: paymentIntent.id, piApplyErr });
-      throw new Error(`apply_balance_payment_financials failed (pi.succeeded): ${piApplyErr.message}`);
-    }
-    const r = Array.isArray(piApplyRows) ? piApplyRows[0] : piApplyRows;
-    void r;
-  } else if (paymentType === "deposit") {
-    const { data: depositOrder } = await supabaseClient
-      .from("orders")
-      .select("tip_cents, deposit_paid_cents, stripe_payment_status, status")
-      .eq("id", orderId)
-      .maybeSingle();
-
-    const { data: invoiceLink } = await supabaseClient
-      .from("invoice_links")
-      .select("id")
-      .eq("order_id", orderId)
-      .eq("link_type", "invoice")
-      .maybeSingle();
-
-    const isAdminInvoice = !!invoiceLink;
-    const newStatus = isAdminInvoice ? "confirmed" : "pending_review";
-
-    const alreadyRecordedByCheckout =
-      depositOrder?.stripe_payment_status === "paid" &&
-      (depositOrder?.deposit_paid_cents || 0) > 0;
-
-    const piDepositSafeToAdvance = ["draft", "quote", "pending_review"].includes(depositOrder?.status || "");
-
-    if (!alreadyRecordedByCheckout) {
-      const storedTipCents = depositOrder?.tip_cents || 0;
-      const depositOnlyFromPI = Math.max(0, amountReceived - storedTipCents);
-
-      const { error: piDepositUpdateError } = await supabaseClient
-        .from("orders")
-        .update({
-          ...(piDepositSafeToAdvance ? { status: newStatus } : {}),
-          stripe_payment_status: "paid",
-          stripe_payment_method_id: paymentMethodId,
-          stripe_customer_id: stripeCustomerId,
-          deposit_paid_cents: depositOnlyFromPI,
-          ...(paymentBrand ? { payment_method_brand: paymentBrand } : {}),
-          ...(paymentLast4 ? { payment_method_last_four: paymentLast4 } : {}),
-        })
-        .eq("id", orderId);
-
-      if (piDepositUpdateError) {
-        console.error(`[WEBHOOK] Failed to update order ${orderId} for pi deposit:`, piDepositUpdateError);
-      } else if (piDepositSafeToAdvance) {
-        if (isAdminInvoice) {
-          await invokeLifecycle(supabaseClient, "enter_confirmed", orderId, "webhook_pi_deposit_admin_invoice", "charged_now", "draft");
-        } else {
-          await invokeLifecycle(supabaseClient, "enter_pending_review", orderId, "webhook_pi_deposit_standard", undefined, "draft");
-        }
-      }
-    } else {
-      if (paymentBrand || paymentLast4) {
-        await supabaseClient
-          .from("orders")
-          .update({
-            ...(paymentBrand ? { payment_method_brand: paymentBrand } : {}),
-            ...(paymentLast4 ? { payment_method_last_four: paymentLast4 } : {}),
-          })
-          .eq("id", orderId);
-      }
-    }
+  if ((paymentType === "balance" || paymentType === "deposit") && (!legacyRows || legacyRows.length === 0)) {
+    await reportUnmatchedPayment(supabaseClient, orderId, paymentIntent.id, `a successful ${paymentType} payment of ${paymentIntent.amount_received || 0} cents has no payment operation and no ledger row`);
   }
 }
 
@@ -642,13 +393,17 @@ export async function handlePaymentIntentFailed(
   paymentIntent: Stripe.PaymentIntent,
   supabaseClient: any
 ): Promise<void> {
+  // Only a payment that is still open can fail. A Checkout payment may be retried by the customer on Stripe's page, so a
+  // failed attempt there does not close its operation.
   await supabaseClient
     .from("payments")
     .update({
       status: "failed",
       failed_at: new Date().toISOString()
     })
-    .eq("stripe_payment_intent_id", paymentIntent.id);
+    .eq("stripe_payment_intent_id", paymentIntent.id)
+    .eq("status", "pending")
+    .is("stripe_checkout_session_id", null);
 }
 
 export async function handleChargeRefunded(
@@ -803,22 +558,10 @@ export async function handleSetupIntentSucceeded(
     }
   }
 
-  const { data: invoiceLink } = await supabaseClient
-    .from("invoice_links")
-    .select("id")
-    .eq("order_id", orderId)
-    .eq("link_type", "invoice")
-    .maybeSingle();
-
-  const isAdminInvoice = !!invoiceLink;
-  const newStatus = isAdminInvoice ? "confirmed" : "pending_review";
-
-  const { data: siCurrentOrder } = await supabaseClient
-    .from("orders")
-    .select("status")
-    .eq("id", orderId)
-    .maybeSingle();
-  const siSafeToAdvance = ["draft", "quote", "pending_review"].includes(siCurrentOrder?.status || "");
+  const { isAdminInvoice, principalOutstanding, currentStatus, depositDue } = await setupConfirmation(supabaseClient, orderId);
+  // A booking request goes to review. An Admin Invoice is confirmed only when no principal is left to collect.
+  const newStatus = isAdminInvoice ? (principalOutstanding ? null : "confirmed") : "pending_review";
+  const siSafeToAdvance = newStatus !== null && ["draft", "quote", "pending_review"].includes(currentStatus);
 
   const { error: updateError } = await supabaseClient
     .from("orders")
@@ -835,7 +578,7 @@ export async function handleSetupIntentSucceeded(
     console.error(`[WEBHOOK] Error updating order ${orderId}:`, updateError);
   } else if (siSafeToAdvance) {
     if (isAdminInvoice) {
-      await invokeLifecycle(supabaseClient, "enter_confirmed", orderId, "webhook_setup_intent_admin_invoice", "zero_due_with_card", "draft");
+      await invokeLifecycle(supabaseClient, "enter_confirmed", orderId, "webhook_setup_intent_admin_invoice", depositDue > 0 ? "charged_now" : "zero_due_with_card", "draft");
     } else {
       await invokeLifecycle(supabaseClient, "enter_pending_review", orderId, "webhook_setup_intent_standard", undefined, "draft");
     }
