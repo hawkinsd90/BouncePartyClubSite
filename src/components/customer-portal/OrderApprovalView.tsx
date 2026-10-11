@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { format } from 'date-fns';
+import { storedOrderTotalCents } from '../../lib/orderMoney';
 import { CheckCircle, XCircle, Phone, MapPin, Calendar, Package } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { formatCurrency } from '../../lib/pricing';
@@ -56,12 +57,7 @@ export function OrderApprovalView({
 
   const currentTotalCents = orderSummary
     ? orderSummary.total
-    : (order.subtotal_cents || 0) +
-      (order.generator_fee_cents || 0) +
-      (order.travel_fee_cents || 0) +
-      (order.surface_fee_cents || 0) +
-      (order.same_day_pickup_fee_cents || 0) +
-      (order.tax_cents || 0);
+    : storedOrderTotalCents(order, [], []);
 
   const currentDepositCents = order.deposit_due_cents || 0;
   const originalPaymentCents = order.customer_selected_payment_cents || 0;

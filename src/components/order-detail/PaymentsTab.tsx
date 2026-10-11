@@ -3,7 +3,7 @@ import { RotateCcw } from 'lucide-react';
 import { formatCurrency } from '../../lib/pricing';
 import { showToast } from '../../lib/notifications';
 import { supabase } from '../../lib/supabase';
-import { calculateStoredOrderTotal } from '../../lib/orderUtils';
+import { storedOrderTotalCents } from '../../lib/orderMoney';
 
 interface PaymentsTabProps {
   orderId: string;
@@ -19,15 +19,7 @@ export function PaymentsTab({ orderId, customerName, payments, order, customFees
   const succeededPayments = payments.filter(p => p.status === 'succeeded');
   const totalCapturedCents = succeededPayments.reduce((sum, p) => sum + p.amount_cents, 0);
 
-  const customFeesCents = customFees.reduce((sum, f) => sum + (f.amount_cents || 0), 0);
-  const subtotalCents = order?.subtotal_cents || 0;
-  const discountCents = discounts.reduce((sum, d) => {
-    if (d.percentage && d.percentage > 0) return sum + Math.round(subtotalCents * (d.percentage / 100));
-    return sum + (d.amount_cents || 0);
-  }, 0);
-  const orderTotalCents = order
-    ? calculateStoredOrderTotal(order) + customFeesCents - discountCents
-    : 0;
+  const orderTotalCents = order ? storedOrderTotalCents(order, discounts, customFees) : 0;
 
   const remainingAfterCapturedCents = order ? Math.max(0, orderTotalCents - totalCapturedCents) : 0;
   const tipCents = order?.tip_cents || 0;

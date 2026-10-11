@@ -1,4 +1,5 @@
 import { calculateTravelFeeFromDistance } from './travelFeeCalculator';
+import { calculateSalesTaxCents, effectiveTaxEnabled } from './orderMoney';
 import { calculateDistance as _calculateDistance, calculateDrivingDistance as _calculateDrivingDistance } from './distanceCalculator';
 
 // Re-export for backward compatibility
@@ -84,6 +85,14 @@ export function isSameDayWeekdayDelivery(eventDateYMD: string): boolean {
   return dow >= 1 && dow <= 5;
 }
 
+// The generator rental fee for a quantity: the first generator at the single price, each further one at the multiple price.
+export function calculateGeneratorFeeCents(quantity: number, rules: PricingRules): number {
+  if (!(quantity > 0)) return 0;
+  const single_fee = rules.generator_fee_single_cents || rules.generator_price_cents || 10000;
+  const multiple_fee = rules.generator_fee_multiple_cents || rules.generator_price_cents || 7500;
+  return quantity === 1 ? single_fee : single_fee + multiple_fee * (quantity - 1);
+}
+
 export function calculatePrice(input: PriceCalculationInput): PriceBreakdown {
   const {
     items,
@@ -156,23 +165,12 @@ export function calculatePrice(input: PriceCalculationInput): PriceBreakdown {
       ? rules.same_day_weekday_delivery_fee_cents
       : 0;
 
-  let generator_fee_cents = 0;
   const actual_generator_qty = generator_qty > 0 ? generator_qty : (has_generator ? 1 : 0);
-  if (actual_generator_qty > 0) {
-    const single_fee = rules.generator_fee_single_cents || rules.generator_price_cents || 10000;
-    const multiple_fee = rules.generator_fee_multiple_cents || rules.generator_price_cents || 7500;
+  const generator_fee_cents = calculateGeneratorFeeCents(actual_generator_qty, rules);
 
-    if (actual_generator_qty === 1) {
-      generator_fee_cents = single_fee;
-    } else {
-      // First generator at single price, rest at multiple price
-      generator_fee_cents = single_fee + (multiple_fee * (actual_generator_qty - 1));
-    }
-  }
-
-  const shouldApplyTaxes = rules.apply_taxes_by_default ?? true;
+  const shouldApplyTaxes = effectiveTaxEnabled({ applyTaxesByDefault: rules.apply_taxes_by_default, taxWaived: false });
   const tax_cents = shouldApplyTaxes
-    ? Math.round((subtotal_cents + travel_fee_cents + surface_fee_cents + generator_fee_cents) * 0.06)
+    ? calculateSalesTaxCents(subtotal_cents + travel_fee_cents + surface_fee_cents + generator_fee_cents)
     : 0;
 
   const total_cents =

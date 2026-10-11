@@ -1,5 +1,6 @@
 import { formatCurrency, DEFAULT_PHONE } from "../_shared/fmt.ts";
 import { buildPortalUrl } from "../_shared/portal-link.ts";
+import { receiptOrderFigures, receiptDiscountAmount, receiptExtraFeeRowsHtml } from "../_shared/receipt-order-totals.ts";
 
 export async function sendCheckoutBalanceReceiptEmail(
   supabaseClient: any,
@@ -52,18 +53,8 @@ export async function sendCheckoutBalanceReceiptEmail(
   const customFees: Array<{ name: string; amount_cents: number }> = webhookCustomFees || [];
   const discounts: Array<{ name: string; amount_cents: number | null; percentage: number | null }> = webhookDiscounts || [];
 
-  const subtotal = order?.subtotal_cents || 0;
-  const travelFee = order?.travel_fee_waived ? 0 : (order?.travel_fee_cents || 0);
-  const surfaceFee = order?.surface_fee_waived ? 0 : (order?.surface_fee_cents || 0);
-  const sameDayFee = order?.same_day_pickup_fee_waived ? 0 : (order?.same_day_pickup_fee_cents || 0);
-  const generatorFee = order?.generator_fee_waived ? 0 : (order?.generator_fee_cents || 0);
-  const tax = order?.tax_waived ? 0 : (order?.tax_cents || 0);
-  const customFeesTotal = customFees.reduce((s, f) => s + (f.amount_cents || 0), 0);
-  const discountsTotal = discounts.reduce((s, d) => {
-    if (d.percentage && d.percentage > 0) return s + Math.round(subtotal * (d.percentage / 100));
-    return s + (d.amount_cents || 0);
-  }, 0);
-  const total = subtotal + travelFee + surfaceFee + sameDayFee + generatorFee + tax + customFeesTotal - discountsTotal;
+  const figures = receiptOrderFigures(order, discounts, customFees);
+  const { subtotal, travelFee, surfaceFee, sameDayFee, generatorFee, tax, total } = figures;
   const depositPaid = order?.deposit_paid_cents || 0;
   const newBalanceDue = order?.balance_due_cents ?? 0;
 
@@ -72,10 +63,11 @@ export async function sendCheckoutBalanceReceiptEmail(
     surfaceFee > 0 ? `<tr><td style="padding:4px 0;color:#6b7280;font-size:14px;">Surface Fee</td><td style="padding:4px 0;text-align:right;color:#6b7280;font-size:14px;">${fmt(surfaceFee)}</td></tr>` : "",
     sameDayFee > 0 ? `<tr><td style="padding:4px 0;color:#6b7280;font-size:14px;">Same-Day Pickup Fee</td><td style="padding:4px 0;text-align:right;color:#6b7280;font-size:14px;">${fmt(sameDayFee)}</td></tr>` : "",
     generatorFee > 0 ? `<tr><td style="padding:4px 0;color:#6b7280;font-size:14px;">Generator Fee</td><td style="padding:4px 0;text-align:right;color:#6b7280;font-size:14px;">${fmt(generatorFee)}</td></tr>` : "",
+    receiptExtraFeeRowsHtml(figures, fmt),
     tax > 0 ? `<tr><td style="padding:4px 0;color:#6b7280;font-size:14px;">Tax</td><td style="padding:4px 0;text-align:right;color:#6b7280;font-size:14px;">${fmt(tax)}</td></tr>` : "",
     ...customFees.map(f => f.amount_cents > 0 ? `<tr><td style="padding:4px 0;color:#6b7280;font-size:14px;">${f.name}</td><td style="padding:4px 0;text-align:right;color:#6b7280;font-size:14px;">${fmt(f.amount_cents)}</td></tr>` : ""),
     ...discounts.map(d => {
-      const amt = d.percentage && d.percentage > 0 ? Math.round(subtotal * (d.percentage / 100)) : (d.amount_cents || 0);
+      const amt = receiptDiscountAmount(d, subtotal);
       return amt > 0 ? `<tr><td style="padding:4px 0;color:#059669;font-size:14px;">${d.name} (discount)</td><td style="padding:4px 0;text-align:right;color:#059669;font-size:14px;">-${fmt(amt)}</td></tr>` : "";
     }),
   ].join("");
@@ -222,18 +214,8 @@ export async function sendDepositReceiptEmail(
   const customFees: Array<{ name: string; amount_cents: number }> = depositCustomFees || [];
   const discounts: Array<{ name: string; amount_cents: number | null; percentage: number | null }> = depositDiscounts || [];
 
-  const subtotal = order?.subtotal_cents || 0;
-  const travelFee = order?.travel_fee_waived ? 0 : (order?.travel_fee_cents || 0);
-  const surfaceFee = order?.surface_fee_waived ? 0 : (order?.surface_fee_cents || 0);
-  const sameDayFee = order?.same_day_pickup_fee_waived ? 0 : (order?.same_day_pickup_fee_cents || 0);
-  const generatorFee = order?.generator_fee_waived ? 0 : (order?.generator_fee_cents || 0);
-  const tax = order?.tax_waived ? 0 : (order?.tax_cents || 0);
-  const customFeesTotal = customFees.reduce((s, f) => s + (f.amount_cents || 0), 0);
-  const discountsTotal = discounts.reduce((s, d) => {
-    if (d.percentage && d.percentage > 0) return s + Math.round(subtotal * (d.percentage / 100));
-    return s + (d.amount_cents || 0);
-  }, 0);
-  const total = subtotal + travelFee + surfaceFee + sameDayFee + generatorFee + tax + customFeesTotal - discountsTotal;
+  const figures = receiptOrderFigures(order, discounts, customFees);
+  const { subtotal, travelFee, surfaceFee, sameDayFee, generatorFee, tax, total } = figures;
   const balanceDueAfter = order?.balance_due_cents ?? 0;
 
   const feeRowsHtml = [
@@ -241,10 +223,11 @@ export async function sendDepositReceiptEmail(
     surfaceFee > 0 ? `<tr><td style="padding:4px 0;color:#6b7280;font-size:14px;">Surface Fee</td><td style="padding:4px 0;text-align:right;color:#6b7280;font-size:14px;">${fmt(surfaceFee)}</td></tr>` : "",
     sameDayFee > 0 ? `<tr><td style="padding:4px 0;color:#6b7280;font-size:14px;">Same-Day Pickup Fee</td><td style="padding:4px 0;text-align:right;color:#6b7280;font-size:14px;">${fmt(sameDayFee)}</td></tr>` : "",
     generatorFee > 0 ? `<tr><td style="padding:4px 0;color:#6b7280;font-size:14px;">Generator Fee</td><td style="padding:4px 0;text-align:right;color:#6b7280;font-size:14px;">${fmt(generatorFee)}</td></tr>` : "",
+    receiptExtraFeeRowsHtml(figures, fmt),
     tax > 0 ? `<tr><td style="padding:4px 0;color:#6b7280;font-size:14px;">Tax</td><td style="padding:4px 0;text-align:right;color:#6b7280;font-size:14px;">${fmt(tax)}</td></tr>` : "",
     ...customFees.map(f => f.amount_cents > 0 ? `<tr><td style="padding:4px 0;color:#6b7280;font-size:14px;">${f.name}</td><td style="padding:4px 0;text-align:right;color:#6b7280;font-size:14px;">${fmt(f.amount_cents)}</td></tr>` : ""),
     ...discounts.map(d => {
-      const amt = d.percentage && d.percentage > 0 ? Math.round(subtotal * (d.percentage / 100)) : (d.amount_cents || 0);
+      const amt = receiptDiscountAmount(d, subtotal);
       return amt > 0 ? `<tr><td style="padding:4px 0;color:#059669;font-size:14px;">${d.name} (discount)</td><td style="padding:4px 0;text-align:right;color:#059669;font-size:14px;">-${fmt(amt)}</td></tr>` : "";
     }),
   ].join("");

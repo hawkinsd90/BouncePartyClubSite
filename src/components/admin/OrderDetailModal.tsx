@@ -35,6 +35,7 @@ import { buildOrderDetailPricingRevision, buildGeneratorContextRevision } from '
 import { usePricing } from '../../hooks/usePricing';
 import { useOrderDetails } from '../../hooks/useOrderDetails';
 import { saveOrderChanges } from '../../lib/orderSaveService';
+import { orderPricingState } from '../../lib/orderPricingState';
 import { initDepositOverrideState } from '../../lib/depositCalculation';
 import { sendOrderEditNotifications } from '../../lib/orderNotificationService';
 import { SimpleConfirmModal } from '../common/SimpleConfirmModal';
@@ -66,6 +67,10 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
   const [editedOrder, setEditedOrder] = useState<any>(() => buildInitialEditedOrder(order));
   const [stagedItems, setStagedItems] = useState<StagedItem[]>([]);
   const stagedInitializedForOrderId = useRef<string | null>(null);
+  // The discounts and custom fees exactly as they were stored when the editor loaded them (the editor's own lists are edited).
+  // The server compares this with what is stored now and refuses a stale save.
+  const loadedDiscountsRef = useRef<any[]>([]);
+  const loadedCustomFeesRef = useRef<any[]>([]);
   const orderLoadRequestIdRef = useRef(0);
   const [loadedOrderItemsForOrderId, setLoadedOrderItemsForOrderId] = useState<string | null>(null);
   const [generatorProductIdsState, setGeneratorProductIdsState] = useState<{ status: 'loading' | 'ready' | 'failed'; ids: Set<string> }>({ status: 'loading', ids: new Set() });
@@ -229,14 +234,7 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
           const lng = parseFloat(order.addresses.lng);
           if (lat !== 0 && lng !== 0) {
             travelMiles = await calculateDrivingDistance(HOME_BASE.lat, HOME_BASE.lng, lat, lng);
-
-            // Update the order in database with calculated miles
-            if (travelMiles > 0) {
-              await supabase
-                .from('orders')
-                .update({ travel_total_miles: travelMiles })
-                .eq('id', order.id);
-            }
+            // Display only: the miles are never written back from the browser (the server owns the travel snapshot).
           }
         } catch (error) {
           console.error('Error calculating travel miles for old order:', error);
@@ -598,6 +596,8 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
         customSetupFeeCents,
         storedSetupFeeCents: order.setup_fee_cents ?? 0,
         setupFeeBasisChanged,
+        // Any added, removed or changed equipment line: only then is the order's stored equipment subtotal and deposit priced again.
+        equipmentBasisChanged: stagedItems.some((item) => item.is_new || item.is_deleted || item.is_updated),
         pricingRules: pricingRules as any,
         feeWaivers: {
           taxWaived,
@@ -645,29 +645,10 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
       }
       if (changelogRes.data) setChangelog(changelogRes.data);
       if (unitsRes.data) setAvailableUnits(unitsRes.data);
-      if (discountsRes.data) setDiscounts(discountsRes.data);
-      if (customFeesRes.data) setCustomFees(customFeesRes.data);
+      if (discountsRes.data) { loadedDiscountsRef.current = discountsRes.data; setDiscounts(discountsRes.data); }
+      if (customFeesRes.data) { loadedCustomFeesRef.current = customFeesRes.data; setCustomFees(customFeesRes.data); }
     } catch (error) {
       console.error('Error loading order details:', error);
-    }
-  }
-
-  async function logChange(field: string, oldValue: any, newValue: any, action: 'update' | 'add' | 'remove' = 'update') {
-    try {
-      const user = (await supabase.auth.getUser()).data.user;
-      await supabase.from('order_changelog').insert({
-        order_id: order.id,
-        user_id: user?.id || null,
-        field_changed: field,
-        field_name: field,
-        changed_by: user?.id || null,
-        notes: null,
-        old_value: oldValue !== null && oldValue !== undefined ? String(oldValue) : null,
-        new_value: newValue !== null && newValue !== undefined ? String(newValue) : null,
-        change_type: action === 'update' ? 'edit' : action === 'add' ? 'add' : 'remove',
-      });
-    } catch (error) {
-      console.error('Error logging change:', error);
     }
   }
 
@@ -717,6 +698,7 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
         discounts,
         customFees,
         calculatedPricing,
+        loadedPricingState: orderPricingState(order, orderItems, loadedDiscountsRef.current, loadedCustomFeesRef.current),
         customDepositCents,
         customSetupFeeCents,
         adminMessage,
@@ -738,7 +720,6 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
         sameDayWeekdayDeliveryFeeWaiveReason,
         parksAcknowledgmentRequired,
         parksAcknowledgmentCounty,
-        logChangeFn: logChange,
         sendNotificationsFn: async () => {
           await sendOrderEditNotifications({ order, adminMessage });
         },

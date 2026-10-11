@@ -29,6 +29,9 @@ const IMPORT_MAP: Record<string, string> = {
   './eventEssentialsMoney': './eventEssentialsMoney.ts',
   './depositCalculation': './depositCalculation.ts',
   './setupFeeCalculation': './setupFeeCalculation.ts',
+  './orderMoney': './orderMoney.ts',
+  './constants/statuses': './orderStatuses.ts',
+  './eventAddress': './eventAddress.ts',
   './pricing': './pricing.ts',
   './unifiedCart': './unifiedCartGuards.ts',
   './travelFeeCalculator': './travelFeeFromDistance.ts',
@@ -52,6 +55,18 @@ export const SHARED_COPIES: SharedCopySpec[] = [
   { out: 'eeOrderItemAvailability.ts', source: 'src/lib/eeOrderItemAvailability.ts' },
   { out: 'eventEssentialsOrderItems.ts', source: 'src/lib/eventEssentialsOrderItems.ts' },
   { out: 'setupFeeCalculation.ts', source: 'src/lib/setupFeeCalculation.ts' },
+  { out: 'orderMoney.ts', source: 'src/lib/orderMoney.ts' },
+  // Only the status constants (the rest of the file is browser-side order helpers).
+  { out: 'orderStatuses.ts', source: 'src/lib/constants/statuses.ts', slice: (t) => t.slice(0, t.indexOf('export const ORDER_STATUS_LABELS')) },
+  { out: 'eventAddress.ts', source: 'src/lib/eventAddress.ts' },
+  { out: 'orderPricingState.ts', source: 'src/lib/orderPricingState.ts' },
+  { out: 'orderChangePlanning.ts', source: 'src/lib/orderChangePlanning.ts' },
+  {
+    out: 'orderPricingCalculation.ts',
+    source: 'src/lib/orderPricingCalculation.ts',
+    // The display summary type lives in a module that reads the browser Supabase client; the server needs only its shape.
+    slice: (t) => t.replace("import type { OrderSummaryData } from './orderSummary';\n", '// deno-lint-ignore no-explicit-any\ntype OrderSummaryData = any;\n'),
+  },
   { out: 'unifiedTotals.ts', source: 'src/lib/unifiedTotals.ts' },
   {
     out: 'depositCalculation.ts',
@@ -98,7 +113,8 @@ export function renderSharedCopy(spec: SharedCopySpec, sourceText: string): stri
     return `${pre}'${mapped}'`;
   });
   const header =
-    (/(:|<|as)\s*any\b/.test(rewritten) ? `/* eslint-disable @typescript-eslint/no-explicit-any */\n` : '') +
+    // (A source that already carries its own directive does not get a second one: the second would be reported as unused.)
+    (/(:|<|as)\s*any\b/.test(rewritten) && !/eslint-disable @typescript-eslint\/no-explicit-any/.test(rewritten) ? `/* eslint-disable @typescript-eslint/no-explicit-any */\n` : '') +
     `// GENERATED COPY of ${spec.source}${spec.slice ? ' (sliced)' : ''}. Do not edit here.\n` +
     `// Edit the source and run: node node_modules/jiti/bin/jiti.js src/lib/bookingSharedCopy.ts --write\n` +
     `// A test fails if this file differs from its source. Used by create-booking so the server prices exactly like the Quote.\n\n`;

@@ -1,4 +1,5 @@
 import type { OrderSummaryDisplay } from './orderSummary';
+import { composeOrderTotal, effectiveDiscountCents } from './orderMoney';
 
 interface FeeInput {
   travel_fee_cents?: number;
@@ -15,6 +16,7 @@ interface FeeInput {
   same_day_weekday_delivery_fee_waived?: boolean;
   generator_fee_waived?: boolean;
   setup_fee_cents?: number;
+  waived_amount_unknown?: string[];
 }
 
 interface DiscountInput {
@@ -55,8 +57,9 @@ interface BuildSummaryOptions {
   pickup_preference?: string;
 }
 
-export function buildFeesList(fees: FeeInput): Array<{ name: string; amount: number }> {
-  const feesList: Array<{ name: string; amount: number }> = [];
+export function buildFeesList(fees: FeeInput): Array<{ name: string; amount: number; amountUnknown?: boolean }> {
+  const feesList: Array<{ name: string; amount: number; amountUnknown?: boolean }> = [];
+  const unknown = new Set(fees.waived_amount_unknown ?? []);
 
   // Show fees if they have a value > 0 OR if they're explicitly waived
   // This ensures waived fees appear in the list so they can display with WAIVED badge
@@ -65,19 +68,19 @@ export function buildFeesList(fees: FeeInput): Array<{ name: string; amount: num
     if (fees.travel_total_miles && fees.travel_total_miles > 0) {
       travelFeeName = `Travel Fee (${fees.travel_total_miles.toFixed(1)} mi)`;
     }
-    feesList.push({ name: travelFeeName, amount: fees.travel_fee_cents || 0 });
+    feesList.push({ name: travelFeeName, amount: fees.travel_fee_cents || 0, ...(unknown.has('travel') ? { amountUnknown: true } : {}) });
   }
 
   if ((fees.surface_fee_cents && fees.surface_fee_cents > 0) || fees.surface_fee_waived) {
-    feesList.push({ name: 'Surface Fee (Sandbags)', amount: fees.surface_fee_cents || 0 });
+    feesList.push({ name: 'Surface Fee (Sandbags)', amount: fees.surface_fee_cents || 0, ...(unknown.has('surface') ? { amountUnknown: true } : {}) });
   }
 
   if ((fees.same_day_pickup_fee_cents && fees.same_day_pickup_fee_cents > 0) || fees.same_day_pickup_fee_waived) {
-    feesList.push({ name: 'Same-Day Pickup Fee', amount: fees.same_day_pickup_fee_cents || 0 });
+    feesList.push({ name: 'Same-Day Pickup Fee', amount: fees.same_day_pickup_fee_cents || 0, ...(unknown.has('same_day_pickup') ? { amountUnknown: true } : {}) });
   }
 
   if ((fees.same_day_weekday_delivery_fee_cents && fees.same_day_weekday_delivery_fee_cents > 0) || fees.same_day_weekday_delivery_fee_waived) {
-    feesList.push({ name: 'Same-Day Delivery Fee', amount: fees.same_day_weekday_delivery_fee_cents || 0 });
+    feesList.push({ name: 'Same-Day Delivery Fee', amount: fees.same_day_weekday_delivery_fee_cents || 0, ...(unknown.has('same_day_weekday_delivery') ? { amountUnknown: true } : {}) });
   }
 
   if ((fees.generator_fee_cents && fees.generator_fee_cents > 0) || fees.generator_fee_waived) {
@@ -85,7 +88,7 @@ export function buildFeesList(fees: FeeInput): Array<{ name: string; amount: num
       fees.generator_qty && fees.generator_qty > 1
         ? `Generators (${fees.generator_qty}x)`
         : 'Generator';
-    feesList.push({ name: generatorLabel, amount: fees.generator_fee_cents || 0 });
+    feesList.push({ name: generatorLabel, amount: fees.generator_fee_cents || 0, ...(unknown.has('generator') ? { amountUnknown: true } : {}) });
   }
 
   if (fees.setup_fee_cents && fees.setup_fee_cents > 0) {
@@ -99,16 +102,11 @@ export function calculateDiscountAmounts(
   discounts: DiscountInput[],
   subtotal_cents: number
 ): Array<{ name: string; amount: number }> {
-  return discounts.map((discount) => {
-    let amount = discount.amount_cents || 0;
-    if (discount.percentage && discount.percentage > 0) {
-      amount = Math.round(subtotal_cents * (discount.percentage / 100));
-    }
-    return {
-      name: discount.name,
-      amount: amount,
-    };
-  });
+  // One amount per discount (orderMoney): the fixed amount when it is > 0, else the percentage of the equipment subtotal.
+  return discounts.map((discount) => ({
+    name: discount.name,
+    amount: effectiveDiscountCents(discount, subtotal_cents),
+  }));
 }
 
 export function buildOrderSummaryDisplay(options: BuildSummaryOptions): OrderSummaryDisplay {
@@ -134,7 +132,19 @@ export function buildOrderSummaryDisplay(options: BuildSummaryOptions): OrderSum
   const totalDiscounts = discounts.reduce((sum, d) => sum + d.amount, 0);
   const totalCustomFees = customFees.reduce((sum, f) => sum + f.amount, 0);
 
-  const taxableAmount = options.subtotal_cents + totalFees + totalCustomFees - totalDiscounts;
+  // The taxable amount, by the same rules that priced the order: same-day pickup and weekday-delivery fees are not taxed.
+  const taxableAmount = composeOrderTotal(
+    {
+      subtotal_cents: options.subtotal_cents,
+      travel_fee_cents: options.fees.travel_fee_cents,
+      surface_fee_cents: options.fees.surface_fee_cents,
+      generator_fee_cents: options.fees.generator_fee_cents,
+      setup_fee_cents: options.fees.setup_fee_cents,
+    },
+    options.discounts,
+    options.customFees.map((f) => ({ amount_cents: f.amount_cents })),
+    0,
+  ).taxableAfterDiscountCents;
 
   const isMultiDay =
     options.event_end_date &&

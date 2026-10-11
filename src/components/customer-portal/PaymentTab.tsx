@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { CheckCircle, CreditCard, Loader2 } from 'lucide-react';
+import { storedOrderTotalCents } from '../../lib/orderMoney';
 import { formatCurrency } from '../../lib/pricing';
 import { TipSelector, calculateTipCents } from '../payment/TipSelector';
 import { showToast } from '../../lib/notifications';
@@ -137,12 +138,7 @@ export function PaymentTab({ orderId, order, balanceDue, orderSummary, onPayment
   // prop is not passed, which should not happen in normal portal rendering.
   const orderTotal: number = orderSummary
     ? orderSummary.total
-    : (order.subtotal_cents || 0) +
-      (order.travel_fee_waived ? 0 : (order.travel_fee_cents || 0)) +
-      (order.surface_fee_waived ? 0 : (order.surface_fee_cents || 0)) +
-      (order.same_day_pickup_fee_waived ? 0 : (order.same_day_pickup_fee_cents || 0)) +
-      (order.generator_fee_waived ? 0 : (order.generator_fee_cents || 0)) +
-      (order.tax_waived ? 0 : (order.tax_cents || 0));
+    : storedOrderTotalCents(order, [], []);
 
   // Typed text can parse to NaN or a negative number; the payment only ever receives a whole, non-negative tip.
   const rawTipCents = calculateTipCents(tipAmount, customTipAmount, orderTotal);

@@ -11,6 +11,7 @@
 export const IDS = {
   uAdmin: '00000000-0000-4000-8000-0000000000a1',
   uCrew: '00000000-0000-4000-8000-0000000000c1',
+  uMaster: '00000000-0000-4000-8000-0000000000d1',
   uA: '00000000-0000-4000-8000-00000000aaaa',
   uB: '00000000-0000-4000-8000-00000000bbbb',
   custA: '10000000-0000-4000-8000-00000000aaaa',
@@ -40,10 +41,10 @@ export const SEED_SQL = `
 -- The fixture creates its own role rows, so the sign-up trigger (which would add a customer role) stays out of the way.
 ALTER TABLE auth.users DISABLE TRIGGER USER;
 INSERT INTO auth.users (id, email) VALUES
-  ('${IDS.uAdmin}', 'admin@example.com'), ('${IDS.uCrew}', 'crew@example.com'),
+  ('${IDS.uAdmin}', 'admin@example.com'), ('${IDS.uCrew}', 'crew@example.com'), ('${IDS.uMaster}', 'staff-master@example.com'),
   ('${IDS.uA}', 'a@example.com'), ('${IDS.uB}', 'b@example.com'), ('${IDS.uLegacy}', 'legacy@example.com');
 INSERT INTO public.user_roles (user_id, role) VALUES
-  ('${IDS.uAdmin}', 'admin'), ('${IDS.uCrew}', 'crew'), ('${IDS.uA}', 'customer'), ('${IDS.uB}', 'customer');
+  ('${IDS.uAdmin}', 'admin'), ('${IDS.uMaster}', 'master'), ('${IDS.uCrew}', 'crew'), ('${IDS.uA}', 'customer'), ('${IDS.uB}', 'customer');
 INSERT INTO public.customers (id, first_name, last_name, email, phone, user_id) VALUES
   ('${IDS.custA}', 'Ann', 'A', 'a@example.com', '5550000001', '${IDS.uA}'),
   ('${IDS.custB}', 'Bob', 'B', 'b@example.com', '5550000002', '${IDS.uB}'),
@@ -221,9 +222,8 @@ export function buildScenarios(): Scenario[] {
   add('crew: reads customers, addresses, order items, discounts, fees, task status, all units', 'authenticated', C, `SELECT ((SELECT count(*) FROM public.customers) >= 3 AND (SELECT count(*) FROM public.addresses) >= 2 AND (SELECT count(*) FROM public.order_items) >= 2 AND (SELECT count(*) FROM public.task_status) >= 1 AND (SELECT count(*) FROM public.units WHERE NOT active) >= 2)::text`, 'true');
   add('crew: workflow_status update on an order works', 'authenticated', C, upd(`UPDATE public.orders SET workflow_status = 'on_the_way' WHERE id = '${IDS.orderA}'`), '1');
   add('crew: can update task_status (en route / arrived / completed)', 'authenticated', C, upd(`UPDATE public.task_status SET status = 'en_route' WHERE order_id = '${IDS.orderA}'`), '1');
-  add('crew: can create a DRAFT invoice order', 'authenticated', C, `INSERT INTO public.orders (status, location_type, event_date, event_end_date, start_window, end_window, subtotal_cents, deposit_due_cents, balance_due_cents, pickup_preference) VALUES ('draft','residential','2031-01-01','2031-01-01','09:00','17:00',0,0,0,'next_day') RETURNING 'inserted'`, 'inserted');
   add('crew: cannot create a CONFIRMED order', 'authenticated', C, `INSERT INTO public.orders (status, location_type, event_date, event_end_date, start_window, end_window, subtotal_cents, deposit_due_cents, balance_due_cents, pickup_preference) VALUES ('confirmed','residential','2031-01-01','2031-01-01','09:00','17:00',0,0,0,'next_day') RETURNING 'inserted'`, denied);
-  add('crew: can create customers, addresses, order items for an invoice', 'authenticated', C, `WITH c AS (INSERT INTO public.customers (first_name,last_name,email,phone) VALUES ('n','n','new@example.com','1') RETURNING id), a AS (INSERT INTO public.addresses (line1,city,state,zip,address_key) VALUES ('1','c','MI','1','crew-key') RETURNING id), i AS (INSERT INTO public.order_items (order_id, unit_id, unit_price_cents, qty) VALUES ('${IDS.orderA}', '${IDS.unitActive}', 1, 1) RETURNING 1) SELECT 'ok' FROM c, a, i`, 'ok');
+  add('crew: can create customers and addresses for an invoice', 'authenticated', C, `WITH c AS (INSERT INTO public.customers (first_name,last_name,email,phone) VALUES ('n','n','new@example.com','1') RETURNING id), a AS (INSERT INTO public.addresses (line1,city,state,zip,address_key) VALUES ('1','c','MI','1','crew-key') RETURNING id) SELECT 'ok' FROM c, a`, 'ok');
   add('crew: can log location', 'authenticated', C, `INSERT INTO public.crew_location_history (latitude, longitude) VALUES (1, 1) RETURNING 'inserted'`, 'inserted');
   for (const t of ['payments', 'invoice_links', 'consent_records', 'contacts', 'order_changelog', 'order_signatures', 'transaction_receipts', 'documents', 'messages']) {
     add(`crew: sees no rows of ${t} (no financial / link / consent / CRM access)`, 'authenticated', C, cnt(t), '0');
@@ -247,6 +247,79 @@ export function buildScenarios(): Scenario[] {
   add('admin: can append to the changelog but not rewrite it', 'authenticated', D, `SELECT (${n(`INSERT INTO public.order_changelog (order_id, field_changed, change_type) VALUES ('${IDS.orderA}', 'status', 'status_change')`)} = 1 AND ${n("UPDATE public.order_changelog SET change_type = 'x'")} = 0)::text`, 'true');
   add('admin: booking_setup_proofs stays service-role only', 'authenticated', D, cnt('booking_setup_proofs'), denied);
 
+  // ---- No staff or customer session writes an order or its financial children directly (the server functions do) ----
+  const draftOrder = (sub: number, dep: number, bal: number) => `INSERT INTO public.orders (status, location_type, event_date, event_end_date, start_window, end_window, subtotal_cents, deposit_due_cents, balance_due_cents, pickup_preference) VALUES ('draft','residential','2031-01-01','2031-01-01','09:00','17:00',${sub},${dep},${bal},'next_day') RETURNING 'inserted'`;
+  const ZERO_DRAFT = draftOrder(0, 0, 0);
+  const PRICED_DRAFT = draftOrder(10000, 5000, 5000);
+  const M = IDS.uMaster;
+  const childInsert = {
+    order_items: `INSERT INTO public.order_items (order_id, unit_id, unit_price_cents, qty) VALUES ('${IDS.orderA}', '${IDS.unitActive}', 1, 1) RETURNING 'inserted'`,
+    order_discounts: `INSERT INTO public.order_discounts (order_id, name, amount_cents) VALUES ('${IDS.orderA}', 'sneaky', 99999) RETURNING 'inserted'`,
+    order_custom_fees: `INSERT INTO public.order_custom_fees (order_id, name, amount_cents) VALUES ('${IDS.orderA}', 'sneaky', 1) RETURNING 'inserted'`,
+  } as const;
+  const childUpdate = {
+    order_items: `UPDATE public.order_items SET unit_price_cents = 1 WHERE order_id = '${IDS.orderA}'`,
+    order_discounts: `UPDATE public.order_discounts SET amount_cents = 99999 WHERE order_id = '${IDS.orderA}'`,
+    order_custom_fees: `UPDATE public.order_custom_fees SET amount_cents = 0 WHERE order_id = '${IDS.orderA}'`,
+  } as const;
+  for (const [who, uid] of [['admin', D], ['master', M]] as const) {
+    for (const t of ['order_items', 'order_discounts', 'order_custom_fees'] as const) {
+      add(`${who}: cannot INSERT into ${t} directly`, 'authenticated', uid, childInsert[t], denied);
+      add(`${who}: cannot UPDATE ${t} directly`, 'authenticated', uid, upd(childUpdate[t]), denied);
+      add(`${who}: cannot DELETE from ${t} directly`, 'authenticated', uid, upd(`DELETE FROM public.${t} WHERE order_id = '${IDS.orderA}'`), denied);
+      add(`${who}: can still READ ${t}`, 'authenticated', uid, cnt(t, `order_id = '${IDS.orderA}'`), (v) => Number(v) >= 1);
+    }
+    add(`${who}: cannot create a zero-dollar draft order directly`, 'authenticated', uid, ZERO_DRAFT, denied);
+    add(`${who}: cannot create a priced draft order directly`, 'authenticated', uid, PRICED_DRAFT, denied);
+    add(`${who}: cannot delete an order directly`, 'authenticated', uid, upd(`DELETE FROM public.orders WHERE id = '${IDS.orderB}'`), denied);
+    add(`${who}: can still make a non-financial order edit`, 'authenticated', uid, upd(`UPDATE public.orders SET admin_message = 'note' WHERE id = '${IDS.orderA}'`), '1');
+    for (const [col, val] of [
+      ['subtotal_cents', '1'], ['event_essentials_subtotal_cents', '1'], ['travel_fee_cents', '1'], ['surface_fee_cents', '1'], ['same_day_pickup_fee_cents', '1'],
+      ['same_day_weekday_delivery_fee_cents', '1'], ['generator_fee_cents', '1'], ['setup_fee_cents', '1'], ['tax_cents', '1'], ['deposit_due_cents', '1'], ['balance_due_cents', '1'],
+      ['custom_deposit_cents', '0'], ['travel_total_miles', '1'], ['travel_base_radius_miles', '1'], ['travel_chargeable_miles', '1'], ['travel_per_mile_cents', '1'], ['travel_is_flat_fee', 'true'],
+      ['tax_waived', 'true'], ['travel_fee_waived', 'true'], ['surface_fee_waived', 'true'], ['generator_fee_waived', 'true'], ['same_day_pickup_fee_waived', 'true'], ['same_day_weekday_delivery_fee_waived', 'true'],
+      ['tax_waive_reason', "'x'"], ['travel_fee_waive_reason', "'x'"], ['surface_fee_waive_reason', "'x'"], ['generator_fee_waive_reason', "'x'"], ['same_day_pickup_fee_waive_reason', "'x'"],
+      ['same_day_weekday_delivery_fee_waive_reason', "'x'"], ['waived_fee_amounts_cents', "'{}'::jsonb"],
+      ['deposit_paid_cents', '1'], ['balance_paid_cents', '1'], ['tip_cents', '1'], ['damage_charged_cents', '1'], ['total_refunded_cents', '1'],
+    ] as const) {
+      add(`${who}: cannot write orders.${col} directly`, 'authenticated', uid, upd(`UPDATE public.orders SET ${col} = ${val} WHERE id = '${IDS.orderA}'`), denied);
+    }
+  }
+  for (const t of ['order_items', 'order_discounts', 'order_custom_fees'] as const) {
+    add(`crew: cannot INSERT into ${t} directly`, 'authenticated', C, childInsert[t], denied);
+    add(`crew: cannot UPDATE ${t} directly`, 'authenticated', C, upd(childUpdate[t]), denied);
+    add(`crew: cannot DELETE from ${t} directly`, 'authenticated', C, upd(`DELETE FROM public.${t} WHERE order_id = '${IDS.orderA}'`), denied);
+    add(`crew: can still READ ${t}`, 'authenticated', C, cnt(t, `order_id = '${IDS.orderA}'`), (v) => Number(v) >= 1);
+    add(`customer A: cannot INSERT into ${t}`, 'authenticated', A, childInsert[t], denied);
+    add(`anon: cannot INSERT into ${t}`, 'anon', null, childInsert[t], denied);
+    add(`anon: cannot UPDATE ${t}`, 'anon', null, upd(childUpdate[t]), denied);
+  }
+  add('crew: cannot create a zero-dollar draft order directly', 'authenticated', C, ZERO_DRAFT, denied);
+  add('crew: cannot create a priced draft order directly', 'authenticated', C, PRICED_DRAFT, denied);
+  add('customer A: cannot create a zero-dollar draft order', 'authenticated', A, ZERO_DRAFT, denied);
+  add('customer A: cannot create a priced draft order', 'authenticated', A, PRICED_DRAFT, denied);
+  add('anon: cannot create a zero-dollar draft order', 'anon', null, ZERO_DRAFT, denied);
+  add('anon: cannot create a priced draft order', 'anon', null, PRICED_DRAFT, denied);
+  add('crew: cannot write the travel mileage directly', 'authenticated', C, upd(`UPDATE public.orders SET travel_total_miles = 0 WHERE id = '${IDS.orderA}'`), denied);
+  add('no browser role holds INSERT, UPDATE or DELETE on the three financial child tables or INSERT / DELETE on orders', 'anon', null,
+    `SELECT count(*)::text FROM (SELECT r, t, p FROM unnest(ARRAY['authenticated','anon']) r, unnest(ARRAY['order_items','order_discounts','order_custom_fees']) t, unnest(ARRAY['INSERT','UPDATE','DELETE']) p WHERE has_table_privilege(r, 'public.' || t, p) UNION ALL SELECT r, 'orders', p FROM unnest(ARRAY['authenticated','anon']) r, unnest(ARRAY['INSERT','DELETE']) p WHERE has_table_privilege(r, 'public.orders', p)) x`, '0');
+  add('service role: can still write the financial child tables (server functions run as it)', 'service_role', null, childInsert.order_items, 'inserted');
+  add('service role: create_staff_invoice_order creates the draft order with its children', 'service_role', null,
+    `SELECT r->>'outcome' FROM (SELECT public.create_staff_invoice_order(jsonb_build_object('status','draft','location_type','residential','event_date','2031-03-01','event_end_date','2031-03-01','start_window','09:00','end_window','17:00','pickup_preference','next_day','subtotal_cents',10000,'tax_cents',600,'deposit_due_cents',5000,'balance_due_cents',5600,'travel_total_miles',12.5), jsonb_build_array(jsonb_build_object('unit_id','${IDS.unitActive}','qty',1,'unit_price_cents',10000,'wet_or_dry','dry')), '[]'::jsonb, '[]'::jsonb) AS r) x`, 'created');
+  // (A separate statement: rows a function writes are not visible to the statement that called it.)
+  add('service role: ...and the new draft has its item and its server-derived totals', 'service_role', null, `SELECT (SELECT count(*) FROM public.order_items i WHERE i.order_id = o.id)::text || ':' || o.subtotal_cents::text || ':' || o.travel_total_miles::text FROM public.orders o WHERE o.event_date = '2031-03-01' AND o.status = 'draft'`, '1:10000:12.50');
+  add('service role: apply_staff_order_save writes the children and the order together', 'service_role', null,
+    `WITH s AS (SELECT jsonb_build_object('columns', jsonb_build_object('status', o.status), 'children', jsonb_build_object(
+        'items', COALESCE((SELECT jsonb_agg(jsonb_build_object('id', i.id, 'qty', i.qty, 'unit_price_cents', i.unit_price_cents) ORDER BY i.id) FROM public.order_items i WHERE i.order_id = o.id), '[]'::jsonb),
+        'discounts', COALESCE((SELECT jsonb_agg(jsonb_build_object('id', d.id, 'amount_cents', COALESCE(d.amount_cents, 0), 'percentage', COALESCE(d.percentage, 0)) ORDER BY d.id) FROM public.order_discounts d WHERE d.order_id = o.id), '[]'::jsonb),
+        'custom_fees', COALESCE((SELECT jsonb_agg(jsonb_build_object('id', f.id, 'amount_cents', COALESCE(f.amount_cents, 0)) ORDER BY f.id) FROM public.order_custom_fees f WHERE f.order_id = o.id), '[]'::jsonb))) AS st FROM public.orders o WHERE o.id = '${IDS.orderB}')
+      SELECT r->>'outcome'
+      FROM (SELECT public.apply_staff_order_save('${IDS.orderB}', '${IDS.uAdmin}', (SELECT st FROM s), '{"subtotal_cents": 12345}'::jsonb,
+        '[{"kind":"insert","payload":{"unit_id":"${IDS.unitActive}","qty":1,"unit_price_cents":777,"wet_or_dry":"dry"}}]'::jsonb, '[]'::jsonb, '[]'::jsonb, '[]'::jsonb) AS r) x`, 'saved');
+  add('service role: ...the added item and the new subtotal are both there', 'service_role', null, `SELECT (SELECT count(*) FROM public.order_items WHERE order_id = '${IDS.orderB}')::text || ':' || (SELECT subtotal_cents::text FROM public.orders WHERE id = '${IDS.orderB}')`, '2:12345');
+  add('service role: apply_staff_order_save refuses a stale state and writes nothing', 'service_role', null,
+    `SELECT (public.apply_staff_order_save('${IDS.orderG}', '${IDS.uAdmin}', '{"columns":{"status":"cancelled"},"children":{}}'::jsonb, '{"subtotal_cents": 777}'::jsonb, '[]'::jsonb, '[]'::jsonb, '[]'::jsonb, '[]'::jsonb)->>'outcome') || ':' || (SELECT subtotal_cents::text FROM public.orders WHERE id = '${IDS.orderG}')`, 'stale:10000');
+
   // ---- Service role (Edge Functions) ----
   for (const t of ['orders', 'customers', 'addresses', 'order_items', 'payments', 'invoice_links', 'consent_records', 'contacts', 'booking_setup_proofs', 'order_changelog', 'task_status']) {
     add(`service_role: reads ${t}`, 'service_role', null, `SELECT (count(*) >= 1)::text FROM public.${t}`, 'true');
@@ -269,13 +342,16 @@ export function buildScenarios(): Scenario[] {
   return s;
 }
 
-export function buildScript(scenarios: Scenario[]): string {
+// `preamble` is SQL applied inside the same rolled-back transaction before the fixture (the payment / pricing migrations that
+// post-date the lockdown, so the scenarios describe the schema as it will actually be deployed).
+export function buildScript(scenarios: Scenario[], preamble = ''): string {
   const calls = scenarios.map((sc, i) => {
     const uid = sc.uid ? `'${sc.uid}'::uuid` : 'NULL::uuid';
     return `  RAISE NOTICE 'R|${i}|%', pg_temp.as_role('${sc.role}', ${uid}, $q$${sc.sql}$q$);`;
   });
   return `
 BEGIN;
+${preamble}
 ${SEED_SQL}
 CREATE FUNCTION pg_temp.as_role(r text, uid uuid, q text) RETURNS text LANGUAGE plpgsql AS $f$
 DECLARE res text;

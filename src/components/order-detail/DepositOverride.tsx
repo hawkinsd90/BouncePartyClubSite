@@ -26,8 +26,10 @@ export function DepositOverride({
   function handleApply() {
     const inputValue = customDepositInput.trim();
 
+    // A blank field is NOT a zero deposit. Blank means "no override": the normal required deposit applies. A deliberate no-deposit
+    // choice must be typed as an explicit 0.
     if (inputValue === '') {
-      onApply(0);
+      showToast('Enter an amount. Type 0 for no deposit, or leave the override off to use the normal deposit.', 'error');
       return;
     }
 

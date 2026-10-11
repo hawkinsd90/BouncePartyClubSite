@@ -1,4 +1,5 @@
 import { formatOrderId } from './utils';
+import { effectiveDiscountCents, storedOrderTotalCents } from './orderMoney';
 import { eventAddressLine2 } from './eventAddress';
 
 // Enhanced Type Safety
@@ -242,18 +243,23 @@ export function transformOrderToPrintableDocument(
     });
   }
 
+  if (order.same_day_weekday_delivery_fee_cents > 0) {
+    charges.push({
+      label: 'Same Day Delivery Fee',
+      amount: order.same_day_weekday_delivery_fee_cents,
+    });
+  }
+
+  if (order.setup_fee_cents > 0) {
+    charges.push({
+      label: 'Setup Fee',
+      amount: order.setup_fee_cents,
+    });
+  }
+
   discounts.forEach((discount) => {
-    let amount = 0;
-    if (discount.amount_cents > 0) {
-      amount = discount.amount_cents;
-    } else if (discount.percentage > 0) {
-      const taxableBase =
-        order.subtotal_cents +
-        (order.generator_fee_cents || 0) +
-        order.travel_fee_cents +
-        order.surface_fee_cents;
-      amount = Math.round(taxableBase * (discount.percentage / 100));
-    }
+    // One amount per discount (orderMoney): the fixed amount when it is > 0, else the percentage of the equipment subtotal.
+    const amount = effectiveDiscountCents(discount, order.subtotal_cents || 0);
 
     if (amount > 0) {
       charges.push({
@@ -295,7 +301,8 @@ export function transformOrderToPrintableDocument(
 
   const subtotal = order.subtotal_cents;
   const tax = order.tax_cents;
-  const total = calculatePrintableTotal(subtotal, charges, tax);
+  // The printed total is the order's total by the one formula (orderMoney).
+  const total = storedOrderTotalCents(order, discounts, customFees);
 
   return {
     type: 'invoice',

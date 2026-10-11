@@ -8,6 +8,7 @@
 //
 // Type-only imports keep this module loadable from Node-based tests.
 
+import { storedOrderTotalCents } from '../../../lib/orderMoney';
 import type { OrderSummaryData, OrderDiscount, OrderCustomFee } from '../../../lib/orderSummary';
 
 // Only the stored order fields this builder reads.
@@ -58,20 +59,6 @@ export function buildCurrentOrderSummaryData({
   const existingDiscounts = discounts.filter((d) => !d.is_new);
   const existingCustomFees = customFees.filter((f) => !f.is_new);
 
-  const subtotal = order.subtotal_cents || 0;
-  const fees =
-    (order.travel_fee_cents || 0) +
-    (order.surface_fee_cents || 0) +
-    (order.same_day_pickup_fee_cents || 0) +
-    (order.same_day_weekday_delivery_fee_cents || 0) +
-    (order.generator_fee_cents || 0) +
-    (order.setup_fee_cents || 0);
-  const totalCustomFees = existingCustomFees.reduce((sum, f) => sum + (f.amount_cents || 0), 0);
-  const totalDiscounts = existingDiscounts.reduce((sum, d) => {
-    if (d.percentage) return sum + Math.round(subtotal * (d.percentage / 100));
-    return sum + (d.amount_cents || 0);
-  }, 0);
-  const tax = order.tax_cents || 0;
 
   return {
     items: orderItems,
@@ -91,7 +78,8 @@ export function buildCurrentOrderSummaryData({
     generator_qty: order.generator_qty || 0,
     tax_cents: order.tax_cents || 0,
     tip_cents: order.tip_cents || 0,
-    total_cents: subtotal + fees + totalCustomFees - totalDiscounts + tax,
+    // The one total formula (orderMoney): stored components + stored tax - discounts + custom fees.
+    total_cents: storedOrderTotalCents(order, existingDiscounts, existingCustomFees),
     deposit_due_cents: order.deposit_due_cents,
     deposit_paid_cents: order.deposit_paid_cents || 0,
     balance_due_cents: order.balance_due_cents,

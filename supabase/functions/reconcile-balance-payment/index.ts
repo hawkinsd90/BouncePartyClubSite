@@ -22,6 +22,7 @@ import "jsr:@supabase/functions-js@2/edge-runtime.d.ts";
 import Stripe from "npm:stripe@20.0.0";
 import { createClient } from "npm:@supabase/supabase-js@2.57.4";
 import { buildPortalUrl } from "../_shared/portal-link.ts";
+import { receiptOrderFigures, receiptDiscountAmount, receiptExtraFeeRowsHtml } from "../_shared/receipt-order-totals.ts";
 import { finalizeOperation } from "../_shared/payment-operations.ts";
 import { formatCurrency, formatPaymentMethodLabel } from "../_shared/fmt.ts";
 
@@ -330,18 +331,8 @@ Deno.serve(async (req: Request) => {
         const customFeesArr: Array<{ name: string; amount_cents: number }> = customFees || [];
         const discountsArr: Array<{ name: string; amount_cents: number | null; percentage: number | null }> = discounts || [];
 
-        const subtotal = currentOrder?.subtotal_cents || 0;
-        const travelFee = currentOrder?.travel_fee_waived ? 0 : (currentOrder?.travel_fee_cents || 0);
-        const surfaceFee = currentOrder?.surface_fee_waived ? 0 : (currentOrder?.surface_fee_cents || 0);
-        const sameDayFee = currentOrder?.same_day_pickup_fee_waived ? 0 : (currentOrder?.same_day_pickup_fee_cents || 0);
-        const generatorFee = currentOrder?.generator_fee_waived ? 0 : (currentOrder?.generator_fee_cents || 0);
-        const tax = currentOrder?.tax_waived ? 0 : (currentOrder?.tax_cents || 0);
-        const customFeesTotal = customFeesArr.reduce((s, f) => s + (f.amount_cents || 0), 0);
-        const discountsTotal = discountsArr.reduce((s, d) => {
-          if (d.percentage && d.percentage > 0) return s + Math.round(subtotal * (d.percentage / 100));
-          return s + (d.amount_cents || 0);
-        }, 0);
-        const total = subtotal + travelFee + surfaceFee + sameDayFee + generatorFee + tax + customFeesTotal - discountsTotal;
+        const figures = receiptOrderFigures(currentOrder, discountsArr, customFeesArr);
+        const { subtotal, travelFee, surfaceFee, sameDayFee, generatorFee, tax, total } = figures;
         const depositPaid = currentOrder?.deposit_paid_cents || 0;
         const newBalanceDue = currentOrder?.balance_due_cents ?? 0;
 
@@ -350,10 +341,11 @@ Deno.serve(async (req: Request) => {
           surfaceFee > 0 ? `<tr><td style="padding:4px 0;color:#6b7280;font-size:14px;">Surface Fee</td><td style="padding:4px 0;text-align:right;color:#6b7280;font-size:14px;">${fmt(surfaceFee)}</td></tr>` : "",
           sameDayFee > 0 ? `<tr><td style="padding:4px 0;color:#6b7280;font-size:14px;">Same-Day Pickup Fee</td><td style="padding:4px 0;text-align:right;color:#6b7280;font-size:14px;">${fmt(sameDayFee)}</td></tr>` : "",
           generatorFee > 0 ? `<tr><td style="padding:4px 0;color:#6b7280;font-size:14px;">Generator Fee</td><td style="padding:4px 0;text-align:right;color:#6b7280;font-size:14px;">${fmt(generatorFee)}</td></tr>` : "",
+          receiptExtraFeeRowsHtml(figures, fmt),
           tax > 0 ? `<tr><td style="padding:4px 0;color:#6b7280;font-size:14px;">Tax</td><td style="padding:4px 0;text-align:right;color:#6b7280;font-size:14px;">${fmt(tax)}</td></tr>` : "",
           ...customFeesArr.map(f => f.amount_cents > 0 ? `<tr><td style="padding:4px 0;color:#6b7280;font-size:14px;">${f.name}</td><td style="padding:4px 0;text-align:right;color:#6b7280;font-size:14px;">${fmt(f.amount_cents)}</td></tr>` : ""),
           ...discountsArr.map(d => {
-            const amt = d.percentage && d.percentage > 0 ? Math.round(subtotal * (d.percentage / 100)) : (d.amount_cents || 0);
+            const amt = receiptDiscountAmount(d, subtotal);
             return amt > 0 ? `<tr><td style="padding:4px 0;color:#059669;font-size:14px;">${d.name} (discount)</td><td style="padding:4px 0;text-align:right;color:#059669;font-size:14px;">-${fmt(amt)}</td></tr>` : "";
           }),
         ].join("");

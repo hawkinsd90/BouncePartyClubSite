@@ -157,9 +157,12 @@ export function OrderSummary({
                   {changed && oldVal && (
                     <span className="text-xs text-slate-400 line-through">{formatCurrency(parseInt(oldVal))}</span>
                   )}
-                  <span className={`font-medium ${isWaived ? 'line-through text-red-600' : changed ? 'text-blue-700' : 'text-slate-900'}`}>
-                    {formatCurrency(fee.amount)}
-                  </span>
+                  {/* A waived fee whose historical amount was never stored shows no dollar figure: today's rule is not its history. */}
+                  {!(fee.amountUnknown && isWaived) && (
+                    <span className={`font-medium ${isWaived ? 'line-through text-red-600' : changed ? 'text-blue-700' : 'text-slate-900'}`}>
+                      {formatCurrency(fee.amount)}
+                    </span>
+                  )}
                   {isWaived && (
                     <span className="text-xs bg-red-100 text-red-700 px-2 py-0.5 rounded font-semibold print-badge">WAIVED</span>
                   )}
@@ -193,9 +196,11 @@ export function OrderSummary({
                 {hasChanged('tax') && getOldValue('tax') && (
                   <span className="text-xs text-slate-400 line-through">{formatCurrency(parseInt(getOldValue('tax')!))}</span>
                 )}
-                <span className={`font-medium ${taxWaived ? 'line-through text-red-600' : hasChanged('tax') ? 'text-blue-700' : 'text-slate-900'}`}>
-                  {formatCurrency(summary.tax)}
-                </span>
+                {!(taxWaived && summary.tax === 0) && (
+                  <span className={`font-medium ${taxWaived ? 'line-through text-red-600' : hasChanged('tax') ? 'text-blue-700' : 'text-slate-900'}`}>
+                    {formatCurrency(summary.tax)}
+                  </span>
+                )}
                 {taxWaived && (
                   <span className="text-xs bg-red-100 text-red-700 px-2 py-0.5 rounded font-semibold print-badge">WAIVED</span>
                 )}

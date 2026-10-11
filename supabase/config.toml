@@ -144,3 +144,6 @@ verify_jwt = false
 
 [functions.complete-booking]
 verify_jwt = false
+
+[functions.staff-order-save]
+verify_jwt = true

@@ -191,11 +191,66 @@ const shared = { ...authHelpers, ...outcomeHelpers, ...bookingProofHelpers, ...r
   }
 
   // catch-up and already paid
+  // An earlier deposit payment, in the ledger with its components (what every payment recorded since payment operations does).
+  const paidDeposit = (orderId: string, dep: number, tip = 0) => pg.exec(
+    `INSERT INTO public.payments (id, order_id, type, amount_cents, status, paid_at, order_financials_applied, principal_amount_cents, tip_amount_cents, deposit_principal_cents, balance_principal_cents, stripe_payment_intent_id)
+     VALUES (gen_random_uuid(), '${orderId}', 'deposit', ${dep + tip}, 'succeeded', now(), true, ${dep}, ${tip}, ${dep}, 0, 'pi_prior_${orderId}');`);
+  {
+    // Admin approval of an order whose deposit rose from 5000 to 8000 after 5000 was paid: ONLY the 3000 is charged
+    const w = newWorld();
+    const id = await seedOrder(w, { dd: 8000, dp: 5000, bd: 7000 });
+    await paidDeposit(id, 5000);
+    const r = await accept(w, id);
+    ok('catch-up (Admin approval): charges successfully', r.status === 200 && r.json?.success === true);
+    eq('catch-up (Admin approval): Stripe is asked for ONLY the remaining 3000 (not 8000, not 5000)', [creates(w).length, creates(w)[0]?.params.amount, w.stripe.charged], [1, 3000, 3000]);
+    eq('catch-up (Admin approval): the deposit is paid up, the balance is untouched, the order is confirmed', await snapshot(id), { status: 'confirmed', dp: 8000, bd: 7000, bp: 0, tip: 0, sps: 'paid' });
+    const comps = (await payRows(id)).filter((p: any) => p.operation_key).map((p: any) => [p.deposit_principal_cents, p.balance_principal_cents, p.tip_amount_cents, p.principal_amount_cents, p.amount_cents]);
+    eq('catch-up (Admin approval): the new payment records deposit 3000 / balance 0 / tip 0', comps, [[3000, 0, 0, 3000, 3000]]);
+    const again = await accept(w, id);
+    ok('catch-up: asking again charges nothing more (the order is confirmed now)', again.status === 409 && creates(w).length === 1 && (await snapshot(id)).dp === 8000);
+  }
+  {
+    // a tip that was already paid with the first deposit is not charged again, whatever the stored tip says
+    const w = newWorld();
+    const id = await seedOrder(w, { dd: 8000, dp: 5000, bd: 7000, tip: 1000 });
+    await paidDeposit(id, 5000, 1000);
+    const r = await accept(w, id);
+    eq('catch-up: the previously paid tip is not recharged (3000, tip 0)', [r.status, creates(w)[0]?.params.amount, (await snapshot(id)).tip], [200, 3000, 1000]);
+  }
+  {
+    // a deposit that was LOWERED: nothing to charge, no refund, the order simply moves on
+    const w = newWorld();
+    const id = await seedOrder(w, { dd: 3000, dp: 5000, bd: 7000 });
+    await paidDeposit(id, 5000);
+    const r = await accept(w, id);
+    ok('lowered deposit: no charge and no negative amount', r.status === 200 && w.stripe.calls.filter((c) => c.api.startsWith('paymentIntents') || c.api.includes('refund')).length === 0);
+    eq('lowered deposit: the order is confirmed and the money received is preserved', await snapshot(id), { status: 'confirmed', dp: 5000, bd: 7000, bp: 0, tip: 0, sps: 'unpaid' });
+  }
+  {
+    // an order that has refund activity needs the later refund-aware reconciliation: nothing is charged
+    const w = newWorld();
+    const id = await seedOrder(w, { dd: 8000, dp: 5000, bd: 7000 });
+    await paidDeposit(id, 5000);
+    await pg.exec(`UPDATE public.orders SET total_refunded_cents = 500 WHERE id = '${id}';`);
+    const r = await accept(w, id);
+    ok('refunded order: DEPOSIT_CATCH_UP_REVIEW_REQUIRED (refund-aware reconciliation required), zero Stripe calls', r.status === 409 && r.json?.code === 'DEPOSIT_CATCH_UP_REVIEW_REQUIRED' && r.json?.reason === 'refund_reconciliation_required' && w.stripe.calls.length === 0);
+  }
+  {
+    // a lost response during a catch-up: the retry is the same operation and the deposit is applied once
+    const w = newWorld();
+    const id = await seedOrder(w, { dd: 8000, dp: 5000, bd: 7000 });
+    await paidDeposit(id, 5000);
+    w.stripe.behaviors.push('succeed_then_connection_error');
+    const first = await accept(w, id);
+    ok('catch-up: the response was lost after Stripe took the 3000', first.status === 202);
+    const retry = await accept(w, id);
+    eq('catch-up: the retry reuses the operation: one PaymentIntent, one 3000 charge, the deposit paid once', [retry.status, w.stripe.createdCount, w.stripe.charged, (await snapshot(id)).dp], [200, 1, 3000, 8000]);
+  }
   {
     const w = newWorld();
     const id = await seedOrder(w, { dd: 5000, dp: 2000, bd: 8000 });
     const r = await accept(w, id);
-    ok('deposit partly paid: DEPOSIT_CATCH_UP_REQUIRED, never the whole deposit again', r.status === 409 && r.json?.code === 'DEPOSIT_CATCH_UP_REQUIRED');
+    ok('deposit partly paid with no payment to explain it: DEPOSIT_CATCH_UP_REVIEW_REQUIRED, never the whole deposit again', r.status === 409 && r.json?.code === 'DEPOSIT_CATCH_UP_REVIEW_REQUIRED' && r.json?.requiresReview === true);
     ok('... zero Stripe calls, nothing recorded, the order is unchanged', w.stripe.calls.length === 0 && (await payRows(id)).length === 0 && (await snapshot(id)).dp === 2000 && (await snapshot(id)).status === 'pending_review');
   }
   {
@@ -490,8 +545,27 @@ const shared = { ...authHelpers, ...outcomeHelpers, ...bookingProofHelpers, ...r
     const w = newWorld();
     const id = await seedOrder(w, { status: 'awaiting_customer_approval', dd: 8000, dp: 5000, bd: 7000, selType: 'deposit', selCents: 8000 });
     const r = await customer(w, id, { tipCents: 500, expectedDepositDueCents: 8000 });
-    ok('edited order with a part-paid deposit: DEPOSIT_CATCH_UP_REQUIRED, the original deposit is not charged again', r.status === 409 && r.json?.code === 'DEPOSIT_CATCH_UP_REQUIRED' && w.stripe.calls.length === 0);
+    ok('edited order with a part-paid deposit nobody can classify: DEPOSIT_CATCH_UP_REVIEW_REQUIRED, the original deposit is not charged again', r.status === 409 && r.json?.code === 'DEPOSIT_CATCH_UP_REVIEW_REQUIRED' && w.stripe.calls.length === 0);
     eq('... nothing changed', await snapshot(id), { status: 'awaiting_customer_approval', dp: 5000, bd: 7000, bp: 0, tip: 0, sps: 'unpaid' });
+  }
+  {
+    // the customer approves the edited order: deposit selection; a NEW tip the customer chooses now is added
+    const w = newWorld();
+    const id = await seedOrder(w, { status: 'awaiting_customer_approval', dd: 8000, dp: 5000, bd: 7000, selType: 'deposit', selCents: 8000 });
+    await paidDeposit(id, 5000);
+    const r = await customer(w, id, { tipCents: 500, expectedDepositDueCents: 8000 });
+    ok('catch-up (customer approval): charges successfully', r.status === 200 && r.json?.success === true);
+    eq('catch-up (customer approval): 3000 of deposit + the new 500 tip, nothing else', creates(w)[0]?.params.amount, 3500);
+    eq('catch-up (customer approval): deposit paid up, tip recorded once', await snapshot(id), { status: 'confirmed', dp: 8000, bd: 7000, bp: 0, tip: 500, sps: 'paid' });
+  }
+  {
+    // the customer pays everything that is left: the remaining deposit AND the balance, never the 5000 already paid
+    const w = newWorld();
+    const id = await seedOrder(w, { status: 'awaiting_customer_approval', dd: 8000, dp: 5000, bd: 7000, selType: 'full', selCents: 15000 });
+    await paidDeposit(id, 5000);
+    const r = await customer(w, id, { tipCents: 0, expectedDepositDueCents: 8000 });
+    eq('catch-up (Full): 3000 + 7000 = 10000 is charged', [r.status, creates(w)[0]?.params.amount], [200, 10000]);
+    eq('catch-up (Full): deposit paid 8000, balance paid 7000, balance due 0', await snapshot(id), { status: 'confirmed', dp: 8000, bd: 0, bp: 7000, tip: 0, sps: 'paid' });
   }
   {
     // the original tip is never charged a second time
@@ -1185,7 +1259,7 @@ const shared = { ...authHelpers, ...outcomeHelpers, ...bookingProofHelpers, ...r
     ['the order was cancelled', "status = 'cancelled'", 'ORDER_STATUS_NOT_PAYABLE'],
     ['the order was voided', "status = 'void'", 'ORDER_STATUS_NOT_PAYABLE'],
     ['the order went back to the customer for approval', "status = 'awaiting_customer_approval'", 'ORDER_STATUS_NOT_PAYABLE'],
-    ['the deposit was part paid by another route', 'deposit_paid_cents = 2000', 'DEPOSIT_CATCH_UP_REQUIRED'],
+    ['the deposit was part paid by another route', 'deposit_paid_cents = 2000', 'DEPOSIT_CATCH_UP_REVIEW_REQUIRED'],
   ] as Array<[string, string, string]>) {
     const w = newWorld();
     const id = await seedOrder(w, { tip: 0 });

@@ -1,4 +1,5 @@
 import { formatCurrency, LOGO_URL } from "./fmt.ts";
+import { effectiveDiscountCents, storedOrderTotalCents } from "./booking/orderMoney.ts";
 
 const BORDER = "#10b981";
 const ACCENT = "#15803d";
@@ -19,6 +20,8 @@ export interface OrderRow {
   surface_fee_cents?: number | null;
   generator_fee_cents?: number | null;
   same_day_pickup_fee_cents?: number | null;
+  same_day_weekday_delivery_fee_cents?: number | null;
+  setup_fee_cents?: number | null;
   tax_cents?: number | null;
   deposit_paid_cents?: number | null;
   balance_paid_cents?: number | null;
@@ -104,21 +107,16 @@ export function buildPaymentReceiptEmail(opts: PaymentReceiptEmailOpts): string 
   if ((order.surface_fee_cents || 0) > 0) pricingRows.push({ label: "Surface Fee", value: fmt(order.surface_fee_cents!) });
   if ((order.generator_fee_cents || 0) > 0) pricingRows.push({ label: "Generator Fee", value: fmt(order.generator_fee_cents!) });
   if ((order.same_day_pickup_fee_cents || 0) > 0) pricingRows.push({ label: "Same Day Pickup", value: fmt(order.same_day_pickup_fee_cents!) });
+  if ((order.same_day_weekday_delivery_fee_cents || 0) > 0) pricingRows.push({ label: "Same-Day Delivery Fee", value: fmt(order.same_day_weekday_delivery_fee_cents!) });
+  if ((order.setup_fee_cents || 0) > 0) pricingRows.push({ label: "Setup Fee", value: fmt(order.setup_fee_cents!) });
   customFees.forEach(f => pricingRows.push({ label: f.name || "Additional Fee", value: fmt(f.amount_cents) }));
   discounts.forEach(d => {
-    const discountAmt = (d.percentage && d.percentage > 0)
-      ? Math.round((order.subtotal_cents || 0) * (d.percentage / 100))
-      : (d.amount_cents || 0);
+    const discountAmt = effectiveDiscountCents(d, order.subtotal_cents || 0);
     pricingRows.push({ label: d.name || "Discount", value: `-${fmt(discountAmt)}` });
   });
   if ((order.tax_cents || 0) > 0) pricingRows.push({ label: "Tax", value: fmt(order.tax_cents!) });
-  const orderTotal = (order.subtotal_cents || 0) + (order.travel_fee_cents || 0) + (order.surface_fee_cents || 0) +
-    (order.generator_fee_cents || 0) + (order.same_day_pickup_fee_cents || 0) + (order.tax_cents || 0) +
-    customFees.reduce((s, f) => s + f.amount_cents, 0) -
-    discounts.reduce((s, d) => {
-      if (d.percentage && d.percentage > 0) return s + Math.round((order.subtotal_cents || 0) * (d.percentage / 100));
-      return s + (d.amount_cents || 0);
-    }, 0);
+  // The one total formula (orderMoney), the same figure every screen and receipt shows.
+  const orderTotal = storedOrderTotalCents(order, discounts, customFees);
   pricingRows.push({ label: "Total", value: fmt(orderTotal), bold: true });
   if ((order.deposit_paid_cents || 0) > 0) pricingRows.push({ label: "Deposit Paid", value: fmt(order.deposit_paid_cents!), highlight: true });
   if ((order.balance_paid_cents || 0) > 0) pricingRows.push({ label: "Balance Paid", value: fmt(order.balance_paid_cents!), highlight: true });

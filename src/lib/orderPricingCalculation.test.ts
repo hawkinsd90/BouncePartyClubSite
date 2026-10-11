@@ -57,7 +57,11 @@ function rng(seed: number) {
 }
 
 // ---------------------------------------------------------------------------
-// ORACLE: verbatim copy of the old deterministic code
+// ORACLE: a copy of the old deterministic code, changed ONLY where an approved BPC money rule superseded it (each marked "APPROVED"):
+//   - a discount is one amount (amount_cents > 0 wins, else percentage; never both), and discounts never exceed what they discount;
+//   - a custom fee is whole, non-negative cents; anything else contributes nothing;
+//   - tax is rounded once on a taxable amount that never goes below zero;
+//   - a stored same-day pickup / weekday delivery fee of an existing order is a snapshot (a stored 0 included) unless its waiver changed.
 // ---------------------------------------------------------------------------
 type Outcome =
   | { status: 'ok'; calculatedPricing: CalculatedPricing; orderData: any }
@@ -180,11 +184,15 @@ function oracle(params: CalculatePricingParams, ioDistance: number, sameDayFn: (
   const eventDateChanged = existingOrder
     ? eventDetails.event_date !== existingOrder.event_date?.split('T')[0]
     : false;
+  // APPROVED: a fee that was waived when saved is stored as 0; turning the waiver off must price it again.
+  const waiverUnchanged = (now: boolean, stored?: boolean | null) => !existingOrder || now === !!stored;
   const useSavedWeekdayDeliveryFee = !!(
     existingOrder &&
     !eventDateChanged &&
     existingOrder.same_day_weekday_delivery_fee_cents !== undefined &&
-    existingOrder.same_day_weekday_delivery_fee_cents !== null
+    existingOrder.same_day_weekday_delivery_fee_cents !== null &&
+    (waiverUnchanged(sameDayWeekdayDeliveryFeeWaived, (existingOrder as any).same_day_weekday_delivery_fee_waived) ||
+      existingOrder.same_day_weekday_delivery_fee_cents > 0)
   );
   const isSameDayWeekday = useSavedWeekdayDeliveryFee ? false : sameDayFn(eventDetails.event_date);
 
@@ -270,8 +278,11 @@ function oracle(params: CalculatePricingParams, ioDistance: number, sameDayFn: (
     ? parseFloat(String(existingOrder.travel_total_miles)) || 0
     : priceBreakdown.travel_total_miles || 0;
   const originalSurfaceFeeCents = priceBreakdown.surface_fee_cents;
-  const originalSameDayPickupFeeCents = useSavedSameDayFee && existingOrder?.same_day_pickup_fee_cents
-    ? existingOrder.same_day_pickup_fee_cents
+  // APPROVED: the stored pickup fee (including a stored 0) is the snapshot while its factors and waiver are unchanged.
+  const originalSameDayPickupFeeCents = useSavedSameDayFee
+    && waiverUnchanged(sameDayPickupFeeWaived, (existingOrder as any)?.same_day_pickup_fee_waived)
+    && (((existingOrder as any)?.same_day_pickup_fee_cents ?? 0) > 0 || !sameDayPickupFeeWaived)
+    ? ((existingOrder as any)?.same_day_pickup_fee_cents ?? 0)
     : priceBreakdown.same_day_pickup_fee_cents;
   let originalGeneratorFeeCents: number;
   if (legacyQtyChanged) {
@@ -325,17 +336,20 @@ function oracle(params: CalculatePricingParams, ioDistance: number, sameDayFn: (
         ? storedSetupFeeCents
         : calculatedSetupFeeCents;
 
-  // Calculate tax based on waived fees and apply_taxes_by_default setting
   const shouldApplyTaxesByDefault = pricingRules.apply_taxes_by_default ?? true;
-  const customFeesTotalCents = customFees.reduce((sum: number, f: any) => sum + (f.amount_cents || 0), 0);
-  const discountTotalCents = discounts.reduce((sum: number, d: any) => {
-    if (d.amount_cents > 0) return sum + d.amount_cents;
+  // APPROVED: custom fees are whole non-negative cents (anything else is ignored).
+  const customFeesTotalCents = customFees.reduce((sum: number, f: any) => sum + (Number.isSafeInteger(f?.amount_cents) && f.amount_cents >= 0 ? f.amount_cents : 0), 0);
+  // APPROVED: one amount per discount (amount_cents > 0 wins, else the percentage of the equipment subtotal), clamped together to what there is to discount.
+  const untaxedFeesCents = finalSameDayPickupFeeCents + finalSameDayWeekdayDeliveryFeeCents;
+  const taxableBeforeDiscount = subtotalWithEE + finalTravelFeeCents + finalSurfaceFeeCents + finalGeneratorFeeCents + effectiveSetupFeeCents + customFeesTotalCents;
+  const rawDiscountTotal = discounts.reduce((sum: number, d: any) => {
+    if (d.amount_cents > 0) return sum + Math.round(d.amount_cents);
     if (d.percentage > 0) return sum + Math.round(subtotalWithEE * (d.percentage / 100));
     return sum;
   }, 0);
-  const taxableAmount = subtotalWithEE + finalTravelFeeCents + finalSurfaceFeeCents + finalGeneratorFeeCents + effectiveSetupFeeCents + customFeesTotalCents - discountTotalCents;
-
-  // Calculate the potential tax amount (always calculated for display purposes)
+  const discountTotalCents = Math.max(0, Math.min(rawDiscountTotal, taxableBeforeDiscount + untaxedFeesCents));
+  // APPROVED: the taxable amount never goes below zero; the tax is rounded once.
+  const taxableAmount = Math.max(0, taxableBeforeDiscount - discountTotalCents);
   const calculatedTaxCents = Math.round(taxableAmount * 0.06);
 
   let finalTaxCents: number;
@@ -345,8 +359,7 @@ function oracle(params: CalculatePricingParams, ioDistance: number, sameDayFn: (
     finalTaxCents = taxWaived ? calculatedTaxCents : 0;
   }
 
-  // Calculate total with all waivers applied
-  const finalTotalCents = subtotalWithEE + finalTravelFeeCents + finalSurfaceFeeCents + finalSameDayPickupFeeCents + finalGeneratorFeeCents + finalSameDayWeekdayDeliveryFeeCents + effectiveSetupFeeCents + customFeesTotalCents - discountTotalCents + finalTaxCents;
+  const finalTotalCents = taxableBeforeDiscount + untaxedFeesCents - discountTotalCents + finalTaxCents;
 
   // Calculate deposit — EE-only orders use EE deposit tier
   let calculatedDepositDueCents: number = 0;
@@ -393,6 +406,7 @@ function oracle(params: CalculatePricingParams, ioDistance: number, sameDayFn: (
     same_day_weekday_delivery_fee_cents: originalSameDayWeekdayDeliveryFeeCents,
     generator_fee_cents: originalGeneratorFeeCents,
     generator_qty: eventDetails.generator_qty || 0,
+    waived_amount_unknown: [],
     tax_cents: finalTaxCents,
     tip_cents: existingOrder?.tip_cents || 0,
     total_cents: finalTotalCents,
@@ -423,8 +437,8 @@ function oracle(params: CalculatePricingParams, ioDistance: number, sameDayFn: (
     surface_fee_cents: finalSurfaceFeeCents,
     same_day_pickup_fee_cents: finalSameDayPickupFeeCents,
     same_day_weekday_delivery_fee_cents: finalSameDayWeekdayDeliveryFeeCents,
-    custom_fees_total_cents: summary.customFees.reduce((sum, f) => sum + f.amount, 0),
-    discount_total_cents: summary.discounts.reduce((sum, d) => sum + d.amount, 0),
+    custom_fees_total_cents: customFeesTotalCents,
+    discount_total_cents: discountTotalCents,
     tax_cents: finalTaxCents,
     total_cents: summary.total,
     deposit_due_cents: summary.depositDue,
@@ -433,6 +447,15 @@ function oracle(params: CalculatePricingParams, ioDistance: number, sameDayFn: (
     generator_fee_before_waiver_cents: originalGeneratorFeeCents,
     setup_fee_cents: effectiveSetupFeeCents,
     setup_fee_before_override_cents: calculatedSetupFeeCents,
+    // APPROVED: the amounts of the fees waived now (these fixtures carry no earlier waiver, so each is waived NOW and priced now).
+    waived_fee_amounts_cents: {
+      ...(travelFeeWaived ? { travel: originalTravelFeeCents } : {}),
+      ...(surfaceFeeWaived ? { surface: originalSurfaceFeeCents } : {}),
+      ...(sameDayPickupFeeWaived ? { same_day_pickup: originalSameDayPickupFeeCents } : {}),
+      ...(generatorFeeWaived ? { generator: originalGeneratorFeeCents } : {}),
+      ...(sameDayWeekdayDeliveryFeeWaived ? { same_day_weekday_delivery: originalSameDayWeekdayDeliveryFeeCents } : {}),
+    },
+    waived_fee_amount_unknown: [],
   };
   return { status: 'ok', calculatedPricing, orderData };
 }
@@ -574,7 +597,7 @@ function compare(label: string, params: CalculatePricingParams, ioDistance = 14.
   compare('same-day pickup does not apply', base({ event: { pickup_preference: 'next_day' } }));
   compare('same-day pickup waived', base({ event: { pickup_preference: 'same_day' }, feeWaivers: { sameDayPickupFeeWaived: true } }));
   compare('same-day pickup: stored positive reused', base({ event: { pickup_preference: 'same_day' }, existingOrder: existing({ pickup_preference: 'same_day', same_day_pickup_fee_cents: 7777 }) }));
-  compare('same-day pickup: stored 0 falls through to computed (truthiness quirk)', base({ event: { pickup_preference: 'same_day' }, existingOrder: existing({ pickup_preference: 'same_day', same_day_pickup_fee_cents: 0 }) }));
+  compare('same-day pickup: a stored 0 is the snapshot (APPROVED: not re-read from today\'s rules)', base({ event: { pickup_preference: 'same_day' }, existingOrder: existing({ pickup_preference: 'same_day', same_day_pickup_fee_cents: 0 }) }));
   compare('same-day pickup: factors changed -> computed', base({ event: { pickup_preference: 'same_day' }, existingOrder: existing({ pickup_preference: 'next_day', same_day_pickup_fee_cents: 7777 }) }));
   compare('same-day pickup: stored null', base({ event: { pickup_preference: 'same_day' }, existingOrder: existing({ pickup_preference: 'same_day', same_day_pickup_fee_cents: null as any }) }));
 
@@ -603,26 +626,25 @@ function compare(label: string, params: CalculatePricingParams, ioDistance = 14.
   // Discounts
   compare('discount fixed', base({ discounts: [{ name: 'D', amount_cents: 2500 }] }));
   compare('discount percentage', base({ discounts: [{ name: 'D', percentage: 10 }] }));
-  compare('discount row with BOTH amount and percentage (amount-first total, percentage-first display)', base({ discounts: [{ name: 'D', amount_cents: 1000, percentage: 20 }] }));
+  compare('discount row with BOTH amount and percentage (APPROVED: one amount, the fixed amount wins)', base({ discounts: [{ name: 'D', amount_cents: 1000, percentage: 20 }] }));
   compare('discount multiple', base({ discounts: [{ name: 'A', amount_cents: 1000 }, { name: 'B', percentage: 5 }, { name: 'C', amount_cents: 500, percentage: 50 }] }));
   compare('discount zero values', base({ discounts: [{ name: 'Z', amount_cents: 0, percentage: 0 }] }));
   compare('discount invalid (negative / missing)', base({ discounts: [{ name: 'N', amount_cents: -500 }, { name: 'M' }, { name: 'P', percentage: -10 }] }));
   compare('discount larger than subtotal', base({ discounts: [{ name: 'Big', amount_cents: 999999 }] }));
   {
-    const both = compare('PIN: both-fields row gives different discount figures in total vs display', base({ discounts: [{ name: 'D', amount_cents: 1000, percentage: 20 }] }));
+    const both = compare('both-fields row gives ONE discount figure in the total and in the display', base({ discounts: [{ name: 'D', amount_cents: 1000, percentage: 20 }] }));
     const cp = (both.n as any).calculatedPricing as CalculatedPricing;
-    // total uses 1000 (amount-first); the returned discount total uses 20% of the 25000 subtotal = 5000.
-    ok('PIN: discount_total_cents is percentage-first (5000)', cp.discount_total_cents === 5000);
+    ok('discount_total_cents is the fixed amount (1000), not 20% of the subtotal', cp.discount_total_cents === 1000);
     const amountOnly = (engine(base({ discounts: [{ name: 'D', amount_cents: 1000 }] }), 14.2, () => false) as any).calculatedPricing as CalculatedPricing;
-    ok('PIN: the total equals the total for the same row with the amount only (amount-first)', cp.total_cents === amountOnly.total_cents);
-    ok('PIN: ...while the returned discount figure differs from the amount-only figure', cp.discount_total_cents !== amountOnly.discount_total_cents);
+    ok('the total equals the total for the same row with the amount only', cp.total_cents === amountOnly.total_cents);
+    ok('...and the returned discount figure equals the amount-only figure', cp.discount_total_cents === amountOnly.discount_total_cents);
   }
 
   // Custom fees
   compare('custom fee one', base({ customFees: [{ name: 'F', amount_cents: 1500 }] }));
   compare('custom fees multiple', base({ customFees: [{ name: 'F', amount_cents: 1500 }, { name: 'G', amount_cents: 700 }] }));
-  compare('custom fee missing amount (NaN in the returned total, 0 in the order total)', base({ customFees: [{ name: 'F' }] }));
-  compare('custom fee zero / negative', base({ customFees: [{ name: 'F', amount_cents: 0 }, { name: 'G', amount_cents: -300 }] }));
+  compare('custom fee missing amount (APPROVED: ignored)', base({ customFees: [{ name: 'F' }] }));
+  compare('custom fee zero / negative (APPROVED: a negative fee is not a hidden discount)', base({ customFees: [{ name: 'F', amount_cents: 0 }, { name: 'G', amount_cents: -300 }] }));
 
   // Tax
   compare('tax default on', base());
@@ -676,7 +698,6 @@ function compare(label: string, params: CalculatePricingParams, ioDistance = 14.
 {
   const cases: Array<[string, CalculatePricingParams]> = [
     ['null discount row', base({ discounts: [null] })],
-    ['null custom fee row', base({ customFees: [null] })],
     ['null item', base({ items: [null as any] })],
   ];
   for (const [label, params] of cases) {

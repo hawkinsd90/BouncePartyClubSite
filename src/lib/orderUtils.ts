@@ -1,4 +1,5 @@
 import { Order } from '../types/orders';
+import { storedOrderTotalCents } from './orderMoney';
 
 // Sum of all scalar fee columns stored on the order row, excluding tip and
 // relational data (custom fees, discounts). Use this when you need to compare
@@ -16,16 +17,8 @@ export function calculateStoredOrderTotal(order: {
   setup_fee_cents?: number | null;
   tax_cents: number;
 }): number {
-  return (
-    (order.subtotal_cents || 0) +
-    (order.travel_fee_cents || 0) +
-    (order.surface_fee_cents || 0) +
-    (order.same_day_pickup_fee_cents || 0) +
-    (order.same_day_weekday_delivery_fee_cents || 0) +
-    (order.generator_fee_cents || 0) +
-    (order.setup_fee_cents || 0) +
-    (order.tax_cents || 0)
-  );
+  // The one total formula (orderMoney), here without discounts or custom fees.
+  return storedOrderTotalCents(order, [], []);
 }
 
 // Legacy helper kept for existing callers; delegates to calculateStoredOrderTotal

@@ -35,14 +35,21 @@ const norm = (s: string) => s.replace(/\s+/g, ' ').trim();
 
 const MIG_NAME = '20261019120000_add_payment_operations_and_single_financial_application.sql';
 const MIG = `supabase/migrations/${MIG_NAME}`;
-const raw = read(MIG);
-const sql = norm(stripSql(raw));
+const raw1 = read(MIG);
+// The migration that follows it (deposit catch-up, cash/check parity) replaces the claim function and the offline payment functions;
+// the executed layers always apply both, in order, exactly like a real deployment.
+const MIG2_NAME = '20261020120000_deposit_catch_up_and_offline_payment_parity.sql';
+const raw2 = read(`supabase/migrations/${MIG2_NAME}`);
+const MIG3_NAME = '20261021120000_server_authoritative_order_pricing_saves.sql';
+const raw3 = read(`supabase/migrations/${MIG3_NAME}`);
+const raw = raw1 + '\n' + raw2 + '\n' + raw3;
+const sql = norm(stripSql(raw1));
 const names: string[] = fs.readdirSync('supabase/migrations').filter((f: string) => f.endsWith('.sql')).sort();
 
 // ---------------------------------------------------------------------------------------------------------------------
 // STATIC
 // ---------------------------------------------------------------------------------------------------------------------
-ok('static: the migration sorts after the previous newest migration', names.indexOf(MIG_NAME) > names.indexOf('20261018120200_restrict_role_lookup_and_profile_ownership.sql') && names[names.length - 1] === MIG_NAME);
+ok('static: the migration sorts after the previous newest migration', names.indexOf(MIG_NAME) > names.indexOf('20261018120200_restrict_role_lookup_and_profile_ownership.sql') && names.indexOf(MIG2_NAME) === names.indexOf(MIG_NAME) + 1 && names.indexOf(MIG3_NAME) === names.indexOf(MIG2_NAME) + 1 && names[names.length - 1] === MIG3_NAME);
 ok('static: exactly one migration adds the payment operation state', names.filter((n) => /payment_operations/.test(n)).length === 1);
 ok('static: the migration name describes behavior, not a project phase', !/phase|stage|priority|\bA\d\b|payment_safety/i.test(MIG_NAME));
 ok('static: it creates exactly the claim, record, provider-attempt, release and finalize functions (plus the barrier)', (sql.match(/CREATE OR REPLACE FUNCTION/g) ?? []).length === 6 && ['guard_payment_authoritative_order_changes', 'claim_payment_operation', 'record_payment_operation_provider', 'mark_payment_operation_provider_attempt', 'release_payment_operation', 'finalize_payment_operation'].every((f) => new RegExp(`FUNCTION public\\.${f}\\(`).test(sql)));
@@ -63,7 +70,7 @@ ok('static: the PaymentIntent rule does not cover refund rows (they reuse the or
 ok('static: the principal and tip components are checked to add up to the gross amount', /principal_amount_cents \+ tip_amount_cents = amount_cents/.test(sql));
 ok('static: no policy, default privilege or other table is touched', !/CREATE POLICY|DROP POLICY|ALTER DEFAULT PRIVILEGES|GRANT [^;]*ON (TABLE|ALL)|ALTER TABLE public\.(?!payments)/i.test(sql));
 ok('static: the old payment_lock column is neither read nor written here', !/payment_lock/.test(sql));
-ok('static: no earlier migration was edited to add the operation state', names.filter((n) => n !== MIG_NAME).every((n) => !/payments_operation_key_unique|claim_payment_operation/.test(read(`supabase/migrations/${n}`))));
+ok('static: no earlier migration was edited to add the operation state', names.filter((n) => n !== MIG_NAME && n !== MIG2_NAME && n !== MIG3_NAME).every((n) => !/payments_operation_key_unique|claim_payment_operation/.test(read(`supabase/migrations/${n}`))));
 ok('static: the migration carries no internal planning labels and no project reference', !/\b(Phase|Stage) ?[A-Z0-9]\b|\bA1\b|qaagfafagdpgzcijnfbw|srxunxiytojjsuhcmzjg/.test(raw));
 
 // ---------------------------------------------------------------------------------------------------------------------
@@ -167,7 +174,95 @@ add('Custom equal to the required deposit is allowed (the boundary)', claimField
 add('Custom equal to deposit plus balance is allowed (the other boundary)', claimField(O(19), 'deposit', 'customer', C(1), ['principal_cents'], { sel: true }), '15000', 'service_role', sel(19, 'custom', 15000));
 
 // ---- deposit: paid / catch-up / zero ----
-add('part of the deposit already paid: catch-up is required, nothing is charged', claim(O(20), 'deposit', 'staff', C(1)), 'catch_up_required', 'service_role', seedOrder(O(20), { dd: 5000, dp: 2000 }));
+add('part of the deposit already paid but no payment says so: the ledger disagrees, nothing is charged', claim(O(20), 'deposit', 'staff', C(1)), 'catch_up_unavailable', 'service_role', seedOrder(O(20), { dd: 5000, dp: 2000 }));
+
+// ---- deposit catch-up: collect ONLY what is left of the required deposit, from classified payments, or fail closed ----
+const depPaid = (n: number, order: string, dep: number, tip = 0, extra: Partial<PaySeed> = {}) =>
+  seedPay({ id: P(n), order, type: 'deposit', status: 'succeeded', applied: true, key: null, principal: dep, dep, bal: 0, tip, pi: 'pi_cu' + n, ...extra });
+const cuOrder = (n: number, o: OrderSeed, pays: string[] = []) => `${seedOrder(O(n), o)} ${pays.join(' ')}`;
+const CUF = ['outcome', 'deposit_principal_cents', 'balance_principal_cents', 'principal_cents', 'tip_cents', 'gross_cents'];
+add('catch-up: the deposit rose from 5000 to 8000 after 5000 was paid: only 3000 is collected', claimField(O(300), 'deposit', 'staff', C(1), CUF), 'claimed/3000/0/3000/0/3000', 'service_role', cuOrder(300, { dd: 8000, dp: 5000 }, [depPaid(300, O(300), 5000)]));
+add('catch-up: ... as a deposit-only operation with no balance principal and no tip', claimField(O(301), 'deposit', 'staff', C(1), ['deposit_principal_cents', 'balance_principal_cents', 'tip_cents']), '3000/0/0', 'service_role', cuOrder(301, { dd: 8000, dp: 5000 }, [depPaid(301, O(301), 5000)]));
+add('catch-up: a tip that was already paid is not charged again', claimField(O(302), 'deposit', 'staff', C(1), CUF), 'claimed/3000/0/3000/0/3000', 'service_role', cuOrder(302, { dd: 8000, dp: 5000, tip: 1000 }, [depPaid(302, O(302), 5000, 1000)]));
+add('catch-up: the original deposit is never charged again (setup fee, tip and total are not part of it)', claimField(O(303), 'deposit', 'staff', C(1), ['principal_cents']), '1', 'service_role', cuOrder(303, { dd: 5001, dp: 5000, bd: 20000 }, [depPaid(303, O(303), 5000)]));
+add('catch-up: a deposit that was LOWERED below what is paid owes nothing and is not refunded', claim(O(304), 'deposit', 'staff', C(1)), 'already_paid', 'service_role', cuOrder(304, { dd: 3000, dp: 5000 }, [depPaid(304, O(304), 5000)]));
+add('catch-up: ... and the order simply moves forward, no money is touched', ordState(O(304)), 'confirmed/5000/10000/0/0/unpaid', 'postgres');
+add('catch-up: exactly paid deposit: nothing to charge', claim(O(305), 'deposit', 'staff', C(1)), 'already_paid', 'service_role', cuOrder(305, { dd: 5000, dp: 5000 }, [depPaid(305, O(305), 5000)]));
+add('catch-up: customer Deposit selection collects the remaining deposit', claimField(O(306), 'deposit', 'customer', C(1), CUF, { sel: true }), 'claimed/3000/0/3000/0/3000', 'service_role', cuOrder(306, { status: 'awaiting_customer_approval', dd: 8000, dp: 5000, selType: 'deposit', selCents: 8000 }, [depPaid(306, O(306), 5000)]));
+add('catch-up: customer Full selection collects the remaining deposit and the balance, never the paid principal', claimField(O(307), 'deposit', 'customer', C(1), CUF, { sel: true }), 'claimed/3000/10000/13000/0/13000', 'service_role', cuOrder(307, { status: 'awaiting_customer_approval', dd: 8000, dp: 5000, bd: 10000, selType: 'full', selCents: 23000 }, [depPaid(307, O(307), 5000)]));
+add('catch-up: customer Custom 10000 in total (5000 already paid) charges 3000 of deposit and 2000 of balance now', claimField(O(308), 'deposit', 'customer', C(1), CUF, { sel: true }), 'claimed/3000/2000/5000/0/5000', 'service_role', cuOrder(308, { status: 'awaiting_customer_approval', dd: 8000, dp: 5000, bd: 10000, selType: 'custom', selCents: 10000 }, [depPaid(308, O(308), 5000)]));
+add('catch-up: customer Custom that does not cover the remaining deposit is refused', claim(O(309), 'deposit', 'customer', C(1), { sel: true }), 'selection_invalid', 'service_role', cuOrder(309, { status: 'awaiting_customer_approval', dd: 8000, dp: 5000, bd: 10000, selType: 'custom', selCents: 7999 }, [depPaid(309, O(309), 5000)]));
+add('catch-up: customer Custom above the order total is refused', claim(O(310), 'deposit', 'customer', C(1), { sel: true }), 'selection_invalid', 'service_role', cuOrder(310, { status: 'awaiting_customer_approval', dd: 8000, dp: 5000, bd: 10000, selType: 'custom', selCents: 18001 }, [depPaid(310, O(310), 5000)]));
+add('catch-up: a request amount from the browser cannot change it', claimField(O(311), 'deposit', 'customer', C(1), ['principal_cents'], { sel: true, principal: 99999 }), '3000', 'service_role', cuOrder(311, { status: 'awaiting_customer_approval', dd: 8000, dp: 5000, selType: 'deposit', selCents: 8000 }, [depPaid(311, O(311), 5000)]));
+add('catch-up fails closed: a payment from before components existed cannot be classified', claimField(O(312), 'deposit', 'staff', C(1), ['outcome', 'reason']), 'catch_up_unavailable/unclassified_payment', 'service_role', cuOrder(312, { dd: 8000, dp: 5000 }, [seedPay({ id: P(312), order: O(312), type: 'deposit', status: 'succeeded', applied: true, key: null, principal: null, tip: null, amount: 5000, pi: 'pi_cu312' })]));
+add('catch-up fails closed: ... and no operation is created', payCount(O(312)), '1', 'postgres');
+add('catch-up fails closed: a refunded order needs refund-aware reconciliation', claimField(O(313), 'deposit', 'staff', C(1), ['outcome', 'reason']), 'catch_up_unavailable/refund_reconciliation_required', 'service_role', `${cuOrder(313, { dd: 8000, dp: 5000 }, [depPaid(313, O(313), 5000)])} UPDATE public.orders SET total_refunded_cents = 1000 WHERE id = '${O(313)}';`);
+add('catch-up fails closed: a refund row in the ledger needs refund-aware reconciliation', claimField(O(314), 'deposit', 'staff', C(1), ['outcome', 'reason']), 'catch_up_unavailable/refund_reconciliation_required', 'service_role', cuOrder(314, { dd: 8000, dp: 5000 }, [depPaid(314, O(314), 5000), seedPay({ id: P(3140), order: O(314), type: 'incidental', status: 'succeeded', applied: true, key: null, principal: null, tip: null, amount: -500, pi: 'pi_cu314', refundOf: P(314) })]));
+add('catch-up fails closed: the ledger and the order disagree about the deposit paid', claimField(O(315), 'deposit', 'staff', C(1), ['outcome', 'reason']), 'catch_up_unavailable/ledger_conflict', 'service_role', cuOrder(315, { dd: 8000, dp: 5000 }, [depPaid(315, O(315), 3000)]));
+add('catch-up fails closed: a payment that succeeded but was never applied', claimField(O(316), 'deposit', 'staff', C(1), ['outcome', 'reason']), 'catch_up_unavailable/unapplied_payment', 'service_role', cuOrder(316, { dd: 8000, dp: 5000 }, [depPaid(316, O(316), 5000, 0, { applied: false })]));
+add('catch-up: a failed earlier attempt is not money paid', claimField(O(317), 'deposit', 'staff', C(1), CUF), 'claimed/3000/0/3000/0/3000', 'service_role', cuOrder(317, { dd: 8000, dp: 5000 }, [depPaid(317, O(317), 5000), seedPay({ id: P(3170), order: O(317), type: 'deposit', status: 'failed', principal: 3000, dep: 3000, bal: 0, tip: 0 })]));
+add('catch-up: two earlier deposit payments add up (3000 + 2000 paid, 8000 required)', claimField(O(318), 'deposit', 'staff', C(1), ['principal_cents']), '3000', 'service_role', cuOrder(318, { dd: 8000, dp: 5000 }, [depPaid(318, O(318), 3000), depPaid(3180, O(318), 2000)]));
+add('catch-up: balance principal already paid does not count as deposit', claimField(O(319), 'deposit', 'staff', C(1), ['principal_cents']), '8000', 'service_role', cuOrder(319, { dd: 8000, dp: 0, bp: 4000, bd: 6000 }, [seedPay({ id: P(319), order: O(319), type: 'balance', status: 'succeeded', applied: true, key: null, principal: 4000, dep: 0, bal: 4000, tip: 0, pi: 'pi_cu319' })]));
+add('catch-up: a later request for the same open operation stays the same operation', claimField(O(320), 'deposit', 'staff', C(2), ['outcome', 'principal_cents']), 'resumed/3000', 'service_role', `${cuOrder(320, { dd: 8000, dp: 5000 }, [depPaid(320, O(320), 5000)])} ${seedPay({ id: P(3200), order: O(320), type: 'deposit', claim: null, principal: 3000, dep: 3000, bal: 0, tip: 0 })}`);
+add('catch-up: an open catch-up whose requirement then rose again is stale, never charged', claimField(O(321), 'deposit', 'staff', C(2), ['outcome', 'reason']), 'stale_operation/order_changed', 'service_role', `${cuOrder(321, { dd: 9000, dp: 5000 }, [depPaid(321, O(321), 5000)])} ${seedPay({ id: P(3210), order: O(321), type: 'deposit', claim: null, principal: 3000, dep: 3000, bal: 0, tip: 0 })}`);
+add('catch-up: finalizing a catch-up adds ONLY the collected deposit to deposit_paid', ordState(O(322)), 'confirmed/8000/10000/0/0/paid', 'postgres', `SELECT set_config('bpc.finalizing_payment_id', '', true); ${cuOrder(322, { dd: 8000, dp: 5000, bd: 10000 }, [depPaid(322, O(322), 5000)])} ${seedPay({ id: P(3220), order: O(322), type: 'deposit', claim: C(1), claimedAgo: 5, principal: 3000, dep: 3000, bal: 0, tip: 0 })} ${fin(P(3220), C(1), 3000)};`);
+
+// ---- cash and check: the same remaining-principal truth as the card path ----
+const offline = (n: number, amount: number, tip = 0, method: 'cash' | 'check' = 'cash') =>
+  method === 'cash'
+    ? `SELECT public.record_cash_payment('${O(n)}', ${amount}, ${tip}, NULL)::text`
+    : `SELECT public.record_check_payment('${O(n)}', ${amount}, ${tip}, NULL, 'No. 1042')::text`;
+const payComp = (n: number) => `SELECT concat_ws('/', type, amount_cents, principal_amount_cents, deposit_principal_cents, balance_principal_cents, tip_amount_cents, order_financials_applied, payment_method, status) FROM public.payments WHERE order_id = '${O(n)}'`;
+add('cash: a payment of exactly the remaining deposit pays the deposit', ordState(O(330)), 'confirmed/5000/10000/0/0/unpaid', 'postgres', `${seedOrder(O(330), { dd: 5000, dp: 0, bd: 10000 })} ${offline(330, 5000)};`);
+add('cash: the components of the payment', payComp(330), 'deposit/5000/5000/5000/0/0/t/cash/succeeded', 'postgres');
+add('cash: 12000 on that order pays the 5000 deposit and 7000 of the balance', payComp(332), 'deposit/12000/12000/5000/7000/0/t/cash/succeeded', 'postgres', `${seedOrder(O(332), { dd: 5000, dp: 0, bd: 10000 })} ${offline(332, 12000)};`);
+add('cash: ... and the order reflects exactly that', ordState(O(332)), 'confirmed/5000/3000/7000/0/unpaid', 'postgres');
+add('cash: more than the remaining principal is refused, even though the balance is not zero', offline(333, 15001), (v: string) => v.startsWith('ERR:'), 'service_role', seedOrder(O(333), { dd: 5000, dp: 0, bd: 10000 }));
+add('cash: ... and nothing was written', payCount(O(333)), '0', 'postgres');
+add('cash: an order with nothing left to pay refuses ANY payment', offline(334, 100), (v: string) => v.startsWith('ERR:'), 'service_role', seedOrder(O(334), { status: 'confirmed', dd: 5000, dp: 5000, bd: 0, bp: 10000 }));
+add('cash: a tip is separate: it does not reduce the deposit or the balance and is not principal', payComp(335), 'deposit/6000/5000/5000/0/1000/t/cash/succeeded', 'postgres', `${seedOrder(O(335), { dd: 5000, dp: 0, bd: 10000 })} ${offline(335, 5000, 1000)};`);
+add('cash: ... the tip is added to the order tip only', ordState(O(335)), 'confirmed/5000/10000/0/1000/unpaid', 'postgres');
+add('cash: a catch-up deposit is paid first (deposit raised after part was paid)', payComp(336), 'deposit/5000/5000/3000/2000/0/t/cash/succeeded', 'postgres', `${seedOrder(O(336), { status: 'confirmed', dd: 8000, dp: 5000, bd: 10000 })} ${offline(336, 5000)};`);
+add('cash: the balance already paid is not subtracted twice from the amount owed', offline(337, 4000), (v: string) => !v.startsWith('ERR:'), 'service_role', seedOrder(O(337), { status: 'confirmed', dd: 5000, dp: 5000, bd: 6000, bp: 4000 }));
+add('cash: ... 4000 of a 6000 balance is accepted and leaves 2000', ordState(O(337)), 'confirmed/5000/2000/8000/0/unpaid', 'postgres');
+add('cash: paying exactly everything owed AND a tip is accepted (the tip is not counted against the principal)', ordState(O(345)), 'confirmed/5000/0/10000/1000/unpaid', 'postgres', `${seedOrder(O(345), { dd: 5000, dp: 0, bd: 10000, tip: 0 })} ${offline(345, 15000, 1000)};`);
+add('check: the same rules for a check, with the check number in the log', payComp(338), 'balance/6000/6000/0/6000/0/t/check/succeeded', 'postgres', `${seedOrder(O(338), { status: 'confirmed', dd: 5000, dp: 5000, bd: 6000 })} ${offline(338, 6000, 0, 'check')};`);
+add('check: ... overpayment is refused', offline(339, 6001, 0, 'check'), (v: string) => v.startsWith('ERR:'), 'service_role', seedOrder(O(339), { status: 'confirmed', dd: 5000, dp: 5000, bd: 6000 }));
+add('check: ... the check number is logged', `SELECT notes FROM public.order_changelog WHERE order_id = '${O(338)}' AND change_type = 'check_payment' AND field_changed = 'balance_due_cents'`, 'Check number: No. 1042', 'postgres');
+// ---- an order that is not confirmed yet is confirmed only when its required deposit is satisfied ----
+const stateOf = (n: number) => ordState(O(n));
+add('offline status: pending_review, deposit 5000, nothing paid, cash 1000 -> deposit_paid 1000, stays pending_review', stateOf(360), 'pending_review/1000/10000/0/0/unpaid', 'postgres', `${seedOrder(O(360), { dd: 5000, dp: 0, bd: 10000 })} ${offline(360, 1000)};`);
+add('offline status: ... the same partial CHECK deposit does not confirm either', stateOf(361), 'pending_review/1000/10000/0/0/unpaid', 'postgres', `${seedOrder(O(361), { dd: 5000, dp: 0, bd: 10000 })} ${offline(361, 1000, 0, 'check')};`);
+add('offline status: 1000 paid + 3999 more = 4999 of 5000: still pending_review', stateOf(362), 'pending_review/4999/10000/0/0/unpaid', 'postgres', `${seedOrder(O(362), { dd: 5000, dp: 1000, bd: 10000 })} ${offline(362, 3999)};`);
+add('offline status: 1000 paid + 4000 more = 5000 of 5000: confirmed', stateOf(363), 'confirmed/5000/10000/0/0/unpaid', 'postgres', `${seedOrder(O(363), { dd: 5000, dp: 1000, bd: 10000 })} ${offline(363, 4000)};`);
+add('offline status: awaiting_customer_approval + a partial deposit stays awaiting_customer_approval', stateOf(364), 'awaiting_customer_approval/1000/10000/0/0/unpaid', 'postgres', `${seedOrder(O(364), { status: 'awaiting_customer_approval', dd: 5000, dp: 0, bd: 10000 })} ${offline(364, 1000)};`);
+add('offline status: awaiting_customer_approval + the payment that completes the deposit is confirmed', stateOf(365), 'confirmed/5000/10000/0/0/unpaid', 'postgres', `${seedOrder(O(365), { status: 'awaiting_customer_approval', dd: 5000, dp: 1000, bd: 10000 })} ${offline(365, 4000)};`);
+add('offline status: no deposit required (0): a payment confirms as before', stateOf(366), 'confirmed/0/7000/3000/0/unpaid', 'postgres', `${seedOrder(O(366), { dd: 0, dp: 0, bd: 10000 })} ${offline(366, 3000)};`);
+add('offline status: a payment covering the deposit and part of the balance confirms, with both components', payComp(367), 'deposit/7000/7000/5000/2000/0/t/cash/succeeded', 'postgres', `${seedOrder(O(367), { dd: 5000, dp: 0, bd: 10000 })} ${offline(367, 7000)};`);
+add('offline status: ... and the order is confirmed', stateOf(367), 'confirmed/5000/8000/2000/0/unpaid', 'postgres');
+add('offline status: a confirmed order with a partial balance payment stays confirmed', stateOf(368), 'confirmed/5000/6000/4000/0/unpaid', 'postgres', `${seedOrder(O(368), { status: 'confirmed', dd: 5000, dp: 5000, bd: 10000 })} ${offline(368, 4000)};`);
+add('offline status: an in_progress order stays in_progress', stateOf(369), 'in_progress/5000/6000/4000/0/unpaid', 'postgres', `${seedOrder(O(369), { status: 'in_progress', dd: 5000, dp: 5000, bd: 10000 })} ${offline(369, 4000)};`);
+add('offline status: a completed order stays completed', stateOf(370), 'completed/5000/6000/4000/0/unpaid', 'postgres', `${seedOrder(O(370), { status: 'completed', dd: 5000, dp: 5000, bd: 10000 })} ${offline(370, 4000)};`);
+add('offline status: a confirmed order whose deposit is still part unpaid stays confirmed (never demoted)', stateOf(371), 'confirmed/2000/10000/0/0/unpaid', 'postgres', `${seedOrder(O(371), { status: 'confirmed', dd: 5000, dp: 1000, bd: 10000 })} ${offline(371, 1000)};`);
+
+// ---- offline tip validation ----
+const offlineRaw = (n: number, amount: number, tip: string) => `SELECT public.record_cash_payment('${O(n)}', ${amount}, ${tip}, NULL)::text`;
+add('offline tip: a negative tip is rejected (not turned into zero)', offlineRaw(372, 1000, '-1'), (v: string) => v.startsWith('ERR:'), 'service_role', seedOrder(O(372), { dd: 5000, dp: 0, bd: 10000 }));
+add('offline tip: ... no payment row was written', payCount(O(372)), '0', 'postgres');
+add('offline tip: ... and the order is unchanged', stateOf(372), 'pending_review/0/10000/0/0/unpaid', 'postgres');
+add('offline tip: a NULL tip means no tip', payComp(373), 'deposit/1000/1000/1000/0/0/t/cash/succeeded', 'postgres', `${seedOrder(O(373), { dd: 5000, dp: 0, bd: 10000 })} ${offlineRaw(373, 1000, 'NULL')};`);
+add('offline tip: a zero tip is allowed', payComp(374), 'deposit/1000/1000/1000/0/0/t/cash/succeeded', 'postgres', `${seedOrder(O(374), { dd: 5000, dp: 0, bd: 10000 })} ${offlineRaw(374, 1000, '0')};`);
+add('offline tip: a positive whole tip is allowed and is not principal', payComp(375), 'deposit/1500/1000/1000/0/500/t/cash/succeeded', 'postgres', `${seedOrder(O(375), { dd: 5000, dp: 0, bd: 10000 })} ${offlineRaw(375, 1000, '500')};`);
+add('offline tip: a tip above the maximum is rejected', offlineRaw(376, 1000, '100000000'), (v: string) => v.startsWith('ERR:'), 'service_role', seedOrder(O(376), { dd: 5000, dp: 0, bd: 10000 }));
+add('offline tip: a negative tip on a CHECK is rejected too', `SELECT public.record_check_payment('${O(377)}', 1000, -5, NULL, 'No. 9')::text`, (v: string) => v.startsWith('ERR:'), 'service_role', seedOrder(O(377), { dd: 5000, dp: 0, bd: 10000 }));
+
+add('cash: refused while an online payment is open for the order', offline(340, 1000), (v: string) => v.startsWith('ERR:'), 'service_role', `${seedOrder(O(340), { dd: 5000, dp: 0, bd: 10000 })} ${seedPay({ id: P(340), order: O(340), claim: null })}`);
+add('cash: a cancelled order refuses a payment', offline(341, 1000), (v: string) => v.startsWith('ERR:'), 'service_role', seedOrder(O(341), { status: 'cancelled' }));
+add('cash: anon cannot record a cash payment', offline(342, 1000), (v: string) => v.startsWith('ERR:42501'), 'anon', seedOrder(O(342)));
+add('cash: authenticated cannot record a check payment', offline(343, 1000, 0, 'check'), (v: string) => v.startsWith('ERR:42501'), 'authenticated', seedOrder(O(343)));
+add('catch-up state function is not executable by anon', `SELECT public.payment_deposit_principal_state('${O(344)}')::text`, (v: string) => v.startsWith('ERR:42501'), 'anon');
+add('offline payment function is not executable by authenticated', `SELECT public.record_offline_payment('${O(344)}', 1, 0, NULL, 'cash', NULL)::text`, (v: string) => v.startsWith('ERR:42501'), 'authenticated');
+
 add('... and no operation was created', payCount(O(20)), '0', 'postgres');
 add('a deposit already paid in full is not charged again, and the pending order moves forward', claimField(O(21), 'deposit', 'staff', C(1), ['outcome', 'status_changed', 'order_status']), 'already_paid/true/confirmed', 'service_role', seedOrder(O(21), { dd: 5000, dp: 5000 }));
 add('... the order is confirmed and nothing else changed', ordState(O(21)), 'confirmed/5000/10000/0/0/unpaid', 'postgres');
@@ -382,7 +477,7 @@ add('revalidation: an Admin Invoice Full operation whose required payment change
 add('revalidation: the deposit the customer was shown no longer matches: stale', claimField(O(193), 'deposit', 'customer', C(2), OR, { sel: true, expected: 4000 }), 'stale_operation/order_changed', 'service_role', mk(193, { status: 'awaiting_customer_approval' }));
 add('revalidation: the stored tip changed: stale', claimField(O(194), 'deposit', 'staff', C(2), OR), 'stale_operation/order_changed', 'service_role', mk(194, { tip: 500 }));
 add('revalidation: the same stored tip: resumed', claim(O(195), 'deposit', 'staff', C(2)), 'resumed', 'service_role', mk(195, { tip: 500 }, { tip: 500 }));
-add('revalidation: the deposit was part paid meanwhile: stale (catch-up, never charged)', claimField(O(196), 'deposit', 'staff', C(2), OR), 'stale_operation/catch_up_required', 'service_role', mk(196, { dp: 2000 }));
+add('revalidation: the deposit was part paid meanwhile: stale (catch-up, never charged)', claimField(O(196), 'deposit', 'staff', C(2), OR), 'stale_operation/catch_up_unavailable', 'service_role', mk(196, { dp: 2000 }));
 add('revalidation: the deposit was paid in full meanwhile: stale', claimField(O(197), 'deposit', 'staff', C(2), OR), 'stale_operation/already_paid', 'service_role', mk(197, { dp: 5000 }));
 add('... and a stale check never moves the order', ordState(O(197)), 'pending_review/5000/10000/0/0/unpaid', 'postgres');
 add('revalidation: a balance operation the balance still covers is resumed', claim(O(198), 'balance', 'customer', C(2), { principal: 10000 }), 'resumed', 'service_role', mkb(198));
@@ -396,6 +491,64 @@ add('... the SQL does not close the operation itself (the caller proves the prov
 add('revalidation: a LIVE lease of another request is busy, changed order or not', claim(O(205), 'deposit', 'staff', C(2)), 'busy', 'service_role', mk(205, { dd: 6000, bd: 9000 }, { claim: C(1), claimedAgo: 30 }));
 add('revalidation: the same request asking again with a changed order: stale', claimField(O(206), 'deposit', 'staff', C(1), OR), 'stale_operation/order_changed', 'service_role', mk(206, { dd: 6000, bd: 9000 }, { claim: C(1), claimedAgo: 30 }));
 add('revalidation: nothing is created for a stale operation (still one row)', payCount(O(204)), '1', 'postgres');
+
+add('a negative custom fee is refused (it would be a hidden discount)', tryInsert(`INSERT INTO public.order_custom_fees (order_id, name, amount_cents) VALUES ('${O(350)}', 'x', -100)`), '23514', 'postgres', seedOrder(O(350)));
+add('a zero custom fee is allowed', tryInsert(`INSERT INTO public.order_custom_fees (order_id, name, amount_cents) VALUES ('${O(350)}', 'x', 0)`), 'ok', 'postgres');
+add('a discount percentage above 100 is refused', tryInsert(`INSERT INTO public.order_discounts (order_id, name, percentage) VALUES ('${O(350)}', 'x', 150)`), '23514', 'postgres');
+add('a negative discount amount is refused', tryInsert(`INSERT INTO public.order_discounts (order_id, name, amount_cents) VALUES ('${O(350)}', 'x', -5)`), '23514', 'postgres');
+add('a fixed and a percentage discount on one row are still storable (historical shape; the formula takes the fixed amount)', tryInsert(`INSERT INTO public.order_discounts (order_id, name, amount_cents, percentage) VALUES ('${O(350)}', 'x', 500, 10)`), 'ok', 'postgres');
+
+// ---- server-authoritative order pricing saves (the third migration) ----
+const GUARD_ON = `ALTER TABLE public.orders ENABLE TRIGGER trg_guard_order_pricing_authority; DROP POLICY IF EXISTS t_all ON public.orders; CREATE POLICY t_all ON public.orders FOR ALL TO authenticated, anon USING (true) WITH CHECK (true); GRANT SELECT, INSERT, UPDATE ON public.orders TO authenticated, anon;`;
+const asOrder = (n: number, sets: string) => tryInsert(`UPDATE public.orders SET ${sets} WHERE id = '${O(n)}'`);
+const guardSeed = (n: number) => `${GUARD_ON} ${seedOrder(O(n), { dd: 5000, dp: 0, bd: 10000 })}`;
+add('guard: a staff session cannot change the subtotal', asOrder(400, 'subtotal_cents = 1'), '42501', 'authenticated', guardSeed(400));
+for (const [label, sets] of [
+  ['the tax', 'tax_cents = 7'], ['the deposit due', 'deposit_due_cents = 0'], ['the balance due', 'balance_due_cents = 0'], ['the travel fee', 'travel_fee_cents = 5'],
+  ['the surface fee', 'surface_fee_cents = 5'], ['the same-day pickup fee', 'same_day_pickup_fee_cents = 5'], ['the weekday delivery fee', 'same_day_weekday_delivery_fee_cents = 5'],
+  ['the generator fee', 'generator_fee_cents = 5'], ['the setup fee', 'setup_fee_cents = 5'], ['the deposit override', 'custom_deposit_cents = 0'],
+  ['the waived-fee amounts', `waived_fee_amounts_cents = '{"travel": 1}'`], ['the Event Essentials subtotal', 'event_essentials_subtotal_cents = 5'],
+] as Array<[string, string]>) {
+  add(`guard: a staff session cannot change ${label}`, asOrder(400, sets), '42501', 'authenticated');
+}
+add('guard: ... nor can an anonymous session', asOrder(400, 'subtotal_cents = 1'), '42501', 'anon');
+add('guard: the order is unchanged', `SELECT concat_ws('/', subtotal_cents, tax_cents, deposit_due_cents, balance_due_cents) FROM public.orders WHERE id = '${O(400)}'`, '15000/0/5000/10000', 'postgres');
+add('guard: a staff session can still change the message and other non-pricing columns', asOrder(400, "admin_message = 'hello', workflow_status = 'on_the_way'"), 'ok', 'authenticated');
+add('guard: ... and write a pricing column to the value it already has', asOrder(400, 'subtotal_cents = 15000, deposit_due_cents = 5000'), 'ok', 'authenticated');
+add('guard: the table owner can change pricing', asOrder(400, 'subtotal_cents = 21000'), 'ok', 'postgres');
+add('guard: a staff session cannot create an order with a price', tryInsert(`INSERT INTO public.orders (location_type, event_date, event_end_date, start_window, end_window, subtotal_cents, deposit_due_cents, balance_due_cents, pickup_preference, status) VALUES ('residential', '2030-06-01', '2030-06-01', '10:00', '12:00', 500, 100, 400, 'same_day', 'draft')`), '42501', 'authenticated');
+add('guard: ... but can create an order with no price (a draft shell)', tryInsert(`INSERT INTO public.orders (location_type, event_date, event_end_date, start_window, end_window, subtotal_cents, deposit_due_cents, balance_due_cents, pickup_preference, status) VALUES ('residential', '2030-06-01', '2030-06-01', '10:00', '12:00', 0, 0, 0, 'same_day', 'draft')`), 'ok', 'authenticated');
+add('guard: a payment function (SECURITY DEFINER) still changes the balance for its own reasons', ordState(O(401)), 'confirmed/5000/6000/4000/0/unpaid', 'postgres', `${GUARD_ON} ${seedOrder(O(401), { status: 'confirmed', dd: 5000, dp: 5000, bd: 10000 })} ${offline(401, 4000)};`);
+
+const SAVE_FNS = ['apply_staff_order_save', 'create_staff_invoice_order'];
+add('save functions: anon cannot call apply_staff_order_save', `SELECT public.apply_staff_order_save('${O(402)}', NULL, '{}'::jsonb, '{}'::jsonb, '[]'::jsonb, '[]'::jsonb, '[]'::jsonb, '[]'::jsonb)::text`, (v: string) => v.startsWith('ERR:42501'), 'anon');
+add('save functions: authenticated cannot call apply_staff_order_save', `SELECT public.apply_staff_order_save('${O(402)}', NULL, '{}'::jsonb, '{}'::jsonb, '[]'::jsonb, '[]'::jsonb, '[]'::jsonb, '[]'::jsonb)::text`, (v: string) => v.startsWith('ERR:42501'), 'authenticated');
+add('save functions: authenticated cannot call create_staff_invoice_order', `SELECT public.create_staff_invoice_order('{}'::jsonb, '[]'::jsonb, '[]'::jsonb, '[]'::jsonb)::text`, (v: string) => v.startsWith('ERR:42501'), 'authenticated');
+add('save functions: anon cannot call create_staff_invoice_order', `SELECT public.create_staff_invoice_order('{}'::jsonb, '[]'::jsonb, '[]'::jsonb, '[]'::jsonb)::text`, (v: string) => v.startsWith('ERR:42501'), 'anon');
+add('save functions: both are SECURITY DEFINER with a pinned search_path', `SELECT count(*)::text FROM pg_proc WHERE proname IN (${SAVE_FNS.map((f) => q(f)).join(',')}) AND pronamespace = 'public'::regnamespace AND prosecdef AND proconfig::text ~ 'search_path=public'`, '2', 'postgres');
+add('save functions: PUBLIC holds no execute on either', `SELECT count(*)::text FROM pg_proc WHERE proname IN (${SAVE_FNS.map((f) => q(f)).join(',')}) AND pronamespace = 'public'::regnamespace AND coalesce(proacl::text, '') ~ '(^|[{,])=X'`, '0', 'postgres');
+
+const saveCall = (n: number, expected: string, changes: string, itemOps = '[]', discountOps = '[]', feeOps = '[]', logs = '[]') =>
+  `SELECT public.apply_staff_order_save('${O(n)}', NULL, ${q(expected)}::jsonb, ${q(changes)}::jsonb, ${q(itemOps)}::jsonb, ${q(discountOps)}::jsonb, ${q(feeOps)}::jsonb, ${q(logs)}::jsonb)->>'outcome'`;
+const state = (cols: string) => `{"columns": ${cols}, "children": {"items": [], "discounts": [], "custom_fees": []}}`;
+add('apply save: a state that no longer matches the order is stale, and nothing is written', saveCall(403, state('{"subtotal_cents": 99}'), '{"subtotal_cents": 1}'), 'stale', 'service_role', seedOrder(O(403), { dd: 5000, dp: 0, bd: 10000 }));
+add('apply save: ... the order is untouched', `SELECT subtotal_cents::text FROM public.orders WHERE id = '${O(403)}'`, '15000', 'postgres');
+add('apply save: a matching state is applied', saveCall(404, state('{"subtotal_cents": 15000, "deposit_due_cents": 5000}'), '{"subtotal_cents": 18000, "balance_due_cents": 13000}', '[]', '[]', '[]', '[{"field": "subtotal", "old": "15000", "new": "18000", "change_type": "edit"}]'), 'saved', 'service_role', seedOrder(O(404), { dd: 5000, dp: 0, bd: 10000 }));
+add('apply save: ... the order columns changed', `SELECT concat_ws('/', subtotal_cents, balance_due_cents) FROM public.orders WHERE id = '${O(404)}'`, '18000/13000', 'postgres');
+add('apply save: ... and the change was logged', `SELECT concat_ws('/', field_changed, old_value, new_value) FROM public.order_changelog WHERE order_id = '${O(404)}'`, 'subtotal/15000/18000', 'postgres');
+add('apply save: a column outside the staff save list is refused', saveCall(405, state('{}'), '{"stripe_customer_id": "cus_x"}'), (v: string) => v.startsWith('ERR:'), 'service_role', seedOrder(O(405)));
+add('apply save: payment columns cannot be written through it', saveCall(406, state('{}'), '{"deposit_paid_cents": 5000}'), (v: string) => v.startsWith('ERR:'), 'service_role', seedOrder(O(406)));
+add('apply save: an unknown order is not_found', saveCall(407, state('{}'), '{}'), 'not_found', 'service_role');
+add('apply save: discounts and custom fees are applied with the order', `SELECT concat_ws('/', (SELECT count(*) FROM public.order_discounts WHERE order_id = '${O(408)}'), (SELECT count(*) FROM public.order_custom_fees WHERE order_id = '${O(408)}'))`, '1/1', 'postgres', `${seedOrder(O(408))} SELECT public.apply_staff_order_save('${O(408)}', NULL, ${q(state('{}'))}::jsonb, '{}'::jsonb, '[]'::jsonb, '[{"kind": "insert", "name": "Promo", "amount_cents": 500, "percentage": 0}]'::jsonb, '[{"kind": "insert", "name": "Help", "amount_cents": 700}]'::jsonb, '[]'::jsonb);`);
+add('apply save: a discount or fee that changed since the browser looked makes the save stale', saveCall(409, `{"columns": {}, "children": {"items": [], "discounts": [], "custom_fees": []}}`, '{}'), 'stale', 'service_role', `${seedOrder(O(409))} INSERT INTO public.order_discounts (order_id, name, amount_cents, percentage) VALUES ('${O(409)}', 'x', 100, 0);`);
+add('apply save: a negative custom fee is refused by the database', `SELECT public.apply_staff_order_save('${O(410)}', NULL, ${q(state('{}'))}::jsonb, '{}'::jsonb, '[]'::jsonb, '[]'::jsonb, '[{"kind": "insert", "name": "x", "amount_cents": -100}]'::jsonb, '[]'::jsonb)::text`, (v: string) => v.startsWith('ERR:'), 'service_role', seedOrder(O(410)));
+add('apply save: a payment in flight blocks a pricing change (the state barrier)', saveCall(411, state('{}'), '{"deposit_due_cents": 9000}'), (v: string) => v.startsWith('ERR:'), 'service_role', `ALTER TABLE public.orders ENABLE TRIGGER trg_guard_payment_authoritative_order_changes; ${seedOrder(O(411))} ${seedPay({ id: P(411), order: O(411), claim: C(1), claimedAgo: 5 })}`);
+const invoiceOrder = (extra = '') => `{"status": "draft", "location_type": "residential", "event_date": "2030-06-01", "event_end_date": "2030-06-01", "start_window": "10:00", "end_window": "12:00", "pickup_preference": "next_day", "subtotal_cents": 25000, "deposit_due_cents": 5000, "balance_due_cents": 20000${extra}}`;
+add('invoice order: creates a draft with its money, items, discounts and fees', `SELECT concat_ws('/', o.status, o.subtotal_cents, o.deposit_due_cents, (SELECT count(*) FROM public.order_discounts d WHERE d.order_id = o.id), (SELECT count(*) FROM public.order_custom_fees f WHERE f.order_id = o.id)) FROM public.orders o WHERE o.status = 'draft' AND o.subtotal_cents = 25011`, 'draft/25011/5000/1/1', 'postgres', `SELECT public.create_staff_invoice_order(${q(invoiceOrder().replace('25000', '25011'))}::jsonb, '[]'::jsonb, '[{"name": "d", "amount_cents": 100}]'::jsonb, '[{"name": "f", "amount_cents": 200}]'::jsonb);`);
+add('invoice order: only a draft can be created', `SELECT public.create_staff_invoice_order(${q(invoiceOrder().replace('"draft"', '"confirmed"'))}::jsonb, '[]'::jsonb, '[]'::jsonb, '[]'::jsonb)::text`, (v: string) => v.startsWith('ERR:'), 'service_role');
+add('invoice order: a column outside the invoice list is refused', `SELECT public.create_staff_invoice_order(${q(invoiceOrder(', "deposit_paid_cents": 5000, "stripe_customer_id": "cus_x"'))}::jsonb, '[]'::jsonb, '[]'::jsonb, '[]'::jsonb)::text`, (v: string) => v.startsWith('ERR:'), 'service_role');
+add('waived amounts: the column exists, is nullable, and must be an object', tryInsert(`UPDATE public.orders SET waived_fee_amounts_cents = '[1]'::jsonb WHERE id = '${O(412)}'`), '23514', 'postgres', seedOrder(O(412)));
+add('waived amounts: an object is accepted', tryInsert(`UPDATE public.orders SET waived_fee_amounts_cents = '{"travel": 5000}'::jsonb WHERE id = '${O(412)}'`), 'ok', 'postgres');
 
 // ---- the provider-attempt marker ----
 const mark = (pay: string, claimId: string | null) => `SELECT public.mark_payment_operation_provider_attempt('${pay}', ${claimId ? q(claimId) : 'NULL'})::text`;

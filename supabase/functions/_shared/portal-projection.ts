@@ -42,6 +42,7 @@ export const PORTAL_ORDER_FIELDS: readonly string[] = [
   "same_day_weekday_delivery_fee_waived",
   "generator_fee_waived",
   "tax_waived",
+  "waived_fee_amounts_cents",
   "deposit_due_cents",
   "deposit_paid_cents",
   "balance_due_cents",

@@ -2,6 +2,8 @@ import { supabase } from './supabase';
 import { calculateDrivingDistance } from './pricing';
 import { HOME_BASE } from './constants';
 import { buildOrderSummaryDisplay } from './orderSummaryHelpers';
+import { storedOrderTotalCents } from './orderMoney';
+import { storedFeeAmounts } from './orderFeeDisplay';
 import { formatStoredOrderItems } from './formatStoredOrderItems';
 import type { Database } from './database.types';
 
@@ -114,6 +116,8 @@ export interface OrderSummaryData {
   same_day_weekday_delivery_fee_waived?: boolean;
   generator_fee_waived?: boolean;
   setup_fee_cents?: number;
+  // Waived fees whose historical amount was never stored: shown as "Waived" with no dollar figure.
+  waived_amount_unknown?: Array<'travel' | 'surface' | 'same_day_pickup' | 'same_day_weekday_delivery' | 'generator'>;
 }
 
 export interface OrderSummaryDisplay {
@@ -130,6 +134,8 @@ export interface OrderSummaryDisplay {
   fees: Array<{
     name: string;
     amount: number;
+    // A waived fee whose historical amount is unknown: shown as "Waived" without a dollar figure.
+    amountUnknown?: boolean;
   }>;
   discounts: Array<{
     name: string;
@@ -152,84 +158,6 @@ export interface OrderSummaryDisplay {
   balanceDue: number;
   isMultiDay: boolean;
   pickupPreference: string;
-}
-
-async function calculateOriginalFees(order: any, discounts: OrderDiscount[], customFees: OrderCustomFee[], pricing?: PricingRuleRow | null): Promise<{
-  travel_fee_cents: number;
-  surface_fee_cents: number;
-  same_day_pickup_fee_cents: number;
-  same_day_weekday_delivery_fee_cents: number;
-  generator_fee_cents: number;
-  tax_cents: number;
-}> {
-  const pricingData = pricing ?? (await supabase
-    .from('pricing_rules')
-    .select('*')
-    .maybeSingle()).data;
-
-  if (!pricingData) {
-    return {
-      travel_fee_cents: 0,
-      surface_fee_cents: 0,
-      same_day_pickup_fee_cents: 0,
-      same_day_weekday_delivery_fee_cents: 0,
-      generator_fee_cents: 0,
-      tax_cents: 0,
-    };
-  }
-
-  let travelFeeCents = order.travel_fee_cents || 0;
-  if (order.travel_fee_waived && travelFeeCents === 0 && order.travel_total_miles > 0) {
-    const baseRadius = parseFloat(pricingData.base_radius_miles?.toString() || '10');
-    const perMileCents = pricingData.per_mile_after_base_cents || 250;
-    const chargeableMiles = Math.max(0, order.travel_total_miles - baseRadius);
-    travelFeeCents = Math.round(chargeableMiles * perMileCents);
-  }
-
-  let surfaceFeeCents = order.surface_fee_cents || 0;
-  if (order.surface_fee_waived && surfaceFeeCents === 0 && order.surface === 'concrete') {
-    surfaceFeeCents = pricingData.surface_sandbag_fee_cents || 3500;
-  }
-
-  let sameDayPickupFeeCents = order.same_day_pickup_fee_cents || 0;
-  if (order.same_day_pickup_fee_waived && sameDayPickupFeeCents === 0 && order.pickup_preference === 'same_day') {
-    sameDayPickupFeeCents = pricingData.same_day_pickup_fee_cents || 10500;
-  }
-
-  let generatorFeeCents = order.generator_fee_cents || 0;
-  if (order.generator_fee_waived && generatorFeeCents === 0 && (order.generator_qty || 0) > 0) {
-    const perGeneratorCents = pricingData.generator_price_cents || 9500;
-    generatorFeeCents = perGeneratorCents * (order.generator_qty || 0);
-  }
-
-  let sameDayWeekdayDeliveryFeeCents = order.same_day_weekday_delivery_fee_cents || 0;
-  if (order.same_day_weekday_delivery_fee_waived && sameDayWeekdayDeliveryFeeCents === 0) {
-    sameDayWeekdayDeliveryFeeCents = pricingData.same_day_weekday_delivery_fee_cents || 0;
-  }
-
-  let taxCents = order.tax_cents || 0;
-  if (order.tax_waived && taxCents === 0) {
-    const subtotal = order.subtotal_cents || 0;
-    const discountTotal = discounts.reduce((sum, discount) => {
-      if (discount.percentage) {
-        return sum + Math.round(subtotal * (discount.percentage / 100));
-      }
-      return sum + (discount.amount_cents || 0);
-    }, 0);
-    const totalCustomFees = customFees.reduce((sum, fee) => sum + (fee.amount_cents || 0), 0);
-    // Same-day pickup fee is NOT taxable (applied after tax)
-    const taxableAmount = subtotal + travelFeeCents + surfaceFeeCents + generatorFeeCents + (order.setup_fee_cents || 0) + totalCustomFees - discountTotal;
-    taxCents = Math.round(taxableAmount * 0.06);
-  }
-
-  return {
-    travel_fee_cents: travelFeeCents,
-    surface_fee_cents: surfaceFeeCents,
-    same_day_pickup_fee_cents: sameDayPickupFeeCents,
-    same_day_weekday_delivery_fee_cents: sameDayWeekdayDeliveryFeeCents,
-    generator_fee_cents: generatorFeeCents,
-    tax_cents: taxCents,
-  };
 }
 
 // Raw rows for one order, from whichever trusted source produced them (direct admin/owner queries, or the Customer
@@ -263,7 +191,7 @@ export async function loadOrderSummary(orderId: string): Promise<OrderSummaryDat
         discounts: discountsRes.data || [],
         customFees: feesRes.data || [],
       },
-      { persistTravelMiles: true },
+      { persistTravelMiles: false },
     );
   } catch (error) {
     console.error('Error loading order summary:', error);
@@ -271,15 +199,15 @@ export async function loadOrderSummary(orderId: string): Promise<OrderSummaryDat
   }
 }
 
-// Builds the summary from already-loaded rows. persistTravelMiles keeps the old best-effort write-back of a computed
-// driving distance; the Customer Portal passes false because customers never write order rows directly.
+// Builds the summary from already-loaded rows. A driving distance computed here is for DISPLAY only and is never written
+// back: the travel snapshot is owned by the server (staff-order-save). `persistTravelMiles` is accepted for callers but ignored.
 export async function buildOrderSummaryData(
   input: RawOrderSummaryInput,
-  options: { persistTravelMiles?: boolean } = {},
+  _options: { persistTravelMiles?: boolean } = {},
 ): Promise<OrderSummaryData | null> {
+  void _options;
   try {
     const order = input.order;
-    const orderId: string = order.id;
     let travelMiles = order.travel_total_miles || 0;
 
     // If travel miles not saved and we have travel fee, calculate it in real-time
@@ -322,15 +250,8 @@ export async function buildOrderSummaryData(
             // console.log('[OrderSummary] Calling calculateDrivingDistance...');
             travelMiles = await calculateDrivingDistance(HOME_BASE.lat, HOME_BASE.lng, lat, lng);
             // console.log('[OrderSummary] Distance calculation result:', travelMiles, 'miles');
-
-            // Optionally save it for next time (fire and forget, don't await)
-            if (travelMiles > 0) {
-              // console.log('[OrderSummary] Saving calculated distance to database');
-              if (options.persistTravelMiles) {
-                supabase.from('orders').update({ travel_total_miles: travelMiles }).eq('id', orderId);
-              }
-            } else {
-              console.warn('[OrderSummary] Calculated distance was 0 or invalid, not saving');
+            if (travelMiles <= 0) {
+              console.warn('[OrderSummary] Calculated distance was 0 or invalid');
             }
           } else {
             console.warn('[OrderSummary] Invalid coordinates - lat or lng is falsy', { lat, lng });
@@ -361,7 +282,7 @@ export async function buildOrderSummaryData(
 
     const discounts = (input.discounts || []) as unknown as OrderDiscount[];
     const customFees = (input.customFees || []) as unknown as OrderCustomFee[];
-    const originalFees = await calculateOriginalFees(order, discounts, customFees, input.pricing);
+    const originalFees = storedFeeAmounts(order);
 
     return {
       items: (input.items || []).map(item => ({
@@ -379,6 +300,7 @@ export async function buildOrderSummaryData(
       generator_fee_cents: originalFees.generator_fee_cents,
       generator_qty: order.generator_qty || 0,
       tax_cents: originalFees.tax_cents,
+      waived_amount_unknown: originalFees.waived_amount_unknown,
       tip_cents: order.tip_cents || 0,
       total_cents: calculateTotalFromOrder(order, discounts, customFees),
       deposit_due_cents: order.deposit_due_cents,
@@ -398,29 +320,9 @@ export async function buildOrderSummaryData(
 }
 
 export function calculateTotalFromOrder(order: any, discounts: OrderDiscount[], customFees: OrderCustomFee[]): number {
-  // subtotal_cents already includes event_essentials_subtotal_cents.
-  // Do NOT add event_essentials_subtotal_cents again.
-  const subtotal = order.subtotal_cents || 0;
-  const travelFee = order.travel_fee_cents || 0;
-  const surfaceFee = order.surface_fee_cents || 0;
-  const sameDayFee = order.same_day_pickup_fee_cents || 0;
-  const sameDayWeekdayDeliveryFee = order.same_day_weekday_delivery_fee_cents || 0;
-  const generatorFee = order.generator_fee_cents || 0;
-  const setupFee = order.setup_fee_cents || 0;
-  const tax = order.tax_cents || 0;
-
-  const totalFees = travelFee + surfaceFee + sameDayFee + sameDayWeekdayDeliveryFee + generatorFee + setupFee;
-  const totalCustomFees = customFees.reduce((sum, fee) => sum + (fee.amount_cents || 0), 0);
-
-  const discountTotal = discounts.reduce((sum, discount) => {
-    if (discount.percentage) {
-      return sum + Math.round(subtotal * (discount.percentage / 100));
-    }
-    return sum + (discount.amount_cents || 0);
-  }, 0);
-
-  // Tip is tracked separately and should NOT be included in order total
-  return subtotal + totalFees + totalCustomFees - discountTotal + tax;
+  // subtotal_cents already includes event_essentials_subtotal_cents; the tip is tracked separately and is not part of the total.
+  // The arithmetic is orderMoney's, shared with every screen and Edge Function that shows or charges an order total.
+  return storedOrderTotalCents(order, discounts, customFees);
 }
 
 export function formatOrderSummary(data: OrderSummaryData): OrderSummaryDisplay {
@@ -449,6 +351,7 @@ export function formatOrderSummary(data: OrderSummaryData): OrderSummaryDisplay 
       same_day_weekday_delivery_fee_cents: data.same_day_weekday_delivery_fee_cents,
       generator_fee_cents: data.generator_fee_cents,
       generator_qty: data.generator_qty,
+      waived_amount_unknown: data.waived_amount_unknown,
       travel_fee_waived: data.travel_fee_waived,
       surface_fee_waived: data.surface_fee_waived,
       same_day_pickup_fee_waived: data.same_day_pickup_fee_waived,

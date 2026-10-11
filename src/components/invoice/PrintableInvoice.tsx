@@ -1,4 +1,5 @@
 import { formatCurrency } from '../../lib/pricing';
+import { effectiveDiscountCents } from '../../lib/orderMoney';
 import { format } from 'date-fns';
 import { useState, useEffect } from 'react';
 import { getPublicBusinessSettings } from '../../lib/adminSettingsCache';
@@ -215,9 +216,12 @@ export function PrintableInvoice({
                     {priceBreakdown.travel_fee_display_name || 'Travel Fee'}
                   </div>
                   <div className="text-right font-medium flex items-center justify-end gap-2">
-                    <span className={travelFeeWaived ? 'line-through text-red-600' : 'text-slate-900'}>
-                      {formatCurrency(priceBreakdown.travel_fee_cents)}
-                    </span>
+                    {/* A waived fee stored as $0 shows no dollar figure: its historical amount is not today's rule. */}
+                    {!(travelFeeWaived && priceBreakdown.travel_fee_cents === 0) && (
+                      <span className={travelFeeWaived ? 'line-through text-red-600' : 'text-slate-900'}>
+                        {formatCurrency(priceBreakdown.travel_fee_cents)}
+                      </span>
+                    )}
                     {travelFeeWaived && (
                       <span className="text-xs bg-red-100 text-red-700 px-2 py-0.5 rounded font-semibold">WAIVED</span>
                     )}
@@ -254,9 +258,7 @@ export function PrintableInvoice({
 
               {discounts.map((d, index) => {
                 const subtotalCents = priceBreakdown.subtotal_cents || 0;
-                const discountCents = d.percentage && d.percentage > 0
-                  ? Math.round(subtotalCents * (d.percentage / 100))
-                  : (d.amount_cents || 0);
+                const discountCents = effectiveDiscountCents(d, subtotalCents);
                 const label = d.label || d.description || 'Discount';
                 const suffix = d.percentage && d.percentage > 0 ? ` (${d.percentage}%)` : '';
                 return (
@@ -282,9 +284,11 @@ export function PrintableInvoice({
                 <div className="grid grid-cols-2 py-3 px-6 border-b border-slate-100">
                   <div className="text-slate-700">Tax (6%)</div>
                   <div className="text-right font-medium flex items-center justify-end gap-2">
-                    <span className={taxWaived ? 'line-through text-red-600' : 'text-slate-900'}>
-                      {formatCurrency(priceBreakdown.tax_cents)}
-                    </span>
+                    {!(taxWaived && priceBreakdown.tax_cents === 0) && (
+                      <span className={taxWaived ? 'line-through text-red-600' : 'text-slate-900'}>
+                        {formatCurrency(priceBreakdown.tax_cents)}
+                      </span>
+                    )}
                     {taxWaived && (
                       <span className="text-xs bg-red-100 text-red-700 px-2 py-0.5 rounded font-semibold">WAIVED</span>
                     )}

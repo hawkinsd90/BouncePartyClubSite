@@ -225,6 +225,11 @@ function oracleSave(params: any, canonicalId: any): OracleState {
       changes.deposit_due_cents = finalDepositCents;
       logs.push(['deposit_due', order.deposit_due_cents, finalDepositCents]);
     }
+    // APPROVED: the explicit deposit override (null = none, 0 = deliberately no deposit) is saved with the order.
+    if ((customDepositCents ?? null) !== (order.custom_deposit_cents ?? null)) {
+      changes.custom_deposit_cents = customDepositCents;
+      logs.push(['custom_deposit', order.custom_deposit_cents ?? null, customDepositCents]);
+    }
 
     effectiveTotalCents = calculateTotalFromOrder(
       { ...order, ...calculatedPricing },
@@ -245,12 +250,17 @@ function oracleSave(params: any, canonicalId: any): OracleState {
     if (hasRefunds) {
       newBalanceDueCents = order.balance_due_cents ?? 0;
     } else if (isConfirmedWithPayment && depositDifferenceCents > 0 && depositCatchupMode === 'require') {
+      // APPROVED: the unpaid part of a raised deposit is derived when it is collected, never stored (there is no such column).
       newBalanceDueCents = Math.max(0, effectiveTotalCents - finalDepositCents - balancePaidCents - excessDepositPaidCents);
-      changes.deposit_catchup_cents = depositDifferenceCents;
       logs.push(['deposit_catchup', 0, depositDifferenceCents]);
     } else if (isConfirmedWithPayment && depositDifferenceCents > 0 && depositCatchupMode === 'waive') {
+      // APPROVED: a waived catch-up makes what is already paid the required deposit (saved as an explicit override).
       newBalanceDueCents = Math.max(0, effectiveTotalCents - depositPaidCents - balancePaidCents);
-      changes.deposit_catchup_cents = 0;
+      changes.deposit_due_cents = depositPaidCents;
+      changes.custom_deposit_cents = depositPaidCents;
+      const dueLog = logs.findIndex((l) => l[0] === 'deposit_due');
+      if (dueLog >= 0) logs[dueLog] = ['deposit_due', order.deposit_due_cents, depositPaidCents];
+      else logs.push(['deposit_due', order.deposit_due_cents, depositPaidCents]);
     } else {
       newBalanceDueCents = Math.max(0, effectiveTotalCents - finalDepositCents - balancePaidCents - excessDepositPaidCents);
     }
@@ -465,7 +475,7 @@ function oracleFinalize(
     'travel_per_mile_cents', 'travel_is_flat_fee', 'surface_fee_cents',
     'same_day_pickup_fee_cents', 'same_day_weekday_delivery_fee_cents', 'tax_cents',
     'setup_fee_cents',
-    'deposit_due_cents', 'balance_due_cents', 'deposit_catchup_cents',
+    'deposit_due_cents', 'balance_due_cents', 'custom_deposit_cents',
     'tax_waived', 'tax_waive_reason', 'travel_fee_waived', 'travel_fee_waive_reason',
     'same_day_pickup_fee_waived', 'same_day_pickup_fee_waive_reason',
     'surface_fee_waived', 'surface_fee_waive_reason',

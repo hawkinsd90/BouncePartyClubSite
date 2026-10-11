@@ -1,4 +1,5 @@
 import { readPortalToken } from './portalToken';
+import { calculateSalesTaxCents, sumEffectiveDiscountsCents } from './orderMoney';
 
 export function centsToDollars(cents: number): string {
   return (cents / 100).toFixed(2);
@@ -15,8 +16,9 @@ export function calculateRentalDays(startDate: string, endDate: string): number 
   return Math.ceil(diffTime / (1000 * 60 * 60 * 24)) + 1;
 }
 
-export function calculateTax(taxableAmountCents: number, taxRate = 0.06): number {
-  return Math.round(taxableAmountCents * taxRate);
+// Sales tax on a taxable amount (the one BPC rate and rounding live in orderMoney).
+export function calculateTax(taxableAmountCents: number): number {
+  return calculateSalesTaxCents(taxableAmountCents);
 }
 
 export function getFullName(
@@ -39,30 +41,7 @@ export function calculateDiscountTotal(
   discounts: Array<{ amount_cents: number; percentage: number }>,
   subtotalCents: number
 ): number {
-  return discounts.reduce((sum, discount) => {
-    if (discount.amount_cents > 0) {
-      return sum + discount.amount_cents;
-    }
-    if (discount.percentage > 0) {
-      return sum + Math.round(subtotalCents * (discount.percentage / 100));
-    }
-    return sum;
-  }, 0);
-}
-
-export function calculateFeeTotal(
-  fees: Array<{ amount_cents: number; percentage: number }>,
-  subtotalCents: number
-): number {
-  return fees.reduce((sum, fee) => {
-    if (fee.amount_cents > 0) {
-      return sum + fee.amount_cents;
-    }
-    if (fee.percentage > 0) {
-      return sum + Math.round(subtotalCents * (fee.percentage / 100));
-    }
-    return sum;
-  }, 0);
+  return sumEffectiveDiscountsCents(discounts, subtotalCents, Number.MAX_SAFE_INTEGER);
 }
 
 export function truncateText(text: string, maxLength: number): string {

@@ -1,5 +1,6 @@
 import { useState, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { storedOrderTotalCents } from '../../lib/orderMoney';
 import { supabase } from '../../lib/supabase';
 import { FileText, Calendar, Eye, CreditCard as Edit } from 'lucide-react';
 import { format } from 'date-fns';
@@ -77,9 +78,8 @@ export function InvoicesList() {
       const surfaceFeeCents = (order as any).surface_fee_cents ?? 0;
       const sameDayPickupFeeCents = (order as any).same_day_pickup_fee_cents ?? 0;
       const generatorFeeCents = (order as any).generator_fee_cents ?? 0;
-      // Use the DB-stored total_cents (written by pricing engine) rather than
-      // re-deriving from individual columns, which risks omitting fees added later.
-      const totalCents = (order as any).total_cents ?? (subtotalCents + taxCents + travelFeeCents + surfaceFeeCents + sameDayPickupFeeCents + generatorFeeCents);
+      // The total by the one order formula (orderMoney) over the stored order, not a sum of a few columns.
+      const totalCents = storedOrderTotalCents(order as any, [], []);
 
       const { data, error } = await supabase.from('invoices').insert({
         invoice_number: invoiceNumber,

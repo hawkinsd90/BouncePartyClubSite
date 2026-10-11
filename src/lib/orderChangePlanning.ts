@@ -14,6 +14,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
 import { ORDER_STATUS } from './constants/statuses';
+import { remainingDepositCents } from './orderMoney';
 import { eventAddressLine2, normalizeUnit } from './eventAddress';
 
 export type ChangeLog = [string, any, any];
@@ -120,7 +121,7 @@ const CUSTOMER_VISIBLE_CHANGE_KEYS = new Set([
   'travel_per_mile_cents', 'travel_is_flat_fee', 'surface_fee_cents',
   'same_day_pickup_fee_cents', 'same_day_weekday_delivery_fee_cents', 'tax_cents',
   'setup_fee_cents',
-  'deposit_due_cents', 'balance_due_cents', 'deposit_catchup_cents',
+  'deposit_due_cents', 'balance_due_cents', 'custom_deposit_cents',
   'tax_waived', 'tax_waive_reason', 'travel_fee_waived', 'travel_fee_waive_reason',
   'same_day_pickup_fee_waived', 'same_day_pickup_fee_waive_reason',
   'surface_fee_waived', 'surface_fee_waive_reason',
@@ -353,10 +354,16 @@ export function planOrderChanges(input: OrderChangePlanInput, deps: OrderChangeP
       logs.push(['tax', order.tax_cents, calculatedPricing.tax_cents]);
     }
 
+    // A deposit override is explicit: null = no override (the formula decides), 0 = deliberately no deposit, > 0 = that deposit.
+    // It is saved with the order so the next edit starts from the same state instead of silently falling back to the formula.
     const finalDepositCents = customDepositCents !== null ? customDepositCents : calculatedPricing.deposit_due_cents;
     if (finalDepositCents !== order.deposit_due_cents) {
       changes.deposit_due_cents = finalDepositCents;
       logs.push(['deposit_due', order.deposit_due_cents, finalDepositCents]);
+    }
+    if ((customDepositCents ?? null) !== (order.custom_deposit_cents ?? null)) {
+      changes.custom_deposit_cents = customDepositCents;
+      logs.push(['custom_deposit', order.custom_deposit_cents ?? null, customDepositCents]);
     }
 
     effectiveTotalCents = calculateTotalFromOrder(
@@ -367,7 +374,7 @@ export function planOrderChanges(input: OrderChangePlanInput, deps: OrderChangeP
 
     const depositAlreadyCapturedCents = order.deposit_paid_cents || 0;
     const isConfirmedWithPayment = (order.status === ORDER_STATUS.CONFIRMED || order.status === ORDER_STATUS.IN_PROGRESS) && depositAlreadyCapturedCents > 0;
-    const depositDifferenceCents = Math.max(0, finalDepositCents - depositAlreadyCapturedCents);
+    const depositDifferenceCents = remainingDepositCents(finalDepositCents, depositAlreadyCapturedCents);
 
     const hasRefunds = (order.total_refunded_cents || 0) > 0;
     const depositPaidCents = order.deposit_paid_cents || 0;
@@ -378,12 +385,19 @@ export function planOrderChanges(input: OrderChangePlanInput, deps: OrderChangeP
     if (hasRefunds) {
       newBalanceDueCents = order.balance_due_cents ?? 0;
     } else if (isConfirmedWithPayment && depositDifferenceCents > 0 && depositCatchupMode === 'require') {
+      // The unpaid part of the new deposit is NOT a stored amount: it is always derived (required deposit - deposit principal
+      // paid) when it is collected, so it cannot go stale. The balance excludes it.
       newBalanceDueCents = Math.max(0, effectiveTotalCents - finalDepositCents - balancePaidCents - excessDepositPaidCents);
-      changes.deposit_catchup_cents = depositDifferenceCents;
       logs.push(['deposit_catchup', 0, depositDifferenceCents]);
     } else if (isConfirmedWithPayment && depositDifferenceCents > 0 && depositCatchupMode === 'waive') {
+      // Waived: the deposit the order requires becomes what is already paid (saved as an explicit override), so nothing is left
+      // to collect as a catch-up, and the difference stays in the balance.
       newBalanceDueCents = Math.max(0, effectiveTotalCents - depositPaidCents - balancePaidCents);
-      changes.deposit_catchup_cents = 0;
+      changes.deposit_due_cents = depositPaidCents;
+      changes.custom_deposit_cents = depositPaidCents;
+      const dueLog = logs.findIndex((l) => l[0] === 'deposit_due');
+      if (dueLog >= 0) logs[dueLog] = ['deposit_due', order.deposit_due_cents, depositPaidCents];
+      else logs.push(['deposit_due', order.deposit_due_cents, depositPaidCents]);
     } else {
       newBalanceDueCents = Math.max(0, effectiveTotalCents - finalDepositCents - balancePaidCents - excessDepositPaidCents);
     }

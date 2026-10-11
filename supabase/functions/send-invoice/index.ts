@@ -1,6 +1,7 @@
 import { createClient } from 'npm:@supabase/supabase-js@2.57.4';
 import { resolveCaller, requireRoles, authFailureResponse, INVOICE_SENDER_ROLES } from '../_shared/auth.ts';
 import { generateShortCode, portalTokenFragment } from '../_shared/portal-link.ts';
+import { storedOrderTotalCents } from '../_shared/booking/orderMoney.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -54,9 +55,8 @@ Deno.serve(async (req: Request) => {
       }
     }
 
-    const { orderId, depositCents: rawDepositCents, customerEmail, customerPhone, customerName } = await req.json();
-    const parsedDepositCents = Number(rawDepositCents);
-    const depositCents = Number.isFinite(parsedDepositCents) ? parsedDepositCents : 0;
+    // The deposit on the invoice link is the order's own required deposit (stored, server-derived), never a figure the caller sends.
+    const { orderId, customerEmail, customerPhone, customerName } = await req.json();
 
     if (!orderId) {
       return new Response(
@@ -80,24 +80,10 @@ Deno.serve(async (req: Request) => {
       );
     }
 
-    const customFeesCents = (customFeesResult.data || []).reduce(
-      (sum: number, f: { amount_cents: number }) => sum + (f.amount_cents || 0), 0
-    );
-    const subtotal = order.subtotal_cents || 0;
-    const discountCents = (discountsResult.data || []).reduce(
-      (sum: number, d: { amount_cents: number | null; percentage: number | null }) => {
-        if (d.percentage && d.percentage > 0) return sum + Math.round(subtotal * (d.percentage / 100));
-        return sum + (d.amount_cents || 0);
-      }, 0
-    );
-    const orderTotalCents = subtotal
-      + (order.travel_fee_waived ? 0 : (order.travel_fee_cents || 0))
-      + (order.surface_fee_waived ? 0 : (order.surface_fee_cents || 0))
-      + (order.generator_fee_waived ? 0 : (order.generator_fee_cents || 0))
-      + (order.same_day_pickup_fee_waived ? 0 : (order.same_day_pickup_fee_cents || 0))
-      + (order.tax_waived ? 0 : (order.tax_cents || 0))
-      + customFeesCents
-      - discountCents;
+    // The stored order is the snapshot (stored fees are already effective, stored tax is the tax that applies); the total is
+    // orderMoney's, the same figure the app and the portal show.
+    const orderTotalCents = storedOrderTotalCents(order, discountsResult.data || [], customFeesResult.data || []);
+    const depositCents = Number.isFinite(Number(order.deposit_due_cents)) ? Number(order.deposit_due_cents) : 0;
 
     const shortCode = await generateUniqueShortCode(supabase);
 

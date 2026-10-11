@@ -4,13 +4,12 @@
 
 // Stage E4 — Pure additive unified total composer.
 //
-// Composes the Event Essentials subtotal BESIDE the existing inflatable
-// price breakdown without mutating it or feeding EE lines into the inflatable
-// calculatePrice engine. The inflatable breakdown's tax_cents and total_cents
-// are preserved exactly; only the EE effect is added.
+// Composes the Event Essentials subtotal and the Setup Fee BESIDE the existing
+// inflatable price breakdown without feeding EE lines into the inflatable
+// calculatePrice engine.
 //
-// unifiedTotalCents = inflatableBreakdown.total_cents + eeSubtotal + eeTaxCents
-// unifiedTaxCents   = inflatableBreakdown.tax_cents + eeTaxCents
+// unifiedTaxCents   = 6% of (inflatable subtotal + travel + surface + generator + EE + Setup Fee), rounded once
+// unifiedTotalCents = inflatableBreakdown.total_cents - inflatableBreakdown.tax_cents + eeSubtotal + Setup Fee + unifiedTaxCents
 //
 // Deposit is derived from inflatables only (unchanged).
 
@@ -18,6 +17,7 @@ import type { PriceBreakdown } from './pricing.ts';
 import { calculateEventEssentialsSubtotalCents } from './eventEssentialsMoney.ts';
 import { calculateRequiredDepositCents, type EEOnlyDepositSettings } from './depositCalculation.ts';
 import { calculateEventEssentialsSetupFeeCents } from './setupFeeCalculation.ts';
+import { calculateSalesTaxCents } from './orderMoney.ts';
 import { isInflatableCartItem } from './unifiedCartGuards.ts';
 import type { UnifiedCartItem } from './types.ts';
 
@@ -48,8 +48,6 @@ export interface ComposeUnifiedQuoteTotalsInput {
   setupMinimumCents?: number;
 }
 
-const TAX_RATE = 0.06;
-
 export function composeUnifiedQuoteTotals(
   input: ComposeUnifiedQuoteTotalsInput,
 ): UnifiedQuoteTotals {
@@ -71,21 +69,15 @@ export function composeUnifiedQuoteTotals(
     setupMinimumCents: input.setupMinimumCents,
   });
 
-  // EE tax: same convention as inflatable engine — EE equipment + Setup Fee are taxable.
-  // Same-day pickup fee is NOT taxable (matches inflatable engine behavior).
-  const eeAndSetupTaxCents = input.taxApplied
-    ? Math.round((eventEssentialsSubtotalCents + setupFeeCents) * TAX_RATE)
-    : 0;
+  // The taxable amount: equipment (inflatable + Event Essentials) + travel + surface + generator + Setup Fee. Same-day pickup and
+  // weekday-delivery fees are not taxed. The tax is one 6% calculation, rounded once, on that whole amount (the same as the order
+  // pricing engine), not the sum of two separately rounded pieces.
+  const taxableSubtotalCents =
+    bd.subtotal_cents + travelFeeCents + surfaceFeeCents + generatorFeeCents + eventEssentialsSubtotalCents + setupFeeCents;
+  const taxCents = input.taxApplied ? calculateSalesTaxCents(taxableSubtotalCents) : 0;
 
-  const taxCents = bd.tax_cents + eeAndSetupTaxCents;
-
-  // Preserve the inflatable breakdown total exactly, then add EE subtotal + EE tax.
-  const totalCents = bd.total_cents + eventEssentialsSubtotalCents + eeAndSetupTaxCents + setupFeeCents;
-
-  // For reporting: the taxable base that includes EE.
-  const existingTaxableBase =
-    bd.subtotal_cents + travelFeeCents + surfaceFeeCents + generatorFeeCents;
-  const taxableSubtotalCents = existingTaxableBase + eventEssentialsSubtotalCents + setupFeeCents;
+  // The inflatable breakdown total without its own tax, plus Event Essentials, Setup Fee and the one tax.
+  const totalCents = bd.total_cents - bd.tax_cents + eventEssentialsSubtotalCents + setupFeeCents + taxCents;
 
   const depositResult = calculateRequiredDepositCents({
     inflatableQuantity: inflatableCount,

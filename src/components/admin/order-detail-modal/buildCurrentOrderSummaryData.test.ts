@@ -79,8 +79,10 @@ function oraclePrimary(
       const fees = (order.travel_fee_cents || 0) + (order.surface_fee_cents || 0) + (order.same_day_pickup_fee_cents || 0) + (order.same_day_weekday_delivery_fee_cents || 0) + (order.generator_fee_cents || 0) + (order.setup_fee_cents || 0);
       const totalCustomFees = customFees.filter(f => !f.is_new).reduce((sum: number, f: TestFee) => sum + (f.amount_cents || 0), 0);
       const totalDiscounts = discounts.filter(d => !d.is_new).reduce((sum: number, d: TestDiscount) => {
+        // APPROVED: one amount per discount - the fixed amount wins, else the percentage (never both).
+        if (d.amount_cents && d.amount_cents > 0) return sum + d.amount_cents;
         if (d.percentage) return sum + Math.round(subtotal * (d.percentage / 100));
-        return sum + (d.amount_cents || 0);
+        return sum;
       }, 0);
       const tax = order.tax_cents || 0;
       return subtotal + fees + totalCustomFees - totalDiscounts + tax;
@@ -106,8 +108,9 @@ function oracleFallback(
   const fees = (order.travel_fee_cents || 0) + (order.surface_fee_cents || 0) + (order.same_day_pickup_fee_cents || 0) + (order.same_day_weekday_delivery_fee_cents || 0) + (order.generator_fee_cents || 0) + (order.setup_fee_cents || 0);
   const totalCustomFees = customFees.filter((f: TestFee) => !f.is_new).reduce((sum: number, f: TestFee) => sum + (f.amount_cents || 0), 0);
   const totalDiscounts = discounts.filter((d: TestDiscount) => !d.is_new).reduce((sum: number, d: TestDiscount) => {
+    if (d.amount_cents && d.amount_cents > 0) return sum + d.amount_cents;
     if (d.percentage) return sum + Math.round(subtotal * (d.percentage / 100));
-    return sum + (d.amount_cents || 0);
+    return sum;
   }, 0);
   const fallbackSummary = {
     items: orderItems,
@@ -262,8 +265,8 @@ ok('percentage rounds down: 12.5% of 1001 = 125.125 -> 125 -> total 876',
   check('pct round down', bareOrder({ subtotal_cents: 1001 }), [disc({ percentage: 12.5 })]).primary.total_cents === 876);
 ok('percentage 0 falls through to fixed amount: total 9300',
   check('pct zero', bareOrder(), [disc({ percentage: 0, amount_cents: 700 })]).primary.total_cents === 9300);
-ok('percentage wins over amount when both set: total 9000',
-  check('pct wins', bareOrder(), [disc({ percentage: 10, amount_cents: 9999 })]).primary.total_cents === 9000);
+ok('APPROVED rule: the fixed amount wins over the percentage when both are set: total 1',
+  check('pct wins', bareOrder(), [disc({ percentage: 10, amount_cents: 9999 })]).primary.total_cents === 1);
 ok('fixed discount: total 7500',
   check('fixed', bareOrder(), [disc({ amount_cents: 2500 })]).primary.total_cents === 7500);
 ok('multiple discounts: 10000 - 1000 - 500 - 250 = 8250',

@@ -3,7 +3,9 @@
 // Every customer mutation is a NAMED action with an exact payload shape. An unknown action, an unknown key, a wrong type
 // or an out-of-range value is rejected before anything touches the database. There is no generic "update this field"
 // path: the caller can never choose a table, a column or a filter.
-// Import-free so the Node test harness can load it unchanged.
+// Its only import is the pure orderMoney module, which the Node test harness loads as well.
+
+import { storedOrderTotalCents } from "./booking/orderMoney.ts";
 
 export type PortalActionName =
   | "invoice_accept_details"
@@ -299,27 +301,14 @@ export interface OrderTotalInputs {
   tax_cents?: number | null;
 }
 
-// Mirrors src/lib/orderSummary.ts calculateTotalFromOrder (the figure the approval screen shows as the order total):
-// subtotal + fees + custom fees - discounts + tax. Tip is separate and not part of the total.
+// The figure the approval screen shows as the order total: orderMoney (a generated copy of src/lib/orderMoney.ts, the same
+// arithmetic as src/lib/orderSummary.ts calculateTotalFromOrder). Tip is separate and not part of the total.
 export function orderTotalCents(
   order: OrderTotalInputs,
   discounts: Array<{ amount_cents?: number | null; percentage?: number | null }>,
   customFees: Array<{ amount_cents?: number | null }>,
 ): number {
-  const subtotal = order.subtotal_cents || 0;
-  const totalFees =
-    (order.travel_fee_cents || 0) +
-    (order.surface_fee_cents || 0) +
-    (order.same_day_pickup_fee_cents || 0) +
-    (order.same_day_weekday_delivery_fee_cents || 0) +
-    (order.generator_fee_cents || 0) +
-    (order.setup_fee_cents || 0);
-  const totalCustomFees = customFees.reduce((sum, f) => sum + (f.amount_cents || 0), 0);
-  const discountTotal = discounts.reduce((sum, d) => {
-    if (d.percentage) return sum + Math.round(subtotal * (d.percentage / 100));
-    return sum + (d.amount_cents || 0);
-  }, 0);
-  return subtotal + totalFees + totalCustomFees - discountTotal + (order.tax_cents || 0);
+  return storedOrderTotalCents(order, discounts, customFees);
 }
 
 // Server-side bounds for what the approval screen can legitimately send as the customer's payment selection, without

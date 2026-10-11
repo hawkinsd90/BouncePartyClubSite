@@ -128,8 +128,8 @@ eq('helper: addressWithOrderUnit with no address is null', addressWithOrderUnit(
 // 4. Source wiring: admin invoice, address service, duplication, print, dashboard, admin card
 // ---------------------------------------------------------------------------------------------------------------
 {
-  const invoice = read('src/lib/invoiceService.ts');
-  ok('invoice: an admin-created order stores its own normalized unit', /event_address_line2:\s*normalizeUnit\(eventDetails\.address_line2\)/.test(invoice));
+  const invoice = read('supabase/functions/_shared/staff-order-save.ts');
+  ok('invoice: an admin-created order stores its own normalized unit (the server writes it)', /event_address_line2:\s*parsedEvent\.address_line2\.trim\(\)/.test(invoice));
   const addressService = read('src/lib/addressService.ts');
   ok('address service: the shared row\'s line2 is first-writer and never rewritten by a later booking / edit', /const sharedLine2 = existingRow \? \(existingRow\.line2 \?\? null\) : \(line2 \?\? null\);/.test(addressService) && /line2: sharedLine2,/.test(addressService) && !/line2: line2 \?\? null,/.test(addressService));
   ok('duplication: a duplicated order copies THIS order\'s unit', /address_line2: eventAddressLine2\(orderData\)/.test(read('src/hooks/useOrderDuplication.ts')));

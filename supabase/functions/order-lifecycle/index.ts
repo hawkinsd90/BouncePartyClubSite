@@ -13,6 +13,7 @@ import {
   type AuthClient,
 } from "../_shared/auth.ts";
 import { evaluateCustomerConfirmation } from "../_shared/lifecycle-outcome.ts";
+import { storedOrderTotalCents } from "../_shared/booking/orderMoney.ts";
 import { getOrCreatePortalLink } from "../_shared/portal-link.ts";
 
 const corsHeaders = {
@@ -154,7 +155,7 @@ async function enterPendingReview(
     .select(`
       id, status, event_date, pending_review_admin_alerted,
       subtotal_cents, travel_fee_cents, surface_fee_cents,
-      same_day_pickup_fee_cents, generator_fee_cents, tax_cents,
+      same_day_pickup_fee_cents, same_day_weekday_delivery_fee_cents, generator_fee_cents, setup_fee_cents, tax_cents,
       deposit_due_cents, balance_due_cents, tip_cents,
       start_window, end_window, location_type, surface,
       travel_total_miles,
@@ -162,7 +163,7 @@ async function enterPendingReview(
       addresses(line1, city, state, zip),
       order_items(qty, wet_or_dry, unit_price_cents, units(name)),
       order_custom_fees(amount_cents),
-      order_discounts(amount_cents)
+      order_discounts(amount_cents, percentage)
     `)
     .eq("id", orderId)
     .maybeSingle();
@@ -267,7 +268,7 @@ async function enterConfirmed(
       id, status, event_date, confirmed_admin_alerted, customer_approved_at,
       stripe_customer_id, stripe_payment_method_id, stripe_payment_status, require_card_on_file,
       subtotal_cents, travel_fee_cents, surface_fee_cents,
-      same_day_pickup_fee_cents, generator_fee_cents, tax_cents,
+      same_day_pickup_fee_cents, same_day_weekday_delivery_fee_cents, generator_fee_cents, setup_fee_cents, tax_cents,
       deposit_due_cents, balance_due_cents, tip_cents,
       deposit_paid_cents, start_window, end_window, location_type, surface,
       travel_total_miles,
@@ -275,7 +276,7 @@ async function enterConfirmed(
       addresses(line1, city, state, zip),
       order_items(qty, wet_or_dry, unit_price_cents, units(name)),
       order_custom_fees(amount_cents),
-      order_discounts(amount_cents)
+      order_discounts(amount_cents, percentage)
     `)
     .eq("id", orderId)
     .maybeSingle();
@@ -491,18 +492,9 @@ async function sendAdminPendingReviewAlert(
 
   if (settings.email) {
     const customFees: Array<{ amount_cents: number }> = Array.isArray(order.order_custom_fees) ? order.order_custom_fees : [];
-    const discounts: Array<{ amount_cents: number }> = Array.isArray(order.order_discounts) ? order.order_discounts : [];
-    const customFeesTotal = customFees.reduce((sum: number, f: { amount_cents: number }) => sum + (f.amount_cents || 0), 0);
-    const discountsTotal = discounts.reduce((sum: number, d: { amount_cents: number }) => sum + (d.amount_cents || 0), 0);
-    const totalCents =
-      (order.subtotal_cents || 0) +
-      (order.travel_fee_cents || 0) +
-      (order.surface_fee_cents || 0) +
-      (order.same_day_pickup_fee_cents || 0) +
-      (order.generator_fee_cents || 0) +
-      customFeesTotal -
-      discountsTotal +
-      (order.tax_cents || 0);
+    const discounts: Array<{ amount_cents: number; percentage?: number | null }> = Array.isArray(order.order_discounts) ? order.order_discounts : [];
+    // The same arithmetic as every other order total (orderMoney): Setup Fee, weekday delivery fee and percentage discounts included.
+    const totalCents = storedOrderTotalCents(order, discounts, customFees);
 
     const addressStr = address
       ? `${address.line1}, ${address.city}, ${address.state}`
@@ -609,18 +601,9 @@ async function sendAdminConfirmedAlert(
 
   if (settings.email) {
     const customFees: Array<{ amount_cents: number }> = Array.isArray(order.order_custom_fees) ? order.order_custom_fees : [];
-    const discounts: Array<{ amount_cents: number }> = Array.isArray(order.order_discounts) ? order.order_discounts : [];
-    const customFeesTotal = customFees.reduce((sum: number, f: { amount_cents: number }) => sum + (f.amount_cents || 0), 0);
-    const discountsTotal = discounts.reduce((sum: number, d: { amount_cents: number }) => sum + (d.amount_cents || 0), 0);
-    const totalCents =
-      (order.subtotal_cents || 0) +
-      (order.travel_fee_cents || 0) +
-      (order.surface_fee_cents || 0) +
-      (order.same_day_pickup_fee_cents || 0) +
-      (order.generator_fee_cents || 0) +
-      customFeesTotal -
-      discountsTotal +
-      (order.tax_cents || 0);
+    const discounts: Array<{ amount_cents: number; percentage?: number | null }> = Array.isArray(order.order_discounts) ? order.order_discounts : [];
+    // The same arithmetic as every other order total (orderMoney): Setup Fee, weekday delivery fee and percentage discounts included.
+    const totalCents = storedOrderTotalCents(order, discounts, customFees);
 
     const depositPaid = order.deposit_paid_cents || 0;
     const balanceDue = order.balance_due_cents || 0;

@@ -11,6 +11,7 @@ import { showToast } from '../../lib/notifications';
 import { formatOrderId } from '../../lib/utils';
 import { format } from 'date-fns';
 import { formatCurrency } from '../../lib/pricing';
+import { storedOrderTotalCents } from '../../lib/orderMoney';
 import { portalAction, PortalActionError } from '../../lib/customerPortalApi';
 import { checkEventEssentialsAvailability } from '../../lib/queries/products';
 import { enterConfirmed } from '../../lib/orderLifecycle';
@@ -330,7 +331,7 @@ export function ApprovalModal({
 
         // chargeSucceeded means Stripe charged but a post-charge DB step failed.
         // Do NOT show the decline UI — the customer was charged successfully.
-        const NOT_A_DECLINE = ['ORDER_CHANGED', 'PAYMENT_IN_PROGRESS', 'DEPOSIT_CATCH_UP_REQUIRED', 'ORDER_STATUS_NOT_PAYABLE', 'PAYMENT_SELECTION_INVALID', 'PAYMENT_RECORDS_CONFLICT', 'PAYMENT_STATUS_UNKNOWN', 'PAYMENT_PROCESSING', 'INVALID_TIP', 'INVALID_AMOUNT'];
+        const NOT_A_DECLINE = ['ORDER_CHANGED', 'PAYMENT_IN_PROGRESS', 'DEPOSIT_CATCH_UP_REVIEW_REQUIRED', 'ORDER_STATUS_NOT_PAYABLE', 'PAYMENT_SELECTION_INVALID', 'PAYMENT_RECORDS_CONFLICT', 'PAYMENT_STATUS_UNKNOWN', 'PAYMENT_PROCESSING', 'INVALID_TIP', 'INVALID_AMOUNT'];
         if (!chargeData?.success && !chargeData?.chargeSucceeded && NOT_A_DECLINE.includes(chargeData?.code)) {
           // The card was not refused; the order or the request was. Say so instead of asking for a new card.
           showToast(chargeData?.error || 'This payment could not be started. Please refresh and try again.', 'error');
@@ -395,14 +396,8 @@ export function ApprovalModal({
     ? format(new Date(order.event_date + 'T12:00:00'), 'EEEE, MMMM d, yyyy')
     : 'No date';
 
-  const currentTotalCents = orderTotalCents ?? (
-    (order.subtotal_cents || 0) +
-    (order.generator_fee_cents || 0) +
-    (order.travel_fee_cents || 0) +
-    (order.surface_fee_cents || 0) +
-    (order.same_day_pickup_fee_cents || 0) +
-    (order.tax_cents || 0)
-  );
+  // The summary total when the page has it; otherwise the same formula (orderMoney) over the stored order.
+  const currentTotalCents = orderTotalCents ?? storedOrderTotalCents(order, [], []);
 
   const lastFour =
     order.payment_method_last_four ||

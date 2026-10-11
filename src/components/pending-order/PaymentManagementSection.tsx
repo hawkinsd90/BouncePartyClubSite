@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { format } from 'date-fns';
 import { CreditCard, RefreshCw } from 'lucide-react';
 import { formatCurrency } from '../../lib/pricing';
-import { calculateStoredOrderTotal } from '../../lib/orderUtils';
+import { storedOrderTotalCents } from '../../lib/orderMoney';
 import { supabase } from '../../lib/supabase';
 
 interface Payment {
@@ -85,13 +85,7 @@ export function PaymentManagementSection({
 
   const maxRefundableCents = Math.max(0, totalCapturedCents - reservedRefundCents);
 
-  const customFeesCents = customFees.reduce((sum, f) => sum + (f.amount_cents || 0), 0);
-  const subtotalCents = order.subtotal_cents || 0;
-  const discountCents = discounts.reduce((sum, d) => {
-    if (d.percentage && d.percentage > 0) return sum + Math.round(subtotalCents * (d.percentage / 100));
-    return sum + (d.amount_cents || 0);
-  }, 0);
-  const orderTotalCents = calculateStoredOrderTotal(order) + customFeesCents - discountCents;
+  const orderTotalCents = storedOrderTotalCents(order, discounts, customFees);
 
   const tipCents = order.tip_cents || 0;
   const remainingAfterCapturedCents = Math.max(0, orderTotalCents - totalCapturedCents);

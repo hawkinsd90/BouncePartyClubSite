@@ -254,8 +254,9 @@ function run() {
     const bd = makeTaxBreakdown({ surface_fee_cents: 2500, generator_fee_cents: 10000 });
     const cart: UnifiedCartItem[] = [makeInflatable('u1', 15000)];
     const result = composeUnifiedQuoteTotals({ inflatableBreakdown: bd, cart, taxApplied: true, inflatableDepositPerUnitCents: 5000, eeOnlyDepositSettings: DEFAULT_EE_ONLY_DEPOSIT_SETTINGS });
-    // Inflatable-only: tax unchanged from breakdown
-    ok('19 fee taxable treatment', result.taxCents === 1584);
+    // Inflatable-only. The tax is ONE 6% calculation, rounded once, on subtotal + travel + surface + generator (same-day fees are not
+    // taxed). (Supersedes the old expectation that kept a breakdown's own tax_cents: the single approved tax rule recomputes it.)
+    ok('19 fee taxable treatment', result.taxCents === Math.round((15000 + 11400 + 2500 + 10000) * 0.06));
   }
 
   // 20. Deposit unchanged by Event Essentials.

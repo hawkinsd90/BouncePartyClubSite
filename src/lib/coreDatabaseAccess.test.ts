@@ -338,8 +338,15 @@ const PRIVATE = OWNED.filter((t) => !PUBLIC_READ.includes(t));
     if (process.env.CORE_DB_REQUIRE) ok('executed: a scratch database with the core-database-access migration applied is available (CORE_DB_REQUIRE is set)', false);
     else console.log('EXECUTED layer SKIPPED: no scratch PostgreSQL database with the core-database-access migration was reachable (see the header of this file).');
   } else {
+    // The payment / pricing migrations post-date the lockdown and tighten the order tables further; the scenarios describe the
+    // schema as it will be deployed, so they are applied (inside the rolled-back transaction) first.
+    const PRICING_CHAIN = [
+      'supabase/migrations/20261019120000_add_payment_operations_and_single_financial_application.sql',
+      'supabase/migrations/20261020120000_deposit_catch_up_and_offline_payment_parity.sql',
+      'supabase/migrations/20261021120000_server_authoritative_order_pricing_saves.sql',
+    ];
     const scenarios = buildScenarios();
-    const r = spawnSync(psql, [...args, '-v', 'ON_ERROR_STOP=1'], { input: buildScript(scenarios), encoding: 'utf8', maxBuffer: 50 * 1024 * 1024, timeout: 120000 });
+    const r = spawnSync(psql, [...args, '-v', 'ON_ERROR_STOP=1'], { input: buildScript(scenarios, PRICING_CHAIN.map((f) => read(f)).join('\n')), encoding: 'utf8', maxBuffer: 50 * 1024 * 1024, timeout: 120000 });
     const results: Record<number, string> = {};
     for (const m of ((r.stderr ?? '') + (r.stdout ?? '')).matchAll(/R\|(\d+)\|(.*)/g)) results[Number(m[1])] = m[2].trim();
     ok(`executed: the scenario script ran to completion in database "${db}" (${Object.keys(results).length}/${scenarios.length} results)`, Object.keys(results).length === scenarios.length);

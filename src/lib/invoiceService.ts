@@ -1,13 +1,14 @@
-import { supabase } from './supabase';
 import { getEdgeAuthToken } from './edgeAuth';
-import type { PriceBreakdown } from './pricing';
-import { upsertCanonicalAddress } from './addressService';
-import { ORDER_STATUS } from './constants/statuses';
-import { normalizeUnit } from './eventAddress';
+import { callStaffOrderSave } from './staffOrderSaveApi';
+
+// Creating an Admin / Crew invoice. The browser describes the invoice (customer, equipment, event, discounts, custom fees, waivers,
+// an explicit deposit or Setup Fee override); the SERVER prices it and creates the draft order (staff-order-save, action
+// create_invoice). No price, tax, total, deposit or balance computed in the browser is sent, and none would be accepted.
 
 interface CartItem {
   unit_id: string;
   mode: 'dry' | 'water';
+  // The staff member's own line price for this invoice (the "adjusted price"). It is an explicit input, bounded by the server.
   adjusted_price_cents: number;
   qty: number;
 }
@@ -55,17 +56,13 @@ interface EEProductItem {
   component_snapshot?: any;
 }
 
-interface InvoiceData {
+export interface InvoiceData {
   customerId: string | null;
   cartItems: CartItem[];
   eeProductItems?: EEProductItem[];
   eventDetails: EventDetails;
-  priceBreakdown: PriceBreakdown | null;
-  subtotal: number;
-  taxCents: number;
-  depositRequired: number;
-  totalCents: number;
   customDepositCents: number | null;
+  customSetupFeeCents?: number | null;
   discounts: Discount[];
   customFees: CustomFee[];
   adminMessage: string;
@@ -82,185 +79,40 @@ interface InvoiceData {
   sameDayWeekdayDeliveryFeeWaived?: boolean;
   sameDayWeekdayDeliveryFeeWaiveReason?: string;
   requireCardOnFile?: boolean;
-  generatorQty?: number;
-  generatorFeeCents?: number;
-  setupFeeCents?: number;
 }
 
-async function createAddress(eventDetails: EventDetails) {
-  return upsertCanonicalAddress({
-    customer_id: null,
-    line1: eventDetails.address_line1,
-    line2: eventDetails.address_line2 || null,
-    city: eventDetails.city,
-    state: eventDetails.state,
-    zip: eventDetails.zip,
-    lat: eventDetails.lat ?? null,
-    lng: eventDetails.lng ?? null,
-  });
-}
-
-async function createOrder(
-  customerId: string | null,
-  addressId: string,
-  eventDetails: EventDetails,
-  priceBreakdown: PriceBreakdown | null,
-  subtotal: number,
-  taxCents: number,
-  depositRequired: number,
-  totalCents: number,
-  customDepositCents: number | null,
-  adminMessage: string,
-  taxWaived: boolean = false,
-  taxWaiveReason: string | null = null,
-  travelFeeWaived: boolean = false,
-  travelFeeWaiveReason: string | null = null,
-  sameDayPickupFeeWaived: boolean = false,
-  sameDayPickupFeeWaiveReason: string | null = null,
-  surfaceFeeWaived: boolean = false,
-  surfaceFeeWaiveReason: string | null = null,
-  generatorFeeWaived: boolean = false,
-  generatorFeeWaiveReason: string | null = null,
-  sameDayWeekdayDeliveryFeeWaived: boolean = false,
-  sameDayWeekdayDeliveryFeeWaiveReason: string | null = null,
-  requireCardOnFile: boolean = true,
-  eeProductItems: EEProductItem[] = [],
-  generatorQty: number = 0,
-  generatorFeeCents: number = 0,
-  hasInflatables: boolean = false,
-  setupFeeCents: number = 0
-) {
-  const { data, error } = await supabase
-    .from('orders')
-    .insert({
-      customer_id: customerId,
-      address_id: addressId,
-      // This order's own delivery unit (the shared address row may carry another booking's unit).
-      event_address_line2: normalizeUnit(eventDetails.address_line2),
-      event_date: eventDetails.event_date,
-      event_end_date: eventDetails.event_end_date || eventDetails.event_date,
-      start_window: eventDetails.start_window,
-      end_window: eventDetails.end_window,
-      until_end_of_day: eventDetails.until_end_of_day,
-      location_type: eventDetails.location_type,
-      surface: (eeProductItems || []).length > 0 && hasInflatables === false
-        ? null
-        : eventDetails.surface,
-      generator_qty: generatorQty,
-      pickup_preference: eventDetails.pickup_preference,
-      same_day_responsibility_accepted: eventDetails.same_day_responsibility_accepted,
-      overnight_responsibility_accepted: eventDetails.overnight_responsibility_accepted,
-      subtotal_cents: priceBreakdown?.subtotal_cents || subtotal,
-      travel_fee_cents: priceBreakdown?.travel_fee_cents || 0,
-      travel_total_miles: priceBreakdown?.travel_total_miles || 0,
-      travel_base_radius_miles: priceBreakdown?.travel_base_radius_miles || 0,
-      travel_chargeable_miles: priceBreakdown?.travel_chargeable_miles || 0,
-      travel_per_mile_cents: priceBreakdown?.travel_per_mile_cents || 0,
-      travel_is_flat_fee: priceBreakdown?.travel_is_flat_fee || false,
-      surface_fee_cents: hasInflatables ? (priceBreakdown?.surface_fee_cents || 0) : 0,
-      same_day_pickup_fee_cents: priceBreakdown?.same_day_pickup_fee_cents || 0,
-      same_day_weekday_delivery_fee_cents: priceBreakdown?.same_day_weekday_delivery_fee_cents || 0,
-      generator_fee_cents: generatorFeeCents,
-      setup_fee_cents: setupFeeCents,
-      event_essentials_subtotal_cents: (eeProductItems || [])
-        .reduce((sum: number, item: EEProductItem) => sum + item.unit_price_cents * item.qty, 0),
-      tax_cents: taxCents,
-      tax_waived: taxWaived,
-      tax_waive_reason: taxWaiveReason,
-      travel_fee_waived: travelFeeWaived,
-      travel_fee_waive_reason: travelFeeWaiveReason,
-      same_day_pickup_fee_waived: sameDayPickupFeeWaived,
-      same_day_pickup_fee_waive_reason: sameDayPickupFeeWaiveReason,
-      surface_fee_waived: surfaceFeeWaived,
-      surface_fee_waive_reason: surfaceFeeWaiveReason,
-      generator_fee_waived: generatorFeeWaived,
-      generator_fee_waive_reason: generatorFeeWaiveReason,
-      same_day_weekday_delivery_fee_waived: sameDayWeekdayDeliveryFeeWaived,
-      same_day_weekday_delivery_fee_waive_reason: sameDayWeekdayDeliveryFeeWaiveReason,
-      deposit_due_cents: depositRequired,
-      deposit_required: depositRequired > 0,
-      balance_due_cents: Math.max(0, totalCents - depositRequired),
-      custom_deposit_cents: customDepositCents,
-      tip_cents: 0,
-      deposit_paid_cents: 0,
-      booking_confirmation_sent: false,
-      cancellation_reason: null,
-      status: ORDER_STATUS.DRAFT,
-      card_on_file_consent: false,
-      sms_consent: false,
-      admin_message: adminMessage || null,
-      require_card_on_file: requireCardOnFile,
-    })
-    .select()
-    .single();
-
-  if (error) throw error;
-  return data;
-}
-
-async function createOrderItems(orderId: string, cartItems: CartItem[], eeProductItems: EEProductItem[]) {
-  for (const item of eeProductItems) {
-    if (item.pricing_context !== 'standalone' && item.pricing_context !== 'addon') {
-      throw new Error(
-        `Cannot persist Event Essentials item "${item.item_name || item.product_name}": pricing_context is missing or invalid ("${item.pricing_context}").`
-      );
-    }
-  }
-
-  const orderItems = [
-    ...cartItems.map(item => ({
-      order_id: orderId,
-      unit_id: item.unit_id,
-      qty: item.qty,
-      wet_or_dry: item.mode,
-      unit_price_cents: item.adjusted_price_cents,
-    })),
-    ...eeProductItems.map(item => ({
-      order_id: orderId,
-      product_id: item.product_id || null,
-      bundle_id: item.bundle_id || null,
-      item_name: item.item_name || item.product_name,
-      qty: item.qty,
-      unit_price_cents: item.unit_price_cents,
-      pricing_context: item.pricing_context,
-      component_snapshot: item.component_snapshot || null,
-    })),
-  ];
-
-  if (orderItems.length === 0) return;
-
-  const { error } = await supabase.from('order_items').insert(orderItems as any);
-
-  if (error) throw error;
-}
-
-async function createOrderDiscounts(orderId: string, discounts: Discount[]) {
-  if (discounts.length === 0) return;
-
-  const orderDiscounts = discounts.map(d => ({
-    order_id: orderId,
-    name: d.name,
-    amount_cents: d.amount_cents,
-    percentage: d.percentage,
-  }));
-
-  const { error } = await supabase.from('order_discounts').insert(orderDiscounts);
-
-  if (error) throw error;
-}
-
-async function createOrderCustomFees(orderId: string, customFees: CustomFee[]) {
-  if (customFees.length === 0) return;
-
-  const orderFees = customFees.map(f => ({
-    order_id: orderId,
-    name: f.name,
-    amount_cents: f.amount_cents,
-  }));
-
-  const { error } = await supabase.from('order_custom_fees').insert(orderFees);
-
-  if (error) throw error;
+export function buildInvoiceRequest(invoiceData: InvoiceData) {
+  const waiver = (waived: boolean | undefined, reason: string | null | undefined) => ({ waived: !!waived, reason: reason ?? '' });
+  const e = invoiceData.eventDetails;
+  return {
+    customerId: invoiceData.customerId,
+    items: [
+      ...invoiceData.cartItems.map((item) => ({ kind: 'inflatable', unit_id: item.unit_id, wet_or_dry: item.mode, qty: item.qty, unit_price_cents: item.adjusted_price_cents })),
+      ...(invoiceData.eeProductItems || []).map((item) => ({
+        kind: item.bundle_id ? 'bundle' : 'product', qty: item.qty,
+        ...(item.bundle_id ? { bundle_id: item.bundle_id } : { product_id: item.product_id }),
+      })),
+    ],
+    eventDetails: {
+      event_date: e.event_date, event_end_date: e.event_end_date || e.event_date, start_window: e.start_window, end_window: e.end_window,
+      until_end_of_day: e.until_end_of_day, location_type: e.location_type, surface: e.surface, generator_qty: e.generator_qty ?? 0, pickup_preference: e.pickup_preference,
+      same_day_responsibility_accepted: e.same_day_responsibility_accepted, overnight_responsibility_accepted: e.overnight_responsibility_accepted,
+      address_line1: e.address_line1, address_line2: e.address_line2 || '', city: e.city, state: e.state, zip: e.zip,
+      ...(typeof e.lat === 'number' ? { lat: e.lat } : {}), ...(typeof e.lng === 'number' ? { lng: e.lng } : {}),
+    },
+    discounts: invoiceData.discounts.map((d) => ({ name: d.name, amount_cents: d.amount_cents || 0, percentage: Number(d.percentage || 0) })),
+    customFees: invoiceData.customFees.map((f) => ({ name: f.name, amount_cents: f.amount_cents || 0 })),
+    waivers: {
+      tax: waiver(invoiceData.taxWaived, invoiceData.taxWaiveReason), travel: waiver(invoiceData.travelFeeWaived, invoiceData.travelFeeWaiveReason),
+      surface: waiver(invoiceData.surfaceFeeWaived, invoiceData.surfaceFeeWaiveReason), generator: waiver(invoiceData.generatorFeeWaived, invoiceData.generatorFeeWaiveReason),
+      same_day_pickup: waiver(invoiceData.sameDayPickupFeeWaived, invoiceData.sameDayPickupFeeWaiveReason),
+      same_day_weekday_delivery: waiver(invoiceData.sameDayWeekdayDeliveryFeeWaived, invoiceData.sameDayWeekdayDeliveryFeeWaiveReason),
+    },
+    customDepositCents: invoiceData.customDepositCents,
+    customSetupFeeCents: invoiceData.customSetupFeeCents ?? null,
+    adminMessage: invoiceData.adminMessage,
+    requireCardOnFile: invoiceData.requireCardOnFile !== false,
+  };
 }
 
 interface Customer {
@@ -270,11 +122,7 @@ interface Customer {
   phone: string | null;
 }
 
-async function sendInvoiceToCustomer(
-  orderId: string,
-  depositRequired: number,
-  customer: Customer | null
-) {
+async function sendInvoiceToCustomer(orderId: string, customer: Customer | null) {
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), 20_000);
 
@@ -290,9 +138,9 @@ async function sendInvoiceToCustomer(
           Authorization: `Bearer ${await getEdgeAuthToken()}`,
           'Content-Type': 'application/json',
         },
+        // The deposit on the invoice is the order's own, stored deposit: the server reads it, the caller does not send one.
         body: JSON.stringify({
           orderId: orderId,
-          depositCents: depositRequired,
           customerEmail: customer?.email || null,
           customerPhone: customer?.phone || null,
           customerName: customer ? `${customer.first_name} ${customer.last_name}` : null,
@@ -322,47 +170,11 @@ export async function generateInvoice(invoiceData: InvoiceData, customer: Custom
     }
   }
 
-  const address = await createAddress(invoiceData.eventDetails);
-
-  const order = await createOrder(
-    invoiceData.customerId,
-    address.id,
-    invoiceData.eventDetails,
-    invoiceData.priceBreakdown,
-    invoiceData.subtotal,
-    invoiceData.taxCents,
-    invoiceData.depositRequired,
-    invoiceData.totalCents,
-    invoiceData.customDepositCents,
-    invoiceData.adminMessage,
-    invoiceData.taxWaived || false,
-    invoiceData.taxWaiveReason || null,
-    invoiceData.travelFeeWaived || false,
-    invoiceData.travelFeeWaiveReason || null,
-    invoiceData.sameDayPickupFeeWaived || false,
-    invoiceData.sameDayPickupFeeWaiveReason || null,
-    invoiceData.surfaceFeeWaived || false,
-    invoiceData.surfaceFeeWaiveReason || null,
-    invoiceData.generatorFeeWaived || false,
-    invoiceData.generatorFeeWaiveReason || null,
-    invoiceData.sameDayWeekdayDeliveryFeeWaived || false,
-    invoiceData.sameDayWeekdayDeliveryFeeWaiveReason || null,
-    invoiceData.requireCardOnFile !== false,
-    invoiceData.eeProductItems || [],
-    invoiceData.generatorQty || 0,
-    invoiceData.generatorFeeCents || 0,
-    (invoiceData.cartItems || []).length > 0,
-    invoiceData.setupFeeCents || 0
-  );
-
-  await createOrderItems(order.id, invoiceData.cartItems, invoiceData.eeProductItems || []);
-  await createOrderDiscounts(order.id, invoiceData.discounts);
-  await createOrderCustomFees(order.id, invoiceData.customFees);
-
-  const result = await sendInvoiceToCustomer(order.id, invoiceData.depositRequired, customer);
+  const created = await callStaffOrderSave<{ orderId: string }>('create_invoice', buildInvoiceRequest(invoiceData));
+  const result = await sendInvoiceToCustomer(created.orderId, customer);
 
   return {
-    order,
+    order: { id: created.orderId },
     invoiceUrl: result.shortInvoiceUrl || result.invoiceUrl,
   };
 }

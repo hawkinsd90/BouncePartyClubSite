@@ -18,14 +18,17 @@
 //   calculatePrice -> subtotal with EE -> original (saved or computed) fee amounts -> waivers ->
 //   Setup Fee -> custom fees -> discounts -> taxable base -> tax -> total -> deposit -> custom
 //   deposit -> clamp -> balance -> summary data -> result.
-// - The TOTAL uses amount-first discount precedence (amount_cents > 0 wins), while the returned
-//   discount_total_cents is derived through calculateDiscountAmounts, which is percentage-first.
-//   A discount row carrying both fields therefore gives two different numbers.
-// - A stored same-day pickup fee of 0 is "not stored" (truthiness check) and falls through to the
-//   computed fee. The weekday-delivery and travel stored-value checks differ and are kept as is.
-// - Tax is Math.round(taxable * 0.06) on subtotal-with-EE + final travel + surface + Generator +
+// - A discount is ONE amount (orderMoney.effectiveDiscountCents): amount_cents > 0 wins, else the percentage of the equipment
+//   subtotal; never both. The total and the returned discount_total_cents use the same number, and discounts together never exceed
+//   what they discount. (Supersedes the old pinned quirk where the total was amount-first and the display percentage-first.)
+// - A stored same-day pickup fee is reused for an existing order whose pickup factors are unchanged, including a stored 0
+//   (the pickup fee is a snapshot, not re-read from today's rules). (Supersedes the old truthiness quirk.)
+// - Tax is orderMoney.calculateSalesTaxCents (6%, rounded ONCE) on subtotal-with-EE + final travel + surface + Generator +
 //   Setup Fee + custom fees - discounts. Same-day pickup and weekday-delivery fees are NOT taxable.
-//   When apply_taxes_by_default is false the tax-waived toggle INVERTS (waived = apply).
+//   Whether tax applies is orderMoney.effectiveTaxEnabled (the tax-waived toggle INVERTS when apply_taxes_by_default is false).
+// - An existing order is a pricing snapshot. Unchanged components keep their stored value (subtotal, surface fee, same-day
+//   pickup, weekday delivery, travel, setup fee, tax decision, formula-derived deposit); only components whose basis the Admin
+//   actually changed are recalculated from today's rules.
 // - Setup Fee: an explicit override wins (including 0); else the stored fee when supplied and the
 //   equipment basis is unchanged; else the calculated fee. Setup Fee is not in the EE-only deposit basis.
 // - Existing orders: only a CHANGED legacy Generator quantity is priced; an unchanged one keeps the
@@ -39,7 +42,12 @@
 import { calculatePrice, type PricingRules } from './pricing';
 import { calculateRequiredDepositCents, parseBookingDepositSettings } from './depositCalculation';
 import { calculateEventEssentialsSetupFeeCents } from './setupFeeCalculation';
-import { calculateDiscountAmounts } from './orderSummaryHelpers';
+import {
+  calculateSalesTaxCents,
+  composeOrderTotal,
+  effectiveTaxEnabled,
+  isWholeCents,
+} from './orderMoney';
 import type { OrderSummaryData } from './orderSummary';
 
 export interface PricingItem {
@@ -97,6 +105,9 @@ export interface CalculatePricingParams {
   customSetupFeeCents: number | null;
   storedSetupFeeCents?: number | null;
   setupFeeBasisChanged?: boolean;
+  // True when the Admin added, removed or changed an equipment line on an existing order. Without it, an existing order's stored
+  // subtotal and formula-derived deposit are kept.
+  equipmentBasisChanged?: boolean;
   pricingRules: PricingRules;
   feeWaivers?: FeeWaivers;
   existingOrder?: {
@@ -119,10 +130,40 @@ export interface CalculatePricingParams {
     same_day_weekday_delivery_fee_cents?: number;
     generator_fee_cents?: number;
     generator_qty?: number;
+    waived_fee_amounts_cents?: Partial<Record<WaivableFee, number>> | null;
+    // The stored snapshot (all optional: an order without them is priced from today's rules).
+    event_end_date?: string | null;
+    subtotal_cents?: number | null;
+    surface?: string | null;
+    surface_fee_cents?: number | null;
+    // How the stored travel fee was reached (kept with it, so an unrelated edit does not restate them from today's rules).
+    travel_base_radius_miles?: number | string | null;
+    travel_chargeable_miles?: number | string | null;
+    travel_per_mile_cents?: number | null;
+    travel_is_flat_fee?: boolean | null;
+    travel_fee_waived?: boolean | null;
+    surface_fee_waived?: boolean | null;
+    same_day_pickup_fee_waived?: boolean | null;
+    same_day_weekday_delivery_fee_waived?: boolean | null;
+    generator_fee_waived?: boolean | null;
+    tax_waived?: boolean | null;
+    tax_cents?: number | null;
+    setup_fee_cents?: number | null;
+    deposit_due_cents?: number | null;
+    custom_deposit_cents?: number | null;
   };
 }
 
+// The fees that can be waived and whose waived amount is kept for display ("$X - Waived").
+export type WaivableFee = 'travel' | 'surface' | 'same_day_pickup' | 'same_day_weekday_delivery' | 'generator';
+
 export interface CalculatedPricing {
+  // The amounts of the fees that are waived right now, when they are KNOWN: stored when the fee was waived (or priced again
+  // because its basis changed). A waived fee whose amount was never stored is simply absent: it is never rebuilt from today's
+  // rules. This is what gets saved with the order.
+  waived_fee_amounts_cents: Partial<Record<WaivableFee, number>>;
+  // Waived fees whose historical amount is unknown (legacy waivers). Displays say "Waived" without a dollar figure.
+  waived_fee_amount_unknown: WaivableFee[];
   subtotal_cents: number;
   generator_fee_cents: number;
   travel_fee_cents: number;
@@ -192,6 +233,7 @@ export function calculateOrderPricing(
     customSetupFeeCents = null,
     storedSetupFeeCents = null,
     setupFeeBasisChanged = false,
+    equipmentBasisChanged = false,
     pricingRules,
     feeWaivers = {},
     existingOrder,
@@ -213,6 +255,8 @@ export function calculateOrderPricing(
     ? eventDetails.pickup_preference !== existingOrder.pickup_preference
     : false;
   const sameDayFeeFactorsChanged = locationTypeChanged || pickupPreferenceChanged;
+  // A fee that was waived when saved is stored as 0; turning the waiver off must price it again, not keep the 0.
+  const waiverUnchanged = (now: boolean, stored?: boolean | null) => !existingOrder || now === !!stored;
 
   const useSavedTravelFee = shouldReuseSavedTravel(eventDetails, existingOrder);
   const distance_miles = resolved.distanceMiles;
@@ -231,7 +275,9 @@ export function calculateOrderPricing(
     existingOrder &&
     !eventDateChanged &&
     existingOrder.same_day_weekday_delivery_fee_cents !== undefined &&
-    existingOrder.same_day_weekday_delivery_fee_cents !== null
+    existingOrder.same_day_weekday_delivery_fee_cents !== null &&
+    (waiverUnchanged(sameDayWeekdayDeliveryFeeWaived, existingOrder.same_day_weekday_delivery_fee_waived) ||
+      existingOrder.same_day_weekday_delivery_fee_cents > 0)
   );
   const isSameDayWeekday = useSavedWeekdayDeliveryFee ? false : resolved.isSameDayWeekdayDelivery(eventDetails.event_date);
 
@@ -307,7 +353,20 @@ export function calculateOrderPricing(
     is_new: item.is_new || false,
   }));
 
-  const subtotalWithEE = priceBreakdown.subtotal_cents + eeSubtotalCents;
+  // The equipment subtotal of an existing order is its stored snapshot unless the Admin changed what is booked, the rental mode
+  // (residential/commercial) or the number of days: only then is it priced again from today's multipliers.
+  const existingNumDays = existingOrder
+    ? Math.ceil(Math.abs(new Date(existingOrder.event_end_date || existingOrder.event_date || eventDetails.event_date).getTime() - new Date(existingOrder.event_date || eventDetails.event_date).getTime()) / (1000 * 60 * 60 * 24)) + 1
+    : null;
+  const equipmentSnapshotUnchanged = !!existingOrder
+    && !equipmentBasisChanged
+    && !locationTypeChanged
+    && existingNumDays === numDays
+    && isWholeCents(existingOrder.subtotal_cents)
+    && (existingOrder.subtotal_cents > 0 || activeItems.length + activeEEItems.length === 0);
+  const subtotalWithEE = equipmentSnapshotUnchanged
+    ? (existingOrder!.subtotal_cents as number)
+    : priceBreakdown.subtotal_cents + eeSubtotalCents;
 
   // Store original amounts before waivers (for display)
   const originalTravelFeeCents = useSavedTravelFee && existingOrder?.travel_fee_cents
@@ -316,9 +375,31 @@ export function calculateOrderPricing(
   const finalTravelMiles = useSavedTravelFee && existingOrder?.travel_total_miles
     ? parseFloat(String(existingOrder.travel_total_miles)) || 0
     : priceBreakdown.travel_total_miles || 0;
-  const originalSurfaceFeeCents = priceBreakdown.surface_fee_cents;
-  const originalSameDayPickupFeeCents = useSavedSameDayFee && existingOrder?.same_day_pickup_fee_cents
-    ? existingOrder.same_day_pickup_fee_cents
+  const surfaceSnapshotUnchanged = !!existingOrder
+    && !equipmentBasisChanged
+    && (eventDetails.surface ?? null) === (existingOrder.surface ?? null)
+    && waiverUnchanged(surfaceFeeWaived, existingOrder.surface_fee_waived)
+    && isWholeCents(existingOrder.surface_fee_cents)
+    && (existingOrder.surface_fee_cents as number) > 0;
+  // When the stored travel fee is reused, the numbers that explain it are the stored ones too.
+  const savedTravelDetail = useSavedTravelFee && existingOrder
+    && existingOrder.travel_base_radius_miles != null
+    && existingOrder.travel_chargeable_miles != null
+    && existingOrder.travel_per_mile_cents != null
+    ? {
+        base: parseFloat(String(existingOrder.travel_base_radius_miles)),
+        chargeable: parseFloat(String(existingOrder.travel_chargeable_miles)),
+        perMile: existingOrder.travel_per_mile_cents as number,
+        flat: !!existingOrder.travel_is_flat_fee,
+      }
+    : null;
+  const originalSurfaceFeeCents = surfaceSnapshotUnchanged
+    ? (existingOrder!.surface_fee_cents as number)
+    : priceBreakdown.surface_fee_cents;
+  const originalSameDayPickupFeeCents = useSavedSameDayFee
+    && waiverUnchanged(sameDayPickupFeeWaived, existingOrder?.same_day_pickup_fee_waived)
+    && ((existingOrder?.same_day_pickup_fee_cents ?? 0) > 0 || !sameDayPickupFeeWaived)
+    ? (existingOrder?.same_day_pickup_fee_cents ?? 0)
     : priceBreakdown.same_day_pickup_fee_cents;
   // Display-only pre-waiver fee: for unchanged waived legacy generator,
   // calculate what the fee WOULD be for the current qty using current rules.
@@ -352,6 +433,36 @@ export function calculateOrderPricing(
     ? (existingOrder.same_day_weekday_delivery_fee_cents ?? 0)
     : priceBreakdown.same_day_weekday_delivery_fee_cents;
 
+  // A waived fee shows the amount it was waived at - never today's rule applied to an old order. That amount is only known if it
+  // was stored when the fee was waived (or when its basis last changed); otherwise it is unknown and shown as "Waived".
+  const priorWaived = (existingOrder?.waived_fee_amounts_cents ?? null) as Partial<Record<WaivableFee, number>> | null;
+  const addressSame = !!existingOrder
+    && eventDetails.address_line1 === (existingOrder.addresses?.line1 || '')
+    && eventDetails.address_city === (existingOrder.addresses?.city || '')
+    && eventDetails.address_state === (existingOrder.addresses?.state || '')
+    && eventDetails.address_zip === (existingOrder.addresses?.zip || '');
+  const waivedAmountUnknown: WaivableFee[] = [];
+  const waivedAmounts: Partial<Record<WaivableFee, number>> = {};
+  const resolveWaived = (key: WaivableFee, waivedNow: boolean, wasWaived: boolean | null | undefined, basisUnchanged: boolean, computedOriginal: number): number => {
+    if (!waivedNow) return computedOriginal;
+    if (existingOrder && wasWaived && basisUnchanged) {
+      const stored = priorWaived?.[key];
+      if (typeof stored === 'number' && Number.isSafeInteger(stored) && stored >= 0) {
+        waivedAmounts[key] = stored;
+        return stored;
+      }
+      waivedAmountUnknown.push(key);
+      return 0;
+    }
+    waivedAmounts[key] = computedOriginal;
+    return computedOriginal;
+  };
+  const waivedTravelFeeCents = resolveWaived('travel', travelFeeWaived, existingOrder?.travel_fee_waived, addressSame, originalTravelFeeCents);
+  const waivedSurfaceFeeCents = resolveWaived('surface', surfaceFeeWaived, existingOrder?.surface_fee_waived, !!existingOrder && !equipmentBasisChanged && (eventDetails.surface ?? null) === (existingOrder.surface ?? null), originalSurfaceFeeCents);
+  const waivedSameDayPickupFeeCents = resolveWaived('same_day_pickup', sameDayPickupFeeWaived, existingOrder?.same_day_pickup_fee_waived, !!existingOrder && !sameDayFeeFactorsChanged, originalSameDayPickupFeeCents);
+  const waivedGeneratorFeeCents = resolveWaived('generator', generatorFeeWaived, existingOrder?.generator_fee_waived, !!existingOrder && !legacyQtyChanged, originalGeneratorFeeCents);
+  const waivedWeekdayFeeCents = resolveWaived('same_day_weekday_delivery', sameDayWeekdayDeliveryFeeWaived, existingOrder?.same_day_weekday_delivery_fee_waived, !!existingOrder && !eventDateChanged, originalSameDayWeekdayDeliveryFeeCents);
+
   // Apply waivers for total calculation
   const finalTravelFeeCents = travelFeeWaived ? 0 : originalTravelFeeCents;
   const finalSurfaceFeeCents = surfaceFeeWaived ? 0 : originalSurfaceFeeCents;
@@ -378,38 +489,56 @@ export function calculateOrderPricing(
         ? storedSetupFeeCents
         : calculatedSetupFeeCents;
 
-  // Calculate tax based on waived fees and apply_taxes_by_default setting
-  const shouldApplyTaxesByDefault = pricingRules.apply_taxes_by_default ?? true;
-  const customFeesTotalCents = customFees.reduce((sum: number, f: any) => sum + (f.amount_cents || 0), 0);
-  const discountTotalCents = discounts.reduce((sum: number, d: any) => {
-    if (d.amount_cents > 0) return sum + d.amount_cents;
-    if (d.percentage > 0) return sum + Math.round(subtotalWithEE * (d.percentage / 100));
-    return sum;
-  }, 0);
-  const taxableAmount = subtotalWithEE + finalTravelFeeCents + finalSurfaceFeeCents + finalGeneratorFeeCents + effectiveSetupFeeCents + customFeesTotalCents - discountTotalCents;
+  // The order's money, once: components -> discount -> tax (rounded once) -> total. All of it is orderMoney.
+  const components = {
+    subtotal_cents: subtotalWithEE,
+    travel_fee_cents: finalTravelFeeCents,
+    surface_fee_cents: finalSurfaceFeeCents,
+    same_day_pickup_fee_cents: finalSameDayPickupFeeCents,
+    same_day_weekday_delivery_fee_cents: finalSameDayWeekdayDeliveryFeeCents,
+    generator_fee_cents: finalGeneratorFeeCents,
+    setup_fee_cents: effectiveSetupFeeCents,
+  };
+  const beforeTax = composeOrderTotal(components, discounts, customFees, 0);
 
-  // Calculate the potential tax amount (always calculated for display purposes)
-  const calculatedTaxCents = Math.round(taxableAmount * 0.06);
-
-  // Determine final tax based on default setting and per-order override
-  // The tax_waived flag acts as an override toggle:
-  // - When apply_taxes_by_default is TRUE: taxWaived=false means apply (default), taxWaived=true means waive (override)
-  // - When apply_taxes_by_default is FALSE: taxWaived=false means don't apply (default), taxWaived=true means apply (override)
-  let finalTaxCents: number;
-  if (shouldApplyTaxesByDefault) {
-    finalTaxCents = taxWaived ? 0 : calculatedTaxCents;
-  } else {
-    finalTaxCents = taxWaived ? calculatedTaxCents : 0;
+  // Whether tax applies. An existing order whose tax toggle the Admin has not touched keeps the decision it was saved with, even if
+  // the business default has changed since; a changed toggle (or a new order) follows the current policy.
+  const currentTaxPolicy = effectiveTaxEnabled({ applyTaxesByDefault: pricingRules.apply_taxes_by_default, taxWaived });
+  let taxEnabled = currentTaxPolicy;
+  if (existingOrder && isWholeCents(existingOrder.tax_cents) && !!existingOrder.tax_waived === taxWaived) {
+    const storedBase = composeOrderTotal(
+      {
+        subtotal_cents: existingOrder.subtotal_cents,
+        travel_fee_cents: existingOrder.travel_fee_cents,
+        surface_fee_cents: existingOrder.surface_fee_cents,
+        generator_fee_cents: existingOrder.generator_fee_cents,
+        setup_fee_cents: existingOrder.setup_fee_cents,
+      },
+      discounts,
+      customFees,
+      0,
+    ).taxableAfterDiscountCents;
+    if (storedBase > 0) taxEnabled = existingOrder.tax_cents > 0;
   }
-
-  // Calculate total with all waivers applied
-  const finalTotalCents = subtotalWithEE + finalTravelFeeCents + finalSurfaceFeeCents + finalSameDayPickupFeeCents + finalGeneratorFeeCents + finalSameDayWeekdayDeliveryFeeCents + effectiveSetupFeeCents + customFeesTotalCents - discountTotalCents + finalTaxCents;
+  const finalTaxCents = taxEnabled ? calculateSalesTaxCents(beforeTax.taxableAfterDiscountCents) : 0;
+  const customFeesTotalCents = beforeTax.customFeesCents;
+  const discountTotalCents = beforeTax.discountCents;
+  const finalTotalCents = composeOrderTotal(components, discounts, customFees, finalTaxCents).totalCents;
 
   // Calculate deposit — EE-only orders use EE deposit tier
   // Setup Fee is NOT included in the deposit basis
   let calculatedDepositDueCents: number = 0;
   let depositConfigError: string | null = null;
-  if (inflatableQuantity === 0 && eeSubtotalCents > 0) {
+  // A formula-derived deposit of an existing order is its snapshot while the booked equipment is unchanged. (A deposit that was an
+  // Admin override is not a formula result: clearing the override recalculates it from today's rules.)
+  const reuseStoredDeposit = !!existingOrder
+    && !equipmentBasisChanged
+    && customDepositCents === null
+    && (existingOrder.custom_deposit_cents === null || existingOrder.custom_deposit_cents === undefined)
+    && isWholeCents(existingOrder.deposit_due_cents);
+  if (reuseStoredDeposit) {
+    calculatedDepositDueCents = existingOrder!.deposit_due_cents as number;
+  } else if (inflatableQuantity === 0 && eeSubtotalCents > 0) {
     const depositSettings = parseBookingDepositSettings(pricingRules);
     if (depositSettings.status === 'ready') {
       const eeDeposit = calculateRequiredDepositCents({
@@ -444,12 +573,13 @@ export function calculateOrderPricing(
     discounts,
     customFees,
     subtotal_cents: subtotalWithEE,
-    travel_fee_cents: originalTravelFeeCents,
+    travel_fee_cents: waivedTravelFeeCents,
     travel_total_miles: finalTravelMiles,
-    surface_fee_cents: originalSurfaceFeeCents,
-    same_day_pickup_fee_cents: originalSameDayPickupFeeCents,
-    same_day_weekday_delivery_fee_cents: originalSameDayWeekdayDeliveryFeeCents,
-    generator_fee_cents: originalGeneratorFeeCents,
+    surface_fee_cents: waivedSurfaceFeeCents,
+    same_day_pickup_fee_cents: waivedSameDayPickupFeeCents,
+    same_day_weekday_delivery_fee_cents: waivedWeekdayFeeCents,
+    generator_fee_cents: waivedGeneratorFeeCents,
+    waived_amount_unknown: waivedAmountUnknown,
     generator_qty: eventDetails.generator_qty || 0,
     tax_cents: finalTaxCents,
     tip_cents: existingOrder?.tip_cents || 0,
@@ -473,25 +603,27 @@ export function calculateOrderPricing(
     generator_fee_cents: finalGeneratorFeeCents,
     travel_fee_cents: finalTravelFeeCents,
     travel_total_miles: finalTravelMiles,
-    travel_base_radius_miles: priceBreakdown.travel_base_radius_miles,
-    travel_chargeable_miles: priceBreakdown.travel_chargeable_miles,
-    travel_per_mile_cents: priceBreakdown.travel_per_mile_cents,
-    travel_is_flat_fee: priceBreakdown.travel_is_flat_fee,
+    travel_base_radius_miles: savedTravelDetail ? savedTravelDetail.base : priceBreakdown.travel_base_radius_miles,
+    travel_chargeable_miles: savedTravelDetail ? savedTravelDetail.chargeable : priceBreakdown.travel_chargeable_miles,
+    travel_per_mile_cents: savedTravelDetail ? savedTravelDetail.perMile : priceBreakdown.travel_per_mile_cents,
+    travel_is_flat_fee: savedTravelDetail ? savedTravelDetail.flat : priceBreakdown.travel_is_flat_fee,
     travel_fee_display_name: priceBreakdown.travel_fee_display_name,
     distance_miles: finalTravelMiles,
     surface_fee_cents: finalSurfaceFeeCents,
     same_day_pickup_fee_cents: finalSameDayPickupFeeCents,
     same_day_weekday_delivery_fee_cents: finalSameDayWeekdayDeliveryFeeCents,
-    custom_fees_total_cents: customFees.reduce((sum: number, f) => sum + f.amount_cents, 0),
-    discount_total_cents: calculateDiscountAmounts(discounts, subtotalWithEE).reduce((sum, d) => sum + d.amount, 0),
+    custom_fees_total_cents: customFeesTotalCents,
+    discount_total_cents: discountTotalCents,
     tax_cents: finalTaxCents,
     total_cents: finalTotalCents,
     deposit_due_cents: depositDueCents,
     balance_due_cents: balanceDueCents,
     event_essentials_subtotal_cents: eeSubtotalCents,
-    generator_fee_before_waiver_cents: originalGeneratorFeeCents,
+    generator_fee_before_waiver_cents: waivedGeneratorFeeCents,
     setup_fee_cents: effectiveSetupFeeCents,
     setup_fee_before_override_cents: calculatedSetupFeeCents,
+    waived_fee_amounts_cents: waivedAmounts,
+    waived_fee_amount_unknown: waivedAmountUnknown,
   };
 
   return { status: 'ok', calculatedPricing, orderData };

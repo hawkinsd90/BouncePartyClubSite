@@ -10,6 +10,7 @@ import {
 import { validatePaymentMethod } from "../_shared/payment-validation.ts";
 import { formatCurrency } from "../_shared/fmt.ts";
 import { buildPortalUrl } from "../_shared/portal-link.ts";
+import { receiptOrderFigures, receiptExtraFeeRowsHtml } from "../_shared/receipt-order-totals.ts";
 import {
   resolveCaller,
   isStaffAdmin,
@@ -56,7 +57,7 @@ const CLAIM_REFUSALS: Record<string, { status: number; code: string; error: stri
   busy: { status: 409, code: "PAYMENT_IN_PROGRESS", error: "This order is already being processed. Please refresh and try again." },
   invalid_status: { status: 409, code: "ORDER_STATUS_NOT_PAYABLE", error: "This order is not in a state where this payment can be taken. Please refresh and try again." },
   order_changed: { status: 409, code: "ORDER_CHANGED", error: "This order changed while you were reviewing it. Please refresh and review the updated amounts." },
-  catch_up_required: { status: 409, code: "DEPOSIT_CATCH_UP_REQUIRED", error: "This order's deposit changed after a payment was made. The difference cannot be collected here yet; please contact us." },
+  catch_up_unavailable: { status: 409, code: "DEPOSIT_CATCH_UP_REVIEW_REQUIRED", error: "This order's deposit rose after a payment was made, but its earlier payments cannot be matched to the deposit automatically. The remaining deposit cannot be collected here; please contact us." },
   no_deposit_due: { status: 400, code: "NO_DEPOSIT_DUE", error: "No deposit amount configured for this order" },
   selection_invalid: { status: 409, code: "PAYMENT_SELECTION_INVALID", error: "The selected payment amount is no longer valid for this order. Please refresh and choose again." },
   ledger_conflict: { status: 409, code: "PAYMENT_RECORDS_CONFLICT", error: "This order's payment records need review before it can be charged. Please contact us." },
@@ -374,7 +375,7 @@ Deno.serve(async (req: Request) => {
       }
       const refusal = CLAIM_REFUSALS[claim.outcome] ?? CLAIM_REFUSALS.error;
       if (claim.outcome === "error") console.error("[charge-deposit] claim failed:", claim.detail?.message);
-      return reply(refusal.status, { success: false, code: refusal.code, error: refusal.error, ...(claim.outcome === "catch_up_required" ? { requiresCatchUp: true } : {}) });
+      return reply(refusal.status, { success: false, code: refusal.code, error: refusal.error, ...(claim.outcome === "catch_up_unavailable" ? { requiresReview: true, reason: claim.detail?.reason ?? null } : {}) });
     }
 
     const op = claim.op;
@@ -528,27 +529,13 @@ async function sendDepositConfirmationEmail(
   const { orderId, grossCents: chargeAmountCents, paymentMethod, paymentBrand, paymentLast4 } = p;
   const paymentAmountCents = p.principalCents;
 
-  let discountCents = 0;
+  let discountRows: Array<{ amount_cents: number; percentage: number }> = [];
   try {
     const { data: orderDiscounts } = await supabaseClient
       .from("order_discounts")
       .select("amount_cents, percentage")
       .eq("order_id", orderId);
-    const { data: subtotalRow } = await supabaseClient
-      .from("orders")
-      .select("subtotal_cents")
-      .eq("id", orderId)
-      .maybeSingle();
-    discountCents = (orderDiscounts || []).reduce(
-      (sum: number, d: { amount_cents: number; percentage: number }) => {
-        if (d.percentage > 0) {
-          return sum + Math.round((subtotalRow?.subtotal_cents || 0) * (d.percentage / 100));
-        }
-        if (d.amount_cents > 0) return sum + d.amount_cents;
-        return sum;
-      },
-      0
-    );
+    discountRows = orderDiscounts || [];
   } catch (discountQueryErr) {
     console.error("[charge-deposit] Discounts query failed (non-fatal):", discountQueryErr);
   }
@@ -616,38 +603,15 @@ async function sendDepositConfirmationEmail(
             )
             .join("");
 
-          const subtotal = fullOrder.subtotal_cents || 0;
-          const travelFee = fullOrder.travel_fee_cents || 0;
-          const surfaceFee = fullOrder.surface_fee_cents || 0;
-          const sameDayFee = fullOrder.same_day_pickup_fee_cents || 0;
-          const generatorFee = fullOrder.generator_fee_cents || 0;
-          const discount = discountCents;
-          const tax = fullOrder.tax_cents || 0;
+          const emailCustomFees: Array<{ id: string; name: string; amount_cents: number }> = fullOrder.order_custom_fees || [];
+          const figures = receiptOrderFigures(fullOrder, discountRows, emailCustomFees);
+          const { subtotal, travelFee, surfaceFee, sameDayFee, generatorFee, tax, total } = figures;
+          const discount = figures.discountsTotal;
           const tip = fullOrder.tip_cents || 0;
 
-          const emailCustomFees: Array<{
-            id: string;
-            name: string;
-            amount_cents: number;
-          }> = fullOrder.order_custom_fees || [];
-
-          const customFeesCentsEmail = emailCustomFees.reduce(
-            (sum: number, f: { amount_cents: number }) => sum + (f.amount_cents || 0),
-            0
-          );
-
-          const total =
-            subtotal +
-            travelFee +
-            surfaceFee +
-            sameDayFee +
-            generatorFee +
-            customFeesCentsEmail +
-            tax -
-            discount;
 
           const depositPaid = paymentAmountCents;
-          const balanceRemaining = Math.max(0, total - depositPaid);
+          const balanceRemaining = Math.max(0, typeof fullOrder.balance_due_cents === "number" ? fullOrder.balance_due_cents : total - depositPaid);
 
           const customFeeRowsHtml = emailCustomFees
             .map((f: { name: string; amount_cents: number }) =>
@@ -674,6 +638,7 @@ async function sendDepositConfirmationEmail(
             generatorFee > 0
               ? `<tr><td style="padding:4px 0;color:#6b7280;font-size:14px;">Generator Fee</td><td style="padding:4px 0;text-align:right;color:#6b7280;font-size:14px;">${fmt(generatorFee)}</td></tr>`
               : "",
+            receiptExtraFeeRowsHtml(figures, fmt),
             customFeeRowsHtml,
             discount > 0
               ? `<tr><td style="padding:4px 0;color:#059669;font-size:14px;">Discount</td><td style="padding:4px 0;text-align:right;color:#059669;font-size:14px;">-${fmt(discount)}</td></tr>`

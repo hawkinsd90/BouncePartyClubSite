@@ -15,6 +15,7 @@ import * as projection from '../../supabase/functions/_shared/portal-projection'
 import * as actions from '../../supabase/functions/_shared/portal-actions';
 import * as portalLink from '../../supabase/functions/_shared/portal-link';
 import * as lifecycleOutcome from '../../supabase/functions/_shared/lifecycle-outcome';
+import * as orderMoney from './orderMoney';
 import * as mediaPaths from '../../supabase/functions/_shared/media-paths';
 import * as evidenceMedia from '../../supabase/functions/_shared/evidence-media';
 
@@ -313,6 +314,7 @@ export function loadFunction(fnDir: string, h: Harness): (req: Request) => Promi
     ...actions,
     ...portalLink,
     ...lifecycleOutcome,
+    ...orderMoney,
     ...mediaPaths,
     ...evidenceMedia,
     formatCurrency: (c: number) => `$${((c ?? 0) / 100).toFixed(2)}`,

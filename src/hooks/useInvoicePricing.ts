@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import { calculatePrice, calculateDrivingDistance, isSameDayWeekdayDelivery, type PricingRules, type PriceBreakdown } from '../lib/pricing';
 import { HOME_BASE } from '../lib/constants';
+import { calculateSalesTaxCents, composeOrderTotal, effectiveTaxEnabled } from '../lib/orderMoney';
 
 interface CartItem {
   unit_id: string;
@@ -137,23 +138,6 @@ export function useInvoicePricing(
     [cartItems, eeProductItems]
   );
 
-  const discountTotal = useMemo(
-    () =>
-      discounts.reduce((sum, d) => {
-        if (d.amount_cents > 0) {
-          return sum + d.amount_cents;
-        } else if (d.percentage > 0) {
-          return sum + Math.round(subtotal * (d.percentage / 100));
-        }
-        return sum;
-      }, 0),
-    [discounts, subtotal]
-  );
-
-  const customFeesTotal = useMemo(
-    () => customFees.reduce((sum, f) => sum + f.amount_cents, 0),
-    [customFees]
-  );
 
   const automaticFees = useMemo(() => {
     const travelFee = priceBreakdown?.travel_fee_cents || 0;
@@ -175,27 +159,28 @@ export function useInvoicePricing(
     [priceBreakdown, eeProductItems]
   );
 
-  const taxableAmount = useMemo(
-    () => Math.max(0, actualSubtotal + automaticFees - discountTotal + customFeesTotal),
-    [actualSubtotal, automaticFees, discountTotal, customFeesTotal]
-  );
+  // The order's money, by the one set of rules every screen uses (orderMoney): discount -> taxable amount -> tax (6%, rounded
+  // once, same-day pickup and delivery fees not taxed) -> total.
+  const money = useMemo(() => {
+    const components = {
+      subtotal_cents: actualSubtotal,
+      travel_fee_cents: priceBreakdown?.travel_fee_cents,
+      surface_fee_cents: priceBreakdown?.surface_fee_cents,
+      same_day_pickup_fee_cents: priceBreakdown?.same_day_pickup_fee_cents,
+      same_day_weekday_delivery_fee_cents: priceBreakdown?.same_day_weekday_delivery_fee_cents,
+      generator_fee_cents: priceBreakdown?.generator_fee_cents,
+    };
+    const beforeTax = composeOrderTotal(components, discounts, customFees, 0);
+    const enabled = effectiveTaxEnabled({ applyTaxesByDefault: pricingRules?.apply_taxes_by_default, taxWaived });
+    const tax = enabled ? calculateSalesTaxCents(beforeTax.taxableAfterDiscountCents) : 0;
+    return { beforeTax, tax, total: composeOrderTotal(components, discounts, customFees, tax).totalCents };
+  }, [actualSubtotal, priceBreakdown, discounts, customFees, pricingRules, taxWaived]);
 
-  const applyTaxesByDefault = pricingRules?.apply_taxes_by_default ?? true;
-
-  const calculatedTaxCents = useMemo(() => Math.round(taxableAmount * 0.06), [taxableAmount]);
-
-  const taxCents = useMemo(() => {
-    if (applyTaxesByDefault) {
-      return taxWaived ? 0 : calculatedTaxCents;
-    } else {
-      return taxWaived ? calculatedTaxCents : 0;
-    }
-  }, [applyTaxesByDefault, taxWaived, calculatedTaxCents]);
-
-  const totalCents = useMemo(
-    () => actualSubtotal + automaticFees - discountTotal + customFeesTotal + taxCents,
-    [actualSubtotal, automaticFees, discountTotal, customFeesTotal, taxCents]
-  );
+  const discountTotal = money.beforeTax.discountCents;
+  const customFeesTotal = money.beforeTax.customFeesCents;
+  const taxableAmount = money.beforeTax.taxableAfterDiscountCents;
+  const taxCents = money.tax;
+  const totalCents = money.total;
 
   const defaultDeposit = useMemo(
     () => {

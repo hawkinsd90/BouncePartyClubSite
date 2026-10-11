@@ -168,6 +168,8 @@ export interface World {
   beforeRpc: Record<string, () => Promise<void> | void>;
   afterRpc: Record<string, () => Promise<void> | void>;
   stripe: FakeStripe;
+  // Tables that run against the scratch database for THIS world (default: PG_TABLES).
+  pgTables?: Set<string>;
 }
 
 type Filter = { kind: 'eq' | 'neq' | 'in' | 'is' | 'gte' | 'lte' | 'not'; col: string; val: any };
@@ -285,7 +287,7 @@ class QueryBuilder {
       if (injected.times !== undefined) injected.times--;
       return { data: null, error: injected.error };
     }
-    if (!PG_TABLES.has(this.table)) return this.execMemory();
+    if (!(this.w.pgTables ?? PG_TABLES).has(this.table)) return this.execMemory();
     return this.execPg();
   }
 
@@ -631,6 +633,24 @@ function importedNames(src: string): Set<string> {
   return imported;
 }
 
+// The REAL pure money modules (not stand-ins): the receipt figures must be exactly what the app computes.
+let realMoney: Record<string, unknown> | null = null;
+function realMoneyScope(): Record<string, unknown> {
+  if (realMoney) return realMoney;
+  const run = (path: string, scope: Record<string, unknown>): Record<string, any> => {
+    const src: string = fs.readFileSync(path, 'utf8');
+    const imported = importedNames(src);
+    const names = Object.keys(scope).filter((n) => imported.has(n));
+    const mod: any = { exports: {} };
+    new Function('exports', 'module', ...names, transpile(src))(mod.exports, mod, ...names.map((n) => scope[n]));
+    return mod.exports;
+  };
+  const money = run('src/lib/orderMoney.ts', {});
+  const receipts = run('supabase/functions/_shared/receipt-order-totals.ts', money);
+  realMoney = { ...money, ...receipts };
+  return realMoney;
+}
+
 export function baseScope(w: World, extra: Record<string, unknown> = {}): Record<string, unknown> {
   const env: Record<string, string> = { SUPABASE_URL: 'https://fake.supabase.co', SUPABASE_SERVICE_ROLE_KEY: SERVICE_KEY, SUPABASE_ANON_KEY: ANON_KEY, STRIPE_SECRET_KEY: 'sk_test_fake', STRIPE_WEBHOOK_SECRET: 'whsec_fake' };
   const FakeStripeCtor = function () { return w.stripe; } as any;
@@ -666,6 +686,7 @@ export function baseScope(w: World, extra: Record<string, unknown> = {}): Record
     buildPortalUrl: async () => 'https://portal.fake/x',
     portalTokenFragment: (t: string | undefined) => (t ? `#t=${t}` : ''),
     DEFAULT_PHONE: '555-0100',
+    ...realMoneyScope(),
     ...extra,
   };
 }
@@ -708,6 +729,10 @@ export async function callHandler(handler: (req: Request) => Promise<Response>, 
 // The scratch database that already holds the payment operation migration
 // ---------------------------------------------------------------------------------------------------------------
 export const PAY_MIGRATION = 'supabase/migrations/20261019120000_add_payment_operations_and_single_financial_application.sql';
+// Applied after it, like a real deployment: deposit catch-up and the cash/check payment functions.
+export const PAY_MIGRATION_2 = 'supabase/migrations/20261020120000_deposit_catch_up_and_offline_payment_parity.sql';
+// ...and the server-authoritative staff order saves.
+export const PAY_MIGRATION_3 = 'supabase/migrations/20261021120000_server_authoritative_order_pricing_saves.sql';
 
 // Returns a working psql for a scratch database that holds this repository's payment migration (created from the base replay
 // when absent; the migration text is idempotent and is re-applied on every run), or null when no database is reachable.
@@ -734,6 +759,6 @@ export function ensurePayDatabase(): { psql: string; db: string } | null {
     }
   }
   if (!psql) return null;
-  const applied = spawnSync(psql, [...psqlArgs(dbFull), '-v', 'ON_ERROR_STOP=1'], { input: fs.readFileSync(PAY_MIGRATION, 'utf8'), encoding: 'utf8' });
+  const applied = spawnSync(psql, [...psqlArgs(dbFull), '-v', 'ON_ERROR_STOP=1'], { input: fs.readFileSync(PAY_MIGRATION, 'utf8') + '\n' + fs.readFileSync(PAY_MIGRATION_2, 'utf8') + '\n' + fs.readFileSync(PAY_MIGRATION_3, 'utf8'), encoding: 'utf8' });
   return applied.status === 0 ? { psql, db: dbFull } : null;
 }

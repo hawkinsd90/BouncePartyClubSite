@@ -10,7 +10,10 @@ export function useDepositOverride(defaultDeposit: number) {
   );
 
   function applyDepositOverride() {
-    const cents = Math.round(parseFloat(customDepositInput || '0') * 100);
+    // Blank is not zero: only an explicit amount (including a typed 0) becomes an override.
+    if (customDepositInput.trim() === '') return;
+    const cents = Math.round(parseFloat(customDepositInput) * 100);
+    if (!Number.isFinite(cents) || cents < 0) return;
     setCustomDepositCents(cents);
   }
 
