@@ -90,10 +90,9 @@ export async function approveOrder(
     if (effectiveDeposit <= 0) {
       const { data: claimedRows, error: confirmError } = await supabase
         .from('orders')
-        // stripe_payment_status: 'paid' here means the deposit obligation is satisfied
-        // by admin waiver — no Stripe charge occurred. This signals to the customer portal
-        // that no payment is required to proceed.
-        .update({ status: ORDER_STATUS.CONFIRMED, stripe_payment_status: 'paid' })
+        // The waiver marker (stripe_payment_status 'paid' for a waived deposit) is written by the server in
+        // order-lifecycle's enterConfirmed below; a browser session cannot write payment-state columns.
+        .update({ status: ORDER_STATUS.CONFIRMED })
         .eq('id', orderId)
         .not('status', 'in', '("confirmed","cancelled","void")')
         .select('id');
@@ -134,7 +133,12 @@ export async function approveOrder(
       }
 
       try {
-        await enterConfirmed(orderId, 'admin_approve_zero_deposit', 'waived', orderData.status);
+        const lifecycle = await enterConfirmed(orderId, 'admin_approve_zero_deposit', 'waived', orderData.status);
+        if (lifecycle && lifecycle.success === false) {
+          // The order IS confirmed and no money is involved; only the confirmation record (the waived-deposit marker the portal reads and
+          // the admin alert) is missing. Say so; nothing is charged either way.
+          notificationWarning = [notificationWarning, 'The order was confirmed, but its confirmation record (waived-deposit marker and admin alert) could not be completed. No payment is affected: the deposit is $0 and nothing was charged.'].filter(Boolean).join('; ');
+        }
       } catch (lifecycleErr) {
         console.error('[orderApprovalService] enterConfirmed (zero-deposit) failed (non-fatal):', lifecycleErr);
       }
@@ -439,11 +443,8 @@ export async function rejectOrder(
 
     if (error) throw error;
 
-    await supabase
-      .from('payments')
-      .update({ status: 'cancelled' })
-      .eq('order_id', order.id)
-      .eq('status', 'pending');
+    // Payment attempts that never reached the provider are cancelled by the database when the order is cancelled; an attempt that
+    // did reach it is settled by the provider's own result (a payment browsers cannot cancel or fabricate).
 
     const rejectionMessage = generateRejectionSmsMessage(order, order.customers?.first_name, reason);
 

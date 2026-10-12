@@ -707,6 +707,23 @@ ok('approval: records the payment selection and tip but does NOT confirm the ord
       Object.assign(order(h.db, 'order-appr'), { status: 'pending_review', deposit_due_cents: 0, balance_due_cents: 20000, stripe_customer_id: null, stripe_payment_method_id: null });
       const res = await LC(h, 'jwt-admin', 'order-appr', 'admin_approve_zero_deposit', 'waived');
       ok('trusted: an admin keeps full control (pending_review, $0, no card, "waived")', res.status === 200 && order(h.db, 'order-appr').status === 'confirmed');
+      // The waived-deposit marker is written HERE (the server), not by the admin's browser, and no money moves for it.
+      ok('waived deposit: the trusted admin approval marks the deposit obligation satisfied', order(h.db, 'order-appr').stripe_payment_status === 'paid');
+      ok('waived deposit: ...without any payment row, balance change or provider call', !h.db.tables.payments.some((p) => p.order_id === 'order-appr') && order(h.db, 'order-appr').deposit_paid_cents === 0 && order(h.db, 'order-appr').balance_due_cents === 20000);
+      // The real flow: the browser has already moved the order to confirmed (status only), then the lifecycle call completes it.
+      const hBrowser = fixture();
+      Object.assign(order(hBrowser.db, 'order-appr'), { status: 'confirmed', deposit_due_cents: 0, balance_due_cents: 20000, stripe_payment_status: null });
+      const completed = await LC(hBrowser, 'jwt-admin', 'order-appr', 'admin_approve_zero_deposit', 'waived');
+      ok('waived deposit: when the browser already confirmed the order, the lifecycle call still writes the marker', completed.status === 200 && order(hBrowser.db, 'order-appr').stripe_payment_status === 'paid');
+      // It is only for the admin waiver of a ZERO deposit, from a trusted caller.
+      const hOwed = fixture();
+      Object.assign(order(hOwed.db, 'order-appr'), { status: 'pending_review', deposit_due_cents: 5000, stripe_payment_status: null });
+      await LC(hOwed, 'jwt-admin', 'order-appr', 'admin_approve_zero_deposit', 'waived');
+      ok('waived deposit: a deposit that is still owed never gets the paid marker (an admin may still confirm it; the owed deposit stays owed)', order(hOwed.db, 'order-appr').stripe_payment_status !== 'paid' && order(hOwed.db, 'order-appr').deposit_due_cents === 5000 && order(hOwed.db, 'order-appr').deposit_paid_cents === 0);
+      const hOther = fixture();
+      Object.assign(order(hOther.db, 'order-appr'), { status: 'pending_review', deposit_due_cents: 0, balance_due_cents: 20000, stripe_payment_status: null });
+      await LC(hOther, 'jwt-admin', 'order-appr', 'admin_force_approve', 'waived');
+      ok('waived deposit: other admin sources do not write the marker', order(hOther.db, 'order-appr').stripe_payment_status !== 'paid');
       const h2 = fixture();
       Object.assign(order(h2.db, 'order-appr'), { status: 'pending_review', stripe_customer_id: null });
       const svc = await LC(h2, SERVICE_KEY, 'order-appr', 'charge_deposit', 'charged_now');

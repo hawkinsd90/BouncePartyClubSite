@@ -1,6 +1,7 @@
 import Stripe from "npm:stripe@20.0.0";
 import { logTransaction } from "../_shared/transaction-logger.ts";
 import { collectPaymentDetails, finalizeOperation } from "../_shared/payment-operations.ts";
+import { applyProviderRefund } from "../_shared/refund-operations.ts";
 import { sendCheckoutBalanceReceiptEmail, sendDepositReceiptEmail } from "./emails.ts";
 
 export async function invokeLifecycle(
@@ -406,121 +407,59 @@ export async function handlePaymentIntentFailed(
     .is("stripe_checkout_session_id", null);
 }
 
+// Refunds. Each INDIVIDUAL Stripe refund is recorded on its own through apply_provider_refund_event (one order_refunds row per
+// refund, one status transition, one ledger row). Nothing here reads the cumulative amount of a charge, the embedded
+// `charge.refunds` list (absent unless expanded) or an amount sum.
+async function recordProviderRefund(refund: Stripe.Refund, supabaseClient: any): Promise<void> {
+  const result = await applyProviderRefund(supabaseClient, refund);
+
+  if (result.outcome === "no_original_payment") {
+    console.warn(`[WEBHOOK] refund ${refund.id}: no successful payment found for its PaymentIntent; not recorded`);
+    return;
+  }
+  if (result.outcome === "invalid_request") {
+    console.warn(`[WEBHOOK] refund ${refund.id}: not a recordable refund event (missing amount or id)`);
+    return;
+  }
+
+  // A transaction receipt is written once, when the refund is first counted as returned.
+  if (result.appliedNow && result.orderId) {
+    const { data: order } = await supabaseClient.from("orders").select("customer_id").eq("id", result.orderId).maybeSingle();
+    const { data: original } = result.paymentId
+      ? await supabaseClient.from("payments").select("payment_method, payment_brand, stripe_payment_intent_id").eq("id", result.paymentId).maybeSingle()
+      : { data: null };
+    if (order) {
+      await logTransaction(supabaseClient, {
+        transactionType: "refund",
+        orderId: result.orderId,
+        customerId: order.customer_id,
+        paymentId: result.ledgerPaymentId ?? undefined,
+        amountCents: -Math.abs(refund.amount),
+        paymentMethod: original?.payment_method ?? null,
+        paymentMethodBrand: original?.payment_brand ?? null,
+        stripeChargeId: typeof refund.charge === "string" ? refund.charge : refund.charge?.id,
+        stripePaymentIntentId: original?.stripe_payment_intent_id ?? (typeof refund.payment_intent === "string" ? refund.payment_intent : refund.payment_intent?.id),
+        notes: `Refund ${refund.id}${refund.reason ? ` - ${refund.reason}` : ""}`,
+      });
+    }
+  }
+}
+
+// refund.created / refund.updated / refund.failed / charge.refund.updated carry the Refund object itself.
+export async function handleRefundEvent(refund: Stripe.Refund, supabaseClient: any): Promise<void> {
+  await recordProviderRefund(refund, supabaseClient);
+}
+
+// charge.refunded carries the Charge. The refunds of the charge are read from Stripe one by one; the Charge's own amount_refunded
+// (a running total) and its embedded refund list are never used.
 export async function handleChargeRefunded(
   charge: Stripe.Charge,
-  supabaseClient: any
+  supabaseClient: any,
+  stripe: Stripe
 ): Promise<void> {
-  const paymentIntentId = charge.payment_intent as string;
-
-  const { data: originalPayment } = await supabaseClient
-    .from("payments")
-    .select("id, order_id, payment_method, payment_brand")
-    .eq("stripe_payment_intent_id", paymentIntentId)
-    .maybeSingle();
-
-  if (!originalPayment?.order_id) return;
-
-  const refundAmountCents = charge.amount_refunded || 0;
-  const refundAmountSigned = -Math.abs(refundAmountCents);
-  const refundId = (charge.refunds?.data?.[0]?.id as string) || null;
-
-  const { data: order } = await supabaseClient
-    .from("orders")
-    .select("customer_id")
-    .eq("id", originalPayment.order_id)
-    .single();
-
-  // Idempotency guard: if this webhook is retried after a partial success, the
-  // refund payment row may already exist. Detect by refunded_payment_id + type.
-  const { data: existingRefundPayment } = await supabaseClient
-    .from("payments")
-    .select("id")
-    .eq("refunded_payment_id", originalPayment.id)
-    .eq("type", "incidental")
-    .maybeSingle();
-
-  let refundPayment = existingRefundPayment;
-
-  if (!existingRefundPayment) {
-    const { data: insertedPayment, error: paymentInsertError } = await supabaseClient
-      .from("payments")
-      .insert({
-        order_id: originalPayment.order_id,
-        stripe_payment_intent_id: paymentIntentId,
-        amount_cents: refundAmountSigned,
-        type: "incidental",
-        status: "succeeded",
-        paid_at: new Date().toISOString(),
-        payment_method: originalPayment.payment_method,
-        payment_brand: originalPayment.payment_brand,
-        refunded_payment_id: originalPayment.id,
-        stripe_fee_amount: 0,
-        stripe_net_amount: refundAmountSigned,
-        currency: 'usd',
-      })
-      .select('id')
-      .maybeSingle();
-
-    if (paymentInsertError) {
-      console.error("[handleChargeRefunded] payments.insert failed:", paymentInsertError);
-      throw new Error(`Refund ledger insert failed: ${paymentInsertError.message}`);
-    }
-
-    refundPayment = insertedPayment;
-  }
-
-  if (order && refundPayment) {
-    await logTransaction(supabaseClient, {
-      transactionType: 'refund',
-      orderId: originalPayment.order_id,
-      customerId: order.customer_id,
-      paymentId: refundPayment.id,
-      amountCents: refundAmountSigned,
-      paymentMethod: originalPayment.payment_method,
-      paymentMethodBrand: originalPayment.payment_brand,
-      stripeChargeId: charge.id,
-      stripePaymentIntentId: paymentIntentId,
-      notes: `Refund for charge ${charge.id}${charge.refund_reason ? ` - ${charge.refund_reason}` : ''}`,
-    });
-  }
-
-  // Idempotency guard for order_refunds: skip insert if stripe_refund_id already recorded.
-  if (refundId) {
-    const { data: existingRefundRow } = await supabaseClient
-      .from("order_refunds")
-      .select("id")
-      .eq("stripe_refund_id", refundId)
-      .maybeSingle();
-
-    if (!existingRefundRow) {
-      const { error: refundInsertError } = await supabaseClient.from("order_refunds").insert({
-        order_id: originalPayment.order_id,
-        amount_cents: refundAmountCents,
-        reason: charge.refund_reason || "refund",
-        stripe_refund_id: refundId,
-        refunded_by: null,
-        status: charge.refunded ? "succeeded" : "pending",
-      });
-
-      if (refundInsertError) {
-        console.error("[handleChargeRefunded] order_refunds.insert failed:", refundInsertError);
-        throw new Error(`order_refunds insert failed: ${refundInsertError.message}`);
-      }
-    }
-  } else {
-    const { error: refundInsertError } = await supabaseClient.from("order_refunds").insert({
-      order_id: originalPayment.order_id,
-      amount_cents: refundAmountCents,
-      reason: charge.refund_reason || "refund",
-      stripe_refund_id: null,
-      refunded_by: null,
-      status: charge.refunded ? "succeeded" : "pending",
-    });
-
-    if (refundInsertError) {
-      console.error("[handleChargeRefunded] order_refunds.insert failed:", refundInsertError);
-      throw new Error(`order_refunds insert failed: ${refundInsertError.message}`);
-    }
+  const refunds = await stripe.refunds.list({ charge: charge.id, limit: 100 });
+  for (const refund of refunds.data) {
+    await recordProviderRefund(refund, supabaseClient);
   }
 }
 

@@ -7,6 +7,7 @@ import {
   handlePaymentIntentSucceeded,
   handlePaymentIntentFailed,
   handleChargeRefunded,
+  handleRefundEvent,
   handleSetupIntentSucceeded,
 } from "./handlers.ts";
 
@@ -137,7 +138,13 @@ async function processWebhookEvent(
       await handlePaymentIntentFailed(event.data.object as Stripe.PaymentIntent, supabaseClient);
       break;
     case "charge.refunded":
-      await handleChargeRefunded(event.data.object as Stripe.Charge, supabaseClient);
+      await handleChargeRefunded(event.data.object as Stripe.Charge, supabaseClient, stripe);
+      break;
+    case "refund.created":
+    case "refund.updated":
+    case "refund.failed":
+    case "charge.refund.updated":
+      await handleRefundEvent(event.data.object as Stripe.Refund, supabaseClient);
       break;
     case "setup_intent.succeeded":
       await handleSetupIntentSucceeded(event.data.object as Stripe.SetupIntent, supabaseClient, stripe);

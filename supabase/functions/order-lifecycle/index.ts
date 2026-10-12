@@ -341,6 +341,18 @@ async function enterConfirmed(
     }
   }
 
+  // A waived deposit: when a signed-in admin approves an order whose deposit is zero, the deposit obligation is satisfied by that
+  // waiver (no Stripe charge occurs). The customer portal reads stripe_payment_status 'paid' as "no payment is required to proceed".
+  // This marker used to be written by the admin's browser; payment-state columns are now written by the server only.
+  if (trustedCaller && requestedOutcome === "waived" && source === "admin_approve_zero_deposit" && depositDue === 0 && order.stripe_payment_status !== "paid") {
+    const { error: waivedMarkError } = await supabase
+      .from("orders")
+      .update({ stripe_payment_status: "paid" })
+      .eq("id", orderId)
+      .not("status", "in", '("cancelled","void")');
+    if (waivedMarkError) console.warn("[order-lifecycle] waived-deposit marker failed (non-fatal):", waivedMarkError.message);
+  }
+
   // A customer approving an order is stamped when the order actually reaches (or is verified in) the confirmed state,
   // never merely because the customer chose a payment option. The customer-portal-action approval only records the
   // selection; this is where the approval completes.

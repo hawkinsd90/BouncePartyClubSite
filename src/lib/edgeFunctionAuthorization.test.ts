@@ -975,11 +975,12 @@ const isDenied = (status: number) => status === 401 || status === 403;
     ok(`no browser code calls .rpc('${rpc}')`, browserCalls.length === 0);
     ok(`${rpc} has only backend Edge Function callers (${callers.join(', ') || 'none'})`, callers.every((c) => /^(record-cash-payment|record-check-payment|customer-balance-payment|reconcile-balance-payment|stripe-webhook|stripe-refund)\//.test(c)));
   }
-  // The refund function must call the RPC through a client without the caller's forwarded Authorization header.
+  // The refund function no longer calls the order-total RPC at all: the database refund functions are the only writers.
   const refundSrc: string = fs.readFileSync('supabase/functions/stripe-refund/index.ts', 'utf8');
-  ok('stripe-refund calls increment_order_refunded_cents through the plain service-role client', /serviceClient\.rpc\("increment_order_refunded_cents"/.test(refundSrc) && !/supabaseClient\.rpc\("increment_order_refunded_cents"/.test(refundSrc));
-  const svcBlock = refundSrc.slice(refundSrc.indexOf('const serviceClient = createClient('), refundSrc.indexOf('const serviceClient = createClient(') + 200);
-  ok('that service client forwards no Authorization header', !/global|Authorization/.test(svcBlock));
+  ok('stripe-refund no longer calls increment_order_refunded_cents (refund totals are written by the database refund functions)', !/increment_order_refunded_cents/.test(refundSrc));
+  const refundClient = refundSrc.match(/createClient\([^)]*\)/s);
+  ok('stripe-refund builds one plain service-role client and forwards no caller Authorization header to the database', !!refundClient && !/global|Authorization/.test(refundClient[0]));
+  ok('stripe-refund is gated to Admin / Master through the verified caller roles', /requireRoles\(caller, STAFF_ADMIN_ROLES/.test(refundSrc));
   // Every function that calls an internal RPC must build that client without a forwarded caller header.
   for (const d of ['record-cash-payment', 'record-check-payment', 'customer-balance-payment', 'reconcile-balance-payment', 'stripe-webhook']) {
     const s: string = fs.readFileSync(`supabase/functions/${d}/index.ts`, 'utf8');

@@ -394,6 +394,17 @@ export type CreateBehavior =
   | 'api_error_500'
   | 'invalid_request';
 
+export type RefundBehavior =
+  | 'succeed'
+  | 'pending'
+  // Stripe creates the refund but the response never reaches us.
+  | 'succeed_then_connection_error'
+  // The request never reaches Stripe.
+  | 'connection_error_before'
+  // Stripe rejects the request (nothing is created).
+  | 'invalid_request'
+  | 'api_error_500';
+
 export interface StripeCall { api: string; params?: any; key?: string }
 
 function stripeError(type: string, message: string, extra: Record<string, any> = {}) {
@@ -506,6 +517,101 @@ export class FakeStripe {
       if (this.searchMode === 'miss') return { data: [] };
       const key = String(params.query).match(/'([^']+)'\s*$/)?.[1];
       return { data: Object.values(this.paymentIntents_).filter((p: any) => p.metadata?.payment_operation_key === key) };
+    },
+  };
+
+  // ------------------------------------------------------------------------------------------------------------
+  // Refunds
+  // ------------------------------------------------------------------------------------------------------------
+  refunds_: Record<string, any> = {};
+  refundBehaviors: RefundBehavior[] = [];
+  defaultRefundBehavior: RefundBehavior = 'succeed';
+  // How refunds.list answers: normally (paged like Stripe: newest first, limit, starting_after, has_more); failing; or with a body that
+  // never says whether there is more (a truncated / malformed answer); or failing only from the Nth page on (a mid-listing failure).
+  refundListMode: 'normal' | 'throw' | 'no_has_more' = 'normal';
+  refundListFailFromPage: number | null = null;
+
+  // A succeeded PaymentIntent that exists at Stripe (a customer payment made earlier).
+  addSucceededPaymentIntent(amount: number, metadata: Record<string, string> = {}) {
+    return this.make({ amount, currency: 'usd', customer: 'cus_1', payment_method: 'pm_card', metadata }, 'succeeded');
+  }
+
+  private refundTotalOn(piId: string): number {
+    return Object.values(this.refunds_).filter((r: any) => r.payment_intent === piId && r.status !== 'failed' && r.status !== 'canceled').reduce((a: number, r: any) => a + r.amount, 0);
+  }
+
+  private makeRefund(params: any, status: string) {
+    const id = `re_fake_${RUN}_${++GLOBAL_SEQ}`;
+    const pi = this.paymentIntents_[params.payment_intent];
+    const refund = { id, object: 'refund', amount: params.amount, currency: 'usd', status, payment_intent: params.payment_intent, charge: pi?.latest_charge ?? null, reason: params.reason ?? null, metadata: { ...(params.metadata ?? {}) }, failure_reason: undefined as string | undefined };
+    this.refunds_[id] = refund;
+    return refund;
+  }
+
+  // A refund made in the Stripe dashboard (no application metadata).
+  externalRefund(piId: string, amount: number, status = 'succeeded') {
+    return this.makeRefund({ payment_intent: piId, amount, reason: 'requested_by_customer', metadata: {} }, status);
+  }
+
+  setRefundStatus(id: string, status: string, failure_reason?: string) {
+    this.refunds_[id].status = status;
+    if (failure_reason) this.refunds_[id].failure_reason = failure_reason;
+    return { ...this.refunds_[id] };
+  }
+
+  get refundCreatedCount(): number { return Object.keys(this.refunds_).length; }
+  get refundedTotal(): number { return Object.values(this.refunds_).filter((r: any) => r.status === 'succeeded' || r.status === 'pending').reduce((a: number, r: any) => a + r.amount, 0); }
+
+  refunds = {
+    create: async (params: any, opts?: { idempotencyKey?: string }) => {
+      const key = opts?.idempotencyKey;
+      this.calls.push({ api: 'refunds.create', params, key });
+      if (key && this.idem[key]) {
+        const prior = this.idem[key];
+        if (prior.fp !== JSON.stringify(params)) throw stripeError('StripeIdempotencyError', 'Keys for idempotent requests can only be used with the same parameters they were first used with.', { code: 'idempotency_key_in_use' });
+        this.calls[this.calls.length - 1].api = 'refunds.create(replay)';
+        if (prior.result.__throws) throw prior.result.__throws;
+        return prior.result.value;
+      }
+      const behavior = this.refundBehaviors.shift() ?? this.defaultRefundBehavior;
+      const pi = this.paymentIntents_[params.payment_intent];
+      if (behavior === 'connection_error_before') throw stripeError('StripeConnectionError', 'An error occurred with our connection to Stripe.');
+      if (behavior === 'api_error_500') { const e = stripeError('StripeAPIError', 'Internal error'); if (key) this.idem[key] = { fp: JSON.stringify(params), result: { __throws: e } }; throw e; }
+      if (behavior === 'invalid_request' || !pi || this.refundTotalOn(params.payment_intent) + params.amount > pi.amount) {
+        // Stripe stores the key against a rejected request too and replays the rejection.
+        const e = stripeError('StripeInvalidRequestError', !pi ? 'No such payment_intent' : 'Refund amount is greater than unrefunded amount on charge', { code: !pi ? 'resource_missing' : 'charge_already_refunded' });
+        if (key) this.idem[key] = { fp: JSON.stringify(params), result: { __throws: e } };
+        throw e;
+      }
+      const refund = this.makeRefund(params, behavior === 'pending' ? 'pending' : 'succeeded');
+      if (key) this.idem[key] = { fp: JSON.stringify(params), result: { value: refund } };
+      if (behavior === 'succeed_then_connection_error') throw stripeError('StripeConnectionError', 'An error occurred with our connection to Stripe.');
+      return { ...refund };
+    },
+    retrieve: async (id: string) => {
+      this.calls.push({ api: 'refunds.retrieve', params: { id } });
+      const r = this.refunds_[id];
+      if (!r) throw stripeError('StripeInvalidRequestError', 'No such refund', { code: 'resource_missing' });
+      return { ...r };
+    },
+    list: async (params: any) => {
+      this.calls.push({ api: 'refunds.list', params });
+      if (this.refundListMode === 'throw') throw stripeError('StripeConnectionError', 'An error occurred with our connection to Stripe.');
+      const page = params.starting_after ? (this.calls.filter((c) => c.api === 'refunds.list' && c.params?.starting_after).length) : 0;
+      if (this.refundListFailFromPage !== null && page >= this.refundListFailFromPage) throw stripeError('StripeConnectionError', 'An error occurred with our connection to Stripe.');
+      const all = (Object.values(this.refunds_) as any[])
+        .filter((r) => (params.payment_intent ? r.payment_intent === params.payment_intent : true) && (params.charge ? r.charge === params.charge : true))
+        .map((r) => ({ ...r }))
+        .reverse(); // newest first
+      let start = 0;
+      if (params.starting_after) {
+        const at = all.findIndex((r) => r.id === params.starting_after);
+        start = at < 0 ? all.length : at + 1;
+      }
+      const limit = Math.min(params.limit ?? 10, 100);
+      const data = all.slice(start, start + limit);
+      if (this.refundListMode === 'no_has_more') return { data };
+      return { data, has_more: start + limit < all.length };
     },
   };
 
@@ -733,6 +839,8 @@ export const PAY_MIGRATION = 'supabase/migrations/20261019120000_add_payment_ope
 export const PAY_MIGRATION_2 = 'supabase/migrations/20261020120000_deposit_catch_up_and_offline_payment_parity.sql';
 // ...and the server-authoritative staff order saves.
 export const PAY_MIGRATION_3 = 'supabase/migrations/20261021120000_server_authoritative_order_pricing_saves.sql';
+// ...and refund safety / financial write authority.
+export const PAY_MIGRATION_4 = 'supabase/migrations/20261022120000_refund_safety_and_financial_write_authority.sql';
 
 // Returns a working psql for a scratch database that holds this repository's payment migration (created from the base replay
 // when absent; the migration text is idempotent and is re-applied on every run), or null when no database is reachable.
@@ -759,6 +867,6 @@ export function ensurePayDatabase(): { psql: string; db: string } | null {
     }
   }
   if (!psql) return null;
-  const applied = spawnSync(psql, [...psqlArgs(dbFull), '-v', 'ON_ERROR_STOP=1'], { input: fs.readFileSync(PAY_MIGRATION, 'utf8') + '\n' + fs.readFileSync(PAY_MIGRATION_2, 'utf8') + '\n' + fs.readFileSync(PAY_MIGRATION_3, 'utf8'), encoding: 'utf8' });
+  const applied = spawnSync(psql, [...psqlArgs(dbFull), '-v', 'ON_ERROR_STOP=1'], { input: fs.readFileSync(PAY_MIGRATION, 'utf8') + '\n' + fs.readFileSync(PAY_MIGRATION_2, 'utf8') + '\n' + fs.readFileSync(PAY_MIGRATION_3, 'utf8') + '\n' + fs.readFileSync(PAY_MIGRATION_4, 'utf8'), encoding: 'utf8' });
   return applied.status === 0 ? { psql, db: dbFull } : null;
 }

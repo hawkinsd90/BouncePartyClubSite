@@ -165,7 +165,7 @@ const M = [
   [MIG3, 'a staff session may write orders.same_day_pickup_fee_waived directly', [repl("     OR NEW.same_day_pickup_fee_waived IS DISTINCT FROM OLD.same_day_pickup_fee_waived\n", '')]],
   [MIG3, 'a staff session may write orders.same_day_pickup_fee_waive_reason directly', [repl("     OR NEW.same_day_pickup_fee_waive_reason IS DISTINCT FROM OLD.same_day_pickup_fee_waive_reason\n", '')]],
   [MIG3, 'a staff session may write orders.same_day_weekday_delivery_fee_waived directly', [repl("     OR NEW.same_day_weekday_delivery_fee_waived IS DISTINCT FROM OLD.same_day_weekday_delivery_fee_waived\n", '')]],
-  [MIG3, 'a staff session may write the weekday delivery waiver reason directly', [repl("     OR NEW.same_day_weekday_delivery_fee_waive_reason IS DISTINCT FROM OLD.same_day_weekday_delivery_fee_waive_reason THEN", '     OR false THEN')]],
+  [MIG3, 'a staff session may write the weekday delivery waiver reason directly', [repl("     OR NEW.same_day_weekday_delivery_fee_waive_reason IS DISTINCT FROM OLD.same_day_weekday_delivery_fee_waive_reason\n", '')]],
   [MIG3, 'an order may be created with orders.event_essentials_subtotal_cents set (if INSERT were granted)', [repl("       OR COALESCE(NEW.event_essentials_subtotal_cents, 0) <> 0\n", '')]],
   [MIG3, 'an order may be created with orders.travel_fee_cents set (if INSERT were granted)', [repl("       OR COALESCE(NEW.travel_fee_cents, 0) <> 0\n", '')]],
   [MIG3, 'an order may be created with orders.surface_fee_cents set (if INSERT were granted)', [repl("       OR COALESCE(NEW.surface_fee_cents, 0) <> 0\n", '')]],
@@ -255,6 +255,11 @@ const M = [
   ["src/lib/orderSaveService.ts", 'the editor creates an order row directly', [repl("import { showToast } from './notifications';", "import { showToast } from './notifications';\nimport { supabase } from './supabase';\nvoid supabase.from('orders').insert({ subtotal_cents: 1 });")]],
 ];
 
+// guard_order_pricing_authority is RESTATED (with the payment-state flags added) by the refund-safety migration, which sorts after
+// the pricing migration, so a mutant on the pricing migration's copy would be dead code. These mutants target the live copy.
+const MIG4_GUARD = /staff session may|may write orders.|order may be created|pricing guard exempts|weekday delivery waiver reason directly/;
+for (const m of M) if (m[0] === MIG3 && MIG4_GUARD.test(m[1])) m[0] = 'supabase/migrations/20261022120000_refund_safety_and_financial_write_authority.sql';
+
 const PURE = ['src/lib/orderMoney.test.ts', 'src/lib/pricingReconciliation.test.ts', 'src/lib/orderPricingCalculation.test.ts', 'src/lib/orderChangePlanning.test.ts', 'src/lib/eventEssentialsMoney.test.ts'];
 const SQL = ['src/lib/paymentOperations.test.ts', 'src/lib/paymentCharging.test.ts'];
 const SERVER = ['src/lib/staffOrderSave.test.ts', 'src/lib/pricingReconciliation.test.ts'];
@@ -262,6 +267,7 @@ const BROWSER_SRC = ['src/lib/pricingReconciliation.test.ts', 'src/lib/customerP
 module.exports = {
   M,
   tests: (file) => {
+    if (file.includes('20261022')) return ['src/lib/staffOrderSave.test.ts', 'src/lib/coreDatabaseAccess.test.ts', 'src/lib/pricingReconciliation.test.ts'];
     if (file.endsWith('.sql')) return file.includes('20261021') ? ['src/lib/staffOrderSave.test.ts', 'src/lib/coreDatabaseAccess.test.ts', 'src/lib/pricingReconciliation.test.ts', 'src/lib/paymentOperations.test.ts'] : SQL;
     if (file.includes('orderPricingState')) return SERVER;
     if (/OrderDetailModal|orderSummary\.ts|invoiceService|orderSaveService/.test(file)) return BROWSER_SRC;

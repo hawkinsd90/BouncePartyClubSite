@@ -9,6 +9,17 @@ const WH = 'supabase/functions/stripe-webhook/handlers.ts';
 const RC = 'supabase/functions/reconcile-balance-payment/index.ts';
 const SC = 'supabase/functions/stripe-checkout/index.ts';
 const SG = 'supabase/functions/stripe-charge/index.ts';
+// Step 3C-A: refund safety and financial write authority
+const MIG4 = 'supabase/migrations/20261022120000_refund_safety_and_financial_write_authority.sql';
+const RO = 'supabase/functions/_shared/refund-operations.ts';
+const SR = 'supabase/functions/stripe-refund/index.ts';
+const WHI = 'supabase/functions/stripe-webhook/index.ts';
+const OL = 'supabase/functions/order-lifecycle/index.ts';
+const OAS = 'src/lib/orderApprovalService.ts';
+const UI_PAYMENTS_TAB = 'src/components/order-detail/PaymentsTab.tsx';
+const UI_PAY_SECTION = 'src/components/pending-order/PaymentManagementSection.tsx';
+const UI_TASK_MODAL = 'src/components/admin/TaskDetailModal.tsx';
+const KEYFILE = 'src/lib/refundOperationKey.ts';
 
 // exact, unique anchor
 const repl = (a, b) => (src) => {
@@ -187,6 +198,103 @@ const M = [
   [SQL, 'the finalize of the operation cannot change its tip', [repl("        AND p.id::text IS DISTINCT FROM current_setting('bpc.finalizing_payment_id', true)\n    ) THEN", "        AND (p.id::text IS DISTINCT FROM current_setting('bpc.finalizing_payment_id', true) OR NEW.tip_cents IS DISTINCT FROM OLD.tip_cents)\n    ) THEN")]],
   [SQL, 'the barrier blocks unrelated admin_message changes', [repl('     OR NEW.tip_cents IS DISTINCT FROM OLD.tip_cents\n', '     OR NEW.tip_cents IS DISTINCT FROM OLD.tip_cents\n     OR NEW.admin_message IS DISTINCT FROM OLD.admin_message\n'), repl('balance_paid_cents, tip_cents,\n                   customer_selected_payment_type', 'balance_paid_cents, tip_cents, admin_message,\n                   customer_selected_payment_type')]],
   [SQL, 'the barrier blocks saved-card metadata changes', [repl('     OR NEW.tip_cents IS DISTINCT FROM OLD.tip_cents\n', '     OR NEW.tip_cents IS DISTINCT FROM OLD.tip_cents\n     OR NEW.stripe_payment_method_id IS DISTINCT FROM OLD.stripe_payment_method_id\n'), repl('balance_paid_cents, tip_cents,\n                   customer_selected_payment_type', 'balance_paid_cents, tip_cents, stripe_payment_method_id,\n                   customer_selected_payment_type')]],
+  // ================================================================ Step 3C-A: refund idempotency, reservation, recovery, webhook, write authority
+  [RO, 'a Stripe refund request carries no idempotency key', [repl("      { idempotencyKey: row.provider_idempotency_key },\n", '')]],
+  [RO, 'a retry builds a new idempotency key each time (a retry creates a second provider refund)', [repl('{ idempotencyKey: row.provider_idempotency_key }', "{ idempotencyKey: row.provider_idempotency_key + ':' + Math.random() }")]],
+  [RO, 'an unknown Stripe outcome is treated as a definitive failure (the reservation is released while the refund may exist)', [repl("return t === \"StripeInvalidRequestError\" || t === \"StripeAuthenticationError\" || t === \"StripePermissionError\";", 'return true;')]],
+  [RO, 'a Stripe rejection is never recognised (a rejected refund stays reserved forever)', [repl("return t === \"StripeInvalidRequestError\" || t === \"StripeAuthenticationError\" || t === \"StripePermissionError\";", 'return false;')]],
+  [RO, 'a refund does not name its row in the Stripe metadata (a lost result cannot be found again)', [repl('bpc_refund_id: row.id, ', '')]],
+  [RO, 'a succeeded or failed row is sent to Stripe again', [repl('  if (row.status !== "pending") return { row, halt: false };', '')]],
+  [RO, 'a Stripe refund that could not be recorded locally is dropped instead of kept pending', [repl("  return { row: { ...row, stripe_refund_id: refund?.id ?? null, unresolved: true }, halt: false };", "  return { row: { ...row, status: 'failed' }, halt: false };")]],
+  [RO, 'the amount of the refund comes from the browser total instead of the reservation', [repl('amount: row.amount_cents,', 'amount: row.amount_cents + 1,')]],
+  [MIG4, 'the refund reservation is not taken under the order lock', [repl("  SELECT * INTO v_order FROM public.orders WHERE id = p_order_id FOR UPDATE;\n  IF NOT FOUND THEN\n    RETURN jsonb_build_object('outcome', 'order_not_found');", "  SELECT * INTO v_order FROM public.orders WHERE id = p_order_id;\n  IF NOT FOUND THEN\n    RETURN jsonb_build_object('outcome', 'order_not_found');")]],
+  [MIG4, 'a refund may exceed what is refundable', [repl("IF p_amount_cents > v_max THEN\n    RETURN jsonb_build_object('outcome', 'exceeds_refundable'", "IF false THEN\n    RETURN jsonb_build_object('outcome', 'exceeds_refundable'")]],
+  [MIG4, 'the per-payment allocation ignores earlier refunds of that payment', [repl('v_avail := GREATEST(0, v_pay.amount_cents - v_linked);', 'v_avail := v_pay.amount_cents;')]],
+  [MIG4, 'failed refunds keep consuming the refundable amount', [repl("FROM public.order_refunds WHERE order_id = p_order_id AND status IN ('pending', 'succeeded');", 'FROM public.order_refunds WHERE order_id = p_order_id;')]],
+  [MIG4, 'failed refunds keep consuming a payment\'s refundable amount', [repl("FROM public.order_refunds WHERE payment_id = v_pay.id AND status IN ('pending', 'succeeded');", 'FROM public.order_refunds WHERE payment_id = v_pay.id;')]],
+  [MIG4, 'pending refunds do not reserve their amount', [repl("FROM public.order_refunds WHERE order_id = p_order_id AND status IN ('pending', 'succeeded');", "FROM public.order_refunds WHERE order_id = p_order_id AND status = 'succeeded';")]],
+  [MIG4, 'the same operation key reserves again (a duplicate submission creates a second refund)', [repl("  IF FOUND THEN\n    IF v_existing.order_id IS DISTINCT FROM p_order_id", "  IF false THEN\n    IF v_existing.order_id IS DISTINCT FROM p_order_id")]],
+  [MIG4, 'an operation key reused for a different amount is accepted', [repl('OR v_existing.request_amount_cents IS DISTINCT FROM p_amount_cents THEN', 'THEN')]],
+  [MIG4, 'legacy refund rows no longer reserve (only rows of the new ledger do)', [repl("FROM public.order_refunds WHERE order_id = p_order_id AND status IN ('pending', 'succeeded');", "FROM public.order_refunds WHERE order_id = p_order_id AND status IN ('pending', 'succeeded') AND ledger_version = 2;")]],
+  [MIG4, 'a pending provider status is treated as succeeded', [repl("    ELSE 'pending'\n  END\n$$;", "    ELSE 'succeeded'\n  END\n$$;")]],
+  [MIG4, 'a failed provider status is treated as pending', [repl("    WHEN 'failed' THEN 'failed'\n", '')]],
+  [MIG4, 'a repeated success event applies the refund again', [repl("  IF r.status = p_new_status THEN\n    RETURN jsonb_build_object('outcome', 'unchanged'", "  IF false THEN\n    RETURN jsonb_build_object('outcome', 'unchanged'"), repl('IF r.ledger_version = 2 AND r.total_applied IS NOT TRUE AND r.order_id IS NOT NULL THEN', 'IF r.ledger_version = 2 AND r.order_id IS NOT NULL THEN')]],
+  [MIG4, 'a failed refund can be revived by a later success event', [repl("  IF r.status = 'failed' THEN\n    -- A refund that failed does not come back", "  IF false THEN\n    -- A refund that failed does not come back")]],
+  [MIG4, 'a succeeded refund that later fails is not reversed in the order total', [repl('UPDATE public.orders SET total_refunded_cents = GREATEST(0, COALESCE(total_refunded_cents, 0) - r.amount_cents) WHERE id = r.order_id;', '')]],
+  [MIG4, 'a succeeded refund does not increase the order total', [repl('UPDATE public.orders SET total_refunded_cents = COALESCE(total_refunded_cents, 0) + r.amount_cents WHERE id = r.order_id;', '')]],
+  [MIG4, 'a succeeded refund is not written to the payments ledger', [repl("      IF r.payment_id IS NOT NULL AND r.stripe_refund_id IS NOT NULL THEN\n        SELECT * INTO orig", "      IF false THEN\n        SELECT * INTO orig")]],
+  [MIG4, 'a legacy refund row changes the order total when its status settles', [repl('IF r.ledger_version = 2 AND r.total_applied IS NOT TRUE AND r.order_id IS NOT NULL THEN', 'IF r.total_applied IS NOT TRUE AND r.order_id IS NOT NULL THEN')]],
+  [MIG4, 'the provider event does not find our row through the refund metadata', [repl("IF p_bpc_refund_id IS NOT NULL AND p_bpc_refund_id ~ '^[0-9a-fA-F-]{36}$' THEN", 'IF false THEN')]],
+  [MIG4, 'an event whose amount disagrees with the row is applied anyway', [repl('    IF r.amount_cents <> p_amount_cents THEN', '    IF false THEN')]],
+  [MIG4, 'a negative refund row can be chosen as the original payment', [repl("    AND status = 'succeeded' AND amount_cents > 0 AND refunded_payment_id IS NULL\n  ORDER BY created_at LIMIT 1;", "    AND status = 'succeeded'\n  ORDER BY created_at DESC LIMIT 1;")]],
+  [MIG4, 'a refund made outside the application is not recorded', [repl("  IF NOT FOUND THEN\n    RETURN jsonb_build_object('outcome', 'no_original_payment');\n  END IF;", "  IF true THEN\n    RETURN jsonb_build_object('outcome', 'no_original_payment');\n  END IF;")]],
+  [MIG4, 'a webhook delivered twice records an outside refund twice', [repl("  SELECT * INTO r FROM public.order_refunds WHERE stripe_refund_id = p_stripe_refund_id LIMIT 1;\n  IF r.id IS NOT NULL THEN\n    RETURN public._apply_refund_transition(r.id, v_new, p_failure_reason);\n  END IF;\n", ''), repl("  EXCEPTION WHEN unique_violation THEN\n    SELECT id INTO v_id FROM public.order_refunds WHERE stripe_refund_id = p_stripe_refund_id LIMIT 1;", "  EXCEPTION WHEN unique_violation THEN\n    v_id := gen_random_uuid();")]],
+  [MIG4, 'cancelling an order leaves payment attempts that never reached the provider open', [repl("  AFTER UPDATE OF status ON public.orders\n  FOR EACH ROW\n  EXECUTE FUNCTION public.cancel_unattempted_payments_on_order_close();", "  AFTER UPDATE OF admin_message ON public.orders\n  FOR EACH ROW\n  EXECUTE FUNCTION public.cancel_unattempted_payments_on_order_close();")]],
+  [MIG4, 'cancelling an order also cancels a payment whose provider request may have started', [repl("      AND provider_attempted_at IS NULL;", ';')]],
+  [MIG4, 'cancelling an order also cancels a payment that already has a PaymentIntent', [repl("      AND stripe_payment_intent_id IS NULL\n      AND stripe_checkout_session_id IS NULL", "      AND stripe_checkout_session_id IS NULL")]],
+  [MIG4, 'a payment applied to a closed order leaves no note', [repl("  IF v_status IN ('cancelled', 'void') THEN\n    INSERT INTO public.order_changelog", "  IF false THEN\n    INSERT INTO public.order_changelog")]],
+  [MIG4, 'an Admin session can INSERT a payment row', [repl("DROP POLICY IF EXISTS \"Admins can insert payments\" ON public.payments;\n", ''), repl('REVOKE INSERT, UPDATE, DELETE ON public.payments FROM authenticated, anon;', 'REVOKE UPDATE, DELETE ON public.payments FROM authenticated, anon;')]],
+  [MIG4, 'an Admin session can UPDATE a payment row', [repl("DROP POLICY IF EXISTS \"Admins can update payments\" ON public.payments;\n", ''), repl('REVOKE INSERT, UPDATE, DELETE ON public.payments FROM authenticated, anon;', 'REVOKE INSERT, DELETE ON public.payments FROM authenticated, anon;')]],
+  [MIG4, 'an Admin session can INSERT a refund row', [repl("DROP POLICY IF EXISTS \"Admins can manage refunds\" ON public.order_refunds;\n", ''), repl('REVOKE INSERT, UPDATE, DELETE ON public.order_refunds FROM authenticated;', 'REVOKE UPDATE, DELETE ON public.order_refunds FROM authenticated;')]],
+  [MIG4, 'an Admin session can UPDATE or DELETE a refund row', [repl("DROP POLICY IF EXISTS \"Admins can manage refunds\" ON public.order_refunds;\n", ''), repl('REVOKE INSERT, UPDATE, DELETE ON public.order_refunds FROM authenticated;', 'REVOKE INSERT ON public.order_refunds FROM authenticated;')]],
+  [MIG4, 'an anonymous session keeps access to the refund table', [repl('REVOKE ALL ON public.order_refunds FROM anon;', '')]],
+  [MIG4, 'the order guard allows a direct change of the payment status', [repl("     OR NEW.stripe_payment_status IS DISTINCT FROM OLD.stripe_payment_status\n", '')]],
+  [MIG4, 'the order guard allows a direct change of the payment lock', [repl("     OR NEW.payment_lock IS DISTINCT FROM OLD.payment_lock THEN", '     OR false THEN')]],
+  [MIG4, 'the refund reservation function is executable by authenticated', [repl('GRANT EXECUTE ON FUNCTION public.reserve_refund_operation(uuid, text, integer, text, uuid) TO service_role;', 'GRANT EXECUTE ON FUNCTION public.reserve_refund_operation(uuid, text, integer, text, uuid) TO authenticated, service_role;')]],
+  [MIG4, 'the provider-event function is executable by authenticated', [repl('GRANT EXECUTE ON FUNCTION public.apply_provider_refund_event(text, text, integer, text, text, text, text) TO service_role;', 'GRANT EXECUTE ON FUNCTION public.apply_provider_refund_event(text, text, integer, text, text, text, text) TO authenticated, service_role;')]],
+  [MIG4, 'the internal refund transition is executable by authenticated', [repl('REVOKE ALL ON FUNCTION public._apply_refund_transition(uuid, text, text) FROM PUBLIC, anon, authenticated;', '')]],
+  [SR, 'a Crew member can request a refund', [repl('requireRoles(caller, STAFF_ADMIN_ROLES,', 'requireRoles(caller, [...STAFF_ADMIN_ROLES, "crew"],')]],
+  [SR, 'the refund function drops the operation key', [repl('operationKey: body.operationKey, ', '')]],
+  [WH, 'the webhook records a refund from the cumulative amount of the charge', [repl("  for (const refund of refunds.data) {\n    await recordProviderRefund(refund, supabaseClient);", "  for (const refund of refunds.data) {\n    await recordProviderRefund({ ...refund, amount: (charge as any).amount_refunded ?? 0 }, supabaseClient);")]],
+  [WH, 'the webhook records only the first refund of a charge', [repl("  for (const refund of refunds.data) {\n    await recordProviderRefund(refund, supabaseClient);\n  }", "  for (const refund of refunds.data.slice(0, 1)) {\n    await recordProviderRefund(refund, supabaseClient);\n  }")]],
+  [RO, 'the webhook records a refund against the wrong payment intent', [repl("    p_payment_intent_id: pi,", "    p_payment_intent_id: null,")]],
+  [WHI, 'the webhook does not route refund.created', [repl("    case \"refund.created\":\n", '')]],
+  [WHI, 'the webhook does not route refund.updated', [repl("    case \"refund.updated\":\n", '')]],
+  [WHI, 'the webhook does not route refund.failed', [repl("    case \"refund.failed\":\n", '')]],
+  [WHI, 'the webhook does not route charge.refund.updated', [repl("    case \"charge.refund.updated\":\n", '')]],
+  [WHI, 'charge.refunded is routed without the Stripe client (it cannot list the refunds)', [repl("await handleChargeRefunded(event.data.object as Stripe.Charge, supabaseClient, stripe);", "await handleChargeRefunded(event.data.object as Stripe.Charge, supabaseClient, undefined as unknown as Stripe);")]],
+  [OL, 'the waived-deposit marker is written for an untrusted caller', [repl('trustedCaller && requestedOutcome === "waived"', 'requestedOutcome === "waived"')]],
+  [OAS, 'order rejection cancels payments from the browser again', [repl("    // Payment attempts that never reached the provider are cancelled by the database when the order is cancelled; an attempt that", "    await supabase.from('payments').update({ status: 'cancelled' }).eq('order_id', order.id);\n    // Payment attempts that never reached the provider are cancelled by the database when the order is cancelled; an attempt that")]],
+  [OAS, 'the zero-deposit approval writes the payment status from the browser again', [repl("        // order-lifecycle's enterConfirmed below; a browser session cannot write payment-state columns.\n        .update({ status: ORDER_STATUS.CONFIRMED })", "        // order-lifecycle's enterConfirmed below; a browser session cannot write payment-state columns.\n        .update({ status: ORDER_STATUS.CONFIRMED, stripe_payment_status: 'paid' })")]],
+  [UI_PAYMENTS_TAB, 'the Payments tab sends no operation key (a double click makes two refunds)', [repl("            operationKey: attempt.key,\n", '')]],
+  [UI_PAY_SECTION, 'the payment section sends no operation key', [repl('reason: refundReason, operationKey: attempt.key })', 'reason: refundReason })')]],
+  [UI_TASK_MODAL, 'the task modal sends no operation key', [repl('reason, operationKey: attempt.key }', 'reason }')]],
+  [UI_PAYMENTS_TAB, 'the Payments tab makes a new key on every click', [repl('const attempt = refundAttemptFor(refundAttempt.current, orderId, amountCents);', 'const attempt = refundAttemptFor(null, orderId, amountCents);')]],
+  // ================================================================ Step 3C-A final correction: marker, exhaustive lookup, retry identity, other sessions, history
+  [RO, 'a refund is sent without the provider-attempt marker', [repl('  if (!(marked || (markerFailed && alreadyMarked))) return', '  if (false) return')]],
+  [RO, 'a failed marker write is read as written', [repl("    if (res?.error) markerFailed = true;\n    else marked = res?.data === true;", '    marked = true;')]],
+  [RO, 'a false marker result is accepted', [repl('marked = res?.data === true;', 'marked = res?.data !== undefined;')]],
+  [RO, 'a marker call that throws lets the refund go out', [repl("  } catch {\n    markerFailed = true;\n  }", "  } catch {\n    marked = true;\n  }")]],
+  [RO, 'a failed marker is forgiven even when no earlier marker exists', [repl('(markerFailed && alreadyMarked)', 'markerFailed')]],
+  [MIG4, 'the marker is written for a refund that already has a provider id', [repl("WHERE id = p_refund_id AND status = 'pending' AND stripe_refund_id IS NULL;", 'WHERE id = p_refund_id;')]],
+  [RO, 'an aged request is re-sent after an inconclusive lookup', [repl('if (!look.complete && age > IDEMPOTENCY_SAFE_MS) return', 'if (false) return')]],
+  [RO, 'a full first page without a match is read as complete absence', [repl('if (list.has_more !== true || data.length === 0) return { found: null, complete: false };', 'return { found: null, complete: true };')]],
+  [RO, 'a listing without has_more is read as complete', [repl('if (list.has_more !== true || data.length === 0) return { found: null, complete: false };', 'if (list.has_more !== true) return { found: null, complete: true };')]],
+  [RO, 'a failed listing page is read as complete absence', [repl("    } catch {\n      return { found: null, complete: false };\n    }\n    const data", "    } catch {\n      return { found: null, complete: true };\n    }\n    const data")]],
+  [RO, 'too many pages are read as complete absence', [repl("  return { found: null, complete: false };\n}\n\nasync function record", "  return { found: null, complete: true };\n}\n\nasync function record")]],
+  [RO, 'the lookup matches any refund that carries a row id', [repl('r?.metadata?.bpc_refund_id === rowId', 'r?.metadata?.bpc_refund_id !== undefined')]],
+  [RO, 'the lookup never follows to the next page', [repl('    startingAfter = data[data.length - 1]?.id;', '    startingAfter = undefined;')]],
+  [RO, 'an unfinished operation with a rejected portion is reported as final', [repl('if (!final && (unresolvedCents > 0 || failedCents > 0)) {', 'if (false) {')]],
+  [RO, 'a pending portion is treated as finished', [repl('const final = pendingCents === 0 && unresolvedCents === 0;', 'const final = unresolvedCents === 0;')]],
+  [RO, 'a final partial failure is reported as success', [repl('if (failedCents > 0) return json(207', 'if (failedCents > 1e12) return json(207')]],
+  [RO, 'an unfinished operation reports success although a portion was rejected', [repl('success: failedCents === 0, code: "REFUND_UNRESOLVED"', 'success: true, code: "REFUND_UNRESOLVED"')]],
+  [KEYFILE, 'the browser forgets the key after a final partial failure', [repl("kind: 'partial', tone: 'error', keepKey: true,", "kind: 'partial', tone: 'error', keepKey: false,")]],
+  [KEYFILE, 'the browser forgets the key while a portion is unresolved', [repl("return { kind: 'unresolved', tone: 'warning', keepKey: true, message: `This refund is not finished.", "return { kind: 'unresolved', tone: 'warning', keepKey: false, message: `This refund is not finished.")]],
+  [KEYFILE, 'the browser does not take over an unsettled request', [repl('      adopt: { key: data.resumeOperationKey, amountCents: data.resumeAmountCents },\n', '')]],
+  [KEYFILE, 'a rejected refund keeps its key (a fresh press could never be a fresh request)', [repl("return { kind: 'failed', tone: 'error', keepKey: false,", "return { kind: 'failed', tone: 'error', keepKey: true,")]],
+  [MIG4, 'an unsettled request does not block another one', [repl("  IF FOUND THEN\n    RETURN jsonb_build_object('outcome', 'unsettled_operation'", "  IF false THEN\n    RETURN jsonb_build_object('outcome', 'unsettled_operation'")]],
+  [MIG4, 'a request is released by age even though a provider request may have started', [repl("WHERE x.operation_key = o.operation_key AND (x.stripe_refund_id IS NOT NULL OR x.provider_attempted_at IS NOT NULL OR x.status = 'succeeded')", "WHERE x.operation_key = o.operation_key AND (x.stripe_refund_id IS NOT NULL OR x.status = 'succeeded')")]],
+  [MIG4, 'a partly sent operation is released portion by portion', [repl("    AND NOT EXISTS (\n      SELECT 1 FROM public.order_refunds x\n      WHERE x.operation_key = o.operation_key AND (x.stripe_refund_id IS NOT NULL OR x.provider_attempted_at IS NOT NULL OR x.status = 'succeeded')\n    );", ';')]],
+  [MIG4, 'an unsent request is never released', [repl("    AND o.created_at < now() - interval '15 minutes'", "    AND o.created_at < now() - interval '15 years'")]],
+  [MIG4, 'a request that never reached Stripe is released at once', [repl("    AND o.created_at < now() - interval '15 minutes'", "    AND o.created_at < now() + interval '1 hour'")]],
+  [RO, 'the answer does not name the unsettled request', [repl('resumeOperationKey: r.operation_key, resumeAmountCents: r.request_amount_cents', 'resumeOperationKey: null, resumeAmountCents: null')]],
+  [MIG4, 'an ambiguous history is allocated by inference', [repl('IF v_pay_count > 1 AND EXISTS (', 'IF false AND EXISTS (')]],
+  [MIG4, 'a single-payment history is refused as ambiguous', [repl('IF v_pay_count > 1 AND EXISTS (', 'IF v_pay_count > 0 AND EXISTS (')]],
+  [UI_PAYMENTS_TAB, 'the Payments tab ignores the unsettled request the server names', [repl('      if (outcome.adopt) {', '      if (false) {')]],
+  [UI_PAY_SECTION, 'the payment section ignores the unsettled request the server names', [repl('      if (outcome.adopt) {', '      if (false) {')]],
+  [UI_TASK_MODAL, 'the task modal ignores the unsettled request the server names', [repl("      if (e?.code === 'UNSETTLED_REFUND_EXISTS' && e.data) {", "      if (false) {")]],
+  [OL, 'the waived marker is written although a deposit is owed', [repl('source === "admin_approve_zero_deposit" && depositDue === 0', 'source === "admin_approve_zero_deposit"')]],
+  [OL, 'any trusted source writes the waived marker', [repl('requestedOutcome === "waived" && source === "admin_approve_zero_deposit" && depositDue === 0', 'requestedOutcome === "waived" && depositDue === 0')]],
 ];
 
 // The claim function is REPLACED by the second migration, so a mutant on the claim text of the first migration would be dead code.
@@ -199,4 +307,16 @@ for (const m of M) if (m[0] === SQL && LIVE_CLAIM.includes(m[1])) m[0] = SQL2;
 // mutants die in the first test file.
 const SQL_FIRST = ['src/lib/paymentOperations.test.ts', 'src/lib/paymentCharging.test.ts'];
 const CODE_FIRST = ['src/lib/paymentCharging.test.ts', 'src/lib/paymentOperations.test.ts'];
-module.exports = { M, tests: (file) => (file.endsWith('.sql') ? SQL_FIRST : CODE_FIRST) };
+const REFUND_TESTS = ['src/lib/refundSafety.test.ts'];
+const AUTHORITY_TESTS = ['src/lib/refundSafety.test.ts', 'src/lib/coreDatabaseAccess.test.ts'];
+module.exports = {
+  M,
+  tests: (file) => {
+    if (file.includes('20261022')) return AUTHORITY_TESTS;
+    if (file.endsWith('order-lifecycle/index.ts')) return [...REFUND_TESTS, 'src/lib/customerPortalAccess.test.ts'];
+    if (file.endsWith('refund-operations.ts') || file.endsWith('refundOperationKey.ts') || file.endsWith('stripe-refund/index.ts') || file.endsWith('stripe-webhook/index.ts')) return REFUND_TESTS;
+    if (file.endsWith('orderApprovalService.ts') || /PaymentsTab|PaymentManagementSection|TaskDetailModal/.test(file)) return REFUND_TESTS;
+    if (file.endsWith('stripe-webhook/handlers.ts')) return [...CODE_FIRST, ...REFUND_TESTS];
+    return file.endsWith('.sql') ? SQL_FIRST : CODE_FIRST;
+  },
+};

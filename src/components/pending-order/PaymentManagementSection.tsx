@@ -1,9 +1,10 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { format } from 'date-fns';
 import { CreditCard, RefreshCw } from 'lucide-react';
 import { formatCurrency } from '../../lib/pricing';
 import { storedOrderTotalCents } from '../../lib/orderMoney';
 import { supabase } from '../../lib/supabase';
+import { classifyRefundResponse, refundAttemptFor, type RefundAttempt } from '../../lib/refundOperationKey';
 
 interface Payment {
   id: string;
@@ -63,6 +64,8 @@ export function PaymentManagementSection({
   const [refundAmountDollars, setRefundAmountDollars] = useState('');
   const [refundReason, setRefundReason] = useState('cancellation');
   const [isRefunding, setIsRefunding] = useState(false);
+  // The same operation key is sent again when this refund request is retried, so Stripe is never asked for it twice.
+  const refundAttempt = useRef<RefundAttempt | null>(null);
   const [refundMessage, setRefundMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
   const hasChargeableCard = !!(order.stripe_customer_id && order.stripe_payment_method_id);
@@ -120,6 +123,8 @@ export function PaymentManagementSection({
 
     setIsRefunding(true);
     setRefundMessage(null);
+    const attempt = refundAttemptFor(refundAttempt.current, order.id, amountCents);
+    refundAttempt.current = attempt;
 
     try {
       const { data: { session } } = await supabase.auth.getSession();
@@ -134,15 +139,22 @@ export function PaymentManagementSection({
             'Authorization': `Bearer ${session.access_token}`,
             'Apikey': import.meta.env.VITE_SUPABASE_ANON_KEY,
           },
-          body: JSON.stringify({ orderId: order.id, amountCents, reason: refundReason }),
+          body: JSON.stringify({ orderId: order.id, amountCents, reason: refundReason, operationKey: attempt.key }),
         }
       );
 
-      const json = await res.json();
-      if (!res.ok) throw new Error(json.error || 'Refund failed');
+      const json = await res.json().catch(() => null);
+      const outcome = classifyRefundResponse(res.status, json);
+      if (!outcome.keepKey) refundAttempt.current = null;
+      if (outcome.adopt) {
+        // An earlier request on this order is unsettled (this page lost its key): the next press settles THAT request.
+        refundAttempt.current = { key: outcome.adopt.key, orderId: order.id, amountCents: outcome.adopt.amountCents };
+        setRefundAmountDollars((outcome.adopt.amountCents / 100).toFixed(2));
+      }
+      if (outcome.tone === 'error') throw new Error(outcome.message);
 
-      setRefundMessage({ type: 'success', text: `Refund of ${formatCurrency(amountCents)} processed successfully.` });
-      setRefundAmountDollars('');
+      setRefundMessage({ type: outcome.tone === 'warning' ? 'error' : 'success', text: outcome.message });
+      if (outcome.tone === 'success') setRefundAmountDollars('');
       onRefundSuccess?.();
     } catch (err: any) {
       setRefundMessage({ type: 'error', text: err.message || 'Failed to process refund.' });

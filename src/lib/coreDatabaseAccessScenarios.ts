@@ -70,6 +70,7 @@ INSERT INTO public.order_custom_fees (order_id, name) VALUES ('${IDS.orderA}', '
 INSERT INTO public.payments (id, order_id, type, amount_cents, stripe_payment_intent_id) VALUES
   ('${IDS.payA}', '${IDS.orderA}', 'deposit', 5000, 'pi_secret_A'), ('${IDS.payB}', '${IDS.orderB}', 'deposit', 5000, 'pi_secret_B'),
   ('${IDS.payLegacy}', '${IDS.orderLegacy}', 'deposit', 5000, 'pi_secret_L');
+INSERT INTO public.order_refunds (order_id, amount_cents, reason, status) VALUES ('${IDS.orderA}', 100, 'seed refund', 'succeeded');
 INSERT INTO public.invoice_links (id, order_id, link_token, link_type, expires_at) VALUES
   ('${IDS.linkA}', '${IDS.orderA}', 'tok_secret_A', 'portal', now() + interval '1 day'),
   ('${IDS.linkB}', '${IDS.orderB}', 'tok_secret_B', 'portal', now() + interval '1 day');
@@ -242,7 +243,7 @@ export function buildScenarios(): Scenario[] {
   add('admin: reads consent records, contacts, changelog', 'authenticated', D, `SELECT ((SELECT count(*) FROM public.consent_records) = 1 AND (SELECT count(*) FROM public.contacts) = 3 AND (SELECT count(*) FROM public.order_changelog) = 1)::text`, 'true');
   add('admin: can update an order', 'authenticated', D, upd(`UPDATE public.orders SET admin_message = 'hi' WHERE id = '${IDS.orderA}'`), '1');
   add('admin: can update and revoke an invoice link', 'authenticated', D, upd(`UPDATE public.invoice_links SET revoked_at = now() WHERE id = '${IDS.linkA}'`), '1');
-  add('admin: can record a payment', 'authenticated', D, `INSERT INTO public.payments (order_id, type, amount_cents) VALUES ('${IDS.orderA}', 'deposit', 1) RETURNING 'inserted'`, 'inserted');
+  // (Payments are recorded by the server payment functions only; the browser-side INSERT that used to be allowed here is closed below.)
   add('admin: can update pricing_rules and units', 'authenticated', D, `SELECT (${n('UPDATE public.pricing_rules SET deposit_per_unit_cents = deposit_per_unit_cents')} >= 1 AND ${n('UPDATE public.units SET price_dry_cents = price_dry_cents')} >= 1)::text`, 'true');
   add('admin: can append to the changelog but not rewrite it', 'authenticated', D, `SELECT (${n(`INSERT INTO public.order_changelog (order_id, field_changed, change_type) VALUES ('${IDS.orderA}', 'status', 'status_change')`)} = 1 AND ${n("UPDATE public.order_changelog SET change_type = 'x'")} = 0)::text`, 'true');
   add('admin: booking_setup_proofs stays service-role only', 'authenticated', D, cnt('booking_setup_proofs'), denied);
@@ -320,12 +321,62 @@ export function buildScenarios(): Scenario[] {
   add('service role: apply_staff_order_save refuses a stale state and writes nothing', 'service_role', null,
     `SELECT (public.apply_staff_order_save('${IDS.orderG}', '${IDS.uAdmin}', '{"columns":{"status":"cancelled"},"children":{}}'::jsonb, '{"subtotal_cents": 777}'::jsonb, '[]'::jsonb, '[]'::jsonb, '[]'::jsonb, '[]'::jsonb)->>'outcome') || ':' || (SELECT subtotal_cents::text FROM public.orders WHERE id = '${IDS.orderG}')`, 'stale:10000');
 
+  // ---- Money tables are written by the server functions only (payments, order_refunds, the payment-state flags) ----
+  const payInsert = `INSERT INTO public.payments (order_id, type, amount_cents, status) VALUES ('${IDS.orderA}', 'deposit', 99999, 'succeeded') RETURNING 'inserted'`;
+  const refundInsert = `INSERT INTO public.order_refunds (order_id, amount_cents, reason, status) VALUES ('${IDS.orderA}', 1, 'forged', 'succeeded') RETURNING 'inserted'`;
+  for (const [who, uid] of [['admin', D], ['master', M]] as const) {
+    add(`${who}: cannot INSERT a payment row`, 'authenticated', uid, payInsert, denied);
+    add(`${who}: cannot UPDATE a payment's amount or status`, 'authenticated', uid, upd(`UPDATE public.payments SET amount_cents = 99999, status = 'succeeded' WHERE id = '${IDS.payA}'`), denied);
+    add(`${who}: cannot rewrite a payment's provider identity`, 'authenticated', uid, upd(`UPDATE public.payments SET stripe_payment_intent_id = 'pi_forged' WHERE id = '${IDS.payA}'`), denied);
+    add(`${who}: cannot edit a payment's principal / tip components`, 'authenticated', uid, upd(`UPDATE public.payments SET tip_amount_cents = 1 WHERE id = '${IDS.payA}'`), denied);
+    add(`${who}: cannot DELETE a payment row`, 'authenticated', uid, upd(`DELETE FROM public.payments WHERE id = '${IDS.payA}'`), denied);
+    add(`${who}: cannot INSERT a refund row`, 'authenticated', uid, refundInsert, denied);
+    add(`${who}: cannot UPDATE a refund row`, 'authenticated', uid, upd(`UPDATE public.order_refunds SET status = 'succeeded', amount_cents = 1 WHERE order_id = '${IDS.orderA}'`), denied);
+    add(`${who}: cannot DELETE a refund row`, 'authenticated', uid, upd(`DELETE FROM public.order_refunds WHERE order_id = '${IDS.orderA}'`), denied);
+    add(`${who}: can still READ refunds and payments`, 'authenticated', uid, `SELECT ((SELECT count(*) FROM public.order_refunds) >= 1 AND (SELECT count(*) FROM public.payments) >= 3)::text`, 'true');
+    add(`${who}: cannot set an order's payment status or payment lock`, 'authenticated', uid, `SELECT (${n(`UPDATE public.orders SET stripe_payment_status = 'paid' WHERE id = '${IDS.orderA}'`)})::text`, denied);
+    add(`${who}: cannot clear an order's payment lock`, 'authenticated', uid, upd(`UPDATE public.orders SET payment_lock = false WHERE id = '${IDS.orderA}'`), denied);
+  }
+  add('crew: cannot set an order\'s payment status', 'authenticated', C, upd(`UPDATE public.orders SET stripe_payment_status = 'paid' WHERE id = '${IDS.orderA}'`), denied);
+  add('crew: cannot clear an order\'s payment lock', 'authenticated', C, upd(`UPDATE public.orders SET payment_lock = false WHERE id = '${IDS.orderA}'`), denied);
+  add('crew: cannot UPDATE a payment', 'authenticated', C, upd(`UPDATE public.payments SET amount_cents = 1 WHERE id = '${IDS.payA}'`), denied);
+  add('crew: cannot read or write refunds', 'authenticated', C, `SELECT ((SELECT count(*) FROM public.order_refunds) = 0)::text`, 'true');
+  add('crew: cannot INSERT a refund row', 'authenticated', C, refundInsert, denied);
+  add('customer A: cannot INSERT a payment', 'authenticated', A, payInsert, denied);
+  add('customer A: cannot read or write refunds', 'authenticated', A, `SELECT ((SELECT count(*) FROM public.order_refunds) = 0)::text`, 'true');
+  add('customer A: cannot INSERT a refund row', 'authenticated', A, refundInsert, denied);
+  add('anon: cannot read refunds', 'anon', null, cnt('order_refunds'), denied);
+  add('anon: cannot INSERT a refund row', 'anon', null, refundInsert, denied);
+  add('no browser role holds INSERT, UPDATE or DELETE on payments or order_refunds', 'anon', null,
+    `SELECT count(*)::text FROM (SELECT r, t, p FROM unnest(ARRAY['authenticated','anon']) r, unnest(ARRAY['payments','order_refunds']) t, unnest(ARRAY['INSERT','UPDATE','DELETE']) p WHERE has_table_privilege(r, 'public.' || t, p)) x`, '0');
+  add('the refund functions are executable by the service role only', 'anon', null,
+    `SELECT (has_function_privilege('service_role', 'public.reserve_refund_operation(uuid,text,integer,text,uuid)', 'EXECUTE') AND NOT has_function_privilege('authenticated', 'public.reserve_refund_operation(uuid,text,integer,text,uuid)', 'EXECUTE') AND NOT has_function_privilege('anon', 'public.reserve_refund_operation(uuid,text,integer,text,uuid)', 'EXECUTE') AND NOT has_function_privilege('authenticated', 'public.record_refund_provider_result(uuid,text,text,text)', 'EXECUTE') AND NOT has_function_privilege('authenticated', 'public.apply_provider_refund_event(text,text,integer,text,text,text,text)', 'EXECUTE') AND NOT has_function_privilege('authenticated', 'public.mark_refund_provider_attempt(uuid)', 'EXECUTE') AND NOT has_function_privilege('authenticated', 'public._apply_refund_transition(uuid,text,text)', 'EXECUTE'))::text`, 'true');
+  add('authenticated Admin cannot call a refund function directly (forge a reservation)', 'authenticated', D, `SELECT (public.reserve_refund_operation('${IDS.orderB}', 'forged-op-0001', 100, 'x', NULL)->>'outcome')`, denied);
+  add('authenticated Admin cannot call the provider-event function directly (forge a success)', 'authenticated', D, `SELECT (public.apply_provider_refund_event('re_forged', 'pi_secret_B', 100, 'succeeded')->>'outcome')`, denied);
+
   // ---- Service role (Edge Functions) ----
   for (const t of ['orders', 'customers', 'addresses', 'order_items', 'payments', 'invoice_links', 'consent_records', 'contacts', 'booking_setup_proofs', 'order_changelog', 'task_status']) {
     add(`service_role: reads ${t}`, 'service_role', null, `SELECT (count(*) >= 1)::text FROM public.${t}`, 'true');
   }
   add('service_role: can write orders, invoice links, proofs', 'service_role', null, `SELECT (${n("UPDATE public.orders SET admin_message = 's'")} >= 1 AND ${n('UPDATE public.invoice_links SET revoked_at = NULL')} >= 1 AND ${n('UPDATE public.booking_setup_proofs SET claim_id = NULL')} >= 1)::text`, 'true');
 
+
+  // ---- The refund functions, as the service role, on a real payment ----
+  add('service role: marks the seeded card payment of order B succeeded', 'service_role', null, upd(`UPDATE public.payments SET status = 'succeeded' WHERE id = '${IDS.payB}'`), '1');
+  add('service role: reserves a refund (one pending row, allocated to that payment)', 'service_role', null, `SELECT (public.reserve_refund_operation('${IDS.orderB}', 'scenario-op-0001', 2000, 'scenario', NULL)->>'outcome')`, 'reserved');
+  add('service role: the same operation key again returns the same reservation', 'service_role', null, `SELECT (public.reserve_refund_operation('${IDS.orderB}', 'scenario-op-0001', 2000, 'scenario', NULL)->>'outcome')`, 'existing');
+  add('service role: the same key with a different amount is refused', 'service_role', null, `SELECT (public.reserve_refund_operation('${IDS.orderB}', 'scenario-op-0001', 1999, 'scenario', NULL)->>'outcome')`, 'key_conflict');
+  add('service role: while that request is unsettled, a different request is refused and names it', 'service_role', null, `SELECT (public.reserve_refund_operation('${IDS.orderB}', 'scenario-op-0002', 100, 'scenario', NULL)->>'outcome') || ':' || (public.reserve_refund_operation('${IDS.orderB}', 'scenario-op-0002', 100, 'scenario', NULL)->>'operation_key')`, 'unsettled_operation:scenario-op-0001');
+  add('service role: exactly one pending, linked, positive row exists for the operation', 'service_role', null, `SELECT count(*)::text || ':' || min(status) || ':' || min(amount_cents) || ':' || (min(payment_id::text) = '${IDS.payB}')::text FROM public.order_refunds WHERE operation_key = 'scenario-op-0001'`, '1:pending:2000:true');
+  add('service role: recording the provider result makes it succeeded', 'service_role', null, `SELECT (public.record_refund_provider_result((SELECT id FROM public.order_refunds WHERE operation_key = 'scenario-op-0001'), 're_scn_1', 'succeeded', NULL)->>'outcome')`, 'succeeded');
+  add('service role: once settled, more than what is left is refused with the maximum', 'service_role', null, `SELECT (public.reserve_refund_operation('${IDS.orderB}', 'scenario-op-0002', 3001, 'scenario', NULL)->>'outcome') || ':' || (public.reserve_refund_operation('${IDS.orderB}', 'scenario-op-0003', 3001, 'scenario', NULL)->>'max_refundable_cents')`, 'exceeds_refundable:3000');
+  add('service role: ...the order total counted it once and the ledger row exists', 'service_role', null, `SELECT (SELECT total_refunded_cents FROM public.orders WHERE id = '${IDS.orderB}')::text || ':' || (SELECT count(*) FROM public.payments WHERE stripe_refund_id = 're_scn_1' AND amount_cents = -2000)::text`, '2000:1');
+  add('service role: recording the same result again changes nothing', 'service_role', null, `SELECT (public.record_refund_provider_result((SELECT id FROM public.order_refunds WHERE operation_key = 'scenario-op-0001'), 're_scn_1', 'succeeded', NULL)->>'outcome')`, 'unchanged');
+  add('service role: ...and the total is still counted once', 'service_role', null, `SELECT total_refunded_cents::text FROM public.orders WHERE id = '${IDS.orderB}'`, '2000');
+  add('service role: a refund made outside the application is recorded individually', 'service_role', null, `SELECT (public.apply_provider_refund_event('re_scn_ext', 'pi_secret_B', 500, 'succeeded')->>'outcome')`, 'succeeded');
+  add('service role: ...linked to the positive payment, counted once', 'service_role', null, `SELECT (SELECT total_refunded_cents FROM public.orders WHERE id = '${IDS.orderB}')::text || ':' || (SELECT payment_id::text FROM public.order_refunds WHERE stripe_refund_id = 're_scn_ext')`, `2500:${IDS.payB}`);
+  add('service role: the same outside event again changes nothing', 'service_role', null, `SELECT (public.apply_provider_refund_event('re_scn_ext', 'pi_secret_B', 500, 'succeeded')->>'outcome') || ':' || (SELECT count(*) FROM public.order_refunds WHERE stripe_refund_id = 're_scn_ext')::text`, 'unchanged:1');
+  add('service role: a provider id cannot belong to two new refund rows', 'service_role', null, `SELECT count(*)::text FROM (SELECT stripe_refund_id FROM public.order_refunds WHERE ledger_version = 2 AND stripe_refund_id IS NOT NULL GROUP BY 1 HAVING count(*) > 1) d`, '0');
 
   // ---- Public booking RPC still works for the service role (the server-owned booking boundary); the account guard still applies ----
   const book = (email: string, caller: string | null, line2: string) => `SELECT pg_temp.book('${email}', ${caller ? `'${caller}'::uuid` : 'NULL::uuid'}, '${line2}')`;

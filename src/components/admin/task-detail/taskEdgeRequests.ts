@@ -48,7 +48,7 @@ export async function postSessionEdge(request: SessionEdgeRequest, deps: EdgeReq
       body: JSON.stringify(body),
     });
   const data = await r.json();
-  if (requireSuccess ? (!r.ok || !data.success) : !r.ok) throw new Error(data.error || fallbackMessage);
+  if (requireSuccess ? (!r.ok || !data.success) : !r.ok) throw Object.assign(new Error(data.error || fallbackMessage), { code: data.code, data });
   return data;
 }
 

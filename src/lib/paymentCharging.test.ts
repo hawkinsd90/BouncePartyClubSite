@@ -1089,7 +1089,7 @@ const shared = { ...authHelpers, ...outcomeHelpers, ...bookingProofHelpers, ...r
     ok('source: the webhook decides invoice confirmation from the deposit, not from the card save', /principalOutstanding/.test(wh) && !/isAdminInvoice \? "confirmed" : "pending_review"/.test(wh));
     ok('source: stripe-checkout has no payment-mode branch and no deposit amount from the body', !/mode: "payment"/.test(readSrc(`${fnDir}/stripe-checkout/index.ts`)) && !/depositCents/.test(readSrc(`${fnDir}/stripe-checkout/index.ts`)));
     ok('source: the retired stripe-charge function imports nothing that can reach Stripe or the database', !/createClient|Stripe/.test(readSrc(`${fnDir}/stripe-charge/index.ts`).replace(/\/\/.*$/gm, '')));
-    ok('source: only the refund handler inserts payment rows from an Edge Function', all.filter((f: string) => /from\("payments"\)\s*\.insert|from\('payments'\)\s*\.insert/.test(readSrc(f))).join(',') === `${fnDir}/stripe-webhook/handlers.ts`);
+    ok('source: no Edge Function inserts payment rows itself (the refund ledger row is written by the database refund function)', all.filter((f: string) => /from\("payments"\)\s*\.insert|from\('payments'\)\s*\.insert/.test(readSrc(f))).join(',') === '');
     ok('source: the payment operation module keeps the lease short and the amount limit at the provider maximum', /PAYMENT_LEASE_SECONDS = 300/.test(ops) && /MAX_PAYMENT_CENTS = 99_999_999/.test(ops));
     ok('source: no code or migration name carries an internal planning label', !all.concat(['src/lib/paymentHarness.ts']).some((f: string) => /\b(Phase|Stage) ?[A-Z0-9]\b|payment safety phase/i.test(readSrc(f).split('\n').filter((l: string) => /payment-operations|claim_payment_operation/.test(l)).join('\n'))));
   }

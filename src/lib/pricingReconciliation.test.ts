@@ -576,14 +576,14 @@ const moneyKeys = ['subtotal_cents', 'travel_fee_cents', 'surface_fee_cents', 's
     return out;
   };
   const browserFiles = walk('src').filter((f) => !/\.test\.|database\.types|Scenarios\.ts$/.test(f));
-  const FINANCIAL_TABLES = ['orders', 'order_items', 'order_discounts', 'order_custom_fees'];
+  const FINANCIAL_TABLES = ['orders', 'order_items', 'order_discounts', 'order_custom_fees', 'payments', 'order_refunds'];
   // Every column that carries money, a money input's snapshot, or a payment ledger amount on `orders`.
   const MONEY_COLUMNS = [
     'subtotal_cents', 'event_essentials_subtotal_cents', 'travel_fee_cents', 'travel_total_miles', 'travel_base_radius_miles', 'travel_chargeable_miles', 'travel_per_mile_cents',
     'travel_is_flat_fee', 'surface_fee_cents', 'same_day_pickup_fee_cents', 'same_day_weekday_delivery_fee_cents', 'generator_fee_cents', 'setup_fee_cents', 'tax_cents',
     'deposit_due_cents', 'balance_due_cents', 'custom_deposit_cents', 'waived_fee_amounts_cents', 'tax_waived', 'tax_waive_reason', 'travel_fee_waived', 'travel_fee_waive_reason',
     'surface_fee_waived', 'surface_fee_waive_reason', 'generator_fee_waived', 'generator_fee_waive_reason', 'same_day_pickup_fee_waived', 'same_day_pickup_fee_waive_reason',
-    'same_day_weekday_delivery_fee_waived', 'same_day_weekday_delivery_fee_waive_reason', 'deposit_paid_cents', 'balance_paid_cents', 'tip_cents', 'damage_charged_cents', 'total_refunded_cents',
+    'same_day_weekday_delivery_fee_waived', 'same_day_weekday_delivery_fee_waive_reason', 'deposit_paid_cents', 'balance_paid_cents', 'tip_cents', 'damage_charged_cents', 'total_refunded_cents', 'stripe_payment_status', 'payment_lock',
   ];
   const matchingParen = (text: string, open: number): number => {
     let depth = 0;
@@ -651,12 +651,14 @@ const moneyKeys = ['subtotal_cents', 'travel_fee_cents', 'surface_fee_cents', 's
     'travel_total_miles', 'travel_base_radius_miles', 'travel_chargeable_miles', 'travel_per_mile_cents', 'travel_is_flat_fee',
   ];
   eq('STALE STATE: every waiver flag / reason, the waived amounts and the travel snapshot are part of the compared state', REQUIRED_STATE.filter((c) => !stateCols.includes(c)), []);
-  eq('STALE STATE: every money column of orders is in the compared state or is a payment ledger column covered by its own guard', MONEY_COLUMNS.filter((c) => !stateCols.includes(c) && !['deposit_paid_cents', 'balance_paid_cents', 'tip_cents', 'damage_charged_cents', 'total_refunded_cents'].includes(c)), []);
+  eq('STALE STATE: every money column of orders is in the compared state or is a payment ledger column covered by its own guard', MONEY_COLUMNS.filter((c) => !stateCols.includes(c) && !['deposit_paid_cents', 'balance_paid_cents', 'tip_cents', 'damage_charged_cents', 'total_refunded_cents', 'stripe_payment_status', 'payment_lock'].includes(c)), []);
   ok('STALE STATE: the server-side copy is the generated one (no separate list)', fs.readFileSync('supabase/functions/_shared/booking/orderPricingState.ts', 'utf8').includes("'travel_is_flat_fee'"));
 
   // The database guard names every money column (the source scan and the database capability agree)
   const mig = fs.readFileSync('supabase/migrations/20261021120000_server_authoritative_order_pricing_saves.sql', 'utf8');
-  const guardBody = /FUNCTION public\.guard_order_pricing_authority\(\)[\s\S]*?\$\$;/.exec(mig)?.[0] ?? '';
+  // The guard's latest definition (the refund-safety migration restates it with the payment-state flags added).
+  const mig4 = fs.readFileSync('supabase/migrations/20261022120000_refund_safety_and_financial_write_authority.sql', 'utf8');
+  const guardBody = /FUNCTION public\.guard_order_pricing_authority\(\)[\s\S]*?\$\$;/.exec(mig4)?.[0] ?? '';
   eq('DATABASE GUARD: every money column is checked on UPDATE by the pricing-authority trigger', MONEY_COLUMNS.filter((c) => !new RegExp(`NEW\\.${c} IS DISTINCT FROM OLD\\.${c}`).test(guardBody)), []);
   for (const t of ['order_items', 'order_discounts', 'order_custom_fees']) ok(`DATABASE GUARD: INSERT, UPDATE and DELETE on ${t} are revoked from authenticated and anon`, new RegExp(`REVOKE INSERT, UPDATE, DELETE ON public\\.${t} FROM authenticated, anon;`).test(mig));
   ok('DATABASE GUARD: INSERT and DELETE on orders are revoked from authenticated and anon (orders are created by the server functions)', /REVOKE INSERT, DELETE ON public\.orders FROM authenticated, anon;/.test(mig));

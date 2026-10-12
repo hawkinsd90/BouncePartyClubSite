@@ -25,34 +25,7 @@ export async function getPaymentById(paymentId: string, options?: QueryOptions) 
   );
 }
 
-export async function createPayment(paymentData: any, options?: QueryOptions) {
-  return executeQuery(
-    async () =>
-      await supabase
-        .from('payments')
-        .insert(paymentData)
-        .select()
-        .single(),
-    { context: 'createPayment', ...options }
-  );
-}
-
-export async function updatePayment(
-  paymentId: string,
-  updates: any,
-  options?: QueryOptions
-) {
-  return executeQuery(
-    async () =>
-      await supabase
-        .from('payments')
-        .update(updates)
-        .eq('id', paymentId)
-        .select()
-        .single(),
-    { context: 'updatePayment', ...options }
-  );
-}
+// (Payments are written only by the server payment functions; the browser has no write access to this table.)
 
 export async function getAllPayments(options?: QueryOptions) {
   return executeQuery(

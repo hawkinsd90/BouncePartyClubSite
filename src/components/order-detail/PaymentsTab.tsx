@@ -1,9 +1,10 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { RotateCcw } from 'lucide-react';
 import { formatCurrency } from '../../lib/pricing';
 import { showToast } from '../../lib/notifications';
 import { supabase } from '../../lib/supabase';
 import { storedOrderTotalCents } from '../../lib/orderMoney';
+import { classifyRefundResponse, refundAttemptFor, type RefundAttempt } from '../../lib/refundOperationKey';
 
 interface PaymentsTabProps {
   orderId: string;
@@ -43,6 +44,8 @@ export function PaymentsTab({ orderId, customerName, payments, order, customFees
   const [refundAmount, setRefundAmount] = useState('');
   const [refundReason, setRefundReason] = useState('');
   const [refunding, setRefunding] = useState(false);
+  // The same operation key is sent again when this refund request is retried, so Stripe is never asked for it twice.
+  const refundAttempt = useRef<RefundAttempt | null>(null);
 
   async function handleRefund() {
     const amountCents = Math.round(parseFloat(refundAmount) * 100);
@@ -64,6 +67,8 @@ export function PaymentsTab({ orderId, customerName, payments, order, customFees
     if (!confirmed) return;
 
     setRefunding(true);
+    const attempt = refundAttemptFor(refundAttempt.current, orderId, amountCents);
+    refundAttempt.current = attempt;
     try {
       const { data: { session } } = await supabase.auth.getSession();
       const jwt = session?.access_token;
@@ -80,17 +85,30 @@ export function PaymentsTab({ orderId, customerName, payments, order, customFees
             orderId,
             amountCents,
             reason: refundReason,
+            operationKey: attempt.key,
           }),
         }
       );
 
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data.error || 'Failed to process refund');
+      const data = await response.json().catch(() => null);
+      const outcome = classifyRefundResponse(response.status, data);
+      if (!outcome.keepKey) refundAttempt.current = null;
+      if (outcome.adopt) {
+        // An earlier request on this order is unsettled (this page lost its key): the next press settles THAT request.
+        refundAttempt.current = { key: outcome.adopt.key, orderId, amountCents: outcome.adopt.amountCents };
+        setRefundAmount((outcome.adopt.amountCents / 100).toFixed(2));
       }
 
-      showToast(`Refund of ${formatCurrency(amountCents)} processed successfully!`, 'success');
+      if (outcome.tone === 'error') {
+        throw new Error(outcome.message);
+      }
+      if (outcome.tone === 'warning') {
+        showToast(outcome.message, 'error');
+        onPaymentsUpdate();
+        return;
+      }
+
+      showToast(outcome.message, 'success');
       setShowRefundForm(false);
       setRefundAmount('');
       setRefundReason('');
