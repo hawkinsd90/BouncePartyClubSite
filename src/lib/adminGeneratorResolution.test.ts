@@ -8,13 +8,21 @@
 //   - historical mixed: legacy 1 → requested 2 with EE → legacy1 + EE1
 //   - decrease removes most recently added (EE first, then legacy)
 
-import {
-  decideAdminGeneratorIncrease,
-  decideAdminGeneratorDecrease,
-  computeVisibleGeneratorQty,
-  type GeneratorAvailabilityOutcome,
-  type CurrentGeneratorRepresentation,
-} from './adminGeneratorResolution';
+import type { GeneratorAvailabilityOutcome, CurrentGeneratorRepresentation } from './adminGeneratorResolution';
+declare const require: (id: string) => any;
+// the module reaches the Supabase client, which reads window.localStorage when it loads; a plain script has no window
+if (typeof (globalThis as any).window === 'undefined') (globalThis as any).window = { localStorage: { getItem: () => null, setItem: () => {}, removeItem: () => {} } };
+// The error-reporting module (loaded through the query helpers) imports ./notifications.tsx, a React toast UI the plain-script
+// runner cannot load. Nothing in these tests reports an error, so give that one import an inert stand-in.
+const nodeModule = require('module');
+const STUB = require('path').resolve('src/lib/__notifications_stub__.js');
+nodeModule._cache[STUB] = { id: STUB, filename: STUB, loaded: true, children: [], paths: [], exports: new Proxy({}, { get: () => () => undefined }) };
+const realResolve = nodeModule._resolveFilename;
+nodeModule._resolveFilename = function (request: string, parent: any, ...rest: any[]) {
+  if (request === './notifications' && /errorHandling.ts$/.test(String(parent?.filename ?? ''))) return STUB;
+  return realResolve.call(this, request, parent, ...rest);
+};
+const { decideAdminGeneratorIncrease, decideAdminGeneratorDecrease, computeVisibleGeneratorQty } = require('./adminGeneratorResolution');
 import type { GeneratorProductConfiguration } from './generatorUnified';
 
 let passed = 0;

@@ -2,10 +2,20 @@
  * Tests for the real sendApprovalConfirmationNotifications and
  * sendCardDeclinedNotifications orchestration, plus buildDeclineAdminMessage.
  *
- * Run with: npx tsx --import ./scripts/env-preload.mjs src/lib/approvalNotification.test.ts
+ * Run with: node node_modules/jiti/bin/jiti.js src/lib/approvalNotification.test.ts   (or: node scripts/dev/run-tests.cjs approvalNotification)
+ *
+ * Failure rows are notification_failures rows (column notification_type). A failed portal link records them here; a provider
+ * send failure (email throws, SMS returns false or throws) does NOT insert from the client - the provider function records it.
+ * notificationFailureLogging.test.ts states the same rule ("provider send failures never insert client-side").
  */
 
-const mod = await import('./orderApprovalService');
+declare const require: (id: string) => any;
+// the Supabase client module (reached through the service) reads window.localStorage when it loads; a plain script has no window
+if (typeof (globalThis as any).window === 'undefined') (globalThis as any).window = { localStorage: { getItem: () => null, setItem: () => {}, removeItem: () => {} } };
+// no network: the service reads an admin setting through the real client; answer "no such setting" at once so it uses its fallback
+// (a refused request would instead be retried with a delay on every declined-payment email)
+(globalThis as any).fetch = async () => new Response('null', { status: 200, headers: { 'Content-Type': 'application/json' } });
+const mod = require('./orderApprovalService');
 const { sendApprovalConfirmationNotifications, sendCardDeclinedNotifications, buildDeclineAdminMessage } = mod;
 
 let passed = 0;
@@ -153,8 +163,8 @@ async function runConfirmationTests() {
     });
 
     ok('4 emailSent false', result.emailSent === false);
-    ok('4 email failure recorded', sb._insertRows.some((r: any) => r.channel === 'email'));
-    ok('4 no sms failure recorded', !sb._insertRows.some((r: any) => r.channel === 'sms'));
+    ok('4 email failure recorded', sb._insertRows.some((r: any) => r.notification_type === 'email'));
+    ok('4 no sms failure recorded', !sb._insertRows.some((r: any) => r.notification_type === 'sms'));
     ok('4 exactly one failure row', sb._insertRows.length === 1);
   }
 
@@ -187,8 +197,8 @@ async function runConfirmationTests() {
     });
 
     ok('6 smsSent false', result.smsSent === false);
-    ok('6 sms failure recorded', sb._insertRows.some((r: any) => r.channel === 'sms'));
-    ok('6 no email failure recorded', !sb._insertRows.some((r: any) => r.channel === 'email'));
+    ok('6 sms failure recorded', sb._insertRows.some((r: any) => r.notification_type === 'sms'));
+    ok('6 no email failure recorded', !sb._insertRows.some((r: any) => r.notification_type === 'email'));
     ok('6 exactly one failure row', sb._insertRows.length === 1);
   }
 
@@ -221,8 +231,8 @@ async function runConfirmationTests() {
     });
 
     ok('8 exactly two rows', sb._insertRows.length === 2);
-    ok('8 has email row', sb._insertRows.some((r: any) => r.channel === 'email'));
-    ok('8 has sms row', sb._insertRows.some((r: any) => r.channel === 'sms'));
+    ok('8 has email row', sb._insertRows.some((r: any) => r.notification_type === 'email'));
+    ok('8 has sms row', sb._insertRows.some((r: any) => r.notification_type === 'sms'));
     ok('8 emailSent false', result.emailSent === false);
     ok('8 smsSent false', result.smsSent === false);
   }
@@ -334,7 +344,7 @@ async function runConfirmationTests() {
 
     ok('sms false smsSent false', result.smsSent === false);
     ok('sms false error mentions sms', result.errors.some((e: string) => e.toLowerCase().includes('sms')));
-    ok('sms false failure recorded', sb._insertRows.some((r: any) => r.channel === 'sms'));
+    ok('sms false: no client-side failure row (the provider function records a send failure)', sb._insertRows.length === 0);
   }
 }
 
@@ -391,7 +401,7 @@ async function runDeclineTests() {
 
     ok('13 smsSent false', result.smsSent === false);
     ok('13 error mentions sms', result.errors.some((e: string) => e.toLowerCase().includes('sms')));
-    ok('13 failure recorded', sb._insertRows.some((r: any) => r.channel === 'sms'));
+    ok('13 no client-side failure row for a provider send failure', sb._insertRows.length === 0);
   }
 
   // 14. Email failure is treated as failure
@@ -408,7 +418,7 @@ async function runDeclineTests() {
 
     ok('14 emailSent false', result.emailSent === false);
     ok('14 error mentions email', result.errors.some((e: string) => e.toLowerCase().includes('email')));
-    ok('14 failure recorded', sb._insertRows.some((r: any) => r.channel === 'email'));
+    ok('14 no client-side failure row for a provider send failure', sb._insertRows.length === 0);
   }
 
   // 15. Link failure records only available channels
@@ -423,8 +433,8 @@ async function runDeclineTests() {
       createLink: link.fn as any, sendEmailFn: email.fn as any, supabaseClient: sb,
     });
 
-    ok('15 email failure recorded', sb._insertRows.some((r: any) => r.channel === 'email'));
-    ok('15 no sms failure recorded', !sb._insertRows.some((r: any) => r.channel === 'sms'));
+    ok('15 email failure recorded', sb._insertRows.some((r: any) => r.notification_type === 'email'));
+    ok('15 no sms failure recorded', !sb._insertRows.some((r: any) => r.notification_type === 'sms'));
     ok('15 exactly one row', sb._insertRows.length === 1);
     ok('15 emailSent false', result.emailSent === false);
     ok('15 smsSent null', result.smsSent === null);

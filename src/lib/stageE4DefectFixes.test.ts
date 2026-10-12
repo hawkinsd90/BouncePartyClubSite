@@ -1,6 +1,7 @@
 // Stage E4 — Defect-fix tests using actual production helpers.
 // No unconditional `true` assertions. No copied formatting logic.
-// Short-link tests call the real createShortPortalLink with a mock supabase client.
+// Short-link tests call the real createShortPortalLink with a mock client whose functions.invoke answers for the portal-link
+// Edge Function. Who may obtain a link is decided by that function and is tested in portalLinks.test.ts.
 
 import { createShortPortalLink, type ShortPortalLinkResult } from './utils';
 import { resolveCustomerPortalTab, buildTabUrlParam, CANONICAL_TAB_KEYS, type PortalNavSection } from './customerPortalTab';
@@ -19,9 +20,9 @@ function ok(label: string, condition: boolean) {
 
 // Polyfill window.location.origin for Node test environment
 if (typeof globalThis.window === 'undefined') {
-  (globalThis as any).window = { location: { origin: 'https://example.com' } };
+  (globalThis as any).window = { location: { origin: 'https://example.com', hash: '', search: '' } };
 } else if (typeof (globalThis as any).window.location === 'undefined') {
-  (globalThis as any).window.location = { origin: 'https://example.com' };
+  (globalThis as any).window.location = { origin: 'https://example.com', hash: '', search: '' };
 }
 
 // ---------------------------------------------------------------------------
@@ -80,41 +81,17 @@ function makeSections(overrides: { lockedPayment?: boolean } = {}): PortalNavSec
   ];
 }
 
-function makeMockSupabase(opts: {
-  invoiceRpcResult?: any;
-  invoiceRpcError?: any;
-  orderRpcResult?: any;
-  orderRpcError?: any;
-  invoiceLinkData?: any;
-  invoiceLinkError?: any;
-} = {}) {
+type InvokeCall = { name: string; options: any };
+// A client with ONLY functions.invoke: any other call (rpc, from) would throw, which proves there is no database fallback.
+function makeMockClient(response: { data?: any; error?: any }) {
+  const calls: InvokeCall[] = [];
   return {
-    rpc(fn: string, _args?: any) {
-      if (fn === 'create_portal_short_link') {
-        if (opts.invoiceRpcError) return Promise.resolve({ data: null, error: opts.invoiceRpcError });
-        return Promise.resolve({ data: opts.invoiceRpcResult ?? null, error: null });
-      }
-      if (fn === 'create_order_short_link') {
-        if (opts.orderRpcError) return Promise.resolve({ data: null, error: opts.orderRpcError });
-        return Promise.resolve({ data: opts.orderRpcResult ?? null, error: null });
-      }
-      return Promise.resolve({ data: null, error: { message: 'Unknown RPC' } });
-    },
-    from(_table: string) {
-      return {
-        select(_cols: string) {
-          return {
-            eq(_col: string, _val: any) {
-              return {
-                maybeSingle() {
-                  if (opts.invoiceLinkError) return Promise.resolve({ data: null, error: opts.invoiceLinkError });
-                  return Promise.resolve({ data: opts.invoiceLinkData ?? null, error: null });
-                },
-              };
-            },
-          };
-        },
-      };
+    calls,
+    functions: {
+      invoke(name: string, options: any) {
+        calls.push({ name, options });
+        return Promise.resolve({ data: response.data ?? null, error: response.error ?? null });
+      },
     },
   };
 }
@@ -133,46 +110,59 @@ function makeMockSupabase(opts: {
 { const sections = makeSections(); ok('8 back-nav', resolveCustomerPortalTab({ requestedTab: 'payment', sections }) === 'payment' && resolveCustomerPortalTab({ requestedTab: 'lot-pics', sections }) === 'lot-pics'); }
 { const sections = makeSections(); ok('9 forward-nav', resolveCustomerPortalTab({ requestedTab: 'lot-pics', sections }) === 'lot-pics' && resolveCustomerPortalTab({ requestedTab: 'payment', sections }) === 'payment'); }
 
+// The short-link checks await; the runner loads this file as CommonJS, so everything from here runs inside an async function.
+(async () => {
 // ===========================================================================
 // Short-link tests (10-18)
 // ===========================================================================
 
+// createShortPortalLink asks the portal-link Edge Function for a short code and builds the customer URL from it. The server decides who
+// may obtain a link (portalLinks.test.ts); these checks are about what the browser-side function does with the answer.
 {
-  const mock = makeMockSupabase({ invoiceRpcResult: { success: true, short_code: 'INV12345' } });
+  const mock = makeMockClient({ data: { success: true, shortCode: 'INV12345' } });
   const result = await createShortPortalLink('order-1', mock as any, null, 'inv-token-1');
-  ok('10 invoice RPC success → success', result.success === true);
-  if (result.success) { ok('10 url /i/', result.url.includes('/i/')); ok('10 code INV12345', result.shortCode === 'INV12345'); }
+  ok('10 success → success', result.success === true);
+  if (result.success) { ok('10 url /i/', result.url.includes('/i/')); ok('10 code INV12345', result.shortCode === 'INV12345'); ok('10 url is origin + /i/ + code', result.url === 'https://example.com/i/INV12345'); }
+  ok('10 one call, to portal-link', mock.calls.length === 1 && mock.calls[0].name === 'portal-link');
+  ok('10 the order id and the invoice token are sent', mock.calls[0].options?.body?.orderId === 'order-1' && mock.calls[0].options?.body?.token === 'inv-token-1');
 }
 {
-  const mock = makeMockSupabase({ orderRpcResult: { success: true, short_code: 'ORD67890' } });
-  const result = await createShortPortalLink('order-2', mock as any, null, null);
-  ok('11 order RPC success → success', result.success === true);
+  const mock = makeMockClient({ data: { success: true, shortCode: 'ORD67890' } });
+  const result = await createShortPortalLink('order-2', mock as any, null, null, 'cs_test_session');
+  ok('11 success without a token → success', result.success === true);
   if (result.success) { ok('11 url /i/', result.url.includes('/i/')); }
+  ok('11 no token key is sent when there is none', !('token' in (mock.calls[0].options?.body ?? {})));
+  ok('11 a Checkout session id is passed through', mock.calls[0].options?.body?.sessionId === 'cs_test_session');
 }
 {
-  const mock = makeMockSupabase({ invoiceRpcError: { message: 'Failed' }, orderRpcError: { message: 'Failed' } });
+  const mock = makeMockClient({ error: { message: 'Failed' } });
   const result = await createShortPortalLink('order-3', mock as any, null, 'inv-token-3');
-  ok('12 both fail → false', result.success === false);
-  if (!result.success) { ok('12 has error', result.error.length > 0); }
+  ok('12 a function error → false', result.success === false);
+  if (!result.success) { ok('12 has error', result.error.length > 0); ok('12 the error is the function error', result.error === 'Failed'); }
 }
 {
-  const mock = makeMockSupabase({ invoiceRpcError: { message: 'Failed' }, orderRpcError: { message: 'Failed' }, invoiceLinkData: { short_code: 'EXISTING1' } });
+  const mock = makeMockClient({ data: { success: false, error: 'Unauthorized' } });
   const result = await createShortPortalLink('order-4', mock as any, null, 'inv-token-4');
-  ok('13 fallback lookup → success', result.success === true);
-  if (result.success) { ok('13 url EXISTING1', result.url.includes('EXISTING1')); }
+  ok('13 a refusal from the server → false (no fallback lookup)', result.success === false && mock.calls.length === 1);
+  if (!result.success) { ok('13 the server message is kept', result.error === 'Unauthorized'); }
 }
 {
-  const mock = makeMockSupabase({ invoiceRpcError: { message: 'Failed' }, orderRpcError: { message: 'Failed' } });
+  const mock = makeMockClient({ data: { success: true } });
+  const result = await createShortPortalLink('order-4b', mock as any, null, null);
+  ok('13 a success answer without a short code is a failure', result.success === false);
+}
+{
+  const mock = makeMockClient({ error: { message: 'Failed' } });
   const result = await createShortPortalLink('order-5', mock as any, null, 'inv-token-5');
   ok('14 failure no /customer-portal/', !JSON.stringify(result).includes('/customer-portal/'));
 }
 {
-  const mock = makeMockSupabase({ invoiceRpcError: { message: 'Failed' }, orderRpcError: { message: 'Failed' } });
+  const mock = makeMockClient({ error: { message: 'Failed' } });
   const result = await createShortPortalLink('order-6', mock as any, null, null);
   ok('15 failure no /invoice/', !JSON.stringify(result).includes('/invoice/'));
 }
 {
-  const mock = makeMockSupabase({ orderRpcResult: { success: true, short_code: 'CODE1234' } });
+  const mock = makeMockClient({ data: { success: true, shortCode: 'CODE1234' } });
   const result = await createShortPortalLink('order-7', mock as any, null, null);
   ok('16 success /i/', result.success && result.url.includes('/i/'));
 }
@@ -382,7 +372,7 @@ function makeMockSupabase(opts: {
 
 // 8. Approval notification uses one short URL for both SMS and email
 {
-  const mock = makeMockSupabase({ invoiceRpcResult: { success: true, short_code: 'SHARED1' } });
+  const mock = makeMockClient({ data: { success: true, shortCode: 'SHARED1' } });
   const result = await createShortPortalLink('order-shared', mock as any, null, 'inv-shared');
   ok('approval-8 one link for both', result.success === true);
   if (result.success) {
@@ -459,29 +449,11 @@ function makeMockSupabase(opts: {
 // Unauthorized order-link creation test
 // ===========================================================================
 
-// 42. Unauthorized order-link creation returns controlled failure.
-{
-  const mock = makeMockSupabase({ orderRpcResult: { success: false, error: 'Unauthorized: only staff can create order short links' } });
-  const result = await createShortPortalLink('order-unauth', mock as any, null, null);
-  ok('42 unauthorized → false', result.success === false);
-  if (!result.success) { ok('42 error Unauthorized', result.error.includes('Unauthorized')); }
-}
-
-// 43. Unknown order returns controlled "Order not found"
-{
-  const mock = makeMockSupabase({ orderRpcResult: { success: false, error: 'Order not found' } });
-  const result = await createShortPortalLink('order-unknown', mock as any, null, null);
-  ok('43 unknown order → false', result.success === false);
-  if (!result.success) { ok('43 error Order not found', result.error.includes('Order not found')); }
-}
-
-// 44. Crew denied (no assignment relationship)
-{
-  const mock = makeMockSupabase({ orderRpcResult: { success: false, error: 'Unauthorized: crew cannot create order short links without an assignment relationship' } });
-  const result = await createShortPortalLink('order-crew', mock as any, null, null);
-  ok('44 crew denied → false', result.success === false);
-  if (!result.success) { ok('44 crew error', result.error.includes('crew')); }
-}
+// 42-44 (an unauthorized caller, an unknown order, and Crew without an assignment get no link) were checks of the old
+// create_order_short_link database function. The rule now lives in the portal-link Edge Function and is tested against the real
+// function in portalLinks.test.ts: anonymous, cross-order, expired, revoked and order-id-as-token requests are denied, and Crew only
+// obtains links for operational orders. Here only the browser side is checked (12 and 13 above: a refusal stays a failure with
+// the server's message and no fallback is tried).
 
 // ===========================================================================
 // decideEnRouteReminders — En Route/Arrived reminder-field persistence
@@ -600,3 +572,7 @@ function makeMockSupabase(opts: {
 
 console.log(`\nStage E4 Defect-Fix Tests: ${passed} passed, ${failed} failed.`);
 if (failed > 0) process.exit(1);
+})().catch((err) => {
+  console.error('Test runner crashed:', err);
+  process.exit(1);
+});
