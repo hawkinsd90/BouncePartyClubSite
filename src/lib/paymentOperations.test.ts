@@ -882,8 +882,10 @@ async function raceOnDatabase(psql: string, db: string) {
     // the migration text applied on top of the older history, and applied twice (idempotent)
     execute(baseCandidate, dbBase, 'older migrations + this migration', true);
     execute(baseCandidate, dbBase, 'migration applied twice', true, true);
-    const fullPsql = ensureFullDb(baseCandidate);
-    ok(`concurrent: scratch database "${dbFull}" is ready with this repository's migration`, !!fullPsql || !process.env.ROLE_DB_REQUIRE);
+    // The mutation runner's fast first pass sets MUTATION_SKIP_CONCURRENT: it skips this slow section, and a mutant is only
+    // reported as surviving after a second, complete attempt without it. Never set it for a normal test run.
+    const fullPsql = process.env.MUTATION_SKIP_CONCURRENT ? null : ensureFullDb(baseCandidate);
+    if (!process.env.MUTATION_SKIP_CONCURRENT) ok(`concurrent: scratch database "${dbFull}" is ready with this repository's migration`, !!fullPsql || !process.env.ROLE_DB_REQUIRE);
     if (fullPsql) {
       execute(fullPsql, dbFull, 'fresh scratch database with this migration (no re-application)', false);
       await raceOnDatabase(fullPsql, dbFull);

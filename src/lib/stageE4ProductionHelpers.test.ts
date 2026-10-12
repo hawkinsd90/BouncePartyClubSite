@@ -208,7 +208,8 @@ function makeProduct(id: string, name: string, price: number, qty = 1): UnifiedC
   ok('17 equipmentSubtotalCents = 9500', totals.equipmentSubtotalCents === 9500);
   ok('17 depositCents = 5000', totals.depositCents === 5000);
   ok('17 no depositError', !totals.depositError);
-  ok('17 totalCents = 9500', totals.totalCents === 9500);
+  // 9500 of equipment is under the $150 setup minimum, so the Setup Fee is 15000 - 9500 = 5500 and the total is 15000 (no tax here).
+  ok('17 totalCents = 9500 equipment + 5500 setup fee', totals.totalCents === 9500 + 5500);
 }
 
 console.log(`\nStage E4 Production-Helper Tests: ${passed} passed, ${failed} failed.`);

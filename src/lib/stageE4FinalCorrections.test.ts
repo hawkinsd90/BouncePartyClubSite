@@ -54,7 +54,9 @@ test('1. Valid EE-only cart produces totals', () => {
   ok('totals produced', totals !== null);
   ok('ee subtotal = 10000', totals.eventEssentialsSubtotalCents === 10000);
   ok('deposit > 0', totals.depositCents > 0);
-  ok('total includes tax', totals.totalCents === bd.total_cents + 10000 + 600);
+  // An Event Essentials-only order under the $150 setup minimum also carries the Setup Fee (15000 - 10000 = 5000), and the one 6%
+  // tax is calculated on equipment plus Setup Fee: 6% of 15000 = 900 (see setupFeeCalculation.ts).
+  ok('total includes setup fee and tax', totals.totalCents === bd.total_cents - bd.tax_cents + 10000 + 5000 + 900);
 });
 
 // 2. Memoized/stable pricing inputs do not cause repeated repricing.
