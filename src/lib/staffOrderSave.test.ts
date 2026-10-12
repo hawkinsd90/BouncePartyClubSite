@@ -690,9 +690,11 @@ const RULES_LATER = { ...RULES, surface_sandbag_fee_cents: 5000, residential_mul
     // the module's own default is deny (an Edge Function that forgot the capability grants nothing)
     const { action: _a, ...bareBody } = invoiceBody({ discounts: [{ name: 'x', amount_cents: 1 }] }) as any;
     void _a;
-    const direct = await staffSave.createStaffInvoiceOrder({ db: {}, actingUserId: U1 } as any, bareBody);
+    // a refusal is an answer; running on and touching the database is not, so a throw counts as "not refused"
+    const refusedOrThrew = async (run: () => Promise<{ status: number }>) => { try { return await run(); } catch { return { status: -1 }; } };
+    const direct = await refusedOrThrew(() => staffSave.createStaffInvoiceOrder({ db: {}, actingUserId: U1 } as any, bareBody));
     ok('capability: createStaffInvoiceOrder without the capability refuses an Admin-only field (default is deny)', direct.status === 403);
-    const directSave = await staffSave.saveStaffOrderChanges({ db: {}, actingUserId: U1 } as any, {});
+    const directSave = await refusedOrThrew(() => staffSave.saveStaffOrderChanges({ db: {}, actingUserId: U1 } as any, {}));
     ok('capability: saveStaffOrderChanges without the capability is refused before anything is read', directSave.status === 403);
   }
 
