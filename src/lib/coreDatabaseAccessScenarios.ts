@@ -396,6 +396,18 @@ export function buildScenarios(): Scenario[] {
   add('net financials: the function is declared STABLE (it cannot write) and pins its search_path', 'anon', null,
     `SELECT (provolatile = 's' AND proconfig::text LIKE '%search_path=public%')::text FROM pg_proc WHERE oid = 'public.order_net_financials(uuid)'::regprocedure`, 'true');
 
+  // ---- Allocation-aware refund reservation: the trusted server role only ----
+  const allocCall = `SELECT (public.reserve_refund_allocation('${IDS.orderA}', 'scenario-alloc-key-0001', '[{"paymentId":"00000000-0000-4000-8000-0000000000aa","depositPrincipalCents":100,"balancePrincipalCents":0,"tipCents":0}]'::jsonb, 'x')->>'outcome')`;
+  add('allocation reservation: the service role can run it (an unknown payment is refused by name)', 'service_role', null, allocCall, 'payment_not_found');
+  add('allocation reservation: an Admin session cannot call it', 'authenticated', D, allocCall, denied);
+  add('allocation reservation: a Master session cannot call it', 'authenticated', M, allocCall, denied);
+  add('allocation reservation: a Crew session cannot call it', 'authenticated', C, allocCall, denied);
+  add('allocation reservation: the customer who owns the order cannot call it', 'authenticated', A, allocCall, denied);
+  add('allocation reservation: anonymous cannot call it', 'anon', null, allocCall, denied);
+  for (const [who, uid] of [['Admin', D], ['Crew', C], ['customer', A]] as const) {
+    add(`allocation reservation: a ${who} session cannot write the allocation columns of a refund`, 'authenticated', uid, upd(`UPDATE public.order_refunds SET tip_refunded_cents = 1, allocation_version = 1 WHERE order_id = '${IDS.orderA}'`), denied);
+  }
+
   // ---- Public booking RPC still works for the service role (the server-owned booking boundary); the account guard still applies ----
   const book = (email: string, caller: string | null, line2: string) => `SELECT pg_temp.book('${email}', ${caller ? `'${caller}'::uuid` : 'NULL::uuid'}, '${line2}')`;
   add('booking RPC (service_role): a new guest booking is created as a draft, nothing paid, with its own delivery unit', 'service_role', null, book('brand-new@example.com', null, 'Apt 9'), 'draft|Apt 9|0|true');

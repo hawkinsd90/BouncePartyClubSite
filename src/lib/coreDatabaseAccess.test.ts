@@ -346,6 +346,7 @@ const PRIVATE = OWNED.filter((t) => !PUBLIC_READ.includes(t));
       'supabase/migrations/20261021120000_server_authoritative_order_pricing_saves.sql',
       'supabase/migrations/20261022120000_refund_safety_and_financial_write_authority.sql',
       'supabase/migrations/20261023120000_refund_allocation_schema.sql',
+      'supabase/migrations/20261024120000_refund_allocation_reservation.sql',
     ];
     const scenarios = buildScenarios();
     const r = spawnSync(psql, [...args, '-v', 'ON_ERROR_STOP=1'], { input: buildScript(scenarios, PRICING_CHAIN.map((f) => read(f)).join('\n')), encoding: 'utf8', maxBuffer: 50 * 1024 * 1024, timeout: 120000 });

@@ -12,6 +12,7 @@ const SG = 'supabase/functions/stripe-charge/index.ts';
 // Step 3C-A: refund safety and financial write authority
 const MIG4 = 'supabase/migrations/20261022120000_refund_safety_and_financial_write_authority.sql';
 const MIG5 = 'supabase/migrations/20261023120000_refund_allocation_schema.sql';
+const MIG6 = 'supabase/migrations/20261024120000_refund_allocation_reservation.sql';
 const RO = 'supabase/functions/_shared/refund-operations.ts';
 const SR = 'supabase/functions/stripe-refund/index.ts';
 const WHI = 'supabase/functions/stripe-webhook/index.ts';
@@ -343,6 +344,38 @@ const M = [
   [MIG5, "a refund counts as having a copy whatever the copy's amount", [repl("AND c.status = 'succeeded'\n          AND c.amount_cents = -r.amount_cents", "AND c.status = 'succeeded'")]],
   [MIG5, "duplicate copies are not counted", [repl("COUNT(*) FILTER (WHERE x.stripe_refund_id IS NOT NULL AND x.rn > 1)::bigint AS duplicate_refund_copies", "0::bigint AS duplicate_refund_copies")]],
   [MIG5, "copies are matched to a refund of a different provider id", [repl("AND r.stripe_refund_id = c.stripe_refund_id\n        ORDER BY", "AND r.stripe_refund_id IS NOT NULL\n        ORDER BY")]],
+  // ================================================================ allocation-aware refund reservation
+  [MIG6, "the allocation reservation does not lock the order", [repl("SELECT * INTO v_order FROM public.orders WHERE id = p_order_id FOR UPDATE;", "SELECT * INTO v_order FROM public.orders WHERE id = p_order_id;")]],
+  [MIG6, "capacity ignores pending refunds", [repl("WHERE payment_id = v_p.id AND status IN ('pending', 'succeeded');", "WHERE payment_id = v_p.id AND status IN ('succeeded');")]],
+  [MIG6, "capacity ignores succeeded refunds", [repl("WHERE payment_id = v_p.id AND status IN ('pending', 'succeeded');", "WHERE payment_id = v_p.id AND status IN ('pending');")]],
+  [MIG6, "capacity counts failed refunds as used", [repl("WHERE payment_id = v_p.id AND status IN ('pending', 'succeeded');", "WHERE payment_id = v_p.id AND status IN ('pending', 'succeeded', 'failed');")]],
+  [MIG6, "a negative component is accepted", [repl("IF v_num < 0 THEN", "IF false THEN")]],
+  [MIG6, "a fractional component is accepted", [repl("IF v_num <> trunc(v_num) THEN", "IF false THEN")]],
+  [MIG6, "a zero-total line is accepted", [repl("IF v_c[1] + v_c[2] + v_c[3] = 0 THEN", "IF false THEN")]],
+  [MIG6, "the same payment may appear twice", [repl("IF v_pid = ANY (v_seen) THEN", "IF false THEN")]],
+  [MIG6, "a browser total that disagrees is accepted", [repl("IF p_expected_total_cents IS NOT NULL AND p_expected_total_cents::bigint <> v_total THEN", "IF false THEN")]],
+  [MIG6, "deposit principal capacity is not enforced", [repl("IF v_line.d > v_rem_dep THEN", "IF false THEN")]],
+  [MIG6, "balance principal capacity is not enforced", [repl("IF v_line.b > v_rem_bal THEN", "IF false THEN")]],
+  [MIG6, "tip capacity is not enforced", [repl("IF v_line.t > v_rem_tip THEN", "IF false THEN")]],
+  [MIG6, "the payment total capacity is not enforced", [repl("IF v_line_total > v_rem_total THEN", "IF false THEN")]],
+  [MIG6, "a payment of another order is accepted", [repl("IF v_p.order_id IS DISTINCT FROM p_order_id THEN", "IF false THEN")]],
+  [MIG6, "a payment that is not succeeded is accepted", [repl("IF v_p.status IS DISTINCT FROM 'succeeded' THEN", "IF false THEN")]],
+  [MIG6, "an unclassified original payment is accepted", [repl("IF v_p.principal_amount_cents IS NULL OR v_p.deposit_principal_cents IS NULL OR v_p.balance_principal_cents IS NULL OR v_p.tip_amount_cents IS NULL THEN", "IF false THEN")]],
+  [MIG6, "unclassified historical refunds are ignored", [repl("IF v_line.d > GREATEST(0, v_rem_dep - v_unknown) OR v_line.b > GREATEST(0, v_rem_bal - v_unknown) OR v_line.t > GREATEST(0, v_rem_tip - v_unknown) THEN", "IF false THEN")]],
+  [MIG6, "unclassified historical refunds do not count as unknown", [repl("COALESCE(SUM(CASE WHEN allocation_version = 1 THEN unclassified_refunded_cents ELSE amount_cents END), 0)", "COALESCE(SUM(CASE WHEN allocation_version = 1 THEN unclassified_refunded_cents ELSE 0 END), 0)")]],
+  [MIG6, "the unknown amount is not applied to deposit principal", [repl("v_line.d > GREATEST(0, v_rem_dep - v_unknown)", "v_line.d > v_rem_dep")]],
+  [MIG6, "the unknown amount is not applied to balance principal", [repl("v_line.b > GREATEST(0, v_rem_bal - v_unknown)", "v_line.b > v_rem_bal")]],
+  [MIG6, "the unknown amount is not applied to the tip", [repl("v_line.t > GREATEST(0, v_rem_tip - v_unknown)", "v_line.t > v_rem_tip")]],
+  [MIG6, "older unlinked refunds on several payments are ignored", [repl("IF v_unlinked > 0 AND v_refundable_count > 1 THEN", "IF false THEN")]],
+  [MIG6, "a changed allocation under the same key is accepted", [repl("IF v_existing.request_allocation IS DISTINCT FROM v_sig THEN", "IF false THEN")]],
+  [MIG6, "an allocation may be attached to an amount-only operation", [repl("IF v_existing.allocation_version IS NULL THEN", "IF false THEN")]],
+  [MIG6, "an identical retry reserves again", [repl("LIMIT 1;\n  IF FOUND THEN\n    IF v_existing.order_id IS DISTINCT FROM p_order_id THEN", "LIMIT 1;\n  IF false THEN\n    IF v_existing.order_id IS DISTINCT FROM p_order_id THEN")]],
+  [MIG6, "the request identity depends on the order of the lines", [repl("'|' ORDER BY (e->>'p') COLLATE \"C\")", "'|')")]],
+  [MIG6, "an operation whose provider request may have started is released by age", [repl("(x.stripe_refund_id IS NOT NULL OR x.provider_attempted_at IS NOT NULL OR x.status = 'succeeded')", "(x.stripe_refund_id IS NOT NULL OR x.status = 'succeeded')")]],
+  [MIG6, "an unsent operation is never released", [repl("AND o.created_at < now() - interval '15 minutes'", "AND o.created_at < now() - interval '15 years'")]],
+  [MIG6, "an unsettled earlier operation does not block a new request", [repl("IF FOUND THEN\n    RETURN jsonb_build_object('outcome', 'unsettled_operation'", "IF false THEN\n    RETURN jsonb_build_object('outcome', 'unsettled_operation'")]],
+  [MIG6, "an untrusted role may reserve", [repl("GRANT EXECUTE ON FUNCTION public.reserve_refund_allocation(uuid, text, jsonb, text, uuid, integer) TO service_role;", "GRANT EXECUTE ON FUNCTION public.reserve_refund_allocation(uuid, text, jsonb, text, uuid, integer) TO authenticated, service_role;")]],
+  [MIG6, "anonymous may reserve", [repl("REVOKE ALL ON FUNCTION public.reserve_refund_allocation(uuid, text, jsonb, text, uuid, integer) FROM PUBLIC, anon, authenticated;", "REVOKE ALL ON FUNCTION public.reserve_refund_allocation(uuid, text, jsonb, text, uuid, integer) FROM PUBLIC, authenticated;\nGRANT EXECUTE ON FUNCTION public.reserve_refund_allocation(uuid, text, jsonb, text, uuid, integer) TO anon;")]],
 ];
 
 // The claim function is REPLACED by the second migration, so a mutant on the claim text of the first migration would be dead code.
@@ -357,10 +390,12 @@ const SQL_FIRST = ['src/lib/paymentOperations.test.ts', 'src/lib/paymentCharging
 const CODE_FIRST = ['src/lib/paymentCharging.test.ts', 'src/lib/paymentOperations.test.ts'];
 const REFUND_TESTS = ['src/lib/refundSafety.test.ts'];
 const AUTHORITY_TESTS = ['src/lib/refundSafety.test.ts', 'src/lib/coreDatabaseAccess.test.ts'];
+const ALLOCATION_TESTS = ['src/lib/refundAllocation.test.ts', 'src/lib/coreDatabaseAccess.test.ts'];
 const ACCOUNTING_TESTS = ['src/lib/refundAccounting.test.ts', 'src/lib/coreDatabaseAccess.test.ts'];
 module.exports = {
   M,
   tests: (file) => {
+    if (file.includes('20261024')) return ALLOCATION_TESTS;
     if (file.includes('20261023')) return ACCOUNTING_TESTS;
     if (file.includes('20261022')) return AUTHORITY_TESTS;
     if (file.endsWith('order-lifecycle/index.ts')) return [...REFUND_TESTS, 'src/lib/customerPortalAccess.test.ts'];
