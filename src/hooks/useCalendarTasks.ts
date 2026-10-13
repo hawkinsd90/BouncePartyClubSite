@@ -3,7 +3,7 @@ import { supabase } from '../lib/supabase';
 import { format, startOfMonth, endOfMonth, addDays } from 'date-fns';
 import { ORDER_STATUS } from '../lib/constants/statuses';
 import { type OperationalEquipmentItem } from '../lib/operationalEquipment';
-import { loadGeneratorCategoryProductIds } from '../lib/generatorUnified';
+import { loadGeneratorCategoryProductIds } from '../lib/customerGeneratorCart';
 import { buildCalendarTasks, type PickupReadiness } from '../lib/calendarTaskAssembly';
 
 export type { PickupReadiness };

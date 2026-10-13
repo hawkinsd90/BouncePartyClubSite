@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { MapPin, ExternalLink, Image as ImageIcon, History } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
-import { notifyError } from '../../lib/notifications';
+import { notifyError } from '../../lib/toasts';
 
 interface LotPicturesDisplayProps {
   orderId: string;

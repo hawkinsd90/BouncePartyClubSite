@@ -4,7 +4,7 @@
 
 import { calculateRequiredDepositCents, calculateEEOnlyDepositCents, DEFAULT_EE_ONLY_DEPOSIT_SETTINGS, type EEOnlyDepositSettings } from './depositCalculation';
 import { buildPackageDisplay } from './packageDisplay';
-import { hasGeneratorInOrderItems } from './generatorUnified';
+import { hasGeneratorInOrderItems } from './customerGeneratorCart';
 import { composeUnifiedQuoteTotals } from './unifiedTotals';
 import { mapCartToOrderItems } from './eventEssentialsOrderItems';
 import { getPaymentAmountCentsFromTotals } from './checkoutUtils';

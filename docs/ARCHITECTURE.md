@@ -670,11 +670,13 @@ Each event optionally carries a `session_id`, `unit_id`, `order_id`, and arbitra
 
 | File | Purpose |
 |---|---|
-| `src/lib/utils.ts` | Currency formatting (`formatCurrency`), date formatting, order ID display, `createShortPortalLink()` |
+| `src/lib/utils.ts` | Customer-name, phone/email, order ID and time-formatting helpers |
+| `src/lib/money.ts` | Cents/dollars conversion, sales tax and discount total helpers |
+| `src/lib/portalShortLink.ts` | `createShortPortalLink()` — asks the portal-link Edge Function for a secure short link |
 | `src/lib/validation.ts` | Email, phone, address validation utilities. Phone validation requires exactly 10 digits (no international support). |
 | `src/lib/logger.ts` | Centralized logging: `createLogger('ModuleName')` returns a scoped logger with `.debug()`, `.warn()`, `.error()` |
 | `src/lib/safeStorage.ts` | Safe wrapper around `localStorage`/`sessionStorage` that catches exceptions on restricted browsers |
-| `src/lib/printUtils.ts` | Utilities for triggering browser print dialogs |
+| `src/lib/printableDocument.ts` | Utilities for triggering browser print dialogs |
 | `src/lib/printIntegration.ts` | Multi-document print system: invoice, receipt, quote, waiver, catalog — with typed print templates. Quote preview generates a mock order with ID `'QUOTE-' + Date.now()` (not persisted). |
 | `src/lib/pricingCache.ts` | In-memory cache for `pricing_rules` to avoid redundant fetches during a session |
 | `src/lib/calendarUtils.ts` | Date/time manipulation utilities for the calendar view |
@@ -686,7 +688,7 @@ Each event optionally carries a `session_id`, `unit_id`, `order_id`, and arbitra
 
 Manages the Google Ads conversion tag for the SPA. Exports `isInternalRoute(pathname)` and `trackGoogleAdsEvent(name, params?)` for use by other modules. The tag is only injected on public routes; `send_page_view: false` prevents any automatic tracking on SPA navigation. See INTEGRATIONS.md for full details.
 
-### `createShortPortalLink()` (`src/lib/utils.ts`)
+### `createShortPortalLink()` (`src/lib/portalShortLink.ts`)
 
 Generates a time-limited compact portal URL for SMS messages:
 - Short code: 8 random chars from an unambiguous set (no `0`, `O`, `1`, `I`, `l`)

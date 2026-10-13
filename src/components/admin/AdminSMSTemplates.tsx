@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { supabase } from '../../lib/supabase';
 import { Edit2 } from 'lucide-react';
-import { notifyError, notifySuccess } from '../../lib/notifications';
+import { notifyError, notifySuccess } from '../../lib/toasts';
 import { TextareaInput } from '../forms/TextareaInput';
 
 interface SMSTemplate {

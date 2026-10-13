@@ -1,4 +1,4 @@
-import { transformOrderToPrintableDocument, transformPaymentToPrintableReceipt } from './printUtils';
+import { transformOrderToPrintableDocument, transformPaymentToPrintableReceipt } from './printableDocument';
 
 export function prepareInvoicePreview(order: any, orderItems: any[], discounts: any[] = [], customFees: any[] = []) {
   return transformOrderToPrintableDocument(order, orderItems, discounts, customFees);

@@ -2,7 +2,7 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import { supabase } from '../../lib/supabase';
 import { formatCurrency } from '../../lib/pricing';
 import { Plus, Edit2, Trash2, Wind, PartyPopper } from 'lucide-react';
-import { notifyError, notifySuccess, showConfirm } from '../../lib/notifications';
+import { notifyError, notifySuccess, showConfirm } from '../../lib/toasts';
 import { EventEssentialsAdmin } from './event-essentials/EventEssentialsAdmin';
 
 interface Unit {

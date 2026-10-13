@@ -6,12 +6,12 @@ import { Order, Payment } from '../../types/orders';
 import { OrderStatusBadge } from './OrderStatusBadge';
 import { OrderPaymentStatus } from './OrderPaymentStatus';
 import { formatCurrency } from '../../lib/pricing';
-import { formatTime } from '../../lib/orderUtils';
+import { formatTime } from '../../lib/utils';
 import { isOrderCancellable } from '../../lib/constants/statuses';
 import { eventAddressLine2 } from '../../lib/eventAddress';
-import { calculateTotalFromOrder } from '../../lib/orderSummary';
+import { calculateTotalFromOrder } from '../../lib/orderSummaryLoader';
 import { fetchSignedWaiverPdfUrl } from '../../lib/waiverAccess';
-import { notifyError } from '../../lib/notifications';
+import { notifyError } from '../../lib/toasts';
 
 interface OrderCardProps {
   order: Order;

@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { notifyError } from '../lib/notifications';
+import { notifyError } from '../lib/toasts';
 import { decideAddError } from '../lib/catalogAddError';
 import {
   ShoppingCart,

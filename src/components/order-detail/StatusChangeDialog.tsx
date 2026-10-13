@@ -2,8 +2,8 @@ import { X } from 'lucide-react';
 import { useState } from 'react';
 import { supabase } from '../../lib/supabase';
 import { checkMultipleUnitsAvailability } from '../../lib/availability';
-import { showToast } from '../../lib/notifications';
-import { validateStatusTransition } from '../../lib/orderStateMachine';
+import { showToast } from '../../lib/toasts';
+import { validateStatusTransition } from '../../lib/adminStatusTransitions';
 import { showConfirm } from '../common/CustomModal';
 import { ORDER_STATUS } from '../../lib/constants/statuses';
 

@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { notifyError } from '../lib/notifications';
+import { notifyError } from '../lib/toasts';
 
 interface DataFetchOptions<T> {
   onSuccess?: (data: T) => void;
@@ -141,7 +141,7 @@ export function useMutation<TData = any, TVariables = any>(
         setData(result);
 
         if (showSuccessNotification && successMessage) {
-          const { notifySuccess } = await import('../lib/notifications');
+          const { notifySuccess } = await import('../lib/toasts');
           notifySuccess(successMessage);
         }
 

@@ -6,8 +6,8 @@ import { useNavigate } from 'react-router-dom';
 import { formatCurrency } from '../../lib/pricing';
 import { formatOrderId } from '../../lib/utils';
 import { TipSelector, calculateTipCents } from '../payment/TipSelector';
-import { ApprovalModal } from './ApprovalModal';
-import { RejectionModal } from './RejectionModal';
+import { CustomerApprovalModal } from './CustomerApprovalModal';
+import { CustomerRejectionModal } from './CustomerRejectionModal';
 import { useBusinessSettings } from '../../contexts/BusinessContext';
 
 interface RestoredPaymentState {
@@ -535,7 +535,7 @@ export function OrderApprovalView({
         </div>
       </div>
 
-      <ApprovalModal
+      <CustomerApprovalModal
         isOpen={showApprovalModal}
         onClose={() => setShowApprovalModal(false)}
         order={order}
@@ -553,7 +553,7 @@ export function OrderApprovalView({
         orderItems={orderItems}
       />
 
-      <RejectionModal
+      <CustomerRejectionModal
         isOpen={showRejectionModal}
         onClose={() => setShowRejectionModal(false)}
         order={order}

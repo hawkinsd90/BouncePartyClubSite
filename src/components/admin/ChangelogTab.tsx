@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '../../lib/supabase';
 import { History, Package, Settings, Filter, ChevronDown, ChevronRight } from 'lucide-react';
-import { notify, notifyError } from '../../lib/notifications';
+import { notify, notifyError } from '../../lib/toasts';
 import { LoadingSpinner } from '../common/LoadingSpinner';
 import { formatOrderId } from '../../lib/utils';
 

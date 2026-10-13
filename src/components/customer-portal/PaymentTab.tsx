@@ -3,7 +3,7 @@ import { CheckCircle, CreditCard, Loader2 } from 'lucide-react';
 import { storedOrderTotalCents } from '../../lib/orderMoney';
 import { formatCurrency } from '../../lib/pricing';
 import { TipSelector, calculateTipCents } from '../payment/TipSelector';
-import { showToast } from '../../lib/notifications';
+import { showToast } from '../../lib/toasts';
 import { getEdgeAuthToken } from '../../lib/edgeAuth';
 
 interface PaymentTabProps {

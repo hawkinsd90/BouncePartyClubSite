@@ -20,8 +20,8 @@ const Admin = lazy(() => import('./pages/Admin').then(m => ({ default: m.Admin }
 const Crew = lazy(() => import('./pages/Crew').then(m => ({ default: m.Crew })));
 const Login = lazy(() => import('./pages/Login').then(m => ({ default: m.Login })));
 const LegacyInvoiceRedirect = lazy(() => import('./pages/LegacyInvoiceRedirect').then(m => ({ default: m.LegacyInvoiceRedirect })));
-const PaymentComplete = lazy(() => import('./pages/PaymentComplete').then(m => ({ default: m.PaymentComplete })));
-const PaymentCanceled = lazy(() => import('./pages/PaymentCanceled').then(m => ({ default: m.PaymentCanceled })));
+const StripeCheckoutReturn = lazy(() => import('./pages/StripeCheckoutReturn').then(m => ({ default: m.StripeCheckoutReturn })));
+const StripeCheckoutCanceled = lazy(() => import('./pages/StripeCheckoutCanceled').then(m => ({ default: m.StripeCheckoutCanceled })));
 const UnitForm = lazy(() => import('./pages/UnitForm').then(m => ({ default: m.UnitForm })));
 const CustomerPortal = lazy(() => import('./pages/CustomerPortal').then(m => ({ default: m.CustomerPortal })));
 const CustomerDashboard = lazy(() => import('./pages/CustomerDashboard').then(m => ({ default: m.CustomerDashboard })));
@@ -85,8 +85,8 @@ function App() {
           <Route path="/customer-portal/:orderId" element={<CustomerPortal />} />
           <Route path="/customer-portal" element={<CustomerPortal />} />
           <Route path="/receipt/:orderId/:paymentId" element={<Receipt />} />
-          <Route path="/payment-complete" element={<PaymentComplete />} />
-          <Route path="/payment-canceled" element={<PaymentCanceled />} />
+          <Route path="/payment-complete" element={<StripeCheckoutReturn />} />
+          <Route path="/payment-canceled" element={<StripeCheckoutCanceled />} />
           <Route path="/checkout/:orderId" element={<Checkout />} />
           <Route path="/" element={<Layout />}>
             <Route index element={<Home />} />

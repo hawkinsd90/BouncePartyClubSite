@@ -1,24 +1,8 @@
-import { readPortalToken } from './portalToken';
-import { calculateSalesTaxCents, sumEffectiveDiscountsCents } from './orderMoney';
-
-export function centsToDollars(cents: number): string {
-  return (cents / 100).toFixed(2);
-}
-
-export function dollarsToCents(dollars: string | number): number {
-  return Math.round(parseFloat(String(dollars)) * 100);
-}
-
 export function calculateRentalDays(startDate: string, endDate: string): number {
   const start = new Date(startDate);
   const end = new Date(endDate);
   const diffTime = Math.abs(end.getTime() - start.getTime());
   return Math.ceil(diffTime / (1000 * 60 * 60 * 24)) + 1;
-}
-
-// Sales tax on a taxable amount (the one BPC rate and rounding live in orderMoney).
-export function calculateTax(taxableAmountCents: number): number {
-  return calculateSalesTaxCents(taxableAmountCents);
 }
 
 export function getFullName(
@@ -35,13 +19,6 @@ export function validateCustomerName(
   const expectedName = getFullName(customer).toLowerCase();
   const entered = enteredName.trim().toLowerCase();
   return expectedName === entered;
-}
-
-export function calculateDiscountTotal(
-  discounts: Array<{ amount_cents: number; percentage: number }>,
-  subtotalCents: number
-): number {
-  return sumEffectiveDiscountsCents(discounts, subtotalCents, Number.MAX_SAFE_INTEGER);
 }
 
 export function truncateText(text: string, maxLength: number): string {
@@ -87,40 +64,12 @@ export function formatOrderId(orderId: string): string {
   return orderId.slice(0, 8).toUpperCase();
 }
 
-export type ShortPortalLinkResult =
-  | { success: true; url: string; shortCode: string }
-  | { success: false; error: string };
-
-// Asks the server (portal-link Edge Function) for the order's canonical secure portal short link. This helper never
-// creates the token, and portal-link returns only the short code; the short-link resolver (resolve-link) later hands
-// the order-bound token to the customer portal, which carries it in the URL fragment (#t=...). Staff (admin/master/crew) are authorized by their
-// session; a customer must present proof for this order (their portal token, a Checkout session, or ownership).
-// A raw order id is never enough, and no fallback ever produces a /customer-portal/<uuid> URL.
-export async function createShortPortalLink(
-  orderId: string,
-  supabaseClient: any,
-  _eventDate?: string | null,
-  invoiceToken?: string | null,
-  sessionId?: string | null
-): Promise<ShortPortalLinkResult> {
-  const token = invoiceToken ?? readPortalToken();
-  const { data, error } = await supabaseClient.functions.invoke('portal-link', {
-    body: {
-      orderId,
-      ...(token ? { token } : {}),
-      ...(sessionId ? { sessionId } : {}),
-    },
-  });
-
-  if (!error && data?.success && typeof data.shortCode === 'string' && data.shortCode) {
-    return {
-      success: true,
-      url: `${window.location.origin}/i/${data.shortCode}`,
-      shortCode: data.shortCode,
-    };
-  }
-
-  const underlyingError = error?.message || data?.error || 'Short-link generation failed';
-  console.error('[createShortPortalLink] Could not get a secure portal link for order:', orderId, underlyingError);
-  return { success: false, error: underlyingError };
+export function formatTime(timeString: string | null): string {
+  if (!timeString) return '';
+  const [hours, minutes] = timeString.split(':');
+  const hour = parseInt(hours, 10);
+  const minute = parseInt(minutes, 10);
+  const ampm = hour >= 12 ? 'PM' : 'AM';
+  const displayHour = hour === 0 ? 12 : hour > 12 ? hour - 12 : hour;
+  return `${displayHour}:${minute.toString().padStart(2, '0')} ${ampm}`;
 }

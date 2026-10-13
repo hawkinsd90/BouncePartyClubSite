@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ArrowLeft, Printer, Download } from 'lucide-react';
-import { notifyError } from '../lib/notifications';
+import { notifyError } from '../lib/toasts';
 
 type Unit = {
   id: string;

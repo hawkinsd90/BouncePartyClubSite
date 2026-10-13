@@ -3,6 +3,7 @@ import { RotateCcw, ExternalLink } from 'lucide-react';
 import { formatCurrency } from '../../../lib/pricing';
 import { Task } from '../../../hooks/useCalendarTasks';
 import { supabase } from '../../../lib/supabase';
+import { RefundAllocationPanel } from '../refunds/RefundAllocationPanel';
 
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL as string;
 
@@ -17,14 +18,12 @@ function formatTimeStr(time: string): string {
 
 interface Props {
   task: Task;
-  onRefund: (amountCents: number, reason: string) => Promise<void>;
-  refunding: boolean;
+  // Called after a refund request has been answered, so the calendar can reload the task.
+  onRefundChanged?: () => void;
 }
 
-export function TaskDetailCustomerInfo({ task, onRefund, refunding }: Props) {
+export function TaskDetailCustomerInfo({ task, onRefundChanged }: Props) {
   const [showRefundForm, setShowRefundForm] = useState(false);
-  const [refundAmount, setRefundAmount] = useState('');
-  const [refundReason, setRefundReason] = useState('');
   const [physicalWaiverUrl, setPhysicalWaiverUrl] = useState<string | null>(null);
 
   // Fetch signed URL for physical waiver when task has a paper waiver
@@ -56,15 +55,6 @@ export function TaskDetailCustomerInfo({ task, onRefund, refunding }: Props) {
     })();
     return () => { cancelled = true; };
   }, [task.orderId, task.waiverType]);
-
-  async function handleRefund() {
-    const amountCents = Math.round(parseFloat(refundAmount) * 100);
-    if (!amountCents || amountCents <= 0 || !refundReason.trim()) return;
-    await onRefund(amountCents, refundReason);
-    setShowRefundForm(false);
-    setRefundAmount('');
-    setRefundReason('');
-  }
 
   const succeededPayments = task.payments?.filter(p => p.status === 'succeeded') ?? [];
 
@@ -126,42 +116,13 @@ export function TaskDetailCustomerInfo({ task, onRefund, refunding }: Props) {
             ))}
 
             {showRefundForm && (
-              <div className="mt-3 p-3 bg-amber-50 border border-amber-200 rounded-lg space-y-2">
-                <div>
-                  <label className="block text-xs font-medium text-slate-700 mb-1">Refund Amount ($)</label>
-                  <input
-                    type="number" step="0.01" min="0.01"
-                    value={refundAmount}
-                    onChange={e => setRefundAmount(e.target.value)}
-                    className="w-full px-2 py-1 text-sm border border-slate-300 rounded"
-                    placeholder="0.00"
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs font-medium text-slate-700 mb-1">Reason</label>
-                  <input
-                    type="text"
-                    value={refundReason}
-                    onChange={e => setRefundReason(e.target.value)}
-                    className="w-full px-2 py-1 text-sm border border-slate-300 rounded"
-                    placeholder="e.g., Customer request, Weather cancellation"
-                  />
-                </div>
-                <div className="flex gap-2">
-                  <button
-                    onClick={handleRefund}
-                    disabled={refunding}
-                    className="flex-1 bg-red-600 hover:bg-red-700 disabled:bg-slate-400 text-white text-xs font-semibold py-1.5 px-3 rounded"
-                  >
-                    {refunding ? 'Processing...' : 'Issue Refund'}
-                  </button>
-                  <button
-                    onClick={() => setShowRefundForm(false)}
-                    className="bg-slate-200 hover:bg-slate-300 text-slate-700 text-xs font-semibold py-1.5 px-3 rounded"
-                  >
-                    Cancel
-                  </button>
-                </div>
+              <div className="mt-3 p-3 bg-amber-50 border border-amber-200 rounded-lg">
+                <RefundAllocationPanel
+                  orderId={task.orderId}
+                  customerName={task.customerName}
+                  refreshToken={succeededPayments.map((p) => `${p.id}:${p.status}`).join(',')}
+                  onChanged={onRefundChanged}
+                />
               </div>
             )}
           </div>

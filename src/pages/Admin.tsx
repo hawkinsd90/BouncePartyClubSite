@@ -18,7 +18,7 @@ import { BusinessBrandingTab } from '../components/admin/BusinessBrandingTab';
 import { AddressCoordinateBackfill } from '../components/admin/AddressCoordinateBackfill';
 import { InventorySection } from '../components/admin/InventorySection';
 import { MenuGroupsTab } from '../components/admin/menu-groups/MenuGroupsTab';
-import { PricingSection } from '../components/admin/PricingSection';
+import { PricingRulesSection } from '../components/admin/PricingRulesSection';
 import { PerformanceAnalytics } from '../components/admin/PerformanceAnalytics';
 import { BusinessAnalytics } from '../components/admin/BusinessAnalytics';
 import { SiteAnalytics } from '../components/admin/SiteAnalytics';
@@ -407,7 +407,7 @@ function AdminDashboard() {
 
       {activeTab === 'changelog' && <ChangelogTab />}
 
-      {activeTab === 'pricing' && pricingRules && <PricingSection pricingRules={pricingRules as any} />}
+      {activeTab === 'pricing' && pricingRules && <PricingRulesSection pricingRules={pricingRules as any} />}
 
       {activeTab === 'branding' && <BusinessBrandingTab />}
 

@@ -2,9 +2,9 @@ import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { supabase } from '../../lib/supabase';
 import { checkMultipleUnitsAvailability } from '../../lib/availability';
 import { checkEventEssentialsAvailability } from '../../lib/queries/products';
-import { formatOrderSummary } from '../../lib/orderSummary';
+import { formatOrderSummary } from '../../lib/orderSummaryLoader';
 import { calculateDrivingDistance } from '../../lib/pricing';
-import { HOME_BASE } from '../../lib/constants';
+import { HOME_BASE } from '../../lib/businessLocation';
 import { StatusChangeDialog } from '../order-detail/StatusChangeDialog';
 import { OrderNotesTab } from '../order-detail/OrderNotesTab';
 import { OrderWorkflowTab } from '../order-detail/OrderWorkflowTab';
@@ -33,15 +33,15 @@ import {
 import { buildGeneratorResolverCatalog } from './order-detail-modal/generatorResolverCatalog';
 import { buildOrderDetailPricingRevision, buildGeneratorContextRevision } from './order-detail-modal/orderDetailRevisions';
 import { usePricing } from '../../hooks/usePricing';
-import { useOrderDetails } from '../../hooks/useOrderDetails';
-import { saveOrderChanges } from '../../lib/orderSaveService';
+import { useAdminOrderDetails } from '../../hooks/useAdminOrderDetails';
+import { saveOrderChanges } from '../../lib/staffOrderSaveRequest';
 import { orderPricingState } from '../../lib/orderPricingState';
 import { initDepositOverrideState } from '../../lib/depositCalculation';
 import { sendOrderEditNotifications } from '../../lib/orderNotificationService';
 import { SimpleConfirmModal } from '../common/SimpleConfirmModal';
 import { ORDER_STATUS } from '../../lib/constants/statuses';
-import { showToast } from '../../lib/notifications';
-import { loadGeneratorCategoryProductIds } from '../../lib/generatorUnified';
+import { showToast } from '../../lib/toasts';
+import { loadGeneratorCategoryProductIds } from '../../lib/customerGeneratorCart';
 import {
   resolveAdminGeneratorIncrease,
   decideAdminGeneratorDecrease,
@@ -154,7 +154,7 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
   const [parksAcknowledgmentResolving, setParksAcknowledgmentResolving] = useState(false);
 
   const { orderSummary: updatedOrderSummary, calculatedPricing, pricingError, calculatePricing } = usePricing();
-  const { payments, pricingRules, reload: reloadOrderData } = useOrderDetails(order.id);
+  const { payments, pricingRules, reload: reloadOrderData } = useAdminOrderDetails(order.id);
   const pricingDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Pricing input signature — changes immediately when any pricing-affecting

@@ -555,7 +555,7 @@ test('25. calculateTotalFromOrder with discounts and custom fees', () => {
 // 26. Mixed-order approval availability splits by inventory type
 // =========================================================================
 test('26. Mixed-order approval availability splits by inventory type', () => {
-  // Reproduces the real production split used by ApprovalModal.checkAvailability:
+  // Reproduces the real production split used by CustomerApprovalModal.checkAvailability:
   // inflatable rows (unit_id present) go to the inflatable check; EE rows
   // (product_id or bundle_id present, unit_id null) go to the EE expansion.
   // No null unit_id must ever reach the inflatable availability query.
@@ -694,7 +694,7 @@ test('27. Mixed-order pricing, deposit, and package-content display', () => {
     { unit_id: null, product_id: 'generator-uuid', bundle_id: null, qty: 1, unit_price_cents: GENERATOR_PRICE, item_name: 'Generator', component_snapshot: null },
   ];
 
-  // 1. Split by inventory type (mirrors ApprovalModal.checkAvailability split).
+  // 1. Split by inventory type (mirrors CustomerApprovalModal.checkAvailability split).
   const isNonBlank = (v: unknown): v is string => typeof v === 'string' && v.trim() !== '';
   const inflatableItems = savedOrderItems.filter(i => isNonBlank(i.unit_id));
   const eeItems = savedOrderItems.filter(i => !isNonBlank(i.unit_id) && (isNonBlank(i.product_id) || isNonBlank(i.bundle_id)));

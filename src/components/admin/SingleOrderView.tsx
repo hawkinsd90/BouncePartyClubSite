@@ -5,7 +5,7 @@ import { PendingOrderCard } from './PendingOrderCard';
 import { AdminFloatingOrderHeader } from './AdminFloatingOrderHeader';
 import { supabase } from '../../lib/supabase';
 import { ORDER_STATUS } from '../../lib/constants/statuses';
-import { createShortPortalLink } from '../../lib/utils';
+import { createShortPortalLink } from '../../lib/portalShortLink';
 
 interface SingleOrderViewProps {
   orderId: string;

@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { Plus, CreditCard as Edit2, X } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
-import { notifyError } from '../../lib/notifications';
+import { notifyError } from '../../lib/toasts';
 import { useCarouselData } from './carousel/useCarouselData';
 import { CarouselDisplay } from './carousel/CarouselDisplay';
 import { CarouselEditMode } from './carousel/CarouselEditMode';

@@ -1,7 +1,7 @@
 import { useState, useRef, useCallback, useImperativeHandle, forwardRef } from 'react';
 import { Upload, Trash2, Image as ImageIcon, AlertCircle } from 'lucide-react';
 import { supabase } from '../../../lib/supabase';
-import { notifyError, notifyWarning } from '../../../lib/notifications';
+import { notifyError, notifyWarning } from '../../../lib/toasts';
 
 const BUCKET = 'event-essentials-media';
 const MAX_SIZE = 10 * 1024 * 1024;

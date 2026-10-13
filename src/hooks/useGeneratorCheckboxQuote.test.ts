@@ -13,7 +13,7 @@ import {
   decideLegacySync,
   isConversionAllowed,
   type PackageGeneratorConfig,
-} from '../lib/generatorUnified';
+} from '../lib/customerGeneratorCart';
 import {
   normalizeCartLines,
   evaluateProductCandidate,

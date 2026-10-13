@@ -237,7 +237,7 @@ Variables use single-brace `{variable}` format (not double-brace):
 
 ---
 
-## Notification Reliability (`src/lib/notificationReliability.ts`)
+## Notification Reliability (`src/lib/notificationFailures.ts`)
 
 Every email and SMS send is wrapped with failure tracking:
 

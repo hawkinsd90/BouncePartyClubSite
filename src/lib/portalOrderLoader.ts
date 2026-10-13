@@ -4,7 +4,7 @@
 // required / error) can be tested without a renderer. It reads no database table: everything comes from
 // customer-portal-data, which proves the visitor holds a valid order-bound token or owns the order.
 
-import { buildOrderSummaryData, formatOrderSummary, OrderSummaryDisplay } from './orderSummary';
+import { buildOrderSummaryData, formatOrderSummary, OrderSummaryDisplay } from './orderSummaryLoader';
 import { fetchPortalData, PortalAccessError, PortalDeliveryState, PortalPayload } from './customerPortalApi';
 
 /* eslint-disable @typescript-eslint/no-explicit-any */

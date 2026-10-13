@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { supabase } from '../lib/supabase';
-import { showToast } from '../lib/notifications';
+import { showToast } from '../lib/toasts';
 
 interface NewCustomer {
   first_name: string;

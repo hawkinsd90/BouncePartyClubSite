@@ -2,10 +2,11 @@ import { useState, useEffect, forwardRef, useRef, useImperativeHandle, memo } fr
 import { OrderDetailModal } from './OrderDetailModal';
 import { OrderSummary } from '../order/OrderSummary';
 import { usePendingOrderData } from '../../hooks/usePendingOrderData';
-import { useSmsHandling } from '../../hooks/useSmsHandling';
+import { usePendingOrderSms } from '../../hooks/usePendingOrderSms';
 import { approveOrder, forceApproveOrder, rejectOrder } from '../../lib/orderApprovalService';
 import { generatePaymentLinkSmsMessage } from '../../lib/orderEmailTemplates';
-import { formatOrderId, createShortPortalLink } from '../../lib/utils';
+import { formatOrderId } from '../../lib/utils';
+import { createShortPortalLink } from '../../lib/portalShortLink';
 import { buildApprovalMessage, decideLotPicturesRequest } from '../../lib/notificationDecision';
 import { supabase } from '../../lib/supabase';
 import { ORDER_STATUS } from '../../lib/constants/statuses';
@@ -14,8 +15,8 @@ import { SmsConversation } from '../pending-order/SmsConversation';
 import { PaymentManagementSection } from '../pending-order/PaymentManagementSection';
 import { StreetViewImages } from '../pending-order/StreetViewImages';
 import { LotPicturesDisplay } from '../pending-order/LotPicturesDisplay';
-import { ApprovalModal } from '../pending-order/ApprovalModal';
-import { RejectionModal } from '../pending-order/RejectionModal';
+import { AdminApprovalModal } from '../pending-order/AdminApprovalModal';
+import { AdminRejectionModal } from '../pending-order/AdminRejectionModal';
 import { PaymentLinkSection } from '../pending-order/PaymentLinkSection';
 import { AlertTriangle } from 'lucide-react';
 import { formatCurrency } from '../../lib/pricing';
@@ -72,7 +73,7 @@ const PendingOrderCardInner = forwardRef<PendingOrderCardRef, {
     loadCustomerDamageHistory,
   } = usePendingOrderData(order.id);
 
-  const { sendingSms, sendSms } = useSmsHandling(order.id, order.customers?.phone);
+  const { sendingSms, sendSms } = usePendingOrderSms(order.id, order.customers?.phone);
 
   const getCustomerDisplayName = () => {
     if (contact?.business_name) {
@@ -422,7 +423,7 @@ const PendingOrderCardInner = forwardRef<PendingOrderCardRef, {
       )}
 
       {showApprovalModal && (
-        <ApprovalModal
+        <AdminApprovalModal
           order={order}
           customerDisplayName={getCustomerDisplayName()}
           lotPicturesRequested={lotPicturesRequestedLocal}
@@ -433,7 +434,7 @@ const PendingOrderCardInner = forwardRef<PendingOrderCardRef, {
       )}
 
       {showRejectionModal && (
-        <RejectionModal
+        <AdminRejectionModal
           onReject={handleReject}
           onCancel={() => setShowRejectionModal(false)}
         />

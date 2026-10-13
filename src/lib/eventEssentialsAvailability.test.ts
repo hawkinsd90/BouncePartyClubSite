@@ -10,7 +10,7 @@
 // call (items, start date, end date, excluded order id) must be identical.
 //
 // Flows covered: InvoiceBuilder.checkAvailability, InvoiceBuilder.handleGenerateInvoice,
-// OrderDetailModal.checkAvailability, ApprovalModal.checkAvailability,
+// OrderDetailModal.checkAvailability, CustomerApprovalModal.checkAvailability,
 // InvoiceAcceptanceView, AddEventEssentialsSection (product and package),
 // adminGeneratorResolution, orderApprovalService.checkEEProductAvailability, orderCreation.
 //
@@ -204,7 +204,7 @@ const flows: Flow[] = [
     }),
   },
   {
-    name: 'ApprovalModal.checkAvailability', skipsEmpty: true, usesExclude: true,
+    name: 'CustomerApprovalModal.checkAvailability', skipsEmpty: true, usesExclude: true,
     old: (i, q) => guard(async () => {
       const expansion = build(i.items);
       if (expansion.status === 'invalid') return 'toast:Unable to verify Event Essentials availability. Please try again or contact us for assistance.';

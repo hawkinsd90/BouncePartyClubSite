@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { OrderSummary } from '../order/OrderSummary';
-import { showToast } from '../../lib/notifications';
+import { showToast } from '../../lib/toasts';
 import { DiscountsManager } from '../order-detail/DiscountsManager';
 import { CardOnFileRequirement } from '../shared/CardOnFileRequirement';
 import { CustomFeesManager } from '../order-detail/CustomFeesManager';
@@ -13,9 +13,9 @@ import { AdminMessage } from '../order-detail/AdminMessage';
 import { AddEventEssentialsSection } from '../order-detail/AddEventEssentialsSection';
 import { useInvoiceData } from '../../hooks/useInvoiceData';
 import { usePricing } from '../../hooks/usePricing';
-import { useCartManagement } from '../../hooks/useCartManagement';
+import { useInvoiceCart } from '../../hooks/useInvoiceCart';
 import { useCustomerManagement } from '../../hooks/useCustomerManagement';
-import { useEventDetails } from '../../hooks/useEventDetails';
+import { useInvoiceEventDetails } from '../../hooks/useInvoiceEventDetails';
 import { generateInvoice } from '../../lib/invoiceService';
 import { checkMultipleUnitsAvailability } from '../../lib/availability';
 import { resolveAdminGeneratorIncrease, decideAdminGeneratorDecrease } from '../../lib/adminGeneratorResolution';
@@ -57,9 +57,9 @@ interface StagedEEItem {
 export function InvoiceBuilder() {
   const { customers, units, pricingRules, addCustomer } = useInvoiceData();
   const { cartItems, addItemToCart, removeItemFromCart, updateItemQuantity, updateItemPrice, clearCart } =
-    useCartManagement();
+    useInvoiceCart();
   const customerManagement = useCustomerManagement();
-  const { eventDetails, updateEventDetails, resetEventDetails } = useEventDetails();
+  const { eventDetails, updateEventDetails, resetEventDetails } = useInvoiceEventDetails();
 
   const [stagedEEItems, setStagedEEItems] = useState<StagedEEItem[]>([]);
   const [discounts, setDiscounts] = useState<any[]>([]);

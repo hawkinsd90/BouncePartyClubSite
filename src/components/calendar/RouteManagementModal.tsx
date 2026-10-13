@@ -3,7 +3,7 @@ import { X, Route as RouteIcon, Shuffle, ChevronUp, ChevronDown, Truck, Package,
 import { format } from 'date-fns';
 import { Task } from '../../hooks/useCalendarTasks';
 import { supabase } from '../../lib/supabase';
-import { showToast } from '../../lib/notifications';
+import { showToast } from '../../lib/toasts';
 import { sortTasksByOrder, isTaskActiveRouteStop, isDropOffPlanningOnly } from '../../lib/calendarUtils';
 import { SimpleConfirmModal } from '../common/SimpleConfirmModal';
 import type { RouteOriginOptions } from '../../lib/routeOptimization';

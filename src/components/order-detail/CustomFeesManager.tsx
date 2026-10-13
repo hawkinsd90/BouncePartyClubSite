@@ -1,10 +1,10 @@
 import { useState } from 'react';
 import { Trash2, Pencil, Check, X } from 'lucide-react';
 import { formatCurrency } from '../../lib/pricing';
-import { showToast } from '../../lib/notifications';
+import { showToast } from '../../lib/toasts';
 import { supabase } from '../../lib/supabase';
 import { useFeeTemplates } from '../../hooks/useFeeTemplates';
-import { dollarsToCents } from '../../lib/utils';
+import { dollarsToCents } from '../../lib/money';
 
 interface CustomFeesManagerProps {
   customFees: any[];

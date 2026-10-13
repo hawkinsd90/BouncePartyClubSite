@@ -7,8 +7,8 @@ import {
   markFailureResolved,
   type NotificationFailure,
   type SystemStatus,
-} from '../../lib/notificationReliability';
-import { showToast } from '../../lib/notifications';
+} from '../../lib/notificationFailures';
+import { showToast } from '../../lib/toasts';
 
 export function NotificationFailuresAlert() {
   const [emailStatus, setEmailStatus] = useState<SystemStatus | null>(null);

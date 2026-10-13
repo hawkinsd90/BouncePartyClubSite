@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo } from 'react';
 import { calculatePrice, calculateDrivingDistance, isSameDayWeekdayDelivery, type PricingRules, type PriceBreakdown } from '../lib/pricing';
-import { HOME_BASE } from '../lib/constants';
+import { HOME_BASE } from '../lib/businessLocation';
 import { calculateSalesTaxCents, composeOrderTotal, effectiveTaxEnabled } from '../lib/orderMoney';
 
 interface CartItem {

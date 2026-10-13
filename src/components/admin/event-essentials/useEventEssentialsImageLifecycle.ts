@@ -8,7 +8,7 @@
 import { useState, useRef, useCallback } from 'react';
 import { supabase } from '../../../lib/supabase';
 import { parseStoragePath } from '../../../lib/queries/products';
-import { notifyWarning } from '../../../lib/notifications';
+import { notifyWarning } from '../../../lib/toasts';
 import type { AdminImageUploadHandle, UploadedImage } from './AdminImageUpload';
 import {
   syncPendingImage,

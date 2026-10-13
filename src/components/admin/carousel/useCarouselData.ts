@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { supabase } from '../../../lib/supabase';
-import { notifyError, showConfirm } from '../../../lib/notifications';
+import { notifyError, showConfirm } from '../../../lib/toasts';
 import type { CarouselMedia, NewMediaState } from './carouselTypes';
 
 const EMPTY_NEW_MEDIA: NewMediaState = {

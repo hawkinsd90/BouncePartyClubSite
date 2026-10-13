@@ -3,10 +3,10 @@ import { MapPin, Calculator, Info } from 'lucide-react';
 import { AddressAutocomplete } from '../order/AddressAutocomplete';
 import { TravelFeeBreakdown } from '../shared/TravelFeeBreakdown';
 import { calculateTravelFee, type TravelFeeCalculationResult } from '../../lib/travelFeeCalculator';
-import { loadGoogleMapsAPI } from '../../lib/googleMaps';
+import { loadGoogleMapsAPI } from '../../lib/googleMapsLoader';
 import { formatCurrency } from '../../lib/pricing';
 import { supabase } from '../../lib/supabase';
-import { notifyError } from '../../lib/notifications';
+import { notifyError } from '../../lib/toasts';
 import { LoadingSpinner } from '../common/LoadingSpinner';
 
 interface PricingRules {

@@ -1,4 +1,4 @@
-import { dollarsToCents } from '../../lib/utils';
+import { dollarsToCents } from '../../lib/money';
 
 interface TipSelectorProps {
   totalCents: number;

@@ -19,11 +19,11 @@ const STUB = require('path').resolve('src/lib/__notifications_stub__.js');
 nodeModule._cache[STUB] = { id: STUB, filename: STUB, loaded: true, children: [], paths: [], exports: new Proxy({}, { get: () => () => undefined }) };
 const realResolve = nodeModule._resolveFilename;
 nodeModule._resolveFilename = function (request: string, parent: any, ...rest: any[]) {
-  if (request === './notifications' && /errorHandling.ts$/.test(String(parent?.filename ?? ''))) return STUB;
+  if (request === './toasts' && /errorHandling.ts$/.test(String(parent?.filename ?? ''))) return STUB;
   return realResolve.call(this, request, parent, ...rest);
 };
 const { decideAdminGeneratorIncrease, decideAdminGeneratorDecrease, computeVisibleGeneratorQty } = require('./adminGeneratorResolution');
-import type { GeneratorProductConfiguration } from './generatorUnified';
+import type { GeneratorProductConfiguration } from './customerGeneratorCart';
 
 let passed = 0;
 let failed = 0;

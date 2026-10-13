@@ -5,7 +5,7 @@ import {
   formatPrintableContact,
   formatPrintablePaymentMethod,
   formatDocumentNumber,
-} from '../../lib/printUtils';
+} from '../../lib/printableDocument';
 import { format } from 'date-fns';
 
 interface PrintableInvoiceProps extends Partial<PrintableDocument> {

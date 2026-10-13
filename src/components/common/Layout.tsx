@@ -3,7 +3,7 @@ import { Phone, Mail, LogOut, LogIn, ShoppingCart, Menu, X, Instagram, Facebook 
 import { useAuth } from '../../contexts/AuthContext';
 import { SafeStorage } from '../../lib/safeStorage';
 import { useState, useEffect } from 'react';
-import { notifyError } from '../../lib/notifications';
+import { notifyError } from '../../lib/toasts';
 import { getPublicBusinessSettings, getPublicMenuGroups, type PublicMenuGroup } from '../../lib/adminSettingsCache';
 
 export function Layout() {

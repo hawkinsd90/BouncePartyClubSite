@@ -206,7 +206,7 @@ The RPC returns `null` if no match is found or if the prefix is ambiguous (multi
 
 ---
 
-## Order Edit and Modification (`src/lib/orderSaveService.ts`)
+## Order Edit and Modification (`src/lib/staffOrderSaveRequest.ts`)
 
 Admins can modify confirmed orders. Changes can be sent to the customer for approval before taking effect, or applied immediately (admin override).
 
@@ -440,7 +440,7 @@ The original checkout tab listens for the `BPC_CHECKOUT_COMPLETE` message and na
 
 ---
 
-## Order State Machine (`src/lib/orderStateMachine.ts`)
+## Order State Machine (`src/lib/adminStatusTransitions.ts`)
 
 Defines valid status transitions and business rules for moving orders between states. Used client-side to determine which actions are available for a given order status. The server-side equivalent is the `validate_order_status_transition` database function, which rejects any write that would violate the state machine.
 

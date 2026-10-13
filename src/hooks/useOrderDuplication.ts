@@ -2,7 +2,7 @@ import { useNavigate } from 'react-router-dom';
 import type { Order } from '../types/orders';
 import { SafeStorage } from '../lib/safeStorage';
 import { eventAddressLine2 } from '../lib/eventAddress';
-import { notifyError, notifyWarning, showConfirm } from '../lib/notifications';
+import { notifyError, notifyWarning, showConfirm } from '../lib/toasts';
 
 export function useOrderDuplication() {
   const navigate = useNavigate();

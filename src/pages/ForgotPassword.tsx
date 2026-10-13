@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import { Mail, Loader2, ArrowLeft, CheckCircle2 } from 'lucide-react';
-import { notifyError } from '../lib/notifications';
+import { notifyError } from '../lib/toasts';
 
 export function ForgotPassword() {
   const navigate = useNavigate();

@@ -3,7 +3,7 @@ import { useParams, useLocation, useSearchParams } from 'react-router-dom';
 import { AlertCircle } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { ORDER_STATUS } from '../lib/constants/statuses';
-import { useOrderData } from '../hooks/useOrderData';
+import { useCustomerPortalOrder } from '../hooks/useCustomerPortalOrder';
 import { useCustomerPortalRefresh } from '../hooks/useCustomerPortalRefresh';
 import { InvoiceAcceptanceView } from '../components/customer-portal/InvoiceAcceptanceView';
 import { OrderApprovalView } from '../components/customer-portal/OrderApprovalView';
@@ -11,7 +11,7 @@ import { ApprovalSuccessView } from '../components/customer-portal/ApprovalSucce
 import { OrderStatusView } from '../components/customer-portal/OrderStatusView';
 import { RegularPortalView } from '../components/customer-portal/RegularPortalView';
 import { LoadingSpinner } from '../components/common/LoadingSpinner';
-import { showToast } from '../lib/notifications';
+import { showToast } from '../lib/toasts';
 import { trackEvent } from '../lib/siteEvents';
 import { parsePortalToken } from '../lib/portalToken';
 import { SecureAccessRequired } from '../components/customer-portal/SecureAccessRequired';
@@ -54,7 +54,7 @@ export function CustomerPortal() {
   const [refreshVersion, setRefreshVersion] = useState(0);
   const suppressRefreshRef = useRef(false);
 
-  const { data, loading, loadOrder, accessRequired } = useOrderData();
+  const { data, loading, loadOrder, accessRequired } = useCustomerPortalOrder();
 
   const resolvedOrderId = orderId || (data?.order?.id);
 

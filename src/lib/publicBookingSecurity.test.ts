@@ -795,7 +795,7 @@ const noRows = (w: World, snapshot: string) => JSON.stringify(w.db) === snapshot
   {
     const CORE_TABLES = ['customers', 'addresses', 'orders', 'order_items', 'consent_records', 'payments', 'invoice_links', 'contacts'];
     const directAccess = (src: string) => CORE_TABLES.filter((t) => new RegExp(`\\.from\\(\\s*['"\`]${t}['"\`]`).test(src));
-    const publicBookingFiles = ['src/pages/Checkout.tsx', 'src/lib/bookingApi.ts', 'src/hooks/usePaymentCompletion.ts', 'src/pages/PaymentComplete.tsx', 'src/components/payment/PaymentSuccessState.tsx', 'src/hooks/useCheckoutData.ts', 'src/pages/LegacyInvoiceRedirect.tsx', 'src/hooks/useQuoteCart.ts', 'src/pages/Catalog.tsx'];
+    const publicBookingFiles = ['src/pages/Checkout.tsx', 'src/lib/bookingApi.ts', 'src/hooks/useBookingReturnConfirmation.ts', 'src/pages/StripeCheckoutReturn.tsx', 'src/components/booking-return/BookingRequestReceivedView.tsx', 'src/hooks/useCheckoutData.ts', 'src/pages/LegacyInvoiceRedirect.tsx', 'src/hooks/useQuoteCart.ts', 'src/pages/Catalog.tsx'];
     for (const f of publicBookingFiles) {
       const src = read(f);
       ok(`source scan: ${f} has no direct access to customers/addresses/orders/order_items/consent_records/payments/invoice_links/contacts`, directAccess(src).length === 0);
@@ -810,7 +810,7 @@ const noRows = (w: World, snapshot: string) => JSON.stringify(w.db) === snapshot
     ok('source scan: the booking card setup call sends the proof and order id, not money', /orderId: booking\.orderId,\s*bookingMode: true,\s*bookingToken: booking\.bookingToken/.test(req) && !/depositCents|tipCents|customerEmail/.test(req.slice(req.indexOf('export async function startBookingCardSetup'), req.indexOf('export interface CompletedBooking'))));
 
     // Post-Stripe completion goes through hardened server functions
-    const hook = read('src/hooks/usePaymentCompletion.ts');
+    const hook = read('src/hooks/useBookingReturnConfirmation.ts');
     ok('completion: the hook loads order details through complete-booking (Stripe-session proof)', /loadCompletedBooking\(/.test(hook) && !/fetchOrderDetails|supabase\./.test(hook));
     ok('completion: card save, lifecycle entry and the confirmation use server functions (the server owns the sent flag)', /save-payment-method-from-session/.test(hook) && /enterPendingReview/.test(hook) && hook.includes('sendCustomerBookingConfirmationNotifications(order, sessionId!)') && !/markBookingConfirmationSent/.test(hook));
     ok('completion: the hook requires a Stripe session id (a bare order id loads nothing)', /No payment session was provided/.test(hook));

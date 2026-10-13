@@ -7,7 +7,7 @@ import { BookingApiError, buildBookingRequest, createBooking, startBookingCardSe
 import { useAuth } from '../contexts/AuthContext';
 import { useCheckoutData } from '../hooks/useCheckoutData';
 import { getPaymentAmountCentsFromTotals, getTipAmountCents, buildOrderSummary } from '../lib/checkoutUtils';
-import { showToast } from '../lib/notifications';
+import { showToast } from '../lib/toasts';
 import { composeUnifiedQuoteTotals } from '../lib/unifiedTotals';
 import { validateCartPackageSnapshots } from '../lib/packageDisplay';
 import {

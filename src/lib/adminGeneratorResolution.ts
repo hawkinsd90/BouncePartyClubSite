@@ -13,8 +13,8 @@
 // Config/query failures are NOT inventory exhaustion. The decision helpers
 // return a 'fail_closed' outcome rather than silently falling back to legacy.
 
-import type { GeneratorProductConfiguration } from './generatorUnified';
-import { lookupAllGeneratorProducts } from './generatorUnified';
+import type { GeneratorProductConfiguration } from './customerGeneratorCart';
+import { lookupAllGeneratorProducts } from './customerGeneratorCart';
 import { resolveEventEssentialsPricing } from './eventEssentialsPricing';
 import type {
   ResolverInput,

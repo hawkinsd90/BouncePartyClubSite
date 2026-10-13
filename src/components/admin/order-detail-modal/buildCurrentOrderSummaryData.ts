@@ -9,7 +9,7 @@
 // Type-only imports keep this module loadable from Node-based tests.
 
 import { storedOrderTotalCents } from '../../../lib/orderMoney';
-import type { OrderSummaryData, OrderDiscount, OrderCustomFee } from '../../../lib/orderSummary';
+import type { OrderSummaryData, OrderDiscount, OrderCustomFee } from '../../../lib/orderSummaryLoader';
 
 // Only the stored order fields this builder reads.
 export interface CurrentOrderSummarySource {

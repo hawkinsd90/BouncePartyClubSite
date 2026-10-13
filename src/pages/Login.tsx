@@ -3,7 +3,7 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { supabase } from '../lib/supabase';
 import { Lock, Loader2, Eye, EyeOff, X, Mail, AlertTriangle, Clock } from 'lucide-react';
-import { notifySuccess, notifyError } from '../lib/notifications';
+import { notifySuccess, notifyError } from '../lib/toasts';
 import { createLogger } from '../lib/logger';
 
 const log = createLogger('Login');

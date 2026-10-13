@@ -1,6 +1,6 @@
-import { OrderSummaryDisplay } from './orderSummary';
-import { dollarsToCents } from './utils';
-import { buildOrderSummaryDisplay } from './orderSummaryHelpers';
+import { OrderSummaryDisplay } from './orderSummaryLoader';
+import { dollarsToCents } from './money';
+import { buildOrderSummaryDisplay } from './orderSummaryDisplay';
 import type { PriceBreakdown } from './pricing';
 import type { UnifiedCartItem } from '../types';
 import { composeUnifiedQuoteTotals, type UnifiedQuoteTotals } from './unifiedTotals';

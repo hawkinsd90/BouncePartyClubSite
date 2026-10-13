@@ -38,7 +38,7 @@ import {
   type GeneratorProductConfiguration,
   type PackageGeneratorConfig,
   type GeneratorConfigurationStatus,
-} from '../lib/generatorUnified';
+} from '../lib/customerGeneratorCart';
 import type {
   UnifiedCartItem,
   EventEssentialProductCartItem,

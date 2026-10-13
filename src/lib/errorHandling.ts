@@ -1,4 +1,4 @@
-import { notifyError } from './notifications';
+import { notifyError } from './toasts';
 import { reportError } from './errorReporter';
 
 export class AppError extends Error {

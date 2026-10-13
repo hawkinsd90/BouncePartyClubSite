@@ -11,7 +11,7 @@ import {
 import {
   notifySuccess,
   notifyError,
-} from '../../../lib/notifications';
+} from '../../../lib/toasts';
 import type {
   ProductBundleWithConfiguration,
   InventoryProductWithPricing,
@@ -31,7 +31,7 @@ import {
   type PackageFormState,
 } from './package-form/packageFormModel';
 import { validatePackageForm } from './package-form/packageFormValidation';
-import { PricingSection } from './package-form/PricingSection';
+import { PackagePricingFields } from './package-form/PackagePricingFields';
 import { ExcludedCategoriesSection } from './package-form/ExcludedCategoriesSection';
 import { InflatableRequirementSection } from './package-form/InflatableRequirementSection';
 import { ProductComponentsEditor } from './package-form/ProductComponentsEditor';
@@ -430,7 +430,7 @@ export function PackageForm({
             {errors.sort_order && <p className="mt-1 text-xs text-red-600">{errors.sort_order}</p>}
           </div>
 
-          <PricingSection
+          <PackagePricingFields
             formData={formData}
             errors={errors}
             standalonePriceDisplay={standalonePriceDisplay}

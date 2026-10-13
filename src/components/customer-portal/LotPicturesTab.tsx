@@ -1,6 +1,6 @@
 import { useState, useRef } from 'react';
 import { Upload, Image as ImageIcon, CheckCircle, X, Maximize, Trash2 } from 'lucide-react';
-import { notifyError, notifySuccess } from '../../lib/notifications';
+import { notifyError, notifySuccess } from '../../lib/toasts';
 import { portalAction } from '../../lib/customerPortalApi';
 import { uploadPortalPictures, discardPortalPictures } from '../../lib/portalPictureUpload';
 import { SimpleConfirmModal } from '../common/SimpleConfirmModal';

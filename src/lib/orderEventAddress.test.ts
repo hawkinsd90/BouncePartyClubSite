@@ -133,7 +133,7 @@ eq('helper: addressWithOrderUnit with no address is null', addressWithOrderUnit(
   const addressService = read('src/lib/addressService.ts');
   ok('address service: the shared row\'s line2 is first-writer and never rewritten by a later booking / edit', /const sharedLine2 = existingRow \? \(existingRow\.line2 \?\? null\) : \(line2 \?\? null\);/.test(addressService) && /line2: sharedLine2,/.test(addressService) && !/line2: line2 \?\? null,/.test(addressService));
   ok('duplication: a duplicated order copies THIS order\'s unit', /address_line2: eventAddressLine2\(orderData\)/.test(read('src/hooks/useOrderDuplication.ts')));
-  ok('print: the printed address uses the order unit', /line2: eventAddressLine2\(order\)/.test(read('src/lib/printUtils.ts')));
+  ok('print: the printed address uses the order unit', /line2: eventAddressLine2\(order\)/.test(read('src/lib/printableDocument.ts')));
   ok('customer dashboard: the order card uses the order unit', /eventAddressLine2\(order\)/.test(read('src/components/dashboard/OrderCard.tsx')) && !/order\.addresses\.line2/.test(read('src/components/dashboard/OrderCard.tsx')));
   ok('admin pending order: the info section uses the order unit', /eventAddressLine2\(order\)/.test(read('src/components/pending-order/OrderInfoSection.tsx')) && !/order\.addresses\?\.line2/.test(read('src/components/pending-order/OrderInfoSection.tsx')));
   ok('the planner and the edit model compare against the order unit, not the shared row', !/order\.addresses\?\.line2 \|\| ''/.test(read('src/lib/orderChangePlanning.ts')) && !/order\.addresses\?\.line2 \|\| ''/.test(read('src/components/admin/order-detail-modal/editedOrderModel.ts')));

@@ -24,7 +24,7 @@ import { storedOrderTotalCents } from './orderMoney';
 import { receiptOrderFigures, receiptExtraFeeRowsHtml } from '../../supabase/functions/_shared/receipt-order-totals';
 import { storedFeeAmounts } from './orderFeeDisplay';
 import { orderPricingState, sameOrderPricingState } from './orderPricingState';
-import { buildOrderSummaryDisplay } from './orderSummaryHelpers';
+import { buildOrderSummaryDisplay } from './orderSummaryDisplay';
 import { composeUnifiedQuoteTotals as serverCompose } from '../../supabase/functions/_shared/booking/unifiedTotals';
 import { calculatePrice as serverCalculatePrice } from '../../supabase/functions/_shared/booking/pricing';
 
@@ -497,7 +497,7 @@ const moneyKeys = ['subtotal_cents', 'travel_fee_cents', 'surface_fee_cents', 's
   const read = (p: string): string => fs.readFileSync(p, 'utf8').replace(/\r\n/g, '\n');
   ok('OrderSummary (Admin single order, Admin Edit summary, Customer Portal) renders an unknown waived amount as "Waived" with no dollar figure', /fee\.amountUnknown && isWaived/.test(read('src/components/order/OrderSummary.tsx')));
   ok('Printable Invoice: a waived fee stored as $0 shows no dollar figure', /travelFeeWaived && priceBreakdown\.travel_fee_cents === 0/.test(read('src/components/invoice/PrintableInvoice.tsx')) && /taxWaived && priceBreakdown\.tax_cents === 0/.test(read('src/components/invoice/PrintableInvoice.tsx')));
-  const summarySrc = read('src/lib/orderSummary.ts') + read('src/lib/orderFeeDisplay.ts');
+  const summarySrc = read('src/lib/orderSummaryLoader.ts') + read('src/lib/orderFeeDisplay.ts');
   ok('the stored-order display never reads pricing_rules for a waived fee', !/pricing_rules|surface_sandbag_fee_cents|same_day_pickup_fee_cents\s*\?\?|generator_price_cents/.test(read('src/lib/orderFeeDisplay.ts')) && /storedFeeAmounts\(order\)/.test(summarySrc));
 }
 
@@ -525,8 +525,8 @@ const moneyKeys = ['subtotal_cents', 'travel_fee_cents', 'surface_fee_cents', 's
     return [...src.matchAll(/from\(['"]orders['"]\)[\s\S]{0,200}?\.(insert|update|upsert)\(\s*(\{[\s\S]*?\})\s*\)/g)].some((m) => guarded.some((c) => new RegExp(`\\b${c}\\b`).test(m[2])));
   });
   eq('no browser code writes an order pricing column', leaking, []);
-  ok('the editor save and the invoice creation go through the server function', /callStaffOrderSave(<[^>]*>)?\('save_changes'/.test(read('src/lib/orderSaveService.ts')) && /callStaffOrderSave<[^>]*>\('create_invoice'/.test(read('src/lib/invoiceService.ts')));
-  ok('the request builders never read a browser-calculated price', !/subtotal_cents|tax_cents|total_cents|deposit_due_cents|balance_due_cents/.test(read('src/lib/invoiceService.ts').replace(/pricing_context[^\n]*/g, '')) && !/(subtotal|tax|total|deposit_due|balance_due)_cents\s*:/.test(read('src/lib/orderSaveService.ts')));
+  ok('the editor save and the invoice creation go through the server function', /callStaffOrderSave(<[^>]*>)?\('save_changes'/.test(read('src/lib/staffOrderSaveRequest.ts')) && /callStaffOrderSave<[^>]*>\('create_invoice'/.test(read('src/lib/invoiceService.ts')));
+  ok('the request builders never read a browser-calculated price', !/subtotal_cents|tax_cents|total_cents|deposit_due_cents|balance_due_cents/.test(read('src/lib/invoiceService.ts').replace(/pricing_context[^\n]*/g, '')) && !/(subtotal|tax|total|deposit_due|balance_due)_cents\s*:/.test(read('src/lib/staffOrderSaveRequest.ts')));
   for (const f of ['src/components/admin/InvoiceBuilder.tsx', 'src/components/crew/CrewInvoiceBuilder.tsx']) {
     const src = read(f);
     const start = src.indexOf('generateInvoice(');
@@ -629,7 +629,7 @@ const moneyKeys = ['subtotal_cents', 'travel_fee_cents', 'surface_fee_cents', 's
   eq('AUTHORITY SCAN: no browser UPDATE of orders names a pricing, travel, waiver or payment-ledger column', ops('update').filter((w) => w.keys.some((k) => MONEY_COLUMNS.includes(k) || k === '<spread>' || k === '<unanalysable>')), []);
   ok('AUTHORITY SCAN: the update scan found the known non-financial workflow writes (status / workflow / lot pictures / cancellation)', ops('update').length >= 6 && ops('update').every((w) => w.keys.length > 0));
   eq('AUTHORITY SCAN: no browser file calls the server-only save functions directly', browserFiles.filter((f) => /rpc\(\s*['"`](apply_staff_order_save|create_staff_invoice_order)/.test(fs.readFileSync(f, 'utf8'))), []);
-  ok('AUTHORITY SCAN: the order modal and the summary loader no longer persist computed miles', !/\.update\(\{ travel_total_miles/.test(fs.readFileSync('src/components/admin/OrderDetailModal.tsx', 'utf8')) && !/\.update\(\{ travel_total_miles/.test(fs.readFileSync('src/lib/orderSummary.ts', 'utf8')));
+  ok('AUTHORITY SCAN: the order modal and the summary loader no longer persist computed miles', !/\.update\(\{ travel_total_miles/.test(fs.readFileSync('src/components/admin/OrderDetailModal.tsx', 'utf8')) && !/\.update\(\{ travel_total_miles/.test(fs.readFileSync('src/lib/orderSummaryLoader.ts', 'utf8')));
 
   // The browser does not send a distance or a capability, and the server never reads one
   const server = fs.readFileSync('supabase/functions/_shared/staff-order-save.ts', 'utf8');

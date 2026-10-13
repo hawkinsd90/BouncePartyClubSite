@@ -2,7 +2,7 @@ import { Printer } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { formatCurrency } from '../../lib/pricing';
 import { OrderSummary } from '../order/OrderSummary';
-import { OrderSummaryDisplay } from '../../lib/orderSummary';
+import { OrderSummaryDisplay } from '../../lib/orderSummaryLoader';
 import { RentalTerms } from '../waiver/RentalTerms';
 
 interface ContactData {

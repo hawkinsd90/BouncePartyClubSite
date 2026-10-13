@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { format } from 'date-fns';
 import { supabase } from '../../lib/supabase';
-import { showToast } from '../../lib/notifications';
+import { showToast } from '../../lib/toasts';
 
 interface Note {
   id: string;

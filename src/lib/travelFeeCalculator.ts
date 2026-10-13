@@ -1,5 +1,5 @@
 import { calculateDrivingDistance } from './distanceCalculator';
-import { HOME_BASE } from './constants';
+import { HOME_BASE } from './businessLocation';
 
 export interface TravelFeeCalculationInput {
   city: string;

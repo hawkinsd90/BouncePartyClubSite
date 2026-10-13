@@ -6,7 +6,7 @@ import { FileText, Calendar, Eye, CreditCard as Edit } from 'lucide-react';
 import { format } from 'date-fns';
 import { formatCurrency } from '../../lib/pricing';
 import { useSupabaseQuery, useMutation } from '../../hooks/useDataFetch';
-import { notifySuccess } from '../../lib/notifications';
+import { notifySuccess } from '../../lib/toasts';
 
 interface Invoice {
   id: string;

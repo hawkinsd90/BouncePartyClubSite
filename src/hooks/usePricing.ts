@@ -1,7 +1,7 @@
 import { useState, useCallback, useRef } from 'react';
 import { calculateDrivingDistance, isSameDayWeekdayDelivery } from '../lib/pricing';
-import { formatOrderSummary } from '../lib/orderSummary';
-import { HOME_BASE } from '../lib/constants';
+import { formatOrderSummary } from '../lib/orderSummaryLoader';
+import { HOME_BASE } from '../lib/businessLocation';
 import {
   calculateOrderPricing,
   shouldReuseSavedTravel,

@@ -14,7 +14,7 @@ import { PicturesTab } from './PicturesTab';
 import { LotPicturesTab } from './LotPicturesTab';
 import { CancelOrderModal } from './CancelOrderModal';
 import { DeliveryTab } from './DeliveryTab';
-import { showToast } from '../../lib/notifications';
+import { showToast } from '../../lib/toasts';
 import { OrderStatusBadge } from '../dashboard/OrderStatusBadge';
 import { ORDER_STATUS, CANCELLABLE_STATUSES } from '../../lib/constants/statuses';
 

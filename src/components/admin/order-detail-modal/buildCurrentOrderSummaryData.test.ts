@@ -14,7 +14,7 @@
 
 import { buildCurrentOrderSummaryData } from './buildCurrentOrderSummaryData';
 import type { CurrentOrderSummarySource } from './buildCurrentOrderSummaryData';
-import type { OrderSummaryData, OrderDiscount, OrderCustomFee } from '../../../lib/orderSummary';
+import type { OrderSummaryData, OrderDiscount, OrderCustomFee } from '../../../lib/orderSummaryLoader';
 
 type TestDiscount = OrderDiscount & { is_new?: boolean };
 type TestFee = OrderCustomFee & { is_new?: boolean };

@@ -3,7 +3,7 @@ import { useSearchParams } from 'react-router-dom';
 import { format } from 'date-fns';
 import { Search, Calendar, User, Phone, Archive, ArchiveX, ArchiveRestore } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
-import { showToast } from '../../lib/notifications';
+import { showToast } from '../../lib/toasts';
 import { OrderDetailModal } from '../admin/OrderDetailModal';
 import { PendingOrderCard } from '../admin/PendingOrderCard';
 import { SingleOrderView } from '../admin/SingleOrderView';

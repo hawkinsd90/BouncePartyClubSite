@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import { ArrowLeft, Save, Upload, X, Layers } from 'lucide-react';
-import { notifyError, notifySuccess, showConfirm } from '../lib/notifications';
+import { notifyError, notifySuccess, showConfirm } from '../lib/toasts';
 
 export function UnitForm() {
   const navigate = useNavigate();

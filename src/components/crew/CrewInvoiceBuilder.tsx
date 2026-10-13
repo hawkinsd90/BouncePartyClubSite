@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import { Send } from 'lucide-react';
 import { OrderSummary } from '../order/OrderSummary';
-import { showToast } from '../../lib/notifications';
+import { showToast } from '../../lib/toasts';
 import { EventDetailsEditor } from '../order-detail/EventDetailsEditor';
 import { ItemsEditor } from '../shared/ItemsEditor';
 import { CustomerSelector } from '../invoice/CustomerSelector';
@@ -10,9 +10,9 @@ import { InvoiceSuccessMessage } from '../invoice/InvoiceSuccessMessage';
 import { AdminMessageSection } from '../invoice/AdminMessageSection';
 import { useInvoiceData } from '../../hooks/useInvoiceData';
 import { useInvoicePricing } from '../../hooks/useInvoicePricing';
-import { useCartManagement } from '../../hooks/useCartManagement';
+import { useInvoiceCart } from '../../hooks/useInvoiceCart';
 import { useCustomerManagement } from '../../hooks/useCustomerManagement';
-import { useEventDetails } from '../../hooks/useEventDetails';
+import { useInvoiceEventDetails } from '../../hooks/useInvoiceEventDetails';
 import { generateInvoice } from '../../lib/invoiceService';
 import { buildInvoiceSummary } from '../../lib/invoiceSummaryBuilder';
 import { checkMultipleUnitsAvailability } from '../../lib/availability';
@@ -20,9 +20,9 @@ import { checkMultipleUnitsAvailability } from '../../lib/availability';
 export function CrewInvoiceBuilder() {
   const { customers, units, pricingRules, addCustomer } = useInvoiceData();
   const { cartItems, addItemToCart, removeItemFromCart, updateItemQuantity, updateItemPrice, clearCart } =
-    useCartManagement();
+    useInvoiceCart();
   const customerManagement = useCustomerManagement();
-  const { eventDetails, updateEventDetails, resetEventDetails } = useEventDetails();
+  const { eventDetails, updateEventDetails, resetEventDetails } = useInvoiceEventDetails();
 
   const [adminMessage, setAdminMessage] = useState('');
   const [invoiceUrl, setInvoiceUrl] = useState('');

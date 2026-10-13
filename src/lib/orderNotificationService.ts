@@ -8,7 +8,8 @@ import {
   createContactInfo,
   EMAIL_THEMES,
 } from './emailTemplateBase';
-import { formatOrderId, createShortPortalLink } from './utils';
+import { formatOrderId } from './utils';
+import { createShortPortalLink } from './portalShortLink';
 import { supabase } from './supabase';
 import { sendBookingConfirmation } from './bookingApi';
 

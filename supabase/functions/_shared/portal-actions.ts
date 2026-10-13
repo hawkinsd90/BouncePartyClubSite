@@ -302,7 +302,7 @@ export interface OrderTotalInputs {
 }
 
 // The figure the approval screen shows as the order total: orderMoney (a generated copy of src/lib/orderMoney.ts, the same
-// arithmetic as src/lib/orderSummary.ts calculateTotalFromOrder). Tip is separate and not part of the total.
+// arithmetic as src/lib/orderSummaryLoader.ts calculateTotalFromOrder). Tip is separate and not part of the total.
 export function orderTotalCents(
   order: OrderTotalInputs,
   discounts: Array<{ amount_cents?: number | null; percentage?: number | null }>,

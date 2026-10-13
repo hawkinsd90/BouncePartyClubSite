@@ -10,7 +10,7 @@
 // import { supabase } from './supabase';
 // import { addDays, format } from 'date-fns';
 // import { calculateDistance, calculateDrivingDistance, calculatePrice } from './pricing';
-// import { loadGoogleMapsAPI } from './googleMaps';
+// import { loadGoogleMapsAPI } from './googleMapsLoader';
 // import { SafeStorage } from './safeStorage';
 
 // BPC-SECURITY-HARDENING: Original PII replaced with clearly fake placeholder data.

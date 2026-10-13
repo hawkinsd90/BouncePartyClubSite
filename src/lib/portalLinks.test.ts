@@ -732,13 +732,13 @@ async function call(handler: (r: Request) => Promise<Response>, bearer: string |
   ok('order-lifecycle: link issuance is best effort (cannot block the booking)', /try \{ await getOrCreatePortalLink\(supabase, orderId\); \} catch/.test(lifecycle));
 
   // Client senders all go through the one helper
-  const utils = read('src/lib/utils.ts');
+  const utils = read('src/lib/portalShortLink.ts');
   ok('client sender helper: asks the portal-link Edge Function, never an rpc or table', /functions\.invoke\('portal-link'/.test(utils) && !/create_portal_short_link|create_order_short_link|\.from\('invoice_links'\)/.test(utils));
   {
     (globalThis as any).window = { location: { origin: 'https://site.test', hash: '', search: '' } };
     const calls: any[] = [];
     const mk = (resp: any) => ({ functions: { invoke: async (name: string, opts: any) => { calls.push({ name, opts }); return resp; } } });
-    const U: any = await import('./utils');
+    const U: any = await import('./portalShortLink');
     const okRes = await U.createShortPortalLink('order-A', mk({ data: { success: true, shortCode: 'AAAAaaaa2222' }, error: null }), null, tok('a'));
     ok('client sender helper: success yields the /i/<code> URL', okRes.success === true && /\/i\/AAAAaaaa2222$/.test(okRes.url) && calls[0].name === 'portal-link' && calls[0].opts.body.orderId === 'order-A' && calls[0].opts.body.token === tok('a'));
     ok('client sender helper: the URL is never a customer-portal/<uuid> or checkout/<uuid> URL', !/customer-portal|checkout/.test(okRes.url));
@@ -794,9 +794,9 @@ async function call(handler: (r: Request) => Promise<Response>, bearer: string |
   ok('portal page: remembers the credential for the visit so a URL rewrite cannot lose the proof', /rememberedToken/.test(read('src/pages/CustomerPortal.tsx')));
   for (const [file, pattern] of [
     ['src/components/customer-portal/ApprovalSuccessView.tsx', /portalPathForCurrentVisitor\(orderId\)/],
-    ['src/components/payment/PaymentErrorState.tsx', /portalPathForCurrentVisitor\(orderId\)/],
-    ['src/components/payment/PaymentSuccessState.tsx', /createShortPortalLink\(orderId, supabase, null, null, returnSessionId\)/],
-    ['src/pages/PaymentComplete.tsx', /portalPathForCurrentVisitor\(orderId, \{ invoice_paid: true \}\)/],
+    ['src/components/booking-return/BookingConfirmationErrorState.tsx', /portalPathForCurrentVisitor\(orderId\)/],
+    ['src/components/booking-return/BookingRequestReceivedView.tsx', /createShortPortalLink\(orderId, supabase, null, null, returnSessionId\)/],
+    ['src/pages/StripeCheckoutReturn.tsx', /portalPathForCurrentVisitor\(orderId, \{ invoice_paid: true \}\)/],
     ['src/pages/Sign.tsx', /portalPathForCurrentVisitor\(orderId!, \{ signatureComplete: true \}\)/],
     ['src/components/waiver/WaiverTab.tsx', /tokenFragment\(token\)/],
     ['src/components/customer-portal/RegularPortalView.tsx', /tokenFragment\(invoiceLinkToken\)/],

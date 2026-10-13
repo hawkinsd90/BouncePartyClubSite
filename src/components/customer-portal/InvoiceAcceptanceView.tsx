@@ -8,21 +8,22 @@ import {
   AlertCircle,
   Shield,
 } from 'lucide-react';
-import { OrderSummaryDisplay } from '../../lib/orderSummary';
+import { OrderSummaryDisplay } from '../../lib/orderSummaryLoader';
 import { SimpleInvoiceDisplay } from '../shared/SimpleInvoiceDisplay';
 import { TipSelector } from '../payment/TipSelector';
 import { PaymentAmountSelector } from './PaymentAmountSelector';
 import { CustomerInfoForm } from './CustomerInfoForm';
 import { CancelOrderModal } from './CancelOrderModal';
-import { showToast } from '../../lib/notifications';
+import { showToast } from '../../lib/toasts';
 import { portalAction } from '../../lib/customerPortalApi';
 import { checkEventEssentialsAvailability } from '../../lib/queries/products';
-import { enterConfirmed } from '../../lib/orderLifecycle';
+import { enterConfirmed } from '../../lib/orderLifecycleApi';
 import {
   generateConfirmationReceiptEmail,
   generateConfirmationSmsMessage,
 } from '../../lib/orderEmailTemplates';
-import { formatOrderId, createShortPortalLink } from '../../lib/utils';
+import { formatOrderId } from '../../lib/utils';
+import { createShortPortalLink } from '../../lib/portalShortLink';
 import { portalPathForCurrentVisitor } from '../../lib/portalToken';
 import { ReferralSourceSelect } from '../shared/ReferralSourceSelect';
 import { getPublicBusinessSettings } from '../../lib/adminSettingsCache';

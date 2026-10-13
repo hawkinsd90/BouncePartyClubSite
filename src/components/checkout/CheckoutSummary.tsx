@@ -1,6 +1,6 @@
 import { Shield, Loader2, FileText } from 'lucide-react';
 import { OrderSummary } from '../order/OrderSummary';
-import { OrderSummaryDisplay } from '../../lib/orderSummary';
+import { OrderSummaryDisplay } from '../../lib/orderSummaryLoader';
 
 interface CheckoutSummaryProps {
   quoteData: any;

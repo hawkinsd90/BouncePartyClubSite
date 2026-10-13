@@ -212,7 +212,7 @@ function fixture(): Harness {
       'src/pages/CustomerPortal.tsx',
       'src/pages/Receipt.tsx',
       'src/pages/Sign.tsx',
-      'src/lib/orderSummary.ts',
+      'src/lib/orderSummaryLoader.ts',
       'src/lib/orderEmailTemplates.ts',
       ...fs.readdirSync('src/components/customer-portal').filter((f: string) => f.endsWith('.tsx')).map((f: string) => `src/components/customer-portal/${f}`),
     ];
@@ -873,7 +873,7 @@ ok('approval: records the payment selection and tip but does NOT confirm the ord
     ok('boundary: invoice-only actions are gated by an invoice context check', /INVOICE_ONLY_ACTIONS\.includes\(action\.name\) && !\(await hasInvoiceContext\(db, proof, orderId\)\)/.test(code));
     ok('boundary: invoice context for tokens means an invoice-type link, for owner / backend a current invoice link', /proof\.link\?\.link_type === "invoice"/.test(code) && /link_type", "invoice"\)\s*\.is\("revoked_at", null\)/.test(code.replace(/\s+/g, ' ').replace(/\) \.is/g, ').is')) || /\.eq\("link_type", "invoice"\)/.test(code));
     ok('boundary: order-lifecycle is the confirmer (it owns the confirmed write and the approval timestamp)', /update\(\{ status: "confirmed", \.\.\.approvedAtPatch \}\)/.test(read('supabase/functions/order-lifecycle/index.ts')) && /customer_approval/.test(read('supabase/functions/order-lifecycle/index.ts')));
-    ok('boundary: the browser treats a lifecycle refusal as a failed approval', /confirmThroughLifecycle/.test(read('src/components/customer-portal/ApprovalModal.tsx')) && /!result\.success/.test(read('src/components/customer-portal/ApprovalModal.tsx')));
+    ok('boundary: the browser treats a lifecycle refusal as a failed approval', /confirmThroughLifecycle/.test(read('src/components/customer-portal/CustomerApprovalModal.tsx')) && /!result\.success/.test(read('src/components/customer-portal/CustomerApprovalModal.tsx')));
     ok('boundary: a no-card invoice is confirmed through the lifecycle call, whose failure aborts the acceptance', /invoice_confirm_no_card'\);\s*const confirmation = await enterConfirmed\(/.test(read('src/components/customer-portal/InvoiceAcceptanceView.tsx')) && /!confirmation\.success/.test(read('src/components/customer-portal/InvoiceAcceptanceView.tsx')));
     const direct: string[] = [];
     for (const f of ['supabase/functions/customer-portal-action/index.ts', 'supabase/functions/customer-portal-data/index.ts', 'supabase/functions/_shared/portal-actions.ts', 'src/lib/customerPortalApi.ts']) {
@@ -922,7 +922,7 @@ ok('approval: records the payment selection and tip but does NOT confirm the ord
     const page = read('src/pages/CustomerPortal.tsx');
     ok('portal page: an access-required answer renders the recovery UI instead of any order data', /accessRequired && orderId\)\s*\{\s*return <SecureAccessRequired orderId=\{orderId\} \/>/.test(page));
     ok('portal page: the recovery UI is shown before the "Order Not Found" view and before any order view', page.indexOf('SecureAccessRequired orderId') < page.indexOf('Order Not Found') && page.indexOf('SecureAccessRequired orderId') < page.indexOf('<RegularPortalView'));
-    ok('portal page: a signed-in owner is never asked for a link (the server accepts the session)', /accessRequired/.test(read('src/hooks/useOrderData.ts')) && !/owner/.test(read('src/components/customer-portal/SecureAccessRequired.tsx')));
+    ok('portal page: a signed-in owner is never asked for a link (the server accepts the session)', /accessRequired/.test(read('src/hooks/useCustomerPortalOrder.ts')) && !/owner/.test(read('src/components/customer-portal/SecureAccessRequired.tsx')));
     // end to end with the real function: UUID-only → denied; token → ok; owner → ok
     const h = fixture();
     const fn = loadFunction('customer-portal-data', h);
@@ -1022,7 +1022,7 @@ ok('approval: records the payment selection and tip but does NOT confirm the ord
       'src/pages/CustomerPortal.tsx',
       'src/pages/Receipt.tsx',
       'src/pages/Sign.tsx',
-      'src/hooks/useOrderData.ts',
+      'src/hooks/useCustomerPortalOrder.ts',
       'src/hooks/useCustomerPortalRefresh.ts',
       'src/lib/portalOrderLoader.ts',
       'src/lib/customerPortalApi.ts',
@@ -1039,19 +1039,19 @@ ok('approval: records the payment selection and tip but does NOT confirm the ord
     eq('exit criteria: no customer-facing portal file reads or writes a sensitive table, calls an rpc or subscribes to Realtime', offenders, []);
     const portalGraph = portalFiles.filter((f) => !/customerPortalApi/.test(f)).map(read).join('\n');
     ok('exit criteria: the invoice screen no longer touches invoice_links or customers directly', !/invoice_links|\.from\('customers'\)/.test(read('src/components/customer-portal/InvoiceAcceptanceView.tsx')));
-    ok('exit criteria: approval and rejection no longer call approve_order_changes or update orders', !/approve_order_changes|\.update\(/.test(read('src/components/customer-portal/ApprovalModal.tsx')) && !/\.update\(|\.insert\(/.test(read('src/components/customer-portal/RejectionModal.tsx')));
+    ok('exit criteria: approval and rejection no longer call approve_order_changes or update orders', !/approve_order_changes|\.update\(/.test(read('src/components/customer-portal/CustomerApprovalModal.tsx')) && !/\.update\(|\.insert\(/.test(read('src/components/customer-portal/CustomerRejectionModal.tsx')));
     ok('exit criteria: lot pictures and pictures no longer insert / delete table rows from the browser', !/\.insert\(|\.delete\(\)/.test(read('src/components/customer-portal/LotPicturesTab.tsx')) && !/\.insert\(/.test(read('src/components/customer-portal/RegularPortalView.tsx')));
     ok('exit criteria: the browser no longer reads admin settings or calls notification relays from the portal', !/admin_settings/.test(portalGraph) && !/functions\/v1\/send-sms-notification|functions\/v1\/send-email/.test(read('src/components/customer-portal/LotPicturesTab.tsx')));
     ok('exit criteria: the Stripe identifiers are never read by portal components (presence flag only)', !/stripe_customer_id|stripe_payment_method_id/.test(portalGraph));
     ok('exit criteria: portal summary building never writes travel miles back from the customer\'s browser', /persistTravelMiles: false/.test(read('src/lib/portalOrderLoader.ts')) && /persistTravelMiles: false/.test(read('src/pages/Receipt.tsx')));
-    ok('exit criteria: the legacy get_order_with_relations_by_token rpc is no longer called by the app', !/get_order_with_relations_by_token/.test(read('src/hooks/useOrderData.ts')));
+    ok('exit criteria: the legacy get_order_with_relations_by_token rpc is no longer called by the app', !/get_order_with_relations_by_token/.test(read('src/hooks/useCustomerPortalOrder.ts')));
   }
 
   // =============================================================================================================
   // Token leakage
   // =============================================================================================================
   {
-    const sources = ['supabase/functions/customer-portal-data/index.ts', 'supabase/functions/customer-portal-action/index.ts', 'src/lib/customerPortalApi.ts', 'src/lib/portalOrderLoader.ts', 'src/hooks/useOrderData.ts', 'src/components/customer-portal/SecureAccessRequired.tsx'];
+    const sources = ['supabase/functions/customer-portal-data/index.ts', 'supabase/functions/customer-portal-action/index.ts', 'src/lib/customerPortalApi.ts', 'src/lib/portalOrderLoader.ts', 'src/hooks/useCustomerPortalOrder.ts', 'src/components/customer-portal/SecureAccessRequired.tsx'];
     const logging = sources.flatMap((f) => (read(f).match(/console\.(log|warn|error|info)\([^)]*\)/g) ?? []).map((l) => `${f}: ${l}`));
     ok('leakage: no portal source logs a token, the request body, or a URL', logging.every((l) => !/token|body|url|href|location/i.test(l)));
     const h = fixture();

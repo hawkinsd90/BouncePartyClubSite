@@ -10,7 +10,7 @@ import { format, parseISO, addDays } from 'date-fns';
 import { formatOrderId } from './utils';
 import { ORDER_STATUS } from './constants/statuses';
 import { formatOperationalEquipment } from './operationalEquipment';
-import { aggregateOrderEquipment } from './generatorUnified';
+import { aggregateOrderEquipment } from './customerGeneratorCart';
 import type { Task } from '../hooks/useCalendarTasks';
 
 export type PickupReadiness = 'projected' | 'blocked' | 'ready' | 'completed';

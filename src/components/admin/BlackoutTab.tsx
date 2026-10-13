@@ -1,9 +1,9 @@
 import { useState, useEffect, useMemo } from 'react';
 import { supabase } from '../../lib/supabase';
 import { Calendar, ChevronLeft, ChevronRight, Ban, Clock, RefreshCw } from 'lucide-react';
-import { notifyError, notifySuccess } from '../../lib/notifications';
+import { notifyError, notifySuccess } from '../../lib/toasts';
 import { LoadingSpinner } from '../common/LoadingSpinner';
-import { showConfirm } from '../../lib/notifications';
+import { showConfirm } from '../../lib/toasts';
 import { BlackoutDateForm } from './BlackoutDateForm';
 import { BlackoutDatesList } from './BlackoutDatesList';
 import type { BlackoutDate } from '../../types/index';

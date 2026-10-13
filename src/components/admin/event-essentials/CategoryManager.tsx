@@ -3,7 +3,7 @@ import {
   Plus, Edit2, Eye, EyeOff, Power, Trash2,
   ChevronUp, ChevronDown, AlertCircle, X, Save, Tag,
 } from 'lucide-react';
-import { notifySuccess, notifyError, showConfirm } from '../../../lib/notifications';
+import { notifySuccess, notifyError, showConfirm } from '../../../lib/toasts';
 import {
   fetchAdminProductCategories,
   fetchCategoryProductCounts,

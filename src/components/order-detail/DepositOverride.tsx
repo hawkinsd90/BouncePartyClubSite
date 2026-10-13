@@ -1,6 +1,6 @@
 import { formatCurrency } from '../../lib/pricing';
-import { showToast } from '../../lib/notifications';
-import { dollarsToCents } from '../../lib/utils';
+import { showToast } from '../../lib/toasts';
+import { dollarsToCents } from '../../lib/money';
 
 interface DepositOverrideProps {
   calculatedDepositCents: number;

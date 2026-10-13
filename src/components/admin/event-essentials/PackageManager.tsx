@@ -3,7 +3,7 @@ import {
   Plus, Edit2, Power, AlertCircle, Package,
 } from 'lucide-react';
 import { formatCurrency } from '../../../lib/pricing';
-import { notifySuccess, notifyError } from '../../../lib/notifications';
+import { notifySuccess, notifyError } from '../../../lib/toasts';
 import {
   fetchAdminProductBundlesWithConfiguration,
   fetchAdminProductsWithPricing,

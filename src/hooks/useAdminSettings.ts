@@ -1,6 +1,6 @@
 import { useState, useCallback } from 'react';
 import { supabase } from '../lib/supabase';
-import { notifyError, notifySuccess, notifyWarning, showConfirm } from '../lib/notifications';
+import { notifyError, notifySuccess, notifyWarning, showConfirm } from '../lib/toasts';
 
 export interface TwilioSettings {
   account_sid: string;

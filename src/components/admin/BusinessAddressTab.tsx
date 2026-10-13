@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { MapPin, Save, CreditCard as Edit2, X } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
-import { notifyError, notifySuccess } from '../../lib/notifications';
+import { notifyError, notifySuccess } from '../../lib/toasts';
 import { AddressAutocomplete } from '../order/AddressAutocomplete';
 
 interface BusinessAddressTabProps {

@@ -3,7 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import { SafeStorage } from '../lib/safeStorage';
 import { trackEvent } from '../lib/siteEvents';
-import { notifyWarning } from '../lib/notifications';
+import { notifyWarning } from '../lib/toasts';
 import {
   Users,
   Maximize,

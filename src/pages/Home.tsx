@@ -22,7 +22,7 @@ import { useCustomerProfile } from '../contexts/CustomerProfileContext';
 // BPC-SECURITY-HARDENING: COMMENTED OUT FOR PRODUCTION.
 // Restore only after a true dev/staging environment and explicit safe gating are in place.
 // import { createTestBooking } from '../lib/testBooking';
-import { notifyError } from '../lib/notifications';
+import { notifyError } from '../lib/toasts';
 import { supabase } from '../lib/supabase';
 
 interface GoogleReview {

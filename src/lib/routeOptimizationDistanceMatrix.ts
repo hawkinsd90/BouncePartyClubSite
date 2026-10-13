@@ -1,4 +1,4 @@
-import { loadGoogleMapsAPI } from './googleMaps';
+import { loadGoogleMapsAPI } from './googleMapsLoader';
 import type { DistanceMatrixResult } from './routeOptimizationTypes';
 
 const MAX_MATRIX_ELEMENTS = 100;

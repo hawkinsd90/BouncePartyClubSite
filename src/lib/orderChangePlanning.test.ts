@@ -10,7 +10,7 @@
 // The last section pins the KNOWN mismatch between the OrderDetailsTab payment warning and the save-side
 // payment clearing. Those tests document that the two rules differ today; they do not assert they agree.
 
-import { calculateStoredOrderTotal } from './orderUtils';
+import { calculateStoredOrderTotal } from './storedOrderTotals';
 import { ORDER_STATUS } from './constants/statuses';
 import { hasAddressChanged, planOrderChanges, finalizeOrderPlan } from './orderChangePlanning';
 

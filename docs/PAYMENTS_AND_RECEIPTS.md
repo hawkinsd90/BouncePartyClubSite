@@ -186,9 +186,9 @@ The `paymentOutcome` parameter passed to `order-lifecycle` controls how the orde
 
 ---
 
-## Customer Approval Modal (`ApprovalModal.tsx`)
+## Customer Approval Modal (`CustomerApprovalModal.tsx`)
 
-The `ApprovalModal` component shown during the customer order-change approval flow displays contextual payment messaging based on payment state:
+The `CustomerApprovalModal` component shown during the customer order-change approval flow displays contextual payment messaging based on payment state:
 
 | State | Message Shown | Button Text |
 |---|---|---|
@@ -203,7 +203,7 @@ The "already paid" path (when `deposit_paid_cents > 0` or `stripe_payment_status
 
 ## Payment Success Screen ("Request Received")
 
-The payment success screen (`PaymentSuccessState.tsx`) shown after checkout completion displays the event date using a timezone-safe parse: `new Date(event_date + 'T12:00:00')`. This prevents the date from rendering one day early due to UTC midnight interpretation when the raw `YYYY-MM-DD` string is passed directly to `new Date()`.
+The payment success screen (`BookingRequestReceivedView.tsx`) shown after checkout completion displays the event date using a timezone-safe parse: `new Date(event_date + 'T12:00:00')`. This prevents the date from rendering one day early due to UTC midnight interpretation when the raw `YYYY-MM-DD` string is passed directly to `new Date()`.
 
 ---
 
@@ -317,7 +317,7 @@ This is used to pre-fill the payment amount selector in the checkout UI and is r
 
 ---
 
-## Notification Reliability (`src/lib/notificationReliability.ts`)
+## Notification Reliability (`src/lib/notificationFailures.ts`)
 
 The system tracks email and SMS notification failures in `notification_failures`. If three or more consecutive failures occur for the same notification type, the admin is alerted. Failures can be marked as resolved from the admin dashboard's Notification Failures panel.
 

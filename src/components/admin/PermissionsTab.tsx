@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '../../lib/supabase';
 import { Shield, Trash2, History, UserPlus } from 'lucide-react';
-import { notifyError, notifySuccess, showConfirm } from '../../lib/notifications';
+import { notifyError, notifySuccess, showConfirm } from '../../lib/toasts';
 import { LoadingSpinner } from '../common/LoadingSpinner';
 import { getAdminSetting } from '../../lib/adminSettingsCache';
 

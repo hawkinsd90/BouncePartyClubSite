@@ -7,11 +7,12 @@ import {
   generateRejectionSmsMessage,
 } from './orderEmailTemplates';
 import { checkMultipleUnitsAvailability } from './availability';
-import { formatOrderId, createShortPortalLink } from './utils';
+import { formatOrderId } from './utils';
+import { createShortPortalLink } from './portalShortLink';
 import { logGroupedTransactions } from './transactionReceiptService';
-import { enterConfirmed } from './orderLifecycle';
+import { enterConfirmed } from './orderLifecycleApi';
 import { getAdminSetting, ADMIN_SETTING_KEYS } from './adminSettingsCache';
-import { calculateTotalFromOrder } from './orderSummary';
+import { calculateTotalFromOrder } from './orderSummaryLoader';
 
 const BUSINESS_PHONE_FALLBACK = '(313) 889-3860';
 

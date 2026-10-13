@@ -851,8 +851,8 @@ const NONE = { provider: 0, rpcs: 0, writes: 0, fetches: 0, settingsReads: 0 };
     'src/lib/notificationService.ts': 'signed-in Admin session token (approval, rejection, edit and admin notices)',
     'src/lib/transactionReceiptService.ts': 'signed-in Admin session (functions.invoke attaches the session token)',
   };
-  const CUSTOMER_SCREENS = ['src/components/customer-portal/ApprovalModal.tsx', 'src/components/customer-portal/InvoiceAcceptanceView.tsx', 'src/hooks/usePaymentCompletion.ts', 'src/lib/orderNotificationService.ts'];
-  const FOUND_RELAYS_COMMENT_ONLY = ['src/components/admin/PendingOrderCard.tsx', 'src/lib/notificationReliability.ts', 'supabase/functions/auth-email-hook/index.ts'];
+  const CUSTOMER_SCREENS = ['src/components/customer-portal/CustomerApprovalModal.tsx', 'src/components/customer-portal/InvoiceAcceptanceView.tsx', 'src/hooks/useBookingReturnConfirmation.ts', 'src/lib/orderNotificationService.ts'];
+  const FOUND_RELAYS_COMMENT_ONLY = ['src/components/admin/PendingOrderCard.tsx', 'src/lib/notificationFailures.ts', 'supabase/functions/auth-email-hook/index.ts'];
 
   const accounted = new Set([...Object.keys(SERVER_CALLERS), ...Object.keys(BROWSER_STAFF)]);
   eq('callers: UNCLASSIFIED CALL SITES (relay call sites not in the server / staff tables)', callSites.filter((f) => !accounted.has(f)), []);
@@ -910,7 +910,7 @@ const NONE = { provider: 0, rpcs: 0, writes: 0, fetches: 0, settingsReads: 0 };
     ok('browser: no result at all is NOT settled', confirmationSettled(false, null) === false && confirmationSettled(false, undefined) === false);
     ok('browser: a delivered email IS settled', confirmationSettled(false, { emailSent: true }) === true);
     ok('browser: an order already marked sent IS settled', confirmationSettled(true, null) === true && confirmationSettled(true, { emailSent: false }) === true);
-    const hook = text.get('src/hooks/usePaymentCompletion.ts')!;
+    const hook = text.get('src/hooks/useBookingReturnConfirmation.ts')!;
     ok('browser: the payment-complete page sets payment_processed_<order> only when the confirmation is settled', /const settled = await sendNotificationsIfNeeded\(order\);\s*if \(settled\) SafeStorage\.setItem\(processedKey, 'true'\);/.test(hook) && (hook.match(/SafeStorage\.setItem\(processedKey/g) ?? []).length === 1);
     ok('browser: the settled decision comes from the shared helper for both the already-sent and the just-sent result', hook.includes('return confirmationSettled(true, null);') && hook.includes('return confirmationSettled(false, result);'));
     ok('browser: the rest of the completion flow is intact (clear cart storage, success status, first-visit flag)', hook.includes("SafeStorage.removeItem('bpc_cart')") && hook.includes("setStatus('success')") && hook.includes('setIsFirstVisit(true)') && hook.includes('const alreadyProcessed = SafeStorage.getItem(processedKey);'));

@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { X, Car, Zap } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
-import { showToast } from '../../lib/notifications';
+import { showToast } from '../../lib/toasts';
 
 interface MileageModalProps {
   isOpen: boolean;

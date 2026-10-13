@@ -7,9 +7,9 @@ import { readPortalToken } from '../lib/portalToken';
 import { formatCurrency } from '../lib/pricing';
 import { formatOrderId } from '../lib/utils';
 import { OrderSummary } from '../components/order/OrderSummary';
-import type { OrderSummaryDisplay } from '../lib/orderSummary';
-import { buildOrderSummaryData, formatOrderSummary } from '../lib/orderSummary';
-import { formatTime } from '../lib/orderUtils';
+import type { OrderSummaryDisplay } from '../lib/orderSummaryLoader';
+import { buildOrderSummaryData, formatOrderSummary } from '../lib/orderSummaryLoader';
+import { formatTime } from '../lib/utils';
 import { LoadingSpinner } from '../components/common/LoadingSpinner';
 
 export function Receipt() {

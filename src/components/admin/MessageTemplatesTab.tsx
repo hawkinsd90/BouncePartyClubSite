@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '../../lib/supabase';
 import { Mail, MessageSquare, Edit2, Save, X, Info, Copy } from 'lucide-react';
-import { notifyError, notifySuccess } from '../../lib/notifications';
+import { notifyError, notifySuccess } from '../../lib/toasts';
 import { LoadingSpinner } from '../common/LoadingSpinner';
 import { TextareaInput } from '../forms/TextareaInput';
 import { TextInput } from '../forms/TextInput';

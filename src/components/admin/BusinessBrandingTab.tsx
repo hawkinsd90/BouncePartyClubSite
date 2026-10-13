@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Building2, Save, AlertCircle, MapPin } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
-import { showToast } from '../../lib/notifications';
+import { showToast } from '../../lib/toasts';
 import { AddressAutocomplete } from '../order/AddressAutocomplete';
 
 interface BusinessSettings {

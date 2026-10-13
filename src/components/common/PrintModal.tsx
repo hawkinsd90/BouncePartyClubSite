@@ -1,6 +1,6 @@
 import { Printer, X, Download, ZoomIn, ZoomOut, Loader2, AlertCircle } from 'lucide-react';
 import { ReactNode, useEffect, useState, useCallback, useRef } from 'react';
-import { PrintState, PrintDocumentType, PRINT_TEMPLATES } from '../../lib/printUtils';
+import { PrintState, PrintDocumentType, PRINT_TEMPLATES } from '../../lib/printableDocument';
 
 interface PrintModalProps {
   isOpen: boolean;

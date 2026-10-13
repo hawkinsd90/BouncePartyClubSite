@@ -48,7 +48,7 @@ import {
   effectiveTaxEnabled,
   isWholeCents,
 } from './orderMoney';
-import type { OrderSummaryData } from './orderSummary';
+import type { OrderSummaryData } from './orderSummaryLoader';
 
 export interface PricingItem {
   unit_id: string;

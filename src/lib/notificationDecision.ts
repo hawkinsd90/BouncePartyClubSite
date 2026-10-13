@@ -5,7 +5,7 @@
 // - decideLotPicturesRequest: PendingOrderCard onPromptCustomer
 // - decideActionRequiredSms: TaskDetailModal handleEnRoute/handleArrived
 
-import type { ShortPortalLinkResult } from './utils';
+import type { ShortPortalLinkResult } from './portalShortLink';
 
 export interface ApprovalMessageInput {
   approvalSuccessful: boolean;

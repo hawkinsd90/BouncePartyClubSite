@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import { UserPlus, Loader2, Eye, EyeOff, ArrowLeft, AlertTriangle, Mail, Shield, CheckCircle2 } from 'lucide-react';
-import { notifySuccess, notifyError } from '../lib/notifications';
+import { notifySuccess, notifyError } from '../lib/toasts';
 import { AddressAutocomplete } from '../components/order/AddressAutocomplete';
 import { useCustomerProfile } from '../contexts/CustomerProfileContext';
 import { createLogger } from '../lib/logger';

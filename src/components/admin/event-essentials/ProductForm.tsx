@@ -10,7 +10,7 @@ import {
 import {
   notifySuccess,
   notifyError,
-} from '../../../lib/notifications';
+} from '../../../lib/toasts';
 import type {
   InventoryProductWithPricing,
   ProductCategory,

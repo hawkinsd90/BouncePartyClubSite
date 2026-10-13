@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { Plus, Edit2, Eye, EyeOff, Power, AlertCircle, Package } from 'lucide-react';
 import { formatCurrency } from '../../../lib/pricing';
-import { notifySuccess, notifyError, showConfirm } from '../../../lib/notifications';
+import { notifySuccess, notifyError, showConfirm } from '../../../lib/toasts';
 import {
   fetchAdminProductsWithPricing,
   fetchAdminProductCategories,

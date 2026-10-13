@@ -4,7 +4,7 @@ import { CreditCard as Edit2 } from 'lucide-react';
 import { formatOrderId } from '../../lib/utils';
 import { eventAddressLine2 } from '../../lib/eventAddress';
 import { ORDER_STATUS_LABELS } from '../../lib/constants/statuses';
-import { hasGeneratorInOrderItemsByCategory, loadGeneratorCategoryProductIds } from '../../lib/generatorUnified';
+import { hasGeneratorInOrderItemsByCategory, loadGeneratorCategoryProductIds } from '../../lib/customerGeneratorCart';
 
 interface OrderInfoSectionProps {
   order: any;

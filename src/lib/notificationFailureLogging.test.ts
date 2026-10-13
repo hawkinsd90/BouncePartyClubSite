@@ -16,7 +16,7 @@
 
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { Database } from './database.types';
-import type { NotificationFailure, SystemStatus } from './notificationReliability';
+import type { NotificationFailure, SystemStatus } from './notificationFailures';
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
