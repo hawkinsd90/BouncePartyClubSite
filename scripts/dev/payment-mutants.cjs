@@ -11,6 +11,7 @@ const SC = 'supabase/functions/stripe-checkout/index.ts';
 const SG = 'supabase/functions/stripe-charge/index.ts';
 // Step 3C-A: refund safety and financial write authority
 const MIG4 = 'supabase/migrations/20261022120000_refund_safety_and_financial_write_authority.sql';
+const MIG5 = 'supabase/migrations/20261023120000_refund_allocation_schema.sql';
 const RO = 'supabase/functions/_shared/refund-operations.ts';
 const SR = 'supabase/functions/stripe-refund/index.ts';
 const WHI = 'supabase/functions/stripe-webhook/index.ts';
@@ -295,6 +296,53 @@ const M = [
   [UI_TASK_MODAL, 'the task modal ignores the unsettled request the server names', [repl("      if (e?.code === 'UNSETTLED_REFUND_EXISTS' && e.data) {", "      if (false) {")]],
   [OL, 'the waived marker is written although a deposit is owed', [repl('source === "admin_approve_zero_deposit" && depositDue === 0', 'source === "admin_approve_zero_deposit"')]],
   [OL, 'any trusted source writes the waived marker', [repl('requestedOutcome === "waived" && source === "admin_approve_zero_deposit" && depositDue === 0', 'requestedOutcome === "waived" && depositDue === 0')]],
+  // ================================================================ refund accounting database foundation (allocation columns + order_net_financials)
+  [MIG5, "the allocation rule lets components through without a version", [repl("COALESCE(allocation_version, 0) = 1", "allocation_version = 1")]],
+  [MIG5, "a negative deposit component is allowed", [repl("        AND deposit_principal_refunded_cents >= 0\n", "")]],
+  [MIG5, "a negative balance component is allowed", [repl("        AND balance_principal_refunded_cents >= 0\n", "")]],
+  [MIG5, "a negative tip component is allowed", [repl("        AND tip_refunded_cents >= 0\n", "")]],
+  [MIG5, "a negative unclassified component is allowed", [repl("        AND unclassified_refunded_cents >= 0\n", "")]],
+  [MIG5, "components may fall short of the refund amount", [repl("+ tip_refunded_cents::bigint + unclassified_refunded_cents::bigint = amount_cents::bigint", "+ tip_refunded_cents::bigint + unclassified_refunded_cents::bigint <= amount_cents::bigint")]],
+  [MIG5, "components may exceed the refund amount", [repl("+ tip_refunded_cents::bigint + unclassified_refunded_cents::bigint = amount_cents::bigint", "+ tip_refunded_cents::bigint + unclassified_refunded_cents::bigint >= amount_cents::bigint")]],
+  [MIG5, "a blank allocation signature is allowed", [repl("        AND btrim(request_allocation) <> ''\n", "")]],
+  [MIG5, "a missing component is allowed", [repl("        AND balance_principal_refunded_cents IS NOT NULL\n", "")]],
+  [MIG5, "an existing amount-only refund row becomes invalid", [repl("allocation_version IS NULL\n        AND deposit_principal_refunded_cents IS NULL", "allocation_version IS NOT NULL\n        AND deposit_principal_refunded_cents IS NULL")]],
+  [MIG5, "the allocation constraint is left unvalidated", [repl("ALTER TABLE public.order_refunds VALIDATE CONSTRAINT order_refunds_allocation_shape;\n", "")]],
+  [MIG5, "pending payments count as collected", [repl("      AND p.status = 'succeeded' AND p.amount_cents > 0\n      AND p.refunded_payment_id IS NULL AND p.stripe_refund_id IS NULL", "      AND p.status IN ('succeeded', 'pending') AND p.amount_cents > 0\n      AND p.refunded_payment_id IS NULL AND p.stripe_refund_id IS NULL")]],
+  [MIG5, "a historic refunded-status payment counts as collected", [repl("      AND p.status = 'succeeded' AND p.amount_cents > 0\n      AND p.refunded_payment_id IS NULL AND p.stripe_refund_id IS NULL", "      AND p.status IN ('succeeded', 'refunded') AND p.amount_cents > 0\n      AND p.refunded_payment_id IS NULL AND p.stripe_refund_id IS NULL")]],
+  [MIG5, "negative refund copies count as payments", [repl("      AND p.status = 'succeeded' AND p.amount_cents > 0\n      AND p.refunded_payment_id IS NULL AND p.stripe_refund_id IS NULL", "      AND p.status = 'succeeded' AND p.amount_cents <> 0\n      AND p.refunded_payment_id IS NULL AND p.stripe_refund_id IS NULL")]],
+  [MIG5, "cash and check payments are left out", [repl("      AND p.status = 'succeeded' AND p.amount_cents > 0\n      AND p.refunded_payment_id IS NULL AND p.stripe_refund_id IS NULL", "      AND p.status = 'succeeded' AND p.amount_cents > 0 AND p.stripe_payment_intent_id IS NOT NULL\n      AND p.refunded_payment_id IS NULL AND p.stripe_refund_id IS NULL")]],
+  [MIG5, "a refund is subtracted twice (the order_refunds row and its negative payment copy)", [repl("'recorded_net_cash_retained_cents', gross_recorded - total_succeeded,", "'recorded_net_cash_retained_cents', gross_recorded - total_succeeded - refund_copy_cents,")]],
+  [MIG5, "pending refunds reduce the net figures", [repl("COALESCE(SUM(amount_cents) FILTER (WHERE status = 'succeeded'), 0)::bigint AS total_succeeded", "COALESCE(SUM(amount_cents) FILTER (WHERE status IN ('succeeded', 'pending')), 0)::bigint AS total_succeeded")]],
+  [MIG5, "failed refunds reduce the net figures", [repl("COALESCE(SUM(amount_cents) FILTER (WHERE status = 'succeeded'), 0)::bigint AS total_succeeded", "COALESCE(SUM(amount_cents) FILTER (WHERE status <> 'pending'), 0)::bigint AS total_succeeded")]],
+  [MIG5, "an unclassified refund is not reported as unclassified", [repl("ELSE amount_cents END) FILTER (WHERE status = 'succeeded'), 0)::bigint AS unclassified_succeeded", "ELSE 0 END) FILTER (WHERE status = 'succeeded'), 0)::bigint AS unclassified_succeeded")]],
+  [MIG5, "exact net principal is returned even when classification is incomplete", [repl("'net_principal_exact_cents', CASE WHEN complete THEN known_net_deposit + known_net_balance END,", "'net_principal_exact_cents', known_net_deposit + known_net_balance,")]],
+  [MIG5, "exact net tips are returned even when classification is incomplete", [repl("'net_tips_exact_cents', CASE WHEN complete THEN known_net_tips END,", "'net_tips_exact_cents', known_net_tips,")]],
+  [MIG5, "completeness ignores unclassified payments", [repl("(unclassified_gross = 0 AND unclassified_succeeded", "(unclassified_succeeded")]],
+  [MIG5, "completeness ignores unclassified refunds", [repl("AND unclassified_succeeded = 0 AND historic_unsettled = 0", "AND historic_unsettled = 0")]],
+  [MIG5, "completeness ignores historic unsettled refunds", [repl("AND historic_unsettled = 0 AND legacy_refunded_status_payments = 0", "AND legacy_refunded_status_payments = 0")]],
+  [MIG5, "completeness ignores historic refunded-status payments", [repl("AND legacy_refunded_status_payments = 0\n        AND duplicate_refund_ids = 0", "\n        AND duplicate_refund_ids = 0")]],
+  [MIG5, "completeness ignores a provider refund recorded twice", [repl("\n        AND duplicate_refund_ids = 0 AND unbacked_refund_copy_cents = 0\n        AND NOT (", "\n        AND unbacked_refund_copy_cents = 0\n        AND NOT (")]],
+  [MIG5, "completeness ignores an inconsistent ledger", [repl("AND duplicate_refund_ids = 0 AND unbacked_refund_copy_cents = 0\n        AND NOT (known_net_deposit < 0 OR known_net_balance < 0 OR known_net_tips < 0 OR gross_recorded - total_succeeded < 0)) AS complete", "AND duplicate_refund_ids = 0 AND unbacked_refund_copy_cents = 0) AS complete")]],
+  [MIG5, "the net deposit principal adds the refund instead of subtracting it", [repl("(pagg.known_gross_deposit - ragg.deposit_refunded) AS known_net_deposit", "(pagg.known_gross_deposit + ragg.deposit_refunded) AS known_net_deposit")]],
+  [MIG5, "the net tips add the refund instead of subtracting it", [repl("(pagg.known_gross_tips - ragg.tips_refunded) AS known_net_tips", "(pagg.known_gross_tips + ragg.tips_refunded) AS known_net_tips")]],
+  [MIG5, "offline payments are not flagged as recorded-only", [repl("COALESCE(BOOL_OR(stripe_payment_intent_id IS NULL), false) AS offline_payments_present", "false AS offline_payments_present")]],
+  [MIG5, "offline refunds are claimed to be tracked", [repl("'offline_refunds_tracked', false,", "'offline_refunds_tracked', true,")]],
+  [MIG5, "the cached principal comparison is inverted", [repl("COALESCE(cached_deposit_paid_cents, 0) + COALESCE(cached_balance_paid_cents, 0) = known_gross_principal", "COALESCE(cached_deposit_paid_cents, 0) + COALESCE(cached_balance_paid_cents, 0) <> known_gross_principal")]],
+  [MIG5, "anyone may read the net figures", [repl("AND (current_user = 'service_role' OR public.is_admin())", "AND (true OR current_user = 'service_role' OR public.is_admin())")]],
+  [MIG5, "an Admin may not read the net figures", [repl("AND (current_user = 'service_role' OR public.is_admin())", "AND (current_user = 'service_role')")]],
+  [MIG5, "the service role may not read the net figures", [repl("AND (current_user = 'service_role' OR public.is_admin())", "AND (public.is_admin())")]],
+  [MIG5, "the net function runs with the owner rights", [repl("STABLE\nSECURITY INVOKER", "STABLE\nSECURITY DEFINER")]],
+  [MIG5, "anonymous may execute the net function", [repl("GRANT EXECUTE ON FUNCTION public.order_net_financials(uuid) TO authenticated, service_role;", "GRANT EXECUTE ON FUNCTION public.order_net_financials(uuid) TO anon, authenticated, service_role;")]],
+  [MIG5, "completeness ignores a negative payment row no refund backs", [repl("AND duplicate_refund_ids = 0 AND unbacked_refund_copy_cents = 0\n", "AND duplicate_refund_ids = 0\n")]],
+  [MIG5, "a negative copy is backed whatever its amount", [repl("OR x.refund_amount <> -x.amount_cents OR x.rn > 1), 0)::bigint AS unbacked_refund_copy_cents", "OR x.rn > 1), 0)::bigint AS unbacked_refund_copy_cents")]],
+  [MIG5, "an unlinked negative payment row is treated as backed", [repl("FILTER (WHERE x.refund_amount IS NULL OR", "FILTER (WHERE false AND x.refund_amount IS NULL OR")]],
+  [MIG5, "a missing negative copy makes the order inexact", [repl("AND duplicate_refund_ids = 0 AND unbacked_refund_copy_cents = 0\n", "AND duplicate_refund_ids = 0 AND unbacked_refund_copy_cents = 0 AND missing_refund_copy_cents = 0\n")]],
+  [MIG5, "a second copy of the same provider refund is also treated as backed", [repl(" OR x.rn > 1), 0)::bigint AS unbacked_refund_copy_cents", "), 0)::bigint AS unbacked_refund_copy_cents")]],
+  [MIG5, "the copy to back is chosen by age, not by matching amount", [repl("ORDER BY (m.amount_cents = -c.amount_cents) DESC NULLS LAST, c.created_at, c.id", "ORDER BY c.created_at, c.id")]],
+  [MIG5, "a refund counts as having a copy whatever the copy's amount", [repl("AND c.status = 'succeeded'\n          AND c.amount_cents = -r.amount_cents", "AND c.status = 'succeeded'")]],
+  [MIG5, "duplicate copies are not counted", [repl("COUNT(*) FILTER (WHERE x.stripe_refund_id IS NOT NULL AND x.rn > 1)::bigint AS duplicate_refund_copies", "0::bigint AS duplicate_refund_copies")]],
+  [MIG5, "copies are matched to a refund of a different provider id", [repl("AND r.stripe_refund_id = c.stripe_refund_id\n        ORDER BY", "AND r.stripe_refund_id IS NOT NULL\n        ORDER BY")]],
 ];
 
 // The claim function is REPLACED by the second migration, so a mutant on the claim text of the first migration would be dead code.
@@ -309,9 +357,11 @@ const SQL_FIRST = ['src/lib/paymentOperations.test.ts', 'src/lib/paymentCharging
 const CODE_FIRST = ['src/lib/paymentCharging.test.ts', 'src/lib/paymentOperations.test.ts'];
 const REFUND_TESTS = ['src/lib/refundSafety.test.ts'];
 const AUTHORITY_TESTS = ['src/lib/refundSafety.test.ts', 'src/lib/coreDatabaseAccess.test.ts'];
+const ACCOUNTING_TESTS = ['src/lib/refundAccounting.test.ts', 'src/lib/coreDatabaseAccess.test.ts'];
 module.exports = {
   M,
   tests: (file) => {
+    if (file.includes('20261023')) return ACCOUNTING_TESTS;
     if (file.includes('20261022')) return AUTHORITY_TESTS;
     if (file.endsWith('order-lifecycle/index.ts')) return [...REFUND_TESTS, 'src/lib/customerPortalAccess.test.ts'];
     if (file.endsWith('refund-operations.ts') || file.endsWith('refundOperationKey.ts') || file.endsWith('stripe-refund/index.ts') || file.endsWith('stripe-webhook/index.ts')) return REFUND_TESTS;

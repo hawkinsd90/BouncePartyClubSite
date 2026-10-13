@@ -378,6 +378,24 @@ export function buildScenarios(): Scenario[] {
   add('service role: the same outside event again changes nothing', 'service_role', null, `SELECT (public.apply_provider_refund_event('re_scn_ext', 'pi_secret_B', 500, 'succeeded')->>'outcome') || ':' || (SELECT count(*) FROM public.order_refunds WHERE stripe_refund_id = 're_scn_ext')::text`, 'unchanged:1');
   add('service role: a provider id cannot belong to two new refund rows', 'service_role', null, `SELECT count(*)::text FROM (SELECT stripe_refund_id FROM public.order_refunds WHERE ledger_version = 2 AND stripe_refund_id IS NOT NULL GROUP BY 1 HAVING count(*) > 1) d`, '0');
 
+  // ---- Refund accounting: order_net_financials is read-only, SECURITY INVOKER, and answers Admin / Master / the service role only ----
+  const NET = `public.order_net_financials('${IDS.orderA}')`;
+  const netProbe = `SELECT (${NET} IS NOT NULL)::text`;
+  add('net financials: an Admin gets the figures', 'authenticated', D, netProbe, 'true');
+  add('net financials: a Master gets the figures', 'authenticated', M, netProbe, 'true');
+  add('net financials: the service role gets the figures', 'service_role', null, netProbe, 'true');
+  add('net financials: Crew gets NULL, not zeros', 'authenticated', C, netProbe, 'false');
+  add('net financials: the customer who owns the order gets NULL (customer-facing figures need a separate server path)', 'authenticated', A, netProbe, 'false');
+  add('net financials: another customer gets NULL', 'authenticated', B, netProbe, 'false');
+  add('net financials: a signed-in stranger gets NULL', 'authenticated', '00000000-0000-4000-8000-0000000000ff', netProbe, 'false');
+  add('net financials: anonymous cannot execute it', 'anon', null, netProbe, denied);
+  add('net financials: the seeded legacy refund is reported as unclassified and no exact net principal is given', 'authenticated', D,
+    `SELECT (x->>'unclassified_succeeded_refunds_cents') || ':' || COALESCE(x->>'net_principal_exact_cents', 'none') || ':' || (x->>'offline_refunds_tracked') FROM (SELECT ${NET} x) q`, '100:none:false');
+  add('net financials: the function is SECURITY INVOKER, executable by authenticated and service_role, not by anon', 'anon', null,
+    `SELECT (NOT prosecdef AND has_function_privilege('authenticated', oid, 'EXECUTE') AND has_function_privilege('service_role', oid, 'EXECUTE') AND NOT has_function_privilege('anon', oid, 'EXECUTE'))::text FROM pg_proc WHERE oid = 'public.order_net_financials(uuid)'::regprocedure`, 'true');
+  add('net financials: the function is declared STABLE (it cannot write) and pins its search_path', 'anon', null,
+    `SELECT (provolatile = 's' AND proconfig::text LIKE '%search_path=public%')::text FROM pg_proc WHERE oid = 'public.order_net_financials(uuid)'::regprocedure`, 'true');
+
   // ---- Public booking RPC still works for the service role (the server-owned booking boundary); the account guard still applies ----
   const book = (email: string, caller: string | null, line2: string) => `SELECT pg_temp.book('${email}', ${caller ? `'${caller}'::uuid` : 'NULL::uuid'}, '${line2}')`;
   add('booking RPC (service_role): a new guest booking is created as a draft, nothing paid, with its own delivery unit', 'service_role', null, book('brand-new@example.com', null, 'Apt 9'), 'draft|Apt 9|0|true');
