@@ -1,10 +1,8 @@
-import { useRef, useState } from 'react';
+import { useState } from 'react';
 import { RotateCcw } from 'lucide-react';
 import { formatCurrency } from '../../lib/pricing';
-import { showToast } from '../../lib/notifications';
-import { supabase } from '../../lib/supabase';
 import { storedOrderTotalCents } from '../../lib/orderMoney';
-import { classifyRefundResponse, refundAttemptFor, type RefundAttempt } from '../../lib/refundOperationKey';
+import { RefundAllocationPanel } from '../admin/refunds/RefundAllocationPanel';
 
 interface PaymentsTabProps {
   orderId: string;
@@ -41,85 +39,7 @@ export function PaymentsTab({ orderId, customerName, payments, order, customFees
     ? ledgerBalanceCents
     : (order?.balance_paid_cents || 0);
   const [showRefundForm, setShowRefundForm] = useState(false);
-  const [refundAmount, setRefundAmount] = useState('');
-  const [refundReason, setRefundReason] = useState('');
-  const [refunding, setRefunding] = useState(false);
-  // The same operation key is sent again when this refund request is retried, so Stripe is never asked for it twice.
-  const refundAttempt = useRef<RefundAttempt | null>(null);
 
-  async function handleRefund() {
-    const amountCents = Math.round(parseFloat(refundAmount) * 100);
-
-    if (!amountCents || amountCents <= 0) {
-      showToast('Please enter a valid refund amount', 'error');
-      return;
-    }
-
-    if (!refundReason.trim()) {
-      showToast('Please provide a reason for the refund', 'error');
-      return;
-    }
-
-    const confirmed = confirm(
-      `Issue refund of ${formatCurrency(amountCents)} to ${customerName}?\n\nReason: ${refundReason}\n\nThis action cannot be undone.`
-    );
-
-    if (!confirmed) return;
-
-    setRefunding(true);
-    const attempt = refundAttemptFor(refundAttempt.current, orderId, amountCents);
-    refundAttempt.current = attempt;
-    try {
-      const { data: { session } } = await supabase.auth.getSession();
-      const jwt = session?.access_token;
-
-      const response = await fetch(
-        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/stripe-refund`,
-        {
-          method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${jwt}`,
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            orderId,
-            amountCents,
-            reason: refundReason,
-            operationKey: attempt.key,
-          }),
-        }
-      );
-
-      const data = await response.json().catch(() => null);
-      const outcome = classifyRefundResponse(response.status, data);
-      if (!outcome.keepKey) refundAttempt.current = null;
-      if (outcome.adopt) {
-        // An earlier request on this order is unsettled (this page lost its key): the next press settles THAT request.
-        refundAttempt.current = { key: outcome.adopt.key, orderId, amountCents: outcome.adopt.amountCents };
-        setRefundAmount((outcome.adopt.amountCents / 100).toFixed(2));
-      }
-
-      if (outcome.tone === 'error') {
-        throw new Error(outcome.message);
-      }
-      if (outcome.tone === 'warning') {
-        showToast(outcome.message, 'error');
-        onPaymentsUpdate();
-        return;
-      }
-
-      showToast(outcome.message, 'success');
-      setShowRefundForm(false);
-      setRefundAmount('');
-      setRefundReason('');
-      onPaymentsUpdate();
-    } catch (error: any) {
-      console.error('Error processing refund:', error);
-      showToast('Failed to process refund: ' + error.message, 'error');
-    } finally {
-      setRefunding(false);
-    }
-  }
 
   return (
     <div className="space-y-4">
@@ -254,51 +174,13 @@ export function PaymentsTab({ orderId, customerName, payments, order, customFees
             </div>
 
             {showRefundForm && (
-              <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 space-y-3">
-                <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-1">
-                    Refund Amount ($)
-                  </label>
-                  <input
-                    type="number"
-                    step="0.01"
-                    min="0.01"
-                    value={refundAmount}
-                    onChange={(e) => setRefundAmount(e.target.value)}
-                    className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                    placeholder="0.00"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-1">
-                    Reason for Refund
-                  </label>
-                  <input
-                    type="text"
-                    value={refundReason}
-                    onChange={(e) => setRefundReason(e.target.value)}
-                    className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                    placeholder="e.g., Customer request, Weather cancellation, Equipment issue"
-                  />
-                </div>
-                <div className="flex gap-2">
-                  <button
-                    onClick={handleRefund}
-                    disabled={refunding}
-                    className="flex-1 bg-red-600 hover:bg-red-700 disabled:bg-slate-400 text-white font-semibold py-2 px-4 rounded-lg"
-                  >
-                    {refunding ? 'Processing...' : 'Issue Refund'}
-                  </button>
-                  <button
-                    onClick={() => setShowRefundForm(false)}
-                    className="bg-slate-200 hover:bg-slate-300 text-slate-700 font-semibold py-2 px-4 rounded-lg"
-                  >
-                    Cancel
-                  </button>
-                </div>
-                <p className="text-xs text-amber-700">
-                  This will process a refund through Stripe and update the order balance. This action cannot be undone.
-                </p>
+              <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 sm:p-4">
+                <RefundAllocationPanel
+                  orderId={orderId}
+                  customerName={customerName}
+                  refreshToken={payments.map((p) => `${p.id}:${p.status}`).join(',')}
+                  onChanged={onPaymentsUpdate}
+                />
               </div>
             )}
           </div>

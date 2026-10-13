@@ -845,6 +845,8 @@ export const PAY_MIGRATION_4 = 'supabase/migrations/20261022120000_refund_safety
 export const PAY_MIGRATION_5 = 'supabase/migrations/20261023120000_refund_allocation_schema.sql';
 // ...and the allocation-aware refund reservation.
 export const PAY_MIGRATION_6 = 'supabase/migrations/20261024120000_refund_allocation_reservation.sql';
+// ...and the read-only refund overview the Admin refund screen uses.
+export const PAY_MIGRATION_7 = 'supabase/migrations/20261025120000_refund_overview_for_admin.sql';
 
 // Returns a working psql for a scratch database that holds this repository's payment migration (created from the base replay
 // when absent; the migration text is idempotent and is re-applied on every run), or null when no database is reachable.
@@ -871,6 +873,6 @@ export function ensurePayDatabase(): { psql: string; db: string } | null {
     }
   }
   if (!psql) return null;
-  const applied = spawnSync(psql, [...psqlArgs(dbFull), '-v', 'ON_ERROR_STOP=1'], { input: fs.readFileSync(PAY_MIGRATION, 'utf8') + '\n' + fs.readFileSync(PAY_MIGRATION_2, 'utf8') + '\n' + fs.readFileSync(PAY_MIGRATION_3, 'utf8') + '\n' + fs.readFileSync(PAY_MIGRATION_4, 'utf8') + '\n' + fs.readFileSync(PAY_MIGRATION_5, 'utf8') + '\n' + fs.readFileSync(PAY_MIGRATION_6, 'utf8'), encoding: 'utf8' });
+  const applied = spawnSync(psql, [...psqlArgs(dbFull), '-v', 'ON_ERROR_STOP=1'], { input: fs.readFileSync(PAY_MIGRATION, 'utf8') + '\n' + fs.readFileSync(PAY_MIGRATION_2, 'utf8') + '\n' + fs.readFileSync(PAY_MIGRATION_3, 'utf8') + '\n' + fs.readFileSync(PAY_MIGRATION_4, 'utf8') + '\n' + fs.readFileSync(PAY_MIGRATION_5, 'utf8') + '\n' + fs.readFileSync(PAY_MIGRATION_6, 'utf8') + '\n' + fs.readFileSync(PAY_MIGRATION_7, 'utf8'), encoding: 'utf8' });
   return applied.status === 0 ? { psql, db: dbFull } : null;
 }

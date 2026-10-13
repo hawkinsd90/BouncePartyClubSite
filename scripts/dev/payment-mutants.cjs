@@ -22,6 +22,10 @@ const UI_PAYMENTS_TAB = 'src/components/order-detail/PaymentsTab.tsx';
 const UI_PAY_SECTION = 'src/components/pending-order/PaymentManagementSection.tsx';
 const UI_TASK_MODAL = 'src/components/admin/TaskDetailModal.tsx';
 const KEYFILE = 'src/lib/refundOperationKey.ts';
+const REQ = 'src/lib/refundAllocationRequest.ts';
+const CTL = 'src/lib/refundController.ts';
+const PAN = 'src/components/admin/refunds/RefundAllocationPanel.tsx';
+const MIG8 = 'supabase/migrations/20261025120000_refund_overview_for_admin.sql';
 
 // exact, unique anchor
 const repl = (a, b) => (src) => {
@@ -258,10 +262,6 @@ const M = [
   [OL, 'the waived-deposit marker is written for an untrusted caller', [repl('trustedCaller && requestedOutcome === "waived"', 'requestedOutcome === "waived"')]],
   [OAS, 'order rejection cancels payments from the browser again', [repl("    // Payment attempts that never reached the provider are cancelled by the database when the order is cancelled; an attempt that", "    await supabase.from('payments').update({ status: 'cancelled' }).eq('order_id', order.id);\n    // Payment attempts that never reached the provider are cancelled by the database when the order is cancelled; an attempt that")]],
   [OAS, 'the zero-deposit approval writes the payment status from the browser again', [repl("        // order-lifecycle's enterConfirmed below; a browser session cannot write payment-state columns.\n        .update({ status: ORDER_STATUS.CONFIRMED })", "        // order-lifecycle's enterConfirmed below; a browser session cannot write payment-state columns.\n        .update({ status: ORDER_STATUS.CONFIRMED, stripe_payment_status: 'paid' })")]],
-  [UI_PAYMENTS_TAB, 'the Payments tab sends no operation key (a double click makes two refunds)', [repl("            operationKey: attempt.key,\n", '')]],
-  [UI_PAY_SECTION, 'the payment section sends no operation key', [repl('reason: refundReason, operationKey: attempt.key })', 'reason: refundReason })')]],
-  [UI_TASK_MODAL, 'the task modal sends no operation key', [repl('reason, operationKey: attempt.key }', 'reason }')]],
-  [UI_PAYMENTS_TAB, 'the Payments tab makes a new key on every click', [repl('const attempt = refundAttemptFor(refundAttempt.current, orderId, amountCents);', 'const attempt = refundAttemptFor(null, orderId, amountCents);')]],
   // ================================================================ Step 3C-A final correction: marker, exhaustive lookup, retry identity, other sessions, history
   [RO, 'a refund is sent without the provider-attempt marker', [repl('  if (!(marked || (markerFailed && alreadyMarked))) return', '  if (false) return')]],
   [RO, 'a failed marker write is read as written', [repl("    if (res?.error) markerFailed = true;\n    else marked = res?.data === true;", '    marked = true;')]],
@@ -292,9 +292,6 @@ const M = [
   [RO, 'the answer does not name the unsettled request', [repl('resumeOperationKey: r.operation_key, resumeAmountCents: r.request_amount_cents', 'resumeOperationKey: null, resumeAmountCents: null')]],
   [MIG4, 'an ambiguous history is allocated by inference', [repl('IF v_pay_count > 1 AND EXISTS (', 'IF false AND EXISTS (')]],
   [MIG4, 'a single-payment history is refused as ambiguous', [repl('IF v_pay_count > 1 AND EXISTS (', 'IF v_pay_count > 0 AND EXISTS (')]],
-  [UI_PAYMENTS_TAB, 'the Payments tab ignores the unsettled request the server names', [repl('      if (outcome.adopt) {', '      if (false) {')]],
-  [UI_PAY_SECTION, 'the payment section ignores the unsettled request the server names', [repl('      if (outcome.adopt) {', '      if (false) {')]],
-  [UI_TASK_MODAL, 'the task modal ignores the unsettled request the server names', [repl("      if (e?.code === 'UNSETTLED_REFUND_EXISTS' && e.data) {", "      if (false) {")]],
   [OL, 'the waived marker is written although a deposit is owed', [repl('source === "admin_approve_zero_deposit" && depositDue === 0', 'source === "admin_approve_zero_deposit"')]],
   [OL, 'any trusted source writes the waived marker', [repl('requestedOutcome === "waived" && source === "admin_approve_zero_deposit" && depositDue === 0', 'requestedOutcome === "waived" && depositDue === 0')]],
   // ================================================================ refund accounting database foundation (allocation columns + order_net_financials)
@@ -403,6 +400,49 @@ const M = [
   [RO, "a reservation identity that is not the requested one is accepted", [repl("if (signature !== expectedSignature) return fail;", "")]],
   [RO, "rows in another order than the database fixes are accepted", [repl("if (pid !== sorted[i].paymentId) return fail;", "")]],
   [RO, "the number of reserved rows is not compared with the number of lines", [repl("if (rows.length !== sorted.length) return fail;", ""), repl("if (pid !== sorted[i].paymentId) return fail;", "if (!sorted[i]) return fail;")]],
+  // ================================================================ shared Admin refund screen (request building, stored-refund reading, controller, overview)
+  [REQ, "an amount with three decimals is accepted", [repl("if (frac.length > 2) return { ok: false, error: 'Use at most two decimal places (whole cents).' };", "")]],
+  [REQ, "an entry above the available amount is accepted", [repl("if (parsed.cents > limit) { fieldErrors[fieldId(p.id, c)] = `More than the ${formatCents(limit)} available.`; continue; }", "if (false) { continue; }")]],
+  [REQ, "an entry above the available amount is quietly reduced", [repl("if (parsed.cents > limit) { fieldErrors[fieldId(p.id, c)] = `More than the ${formatCents(limit)} available.`; continue; }", "if (parsed.cents > limit) { cents[c] = limit; continue; }")]],
+  [REQ, "the payment total limit is not checked", [repl("if (lineTotal > p.remaining_total_cents && ", "if (false && ")]],
+  [REQ, "an empty line is sent", [repl("    if (lineTotal > 0) {\n      lines.push", "    if (true) {\n      lines.push")]],
+  [REQ, "a payment that cannot be refunded by component is included", [repl("    if (!isEligible(p)) continue;\n", "")]],
+  [REQ, "the number of payments in one refund is not limited", [repl("else if (lines.length > MAX_ALLOCATION_LINES) formError", "else if (false) formError")]],
+  [REQ, "the request identity depends on the order of the lines", [repl("  const sorted = canonicalLines(lines);\n  const total", "  const sorted = lines;\n  const total")]],
+  [REQ, "a stored refund the database did not verify is rebuilt", [repl("if (op.verified !== true) return review('The stored refund rows do not form one complete, consistent refund.');", "")]],
+  [REQ, "a stored refund that does not add up to its total is rebuilt", [repl("if (sum !== op.request_amount_cents) return review('The stored refund rows do not add up to the requested total.');", "")]],
+  [REQ, "a stored refund whose identity does not match is rebuilt", [repl("if (allocationSignature(lines) !== op.request_allocation) return review('The stored refund does not match its recorded identity.');", "")]],
+  [REQ, "a stored row with an unclassified part is rebuilt", [repl(" || r.unclassified_cents !== 0) return review('A stored refund row has an incomplete allocation.');", ") return review('A stored refund row has an incomplete allocation.');")]],
+  [REQ, "a refund Stripe has accepted is shown as not yet sent", [repl("if (r.stripe_refund_id) return 'pending';", "if (r.stripe_refund_id) return 'succeeded';")]],
+  [CTL, "the refund screen sends no operation key", [repl("operationKey: attempt.key, reason: r.reason", "operationKey: '', reason: r.reason")]],
+  [CTL, "the refund screen makes a new key on every confirmation", [repl("allocationAttemptFor(this.state.frozen?.attempt ?? null,", "allocationAttemptFor(null,")]],
+  [CTL, "a second click while a request is in flight sends again", [repl("if (this.state.phase !== 'review' || !this.state.review || this.inFlight) return;", "if (!this.state.review) return;"), repl("    if (this.inFlight) return;\n    this.inFlight = true;", "    this.inFlight = true;")]],
+  [CTL, "a request that is being resumed or reviewed can be edited", [repl("private get editable(): boolean { return this.state.phase === 'ready'; }", "private get editable(): boolean { return true; }")]],
+  [CTL, "a request with an unknown result is forgotten", [repl("if (outcome.kind === 'unresolved' && frozen && frozen.attempt.key === body.operationKey) {\n      // keep", "if (false) {\n      // keep")]],
+  [CTL, "resuming uses a new operation key", [repl("body = { orderId: this.orderId, operationKey: f.attempt.key,", "body = { orderId: this.orderId, operationKey: 'newkey-00000000',")]],
+  [CTL, "a stored allocated refund is resumed as an amount only", [repl("body = submitBodyForStored(this.orderId, op, stored);", "body = { orderId: this.orderId, operationKey: op.operation_key, reason: stored.kind === 'manual_review' ? 'x' : stored.reason, amountCents: op.request_amount_cents };")]],
+  [CTL, "a refund that cannot be rebuilt can be resumed", [repl("kind: 'manual_review', canResume: false, manualReviewWhy", "kind: 'manual_review', canResume: true, manualReviewWhy")]],
+  [CTL, "a change in what is available does not stop the review", [repl("const changed = !afterOwnRequest && !first && this.viewed !== '' && snap !== this.viewed;", "const changed = false;")]],
+  [CTL, "an unfinished refund does not stop a new one", [repl("phase: recoveries.length > 0 ? 'recovery'", "phase: false ? 'recovery'")]],
+  [CTL, "loading sends a request by itself", [repl("    if (changed && this.state.phase === 'review') this.set({ phase: 'ready' });\n    return changed ? 'changed' : 'ok';", "    if (!afterOwnRequest && this.state.recoveries.length > 0 && this.state.recoveries[0].canResume) await this.resume(this.state.recoveries[0].operationKey);\n    return changed ? 'changed' : 'ok';")]],
+  [KEYFILE, "a changed allocation keeps the old key", [repl("previous.signature === signature", "true")]],
+  [KEYFILE, "the same allocation for another order keeps the key", [repl("previous.orderId === orderId && previous.signature === signature", "previous.signature === signature")]],
+  [PAN, "a pending refund is shown as returned money", [repl("{st === 'succeeded' ? '-' : ''}", "{'-'}")]],
+  [MIG8, "pending refunds do not reduce what is available", [repl("FROM public.order_refunds r WHERE r.payment_id = p.id AND r.status IN ('pending', 'succeeded')", "FROM public.order_refunds r WHERE r.payment_id = p.id AND r.status IN ('succeeded')")]],
+  [MIG8, "refunds of unknown composition do not reduce what is available (deposit)", [repl("LEAST(c.dep - c.s_d - c.p_d - c.unknown, c.rem_total)", "LEAST(c.dep - c.s_d - c.p_d, c.rem_total)")]],
+  [MIG8, "refunds of unknown composition do not reduce what is available (tip)", [repl("LEAST(c.tip - c.s_t - c.p_t - c.unknown, c.rem_total)", "LEAST(c.tip - c.s_t - c.p_t, c.rem_total)")]],
+  [MIG8, "refunds of unknown composition do not reduce what is available (balance)", [repl("LEAST(c.bal - c.s_b - c.p_b - c.unknown, c.rem_total)", "LEAST(c.bal - c.s_b - c.p_b, c.rem_total)")]],
+  [MIG8, "older unlinked refunds beside several payments are ignored", [repl("WHEN (SELECT n FROM refundable_n) > 1 AND (SELECT cents FROM unl) > 0 THEN 'history_ambiguous'", "WHEN false THEN 'history_ambiguous'")]],
+  [MIG8, "a payment with no recorded split is offered", [repl("WHEN NOT per.classified THEN 'unclassified'", "WHEN false THEN 'unclassified'")]],
+  [MIG8, "a cash payment is offered", [repl("WHEN NOT per.refundable THEN 'not_refundable'", "WHEN false THEN 'not_refundable'")]],
+  [MIG8, "a stored refund with a different identity is called verified", [repl("AND MAX(r.request_allocation) = 'v1|total=' || SUM(r.amount_cents)::text || '|' ||", "AND true OR MAX(r.request_allocation) = 'v1|total=' || SUM(r.amount_cents)::text || '|' ||")]],
+  [MIG8, "anyone may read the refund overview", [repl("AND (current_user = 'service_role' OR public.is_admin())", "AND (true OR current_user = 'service_role' OR public.is_admin())")]],
+  [MIG8, "the refund overview runs with the owner rights", [repl("STABLE\nSECURITY INVOKER", "STABLE\nSECURITY DEFINER")]],
+  [MIG8, "anonymous may read the refund overview", [repl("GRANT EXECUTE ON FUNCTION public.order_refund_overview(uuid) TO authenticated, service_role;", "GRANT EXECUTE ON FUNCTION public.order_refund_overview(uuid) TO anon, authenticated, service_role;")]],
+  [CTL, "a failed refresh lets the review continue", [repl("if (loaded === 'failed') {\n      // Nothing was read", "if (false) {\n      // Nothing was read")]],
+  [CTL, "a failed refresh leaves a confirmation on screen", [repl("} else if (this.state.phase === 'review') {\n        // A confirmation shown", "} else if (false) {\n        // A confirmation shown")]],
+  [CTL, "a failed refresh is reported as a change in availability", [repl("      return 'failed';", "      return 'changed';")]],
+  [CTL, "a changed availability does not interrupt the review", [repl("if (loaded === 'changed' || this.state.phase !== 'ready') return;", "if (this.state.phase !== 'ready') return;")]],
 ];
 
 // The claim function is REPLACED by the second migration, so a mutant on the claim text of the first migration would be dead code.
@@ -422,6 +462,9 @@ const ACCOUNTING_TESTS = ['src/lib/refundAccounting.test.ts', 'src/lib/coreDatab
 module.exports = {
   M,
   tests: (file) => {
+    if (file.includes('20261025')) return ALLOCATION_TESTS;
+    if (/refundAllocationRequest|refundController|RefundAllocationPanel/.test(file)) return ['src/lib/refundAllocationUi.test.ts', 'src/lib/refundSafety.test.ts'];
+    if (file.endsWith('refundOperationKey.ts')) return ['src/lib/refundAllocationUi.test.ts', 'src/lib/refundSafety.test.ts'];
     if (file.includes('20261024')) return ALLOCATION_TESTS;
     if (file.includes('20261023')) return ACCOUNTING_TESTS;
     if (file.includes('20261022')) return AUTHORITY_TESTS;

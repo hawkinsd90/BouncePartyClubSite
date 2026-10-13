@@ -1,10 +1,9 @@
-import { useRef, useState } from 'react';
 import { format } from 'date-fns';
-import { CreditCard, RefreshCw } from 'lucide-react';
+import { CreditCard } from 'lucide-react';
 import { formatCurrency } from '../../lib/pricing';
 import { storedOrderTotalCents } from '../../lib/orderMoney';
-import { supabase } from '../../lib/supabase';
-import { classifyRefundResponse, refundAttemptFor, type RefundAttempt } from '../../lib/refundOperationKey';
+import { RefundAllocationPanel } from '../admin/refunds/RefundAllocationPanel';
+import { REFUND_REASONS, componentSummary } from '../../lib/refundAllocationRequest';
 
 interface Payment {
   id: string;
@@ -21,6 +20,11 @@ interface Refund {
   reason: string;
   status: string;
   created_at: string;
+  allocation_version?: number | null;
+  deposit_principal_refunded_cents?: number | null;
+  balance_principal_refunded_cents?: number | null;
+  tip_refunded_cents?: number | null;
+  unclassified_refunded_cents?: number | null;
 }
 
 interface CustomFee {
@@ -45,14 +49,6 @@ interface PaymentManagementSectionProps {
   onRefundSuccess?: () => void;
 }
 
-const REFUND_REASONS = [
-  { value: 'cancellation', label: 'Order Cancellation' },
-  { value: 'requested_by_customer', label: 'Customer Request' },
-  { value: 'duplicate', label: 'Duplicate Charge' },
-  { value: 'fraudulent', label: 'Fraudulent Charge' },
-  { value: 'other', label: 'Other' },
-];
-
 export function PaymentManagementSection({
   order,
   payments,
@@ -61,13 +57,6 @@ export function PaymentManagementSection({
   discounts = [],
   onRefundSuccess,
 }: PaymentManagementSectionProps) {
-  const [refundAmountDollars, setRefundAmountDollars] = useState('');
-  const [refundReason, setRefundReason] = useState('cancellation');
-  const [isRefunding, setIsRefunding] = useState(false);
-  // The same operation key is sent again when this refund request is retried, so Stripe is never asked for it twice.
-  const refundAttempt = useRef<RefundAttempt | null>(null);
-  const [refundMessage, setRefundMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
-
   const hasChargeableCard = !!(order.stripe_customer_id && order.stripe_payment_method_id);
   const hasPreviousCardPayment = !!(order.payment_method_last_four && !order.stripe_payment_method_id);
 
@@ -108,60 +97,6 @@ export function PaymentManagementSection({
     : (order.balance_paid_cents || 0);
 
   const hasStripePayments = succeededPayments.some(p => (p as any).stripe_payment_intent_id);
-
-  async function handleRefund() {
-    const amountCents = Math.round(parseFloat(refundAmountDollars) * 100);
-
-    if (isNaN(amountCents) || amountCents <= 0) {
-      setRefundMessage({ type: 'error', text: 'Please enter a valid refund amount.' });
-      return;
-    }
-    if (amountCents > maxRefundableCents) {
-      setRefundMessage({ type: 'error', text: `Amount exceeds maximum refundable amount of ${formatCurrency(maxRefundableCents)}.` });
-      return;
-    }
-
-    setIsRefunding(true);
-    setRefundMessage(null);
-    const attempt = refundAttemptFor(refundAttempt.current, order.id, amountCents);
-    refundAttempt.current = attempt;
-
-    try {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session) throw new Error('Not authenticated');
-
-      const res = await fetch(
-        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/stripe-refund`,
-        {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${session.access_token}`,
-            'Apikey': import.meta.env.VITE_SUPABASE_ANON_KEY,
-          },
-          body: JSON.stringify({ orderId: order.id, amountCents, reason: refundReason, operationKey: attempt.key }),
-        }
-      );
-
-      const json = await res.json().catch(() => null);
-      const outcome = classifyRefundResponse(res.status, json);
-      if (!outcome.keepKey) refundAttempt.current = null;
-      if (outcome.adopt) {
-        // An earlier request on this order is unsettled (this page lost its key): the next press settles THAT request.
-        refundAttempt.current = { key: outcome.adopt.key, orderId: order.id, amountCents: outcome.adopt.amountCents };
-        setRefundAmountDollars((outcome.adopt.amountCents / 100).toFixed(2));
-      }
-      if (outcome.tone === 'error') throw new Error(outcome.message);
-
-      setRefundMessage({ type: outcome.tone === 'warning' ? 'error' : 'success', text: outcome.message });
-      if (outcome.tone === 'success') setRefundAmountDollars('');
-      onRefundSuccess?.();
-    } catch (err: any) {
-      setRefundMessage({ type: 'error', text: err.message || 'Failed to process refund.' });
-    } finally {
-      setIsRefunding(false);
-    }
-  }
 
   return (
     <div className="mb-4 p-4 bg-white rounded-lg border border-slate-200">
@@ -252,67 +187,16 @@ export function PaymentManagementSection({
         </div>
       )}
 
-      {isCancelled && hasStripePayments && maxRefundableCents > 0 && (
+      {isCancelled && hasStripePayments && (
         <div className="mt-4 pt-4 border-t border-slate-200">
           <h5 className="text-sm font-semibold text-slate-700 mb-3">Issue Refund</h5>
-          <div className="bg-slate-50 border border-slate-200 rounded-lg p-4 space-y-3">
-            <div className="text-xs text-slate-600">
-              Max refundable: <span className="font-semibold text-slate-900">{formatCurrency(maxRefundableCents)}</span>
-            </div>
-
-            <div className="flex gap-3">
-              <div className="flex-1">
-                <label className="block text-xs text-slate-600 mb-1">Amount ($)</label>
-                <div className="flex items-center gap-2">
-                  <input
-                    type="number"
-                    min="0.01"
-                    step="0.01"
-                    max={(maxRefundableCents / 100).toFixed(2)}
-                    value={refundAmountDollars}
-                    onChange={e => setRefundAmountDollars(e.target.value)}
-                    placeholder={(maxRefundableCents / 100).toFixed(2)}
-                    className="w-full border border-slate-300 rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setRefundAmountDollars((maxRefundableCents / 100).toFixed(2))}
-                    className="text-xs text-blue-600 hover:text-blue-800 whitespace-nowrap"
-                  >
-                    Max
-                  </button>
-                </div>
-              </div>
-
-              <div className="flex-1">
-                <label className="block text-xs text-slate-600 mb-1">Reason</label>
-                <select
-                  value={refundReason}
-                  onChange={e => setRefundReason(e.target.value)}
-                  className="w-full border border-slate-300 rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                >
-                  {REFUND_REASONS.map(r => (
-                    <option key={r.value} value={r.value}>{r.label}</option>
-                  ))}
-                </select>
-              </div>
-            </div>
-
-            {refundMessage && (
-              <div className={`text-sm rounded p-2 ${refundMessage.type === 'success' ? 'bg-green-50 text-green-800 border border-green-200' : 'bg-red-50 text-red-800 border border-red-200'}`}>
-                {refundMessage.text}
-              </div>
-            )}
-
-            <button
-              onClick={handleRefund}
-              disabled={isRefunding || !refundAmountDollars}
-              className="w-full flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-700 disabled:bg-slate-400 text-white font-semibold py-2 px-4 rounded-lg text-sm transition-colors"
-            >
-              {isRefunding && <RefreshCw className="w-4 h-4 animate-spin" />}
-              {isRefunding ? 'Processing Refund...' : 'Process Refund'}
-            </button>
-          </div>
+          <RefundAllocationPanel
+            orderId={order.id}
+            customerName={[order.customers?.first_name, order.customers?.last_name].filter(Boolean).join(' ') || undefined}
+            showHistory={false}
+            refreshToken={`${payments.map((p) => `${p.id}:${p.status}`).join(',')}|${refunds.map((r) => `${r.id}:${r.status}`).join(',')}`}
+            onChanged={onRefundSuccess}
+          />
         </div>
       )}
 
@@ -368,6 +252,9 @@ export function PaymentManagementSection({
                 <div>
                   <div className="font-medium text-slate-900 capitalize">
                     {REFUND_REASONS.find(r => r.value === refund.reason)?.label ?? refund.reason}
+                  </div>
+                  <div className="text-xs text-slate-600">
+                    {componentSummary({ allocation_version: refund.allocation_version ?? null, deposit_cents: refund.deposit_principal_refunded_cents ?? null, balance_cents: refund.balance_principal_refunded_cents ?? null, tip_cents: refund.tip_refunded_cents ?? null, unclassified_cents: refund.unclassified_refunded_cents ?? null })}
                   </div>
                   <div className="text-xs text-slate-500">
                     {format(new Date(refund.created_at), 'MMM d, yyyy h:mm a')}

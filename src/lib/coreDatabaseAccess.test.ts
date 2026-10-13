@@ -284,9 +284,9 @@ const PRIVATE = OWNED.filter((t) => !PUBLIC_READ.includes(t));
   // Surfaces that must never touch a private table directly: anonymous public site, public booking, Customer Portal.
   const PUBLIC_SURFACE = allFiles.filter((f) =>
     /^src\/components\/customer-portal\//.test(f) ||
-    /^src\/pages\/(CustomerPortal|ShortLink|PaymentComplete|PaymentCanceled|Checkout|Sign|Receipt|Quote|Catalog|UnitDetail|Home|Contact|About|EventEssentialsCatalog|LegacyInvoiceRedirect|Login|ForgotPassword|ResetPassword|MenuPreview|InvoicePreview)\.tsx$/.test(f) ||
+    /^src\/pages\/(CustomerPortal|ShortLink|StripeCheckoutReturn|StripeCheckoutCanceled|Checkout|Sign|Receipt|Quote|Catalog|UnitDetail|Home|Contact|About|EventEssentialsCatalog|LegacyInvoiceRedirect|Login|ForgotPassword|ResetPassword|MenuPreview|InvoicePreview)\.tsx$/.test(f) ||
     /^src\/lib\/(bookingApi|customerPortalApi|portalToken|portalLinks|edgeAuth|customerPortalPolling|customerPortalRefreshSignal)\.ts$/.test(f) ||
-    /^src\/hooks\/(usePaymentCompletion|useCheckoutData|useQuoteCart|useQuoteForm|useQuotePricing|useQuotePrefill)\.ts$/.test(f),
+    /^src\/hooks\/(useBookingReturnConfirmation|useCheckoutData|useQuoteCart|useQuoteForm|useQuotePricing|useQuotePrefill)\.ts$/.test(f),
   );
   ok('source: the public-surface file set is non-trivial', PUBLIC_SURFACE.length >= 25);
   for (const f of PUBLIC_SURFACE) ok(`source: ${f} has no direct access to a private table`, touches(f).length === 0);
@@ -295,7 +295,7 @@ const PRIVATE = OWNED.filter((t) => !PUBLIC_READ.includes(t));
   ok('source: no browser file calls a legacy token RPC at all (so revoking them breaks nothing)', allFiles.every((f) => !rpcCall(LEGACY_RPCS).test(strip(read(f)))));
 
   // Every remaining direct user must be a known staff / owner surface. A new file touching a private table fails here.
-  const STAFF = /^src\/(components\/(admin|order-detail|pending-order|calendar|crew)\/|components\/AdminCalendar\.tsx|pages\/(Admin|UnitForm)\.tsx|lib\/queries\/|lib\/(orderApprovalService|orderSaveService|invoiceService|addressService|orderSummary|availability|taskStatusService|transactionReceiptService|orderNotificationService|notificationReliability|orderLifecycle)\.ts|hooks\/(useCalendarTasks|useCustomerManagement|useOrderDetails|usePendingOrderData|useAdminAnalytics|useAdminPhotos|useOrderDuplication|useInvoiceData|useAdminSettings)\.ts)/;
+  const STAFF = /^src\/(components\/(admin|order-detail|pending-order|calendar|crew)\/|components\/AdminCalendar\.tsx|pages\/(Admin|UnitForm)\.tsx|lib\/queries\/|lib\/(orderApprovalService|staffOrderSaveRequest|invoiceService|addressService|orderSummaryLoader|availability|taskStatusService|transactionReceiptService|orderNotificationService|notificationFailures|orderLifecycleApi)\.ts|hooks\/(useCalendarTasks|useCustomerManagement|useAdminOrderDetails|usePendingOrderData|useAdminAnalytics|useAdminPhotos|useOrderDuplication|useInvoiceData|useAdminSettings)\.ts)/;
   const OWNER = /^src\/(contexts\/CustomerProfileContext\.tsx|pages\/SignUp\.tsx)$/;
   const direct = allFiles.filter((f) => touches(f).length > 0);
   const unclassified = direct.filter((f) => !STAFF.test(f) && !OWNER.test(f));
@@ -347,6 +347,7 @@ const PRIVATE = OWNED.filter((t) => !PUBLIC_READ.includes(t));
       'supabase/migrations/20261022120000_refund_safety_and_financial_write_authority.sql',
       'supabase/migrations/20261023120000_refund_allocation_schema.sql',
       'supabase/migrations/20261024120000_refund_allocation_reservation.sql',
+      'supabase/migrations/20261025120000_refund_overview_for_admin.sql',
     ];
     const scenarios = buildScenarios();
     const r = spawnSync(psql, [...args, '-v', 'ON_ERROR_STOP=1'], { input: buildScript(scenarios, PRICING_CHAIN.map((f) => read(f)).join('\n')), encoding: 'utf8', maxBuffer: 50 * 1024 * 1024, timeout: 120000 });

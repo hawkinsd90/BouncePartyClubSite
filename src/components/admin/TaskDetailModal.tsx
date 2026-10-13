@@ -1,14 +1,13 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect } from 'react';
 import { format } from 'date-fns';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '../../lib/supabase';
 import { formatCurrency } from '../../lib/pricing';
-import { classifyRefundResponse, refundAttemptFor, type RefundAttempt } from '../../lib/refundOperationKey';
-import { createShortPortalLink } from '../../lib/utils';
-import type { ShortPortalLinkResult } from '../../lib/utils';
+import { createShortPortalLink } from '../../lib/portalShortLink';
+import type { ShortPortalLinkResult } from '../../lib/portalShortLink';
 import { decideActionRequiredSms, decideEnRouteReminders } from '../../lib/notificationDecision';
 import { showAlert, showConfirm, showModal } from '../common/CustomModal';
-import { getCurrentLocation, calculateETA } from '../../lib/googleMaps';
+import { getCurrentLocation, calculateETA } from '../../lib/crewLocationEta';
 import { Task } from '../../hooks/useCalendarTasks';
 import { getStopNumber } from '../../lib/calendarUtils';
 import { TaskDetailCustomerInfo } from './task-detail/TaskDetailCustomerInfo';
@@ -49,7 +48,6 @@ export function TaskDetailModal({ task, allTasks, onClose, onUpdate, onRefresh, 
   const [uploadingImages, setUploadingImages] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [lastUpdated, setLastUpdated] = useState(new Date());
-  const [refunding, setRefunding] = useState(false);
   const [chargingCard, setChargingCard] = useState(false);
   const [recordingCash, setRecordingCash] = useState(false);
   const [recordingCheck, setRecordingCheck] = useState(false);
@@ -440,43 +438,6 @@ export function TaskDetailModal({ task, allTasks, onClose, onUpdate, onRefresh, 
     } catch (e: any) { console.error('Reorder error:', e); showAlert('Failed to reorder: ' + e.message); }
   }
 
-  // The same operation key is sent again when this refund request is retried, so Stripe is never asked for it twice.
-  const refundAttempt = useRef<RefundAttempt | null>(null);
-
-  async function handleRefund(amountCents: number, reason: string) {
-    const confirmed = await showConfirm(`Issue refund of ${formatCurrency(amountCents)} to ${task.customerName}?\n\nReason: ${reason}\n\nThis action cannot be undone.`);
-    if (!confirmed) return;
-    setRefunding(true);
-    const attempt = refundAttemptFor(refundAttempt.current, task.orderId, amountCents);
-    refundAttempt.current = attempt;
-    try {
-      const { data: { session } } = await supabase.auth.getSession();
-      const data = await postSessionEdge({
-        functionName: 'stripe-refund',
-        accessToken: session?.access_token,
-        body: { orderId: task.orderId, amountCents, reason, operationKey: attempt.key },
-        fallbackMessage: 'Failed to process refund',
-      });
-      const outcome = classifyRefundResponse(200, data);
-      if (!outcome.keepKey) refundAttempt.current = null;
-      showAlert(outcome.message);
-      onUpdate();
-    } catch (e: any) {
-      console.error('Refund error:', e);
-      if (e?.code === 'UNSETTLED_REFUND_EXISTS' && e.data) {
-        // An earlier request on this order is unsettled (this page lost its key): the next press settles THAT request.
-        const unsettled = classifyRefundResponse(409, e.data);
-        if (unsettled.adopt) refundAttempt.current = { key: unsettled.adopt.key, orderId: task.orderId, amountCents: unsettled.adopt.amountCents };
-        showAlert(unsettled.message);
-        return;
-      }
-      // A definitive answer from the server (it names a code) ends this attempt; a dropped connection or a server error keeps the key for the retry.
-      if (typeof e?.code === 'string' && e.code !== 'REFUND_UNRESOLVED') refundAttempt.current = null;
-      showAlert('Failed to process refund: ' + e.message);
-    }
-    finally { setRefunding(false); }
-  }
-
   async function handleCashPayment(balancePaymentCents: number, tipCents: number = 0, totalReceivedCents: number = balancePaymentCents) {
     const confirmLines = [
       `Record cash payment from ${task.customerName}?`,
@@ -718,7 +679,7 @@ export function TaskDetailModal({ task, allTasks, onClose, onUpdate, onRefresh, 
             />
           )}
 
-          <TaskDetailCustomerInfo task={task} onRefund={handleRefund} refunding={refunding} />
+          <TaskDetailCustomerInfo task={task} onRefundChanged={onUpdate} />
 
           {/* Equipment */}
           <TaskDetailEquipmentCard items={task.items} isDropOff={isDropOff} />

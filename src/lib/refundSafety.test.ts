@@ -25,6 +25,7 @@ import * as authHelpers from '../../supabase/functions/_shared/auth';
 import * as refundOps from '../../supabase/functions/_shared/refund-operations';
 import { PgPool, ensurePayDatabase, psqlArgs, makeWorld, makeClient, loadHandler, loadModule, callHandler, SERVICE_KEY, type World } from './paymentHarness';
 import { classifyRefundResponse, refundAttemptFor } from './refundOperationKey';
+import { RefundController, type RefundApi } from './refundController';
 
 let passed = 0;
 let failed = 0;
@@ -979,19 +980,19 @@ const newKey = (label = 'op') => `${label}-${TAG}-${String(++keyCounter).padStar
     ok('wiring: the webhook never uses the cumulative charge.amount_refunded or the embedded charge.refunds list', !/amount_refunded|charge\.refunds/.test(handlersSrc.replace(/\/\/.*$/gm, '')));
     ok('wiring: the webhook no longer inserts refund or payment rows itself', !/from\("order_refunds"\)|from\("payments"\)\s*\.insert/.test(handlersSrc));
     ok('wiring: the webhook lists the refunds of a charge one by one', /stripe\.refunds\.list\(\{ charge: charge\.id/.test(handlersSrc));
-    for (const [file, label] of [['src/components/order-detail/PaymentsTab.tsx', 'Payments tab'], ['src/components/pending-order/PaymentManagementSection.tsx', 'pending-order payment section'], ['src/components/admin/TaskDetailModal.tsx', 'task modal']] as const) {
+    for (const [file, label] of [['src/components/order-detail/PaymentsTab.tsx', 'Payments tab'], ['src/components/pending-order/PaymentManagementSection.tsx', 'pending-order payment section'], ['src/components/admin/task-detail/TaskDetailCustomerInfo.tsx', 'task modal']] as const) {
       const src = read(file);
-      ok(`wiring: the ${label} sends a stable operation key with every refund and reuses the previous attempt for a retry`, /operationKey: attempt\.key/.test(src) && /refundAttemptFor\(refundAttempt\.current, /.test(src));
+      ok(`wiring: the ${label} sends refunds only through the shared refund panel (no refund request, key or amount of its own)`, /<RefundAllocationPanel/.test(src) && !/stripe-refund|operationKey|refundAttemptFor|parseFloat/.test(src));
     }
+    const ctlSrc = read('src/lib/refundController.ts');
+    ok('wiring: the shared refund screen sends a stable operation key with every refund and reuses the previous attempt for a retry', /operationKey: attempt\.key/.test(ctlSrc) && /allocationAttemptFor\(this\.state\.frozen\?\.attempt \?\? null,/.test(ctlSrc));
     const mig4 = read('supabase/migrations/20261022120000_refund_safety_and_financial_write_authority.sql');
     const reserveFn = /FUNCTION public\.reserve_refund_operation[\s\S]*?\n\$\$;/.exec(mig4)?.[0] ?? '';
     ok('wiring: the refund reservation takes the order row lock before it reads what is refundable', /FROM public\.orders WHERE id = p_order_id FOR UPDATE;[\s\S]*?FROM public\.order_refunds WHERE order_id = p_order_id AND status IN/.test(reserveFn));
     for (const fn of ['_apply_refund_transition(uuid, text, text)', 'reserve_refund_operation(uuid, text, integer, text, uuid)', 'mark_refund_provider_attempt(uuid)', 'record_refund_provider_result(uuid, text, text, text)', 'apply_provider_refund_event(text, text, integer, text, text, text, text)', 'cancel_unattempted_payments_on_order_close()', 'note_payment_applied_to_closed_order()', 'guard_order_pricing_authority()']) {
       ok(`wiring: ${fn.split('(')[0]} is revoked from PUBLIC, anon and authenticated by the migration itself`, mig4.includes(`REVOKE ALL ON FUNCTION public.${fn} FROM PUBLIC, anon, authenticated;`));
     }
-    for (const [file, label, adoptRe] of [['src/components/order-detail/PaymentsTab.tsx', 'Payments tab', /if \(outcome\.adopt\) \{[\s\S]*?refundAttempt\.current = \{ key: outcome\.adopt\.key/], ['src/components/pending-order/PaymentManagementSection.tsx', 'pending-order payment section', /if \(outcome\.adopt\) \{[\s\S]*?refundAttempt\.current = \{ key: outcome\.adopt\.key/], ['src/components/admin/TaskDetailModal.tsx', 'task modal', /if \(e\?\.code === 'UNSETTLED_REFUND_EXISTS' && e\.data\) \{[\s\S]*?unsettled\.adopt/]] as const) {
-      ok(`wiring: the ${label} takes over an unsettled request named by the server instead of starting another refund`, adoptRe.test(read(file)));
-    }
+    ok('wiring: the shared refund screen takes over an unfinished refund found in the database (its stored key and allocation) instead of starting another refund', /overview\.operations\.filter\(\(o\) => o\.unfinished\)/.test(ctlSrc) && /reconstructStoredRequest\(op\)/.test(ctlSrc) && /recoveries\.length > 0 \? 'recovery'/.test(ctlSrc));
     const opsSrc = read('supabase/functions/_shared/refund-operations.ts');
     ok('wiring: a provider request needs the marker (or an earlier one on record), and only an explicit true counts as written', /marked = res\?\.data === true;/.test(opsSrc) && /if \(!\(marked \|\| \(markerFailed && alreadyMarked\)\)\) return/.test(opsSrc));
     ok('wiring: outside the replay window only a COMPLETE lookup allows a new request', /if \(!look\.complete && age > IDEMPOTENCY_SAFE_MS\) return/.test(opsSrc));
@@ -1407,6 +1408,346 @@ const newKey = (label = 'op') => `${label}-${TAG}-${String(++keyCounter).padStar
       eq('end to end: no charge or payment of any kind was created', [c.w.stripe.calls.filter((x) => /paymentIntents\.create|checkout\.sessions\.create|charges\.create/.test(x.api)).length, Number((await pg.query(`SELECT count(*) AS n FROM public.payments WHERE order_id = '${c.orderId}' AND amount_cents > 0`))[0].n)], [0, 1]);
       eq('end to end: the operational deposit / balance / tip / status fields are exactly as before', await opFields(c.orderId), before);
       eq('end to end: the row is a ledger-version-2 row with its allocation intact', [done.map((x: any) => x.ledger_version), compsOf(done)], [[2], [[7500, 0, 2500, 0, 1]]]);
+    }
+  }
+
+  // =================================================================================================================
+  // 14. The shared Admin refund screen driven end to end: its controller, the REAL refund function, and the REAL database overview
+  // =================================================================================================================
+  {
+    const { spawnSync } = require('child_process');
+    const NLC = String.fromCharCode(10);
+    const overviewFor = (orderId: string): any => {
+      const script = `BEGIN;${NLC}GRANT SELECT ON public.payments, public.order_refunds, public.orders TO service_role;${NLC}SET LOCAL ROLE service_role;${NLC}SELECT 'R|' || COALESCE(public.order_refund_overview('${orderId}')::text, 'NULL');${NLC}ROLLBACK;`;
+      const pr = spawnSync(db.psql, [...psqlArgs(db.db)], { input: script, encoding: 'utf8' });
+      const line = String(pr.stdout ?? '').split(NLC).find((l: string) => l.startsWith('R|'));
+      try { return JSON.parse((line ?? '').slice(2).trim()); } catch { return null; }
+    };
+    const netNow = (orderId: string): any => {
+      const script = `BEGIN;${NLC}GRANT SELECT ON public.payments, public.order_refunds, public.orders TO service_role;${NLC}SET LOCAL ROLE service_role;${NLC}SELECT 'R|' || public.order_net_financials('${orderId}')::text;${NLC}ROLLBACK;`;
+      const pr = spawnSync(db.psql, [...psqlArgs(db.db)], { input: script, encoding: 'utf8' });
+      const line = String(pr.stdout ?? '').split(NLC).find((l: string) => l.startsWith('R|'));
+      try { return JSON.parse((line ?? '').slice(2).trim()); } catch { return null; }
+    };
+    async function mkCase(parts: Array<{ dep?: number; bal?: number; tip?: number }>): Promise<Case> {
+      const w = makeWorld(pg);
+      w.users = { 'jwt-admin': ADMIN, 'jwt-master': MASTER, 'jwt-crew': CREW, 'jwt-cust': CUST };
+      w.tables.user_roles = [{ user_id: MASTER, role: 'master' }, { user_id: ADMIN, role: 'admin' }, { user_id: CREW, role: 'crew' }, { user_id: CUST, role: 'customer' }];
+      const orderId = nextId();
+      createdOrders.push(orderId);
+      await pg.exec(`INSERT INTO public.orders (id, status, location_type, event_date, event_end_date, start_window, end_window, pickup_preference, subtotal_cents, deposit_due_cents, balance_due_cents, deposit_paid_cents, balance_paid_cents, tip_cents, stripe_payment_status) VALUES ('${orderId}', 'confirmed', 'residential', '2030-06-01', '2030-06-01', '10:00', '12:00', 'next_day', 60000, 25661, 34339, 25661, 0, 5132, 'paid');`);
+      const pis: string[] = [];
+      const payIds: string[] = [];
+      for (const part of parts) {
+        const dep = part.dep ?? 0, bal = part.bal ?? 0, tip = part.tip ?? 0;
+        const pi = w.stripe.addSucceededPaymentIntent(dep + bal + tip);
+        const id = nextId();
+        pis.push(pi.id); payIds.push(id);
+        await pg.exec(`INSERT INTO public.payments (id, order_id, type, amount_cents, status, stripe_payment_intent_id, paid_at, payment_method, payment_brand, payment_last4, principal_amount_cents, tip_amount_cents, deposit_principal_cents, balance_principal_cents, order_financials_applied) VALUES ('${id}', '${orderId}', '${dep > 0 ? 'deposit' : 'balance'}', ${dep + bal + tip}, 'succeeded', '${pi.id}', now(), 'card', 'visa', '4242', ${dep + bal}, ${tip}, ${dep}, ${bal}, true);`);
+      }
+      return { w, orderId, pis, payIds };
+    }
+    // The screen's two server calls, wired to the real refund function and the real overview. 'lose' performs the request and then
+    // drops the answer (a timeout after the server did its work); 'notjson' performs it and returns a body that is not JSON.
+    const apiFor = (c: Case, bearer: string | null = 'jwt-admin', mode: { v: 'normal' | 'lose' | 'notjson' } = { v: 'normal' }): RefundApi => ({
+      loadOverview: async (id: string) => { const o = overviewFor(id); if (!o) throw new Error('You do not have access to this order.'); return o; },
+      submit: async (body: any) => {
+        const r = await callHandler(loadHandler('stripe-refund', c.w, shared), body, bearer);
+        if (mode.v === 'lose') throw new Error('network timeout');
+        if (mode.v === 'notjson') return { status: 200, data: null };
+        return { status: r.status, data: r.json };
+      },
+    });
+    const compsOf = (rows: any[]) => rows.map((x: any) => [x.deposit_principal_refunded_cents, x.balance_principal_refunded_cents, x.tip_refunded_cents, x.unclassified_refunded_cents, x.allocation_version]);
+    const fillIn = (ctl: RefundController, id: string, d: string, b: string, t: string) => { ctl.setInput(id, 'deposit', d); ctl.setInput(id, 'balance', b); ctl.setInput(id, 'tip', t); };
+    const OP = ['deposit_due_cents', 'deposit_paid_cents', 'balance_due_cents', 'balance_paid_cents', 'tip_cents', 'stripe_payment_status', 'status'];
+    const opNow = async (id: string) => { const o = await orderRow(id); return OP.map((k) => o[k]); };
+    const paymentsCreated = async (id: string) => Number((await pg.query(`SELECT count(*) AS n FROM public.payments WHERE order_id = '${id}' AND amount_cents > 0`))[0].n);
+
+    {
+      // the policy example, through the screen
+      const c = await mkCase([{ dep: 25661, tip: 5132 }]);
+      const before = await opNow(c.orderId);
+      const ctl = new RefundController(apiFor(c), c.orderId);
+      await ctl.load();
+      const p = ctl.state.overview!.payments[0];
+      eq('screen e2e: the database overview shows the payment split and full availability', [p.deposit_cents, p.balance_cents, p.tip_cents, p.available.deposit_cents, p.available.tip_cents, p.remaining_total_cents, p.refundable, p.classified], [25661, 0, 5132, 25661, 5132, 30793, true, true]);
+      eq('screen e2e: opening the screen made no Stripe call and no refund row', [c.w.stripe.calls.length, (await refundRows(c.orderId)).length], [0, 0]);
+      fillIn(ctl, p.id, '75.00', '', '25.00');
+      await ctl.review();
+      eq('screen e2e: review shows 100.00 = 75.00 deposit + 25.00 tip, and still nothing was sent', [ctl.state.phase, ctl.state.review?.totalCents, ctl.state.review?.depositCents, ctl.state.review?.tipCents, c.w.stripe.calls.length], ['review', 10000, 7500, 2500, 0]);
+      const sendsBefore = ctl.sentCount;
+      await Promise.all([ctl.confirm(), ctl.confirm()]);
+      eq('screen e2e: a double click on Confirm made exactly one request and one Stripe refund', [ctl.sentCount - sendsBefore, creates(c).length, creates(c)[0]?.params.amount, creates(c)[0]?.params.payment_intent === c.pis[0]], [1, 1, 10000, true]);
+      eq('screen e2e: the result is a success and the form is open again', [ctl.state.result?.kind, ctl.state.phase], ['succeeded', 'ready']);
+      const after = ctl.state.overview!.payments[0];
+      eq('screen e2e: the overview now shows 100.00 refunded (75.00 deposit, 25.00 tip) and the remaining availability', [after.refunded.deposit_cents, after.refunded.tip_cents, after.pending.deposit_cents, after.available.deposit_cents, after.available.tip_cents], [7500, 2500, 0, 18161, 2632]);
+      const n = netNow(c.orderId);
+      eq('screen e2e: net deposit 181.61, net tip 26.32, net recorded 207.93, exact', [n.known_net_deposit_principal_cents, n.known_net_tips_cents, n.recorded_net_cash_retained_cents, n.classification_complete], [18161, 2632, 20793, true]);
+      eq('screen e2e: the operational fields did not move and no payment was created', [await opNow(c.orderId), await paymentsCreated(c.orderId)], [before, 1]);
+      const hist = ctl.state.overview!.refunds;
+      eq('screen e2e: the history lists the refund with its split and status', [hist.length, hist[0].status, hist[0].deposit_cents, hist[0].tip_cents, hist[0].allocation_version], [1, 'succeeded', 7500, 2500, 1]);
+      // a webhook delivered twice changes nothing on screen
+      const w = wh(c);
+      const id = Object.keys(c.w.stripe.refunds_)[0];
+      await w.h.handleRefundEvent(refundEvent(c, id), w.client);
+      await w.h.handleRefundEvent(refundEvent(c, id), w.client);
+      await ctl.load();
+      eq('screen e2e: duplicate webhook deliveries leave one refund, one copy, the same totals', [ctl.state.overview!.refunds.length, (await negativePayments(c.orderId)).length, (await orderRow(c.orderId)).total_refunded_cents], [1, 1, 10000]);
+    }
+    {
+      // two payments, one operation
+      const c = await mkCase([{ dep: 25661, tip: 5132 }, { bal: 10000 }]);
+      const ctl = new RefundController(apiFor(c), c.orderId);
+      await ctl.load();
+      const [pa, pb] = ctl.state.overview!.payments;
+      fillIn(ctl, pa.id, '75.00', '', '25.00'); ctl.setInput(pb.id, 'balance', '40.00');
+      await ctl.review();
+      await ctl.confirm();
+      eq('screen e2e (two payments): 140.00 refunded as two Stripe refunds, each on its own payment', [ctl.state.result?.kind, ctl.state.result?.requestedCents, [...creates(c).map((x) => [x.params.payment_intent, x.params.amount])].sort()], ['succeeded', 14000, [[c.pis[0], 10000], [c.pis[1], 4000]].sort()]);
+      const n = netNow(c.orderId);
+      eq('screen e2e (two payments): net figures follow the allocation', [n.known_net_deposit_principal_cents, n.known_net_balance_principal_cents, n.known_net_tips_cents], [18161, 6000, 2632]);
+      // a payment cannot give what it does not have
+      fillIn(ctl, pb.id, '', '', '1.00');
+      eq('screen e2e (two payments): the payment with no tip offers no tip entry', ctl.built()?.fieldErrors[`${pb.id}.tip`] !== undefined || ctl.built()?.totalCents === 0, true);
+    }
+    {
+      // pending reduces availability and is not returned money; the webhook completes it
+      const c = await mkCase([{ dep: 25661, tip: 5132 }]);
+      c.w.stripe.refundBehaviors = ['pending'];
+      const ctl = new RefundController(apiFor(c), c.orderId);
+      await ctl.load();
+      const p = ctl.state.overview!.payments[0];
+      fillIn(ctl, p.id, '75.00', '', '25.00');
+      await ctl.review();
+      await ctl.confirm();
+      const pend = ctl.state.overview!.payments[0];
+      eq('screen e2e (pending): Stripe accepted it but has not finished: reported as pending, availability falls, nothing is shown as returned', [ctl.state.result?.kind, pend.pending.deposit_cents, pend.pending.tip_cents, pend.refunded.deposit_cents, pend.available.deposit_cents, netNow(c.orderId).recorded_net_cash_retained_cents], ['pending', 7500, 2500, 0, 18161, 30793]);
+      eq('screen e2e (pending): the screen now offers only to resume it (a new refund cannot be started)', [ctl.state.phase, ctl.state.recoveries[0]?.kind, ctl.state.recoveries[0]?.progress?.pendingCents], ['recovery', 'allocated', 10000]);
+      const id = Object.keys(c.w.stripe.refunds_)[0];
+      c.w.stripe.setRefundStatus(id, 'succeeded');
+      const w = wh(c);
+      await w.h.handleRefundEvent(refundEvent(c, id), w.client);
+      await ctl.load();
+      eq('screen e2e (pending): after the webhook it is refunded and the form is open again', [ctl.state.phase, ctl.state.overview!.payments[0].refunded.deposit_cents, ctl.state.overview!.payments[0].pending.deposit_cents], ['ready', 7500, 0]);
+    }
+    {
+      // a rejected refund releases availability and may be asked again as a NEW request
+      const c = await mkCase([{ dep: 25661, tip: 5132 }]);
+      c.w.stripe.refundBehaviors = ['invalid_request'];
+      const ctl = new RefundController(apiFor(c), c.orderId);
+      await ctl.load();
+      const p = ctl.state.overview!.payments[0];
+      fillIn(ctl, p.id, '75.00', '', '25.00');
+      await ctl.review();
+      await ctl.confirm();
+      eq('screen e2e (failed): a rejected refund is a failure, nothing counted, availability restored, nothing frozen', [ctl.state.result?.kind, ctl.state.phase, ctl.state.frozen, ctl.state.overview!.payments[0].available.deposit_cents, (await orderRow(c.orderId)).total_refunded_cents], ['failed', 'ready', null, 25661, 0]);
+      const key1 = (await refundRows(c.orderId))[0].operation_key;
+      fillIn(ctl, p.id, '75.00', '', '25.00');
+      await ctl.review();
+      await ctl.confirm();
+      const keys = new Set((await refundRows(c.orderId)).map((x: any) => x.operation_key));
+      eq('screen e2e (failed): the next attempt is a genuinely new request under a new key and succeeds', [ctl.state.result?.kind, keys.size, keys.has(key1)], ['succeeded', 2, true]);
+    }
+    {
+      // earlier refunds with no breakdown, and a payment with no recorded split
+      const c = await mkCase([{ dep: 10000, tip: 2000 }]);
+      const old = await refundCall(c, { amountCents: 5000, operationKey: newKey() });
+      eq('screen e2e (history): an earlier amount-only refund succeeded', old.json?.status, 'succeeded');
+      const ctl = new RefundController(apiFor(c), c.orderId);
+      await ctl.load();
+      const p = ctl.state.overview!.payments[0];
+      eq('screen e2e (history): it is shown as a refund with no breakdown, and only what is certainly left is available', [p.has_unclassified_history, p.available.deposit_cents, p.available.tip_cents, ctl.state.overview!.refunds[0].allocation_version], [true, 5000, 0, null]);
+      fillIn(ctl, p.id, '50.01', '', '');
+      await ctl.review();
+      eq('screen e2e (history): an entry beyond that is refused on screen and nothing is sent', [ctl.state.phase, ctl.state.fieldErrors[`${p.id}.deposit`]], ['ready', 'More than the $50.00 available.']);
+      const un = await mkCase([{ dep: 100 }]);
+      await pg.exec(`UPDATE public.payments SET principal_amount_cents = NULL, tip_amount_cents = NULL, deposit_principal_cents = NULL, balance_principal_cents = NULL WHERE order_id = '${un.orderId}';`);
+      const ctl2 = new RefundController(apiFor(un), un.orderId);
+      await ctl2.load();
+      eq('screen e2e (history): a payment with no recorded split is listed as unavailable for component refunds', [ctl2.state.overview!.payments[0].reason_unavailable, ctl2.state.overview!.payments[0].available.deposit_cents], ['unclassified', 0]);
+      const none = new RefundController(apiFor(await mkCase([])), (await mkCase([])).orderId);
+      void none;
+    }
+    {
+      // reload during an unresolved refund, another Admin, and a lost answer
+      for (const mode of ['lose', 'notjson'] as const) {
+        const c = await mkCase([{ dep: 25661, tip: 5132 }]);
+        const m = { v: mode } as { v: 'normal' | 'lose' | 'notjson' };
+        c.w.stripe.refundBehaviors = ['succeed_then_connection_error'];
+        const ctlA = new RefundController(apiFor(c, 'jwt-admin', m), c.orderId);
+        await ctlA.load();
+        const p = ctlA.state.overview!.payments[0];
+        fillIn(ctlA, p.id, '75.00', '', '25.00');
+        await ctlA.review();
+        await ctlA.confirm();
+        const row0 = (await refundRows(c.orderId))[0];
+        eq('screen e2e (' + mode + '): the server did the work but the answer was lost: the screen goes to "refund in progress" with the request frozen, and no second request was made', [ctlA.state.phase, ctlA.state.frozen?.attempt.key === row0.operation_key, creates(c).length, ctlA.sentCount], ['recovery', true, 1, 1]);
+        // reload: a new screen instance finds it in the database
+        m.v = 'normal';
+        const ctlB = new RefundController(apiFor(c, 'jwt-admin', m), c.orderId);
+        await ctlB.load();
+        const rec = ctlB.state.recoveries[0];
+        eq('screen e2e (' + mode + '): after a reload the refund is found in the database with its original allocation, and a new refund cannot be started', [ctlB.state.phase, rec.source, rec.kind, rec.lines.map((l) => [l.depositCents, l.balanceCents, l.tipCents]), ctlB.sentCount], ['recovery', 'stored', 'allocated', [[7500, 0, 2500]], 0]);
+        fillIn(ctlB, p.id, '1.00', '', '');
+        await ctlB.review();
+        eq('screen e2e (' + mode + '): ...nothing can be entered or sent meanwhile', [ctlB.state.inputs, creates(c).length], [{}, 1]);
+        // a DIFFERENT Admin session resumes it
+        const ctlC = new RefundController(apiFor(c, 'jwt-master', m), c.orderId);
+        await ctlC.load();
+        await ctlC.resume(row0.operation_key);
+        const rows = await refundRows(c.orderId);
+        eq('screen e2e (' + mode + '): another Admin resumes it under the SAME key and allocation: the existing Stripe refund is found, none is created, and it ends succeeded', [ctlC.state.result?.kind, rows.length, rows[0].operation_key === row0.operation_key, creates(c).length, c.w.stripe.refundCreatedCount, rows[0].status, compsOf(rows)], ['succeeded', 1, true, 1, 1, 'succeeded', [[7500, 0, 2500, 0, 1]]]);
+        eq('screen e2e (' + mode + '): the form is open again and the refund is counted once', [ctlC.state.phase, (await orderRow(c.orderId)).total_refunded_cents, (await negativePayments(c.orderId)).length], ['ready', 10000, 1]);
+      }
+    }
+    {
+      // the server finished everything but the answer was lost: after the refresh the database says it is finished
+      const c0 = await mkCase([{ dep: 25661, tip: 5132 }]);
+      const ctl0 = new RefundController(apiFor(c0, 'jwt-admin', { v: 'lose' }), c0.orderId);
+      await ctl0.load();
+      fillIn(ctl0, ctl0.state.overview!.payments[0].id, '10.00', '', '');
+      await ctl0.review();
+      await ctl0.confirm();
+      eq('screen e2e (answer lost after a complete success): the database shows it finished, so the screen is open again, tells the Admin, and does not offer a second refund', [ctl0.state.phase, ctl0.state.frozen, /has finished/.test(ctl0.state.notice ?? ''), creates(c0).length, (await orderRow(c0.orderId)).total_refunded_cents], ['ready', null, true, 1, 1000]);
+    }
+    {
+      // CROSS-ADMIN RECOVERY. Admin A's request reaches Stripe and its answer is lost; Admin B (another person, another session) resumes it
+      // with the original key, allocation and total. The fake Stripe compares the WHOLE request (amount, reason and metadata) against the
+      // first request made under an idempotency key, as Stripe does, so these runs prove what the real recovery path sends.
+      const probe = await mkCase([{ dep: 100 }]);
+      const sp = probe.w.stripe;
+      await sp.refunds.create({ payment_intent: probe.pis[0], amount: 50, reason: 'requested_by_customer', metadata: { bpc_refund_id: 'r1', refunded_by: 'A' } }, { idempotencyKey: 'probe-key-1' });
+      let probeErr: any = null;
+      try { await sp.refunds.create({ payment_intent: probe.pis[0], amount: 50, reason: 'requested_by_customer', metadata: { bpc_refund_id: 'r1', refunded_by: 'B' } }, { idempotencyKey: 'probe-key-1' }); } catch (e: any) { probeErr = e; }
+      eq('cross-admin: the fake provider rejects a replay whose metadata differs (so the runs below are a real test of the request that is sent)', [probeErr?.type, sp.refundCreatedCount], ['StripeIdempotencyError', 1]);
+
+      const start = async (listing: 'normal' | 'throw') => {
+        const c = await mkCase([{ dep: 25661, tip: 5132 }]);
+        c.w.stripe.refundBehaviors = ['succeed_then_connection_error'];
+        const a = new RefundController(apiFor(c, 'jwt-admin', { v: 'lose' }), c.orderId);
+        await a.load();
+        const pid = a.state.overview!.payments[0].id;
+        fillIn(a, pid, '75.00', '', '25.00');
+        await a.review();
+        await a.confirm();
+        const row = (await refundRows(c.orderId))[0];
+        c.w.stripe.refundListMode = listing;
+        return { c, a, row, pid };
+      };
+
+      {
+        const { c, row } = await start('normal');
+        const first = creates(c)[0];
+        eq('cross-admin: Admin A\'s attempt reached Stripe once, with the marker on record and A named in the metadata; the answer was lost', [creates(c).length, row.provider_attempted_at !== null, row.status, first.params.metadata.refunded_by, row.refunded_by], [1, true, 'pending', ADMIN, ADMIN]);
+        const b = new RefundController(apiFor(c, 'jwt-master'), c.orderId);
+        await b.load();
+        const rec = b.state.recoveries[0];
+        eq('cross-admin: Admin B opening the order sees the existing operation with its original allocation and total', [b.state.phase, rec.source, rec.operationKey === row.operation_key, rec.lines.map((l) => [l.depositCents, l.balanceCents, l.tipCents]), rec.totalCents], ['recovery', 'stored', true, [[7500, 0, 2500]], 10000]);
+        await b.resume(rec.operationKey);
+        const rows = await refundRows(c.orderId);
+        eq('cross-admin: B resumes with the original key, allocation and total; Stripe\'s existing refund is FOUND, so no second request of any kind is made', [b.state.result?.kind, allCreateAttempts(c).length, c.w.stripe.refundCreatedCount, rows.length, rows[0].status], ['succeeded', 1, 1, 1, 'succeeded']);
+        eq('cross-admin: the refund is recorded exactly once: one total, one negative copy, the same provider id', [(await orderRow(c.orderId)).total_refunded_cents, (await negativePayments(c.orderId)).length, rows[0].stripe_refund_id === Object.keys(c.w.stripe.refunds_)[0]], [10000, 1, true]);
+        eq('cross-admin: the original initiator stays on record and the allocation and idempotency key are unchanged', [rows[0].refunded_by, rows[0].provider_idempotency_key === row.provider_idempotency_key, compsOf(rows)], [ADMIN, true, [[7500, 0, 2500, 0, 1]]]);
+        eq('cross-admin: B\'s own authority was checked (a Crew member cannot resume the same operation)', (await callHandler(loadHandler('stripe-refund', c.w, shared), { orderId: c.orderId, operationKey: row.operation_key, reason: row.reason, amountCents: 10000, allocations: [{ paymentId: row.payment_id, depositPrincipalCents: 7500, balancePrincipalCents: 0, tipCents: 2500 }] }, 'jwt-crew')).status, 403);
+      }
+      {
+        // Stripe cannot be listed when B resumes: the recovery has to fall back to the idempotent re-send, whose parameters differ by the actor
+        const { c, row } = await start('throw');
+        const b = new RefundController(apiFor(c, 'jwt-master'), c.orderId);
+        await b.load();
+        await b.resume(b.state.recoveries[0].operationKey);
+        const attempts = allCreateAttempts(c);
+        const rows = await refundRows(c.orderId);
+        eq('cross-admin (listing down): B\'s re-send carries B as the actor, so the provider refuses the changed request; that is an UNKNOWN outcome, not a failure', [attempts.length, attempts[0].params.metadata.refunded_by, attempts[1]?.params.metadata.refunded_by, attempts[1]?.key === attempts[0].key], [2, ADMIN, MASTER, true]);
+        eq('cross-admin (listing down): the operation stays unresolved: reservation kept, no duplicate refund, nothing counted twice, no new idempotency key', [b.state.result?.kind, b.state.phase, rows[0].status, rows[0].stripe_refund_id, c.w.stripe.refundCreatedCount, (await orderRow(c.orderId)).total_refunded_cents, rows[0].provider_idempotency_key === row.provider_idempotency_key], ['unresolved', 'recovery', 'pending', null, 1, 0, true]);
+        eq('cross-admin (listing down): the capacity stays reserved while it is unresolved', b.state.overview!.payments[0].pending.deposit_cents + b.state.overview!.payments[0].pending.tip_cents, 10000);
+        c.w.stripe.refundListMode = 'normal';
+        await b.resume(b.state.recoveries[0].operationKey);
+        const done = await refundRows(c.orderId);
+        eq('cross-admin (listing down): once the provider can be read again, the same resume finds the existing refund and settles it exactly once', [b.state.result?.kind, c.w.stripe.refundCreatedCount, allCreateAttempts(c).length, done[0].status, (await orderRow(c.orderId)).total_refunded_cents, (await negativePayments(c.orderId)).length], ['succeeded', 1, 2, 'succeeded', 10000, 1]);
+      }
+      {
+        // the same Admin resuming gets an identical request, which Stripe simply replays
+        const { c } = await start('throw');
+        const a2 = new RefundController(apiFor(c, 'jwt-admin'), c.orderId);
+        await a2.load();
+        await a2.resume(a2.state.recoveries[0].operationKey);
+        eq('cross-admin (same Admin, listing down): the re-send is identical, Stripe replays the original, and the refund is recorded once with no second refund', [a2.state.result?.kind, c.w.stripe.refundCreatedCount, (await orderRow(c.orderId)).total_refunded_cents, c.w.stripe.calls.filter((x) => x.api === 'refunds.create(replay)').length], ['succeeded', 1, 10000, 1]);
+      }
+    }
+    {
+      // an earlier amount-only refund with an unknown result stays recoverable the old way
+      const c = await mkCase([{ dep: 25661, tip: 5132 }]);
+      c.w.stripe.refundBehaviors = ['succeed_then_connection_error'];
+      const key = newKey();
+      const first = await refundCall(c, { amountCents: 3000, operationKey: key });
+      eq('screen e2e (legacy): an amount-only refund with a lost answer is unresolved', first.status, 202);
+      const ctl = new RefundController(apiFor(c), c.orderId);
+      await ctl.load();
+      const rec = ctl.state.recoveries[0];
+      eq('screen e2e (legacy): the screen offers to resume it as an amount-only refund (no allocation is invented)', [ctl.state.phase, rec.kind, rec.canResume, rec.totalCents, rec.lines.length], ['recovery', 'amount_only', true, 3000, 0]);
+      await ctl.resume(key);
+      const rows = await refundRows(c.orderId);
+      eq('screen e2e (legacy): it settles through the old path: same key, same row, no allocation, one Stripe refund', [ctl.state.result?.kind, rows.length, rows[0].operation_key === key, compsOf(rows), c.w.stripe.refundCreatedCount], ['succeeded', 1, true, [[null, null, null, null, null]], 1]);
+    }
+    {
+      // data that does not add up: nothing can be sent
+      const c = await mkCase([{ dep: 25661, tip: 5132 }]);
+      c.w.stripe.refundBehaviors = ['connection_error_before'];
+      const ctl0 = new RefundController(apiFor(c), c.orderId);
+      await ctl0.load();
+      const p = ctl0.state.overview!.payments[0];
+      fillIn(ctl0, p.id, '75.00', '', '25.00');
+      await ctl0.review();
+      await ctl0.confirm();
+      await pg.exec(`UPDATE public.order_refunds SET request_allocation = 'v1|total=1|tampered' WHERE order_id = '${c.orderId}';`);
+      const ctl = new RefundController(apiFor(c), c.orderId);
+      await ctl.load();
+      const before = allCreateAttempts(c).length;
+      await ctl.resume(ctl.state.recoveries[0].operationKey);
+      eq('screen e2e (incomplete data): a stored refund whose identity no longer matches is for manual review and nothing is sent', [ctl.state.recoveries[0].kind, ctl.state.recoveries[0].canResume, ctl.sentCount, allCreateAttempts(c).length - before], ['manual_review', false, 0, 0]);
+    }
+    {
+      // availability changes between the entry and the review: the Admin must look again, nothing is reduced for them
+      const c = await mkCase([{ dep: 10000, tip: 2000 }]);
+      const ctl = new RefundController(apiFor(c), c.orderId);
+      await ctl.load();
+      const p = ctl.state.overview!.payments[0];
+      fillIn(ctl, p.id, '80.00', '', '');
+      const other = new RefundController(apiFor(c, 'jwt-master'), c.orderId);
+      await other.load();
+      fillIn(other, p.id, '50.00', '', '');
+      await other.review();
+      await other.confirm();
+      await ctl.review();
+      eq('screen e2e (changed): another refund was made meanwhile: this screen shows the change, keeps the entry, and sends nothing', [ctl.state.phase, ctl.state.notice, ctl.state.inputs[p.id].deposit, ctl.sentCount], ['ready', 'The amounts available to refund have changed. Please review them before continuing.', '80.00', 0]);
+      await ctl.review();
+      eq('screen e2e (changed): on the next review the entry is checked against the new availability and refused', ctl.state.fieldErrors[`${p.id}.deposit`], 'More than the $50.00 available.');
+    }
+    {
+      // who may refund
+      const c = await mkCase([{ dep: 25661, tip: 5132 }]);
+      const run = async (bearer: string | null) => {
+        const ctl = new RefundController(apiFor(c, bearer), c.orderId);
+        await ctl.load();
+        const p = ctl.state.overview!.payments[0];
+        fillIn(ctl, p.id, '1.00', '', '');
+        await ctl.review();
+        await ctl.confirm();
+        return ctl.state.result?.kind;
+      };
+      eq('screen e2e (roles): Admin and Master can refund', [await run('jwt-admin'), await run('jwt-master')], ['succeeded', 'succeeded']);
+      const before = creates(c).length;
+      eq('screen e2e (roles): Crew, a customer and an anonymous caller are refused and nothing reaches Stripe', [await run('jwt-crew'), await run('jwt-cust'), await run(null), creates(c).length - before], ['rejected', 'rejected', 'rejected', 0]);
+      const none = await mkCase([]);
+      const ctl = new RefundController(apiFor(none), none.orderId);
+      await ctl.load();
+      eq('screen e2e (empty): an order with no payments has nothing to refund', [ctl.state.phase, ctl.state.overview!.payments.length], ['ready', 0]);
+      const noAccess: RefundApi = { loadOverview: async () => { throw new Error('You do not have access to this order.'); }, submit: async () => ({ status: 403, data: null }) };
+      const ctl2 = new RefundController(noAccess, c.orderId);
+      await ctl2.load();
+      eq('screen e2e (no read access): a refused read is shown as an error and nothing can be sent', [ctl2.state.phase, ctl2.state.loadError], ['load_error', 'You do not have access to this order.']);
     }
   }
 

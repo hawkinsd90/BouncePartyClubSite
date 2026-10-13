@@ -408,6 +408,20 @@ export function buildScenarios(): Scenario[] {
     add(`allocation reservation: a ${who} session cannot write the allocation columns of a refund`, 'authenticated', uid, upd(`UPDATE public.order_refunds SET tip_refunded_cents = 1, allocation_version = 1 WHERE order_id = '${IDS.orderA}'`), denied);
   }
 
+  // ---- Refund overview for the Admin screen: read-only, Admin / Master / service role only ----
+  const ovwProbe = `SELECT (public.order_refund_overview('${IDS.orderA}') IS NOT NULL)::text`;
+  add('refund overview: an Admin gets it', 'authenticated', D, ovwProbe, 'true');
+  add('refund overview: a Master gets it', 'authenticated', M, ovwProbe, 'true');
+  add('refund overview: the service role gets it', 'service_role', null, ovwProbe, 'true');
+  add('refund overview: Crew gets NULL', 'authenticated', C, ovwProbe, 'false');
+  add('refund overview: the customer who owns the order gets NULL', 'authenticated', A, ovwProbe, 'false');
+  add('refund overview: another customer gets NULL', 'authenticated', B, ovwProbe, 'false');
+  add('refund overview: anonymous cannot execute it', 'anon', null, ovwProbe, denied);
+  add('refund overview: it lists the seeded legacy refund with no allocation, and the order\'s payments', 'authenticated', D,
+    `SELECT (jsonb_array_length(x->'refunds'))::text || ':' || COALESCE((x->'refunds'->0->>'allocation_version'), 'null') FROM (SELECT public.order_refund_overview('${IDS.orderA}') x) q`, '1:null');
+  add('refund overview: it is SECURITY INVOKER and STABLE, executable by authenticated and service_role, not anon', 'anon', null,
+    `SELECT (NOT prosecdef AND provolatile = 's' AND has_function_privilege('authenticated', oid, 'EXECUTE') AND has_function_privilege('service_role', oid, 'EXECUTE') AND NOT has_function_privilege('anon', oid, 'EXECUTE'))::text FROM pg_proc WHERE oid = 'public.order_refund_overview(uuid)'::regprocedure`, 'true');
+
   // ---- Public booking RPC still works for the service role (the server-owned booking boundary); the account guard still applies ----
   const book = (email: string, caller: string | null, line2: string) => `SELECT pg_temp.book('${email}', ${caller ? `'${caller}'::uuid` : 'NULL::uuid'}, '${line2}')`;
   add('booking RPC (service_role): a new guest booking is created as a draft, nothing paid, with its own delivery unit', 'service_role', null, book('brand-new@example.com', null, 'Apt 9'), 'draft|Apt 9|0|true');

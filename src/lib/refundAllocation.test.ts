@@ -17,7 +17,7 @@
 declare const process: { env: Record<string, string | undefined>; pid: number };
 declare const require: (id: string) => any;
 
-import { PgPool, ensurePayDatabase, psqlArgs, PAY_MIGRATION_6 } from './paymentHarness';
+import { PgPool, ensurePayDatabase, psqlArgs, PAY_MIGRATION_6, PAY_MIGRATION_7 } from './paymentHarness';
 
 const { spawnSync } = require('child_process');
 const fs = require('fs');
@@ -624,6 +624,175 @@ ROLLBACK;`;
     ok('static: the migration does not touch the amount-only reservation', !/reserve_refund_operation/.test(src));
     ok('static: the order row is locked before any refund row is read or written', src.indexOf('FROM public.orders WHERE id = p_order_id FOR UPDATE') > 0 && src.indexOf('FROM public.orders WHERE id = p_order_id FOR UPDATE') < src.indexOf('FROM public.order_refunds'));
     ok('static: nothing here writes the orders or payments tables', !/\b(INSERT\s+INTO|UPDATE|DELETE\s+FROM)\s+public\.(orders|payments)\b/i.test(src));
+  }
+
+  // =================================================================================================================
+  // 10. The refund overview the Admin screen reads: the same capacity rules as the reservation, and complete operations
+  // =================================================================================================================
+  {
+    const ovw = (orderId: string): any => { try { return JSON.parse(asRole('service_role', null, `public.order_refund_overview('${orderId}')`)); } catch { return null; } };
+    // Reserve exactly the stated amount of ONE component of one payment, in a transaction that is rolled back; returns the outcome.
+    const probe = (orderId: string, payId: string, d: number, b: number, t: number): string => {
+      const lines = JSON.stringify([{ paymentId: payId, depositPrincipalCents: d, balancePrincipalCents: b, tipCents: t }]);
+      const script = `BEGIN;${NL}SELECT 'R|' || COALESCE((public.reserve_refund_allocation('${orderId}', 'probe-${TAG}-${++keyCounter}', $j$${lines}$j$::jsonb, 'probe'))->>'outcome', 'NULL');${NL}ROLLBACK;`;
+      const pr = spawnSync(db.psql, [...psqlArgs(db.db)], { input: script, encoding: 'utf8' });
+      const line = String(pr.stdout ?? '').split(NL).find((l: string) => l.startsWith('R|'));
+      return line ? line.slice(2).trim() : 'ERR';
+    };
+    // For every payment and component: asking for exactly what the overview says is available is accepted, one cent more is not.
+    const checkAgainstReservation = (label: string, orderId: string) => {
+      const o = ovw(orderId);
+      if (!o) { ok(`overview: ${label}: readable`, false); return; }
+      let allFit = true, allOver = true, any = false;
+      for (const p of o.payments) {
+        for (const [c, idx] of [['deposit', 0], ['balance', 1], ['tip', 2]] as const) {
+          const avail = p.available[c + '_cents'];
+          const amounts = [0, 0, 0];
+          if (avail > 0) {
+            any = true;
+            amounts[idx] = avail;
+            if (probe(orderId, p.id, amounts[0], amounts[1], amounts[2]) !== 'reserved') { allFit = false; console.error('  fit failed', label, p.id, c, avail); }
+          }
+          const over = [0, 0, 0];
+          over[idx] = avail + 1;
+          if (probe(orderId, p.id, over[0], over[1], over[2]) === 'reserved') { allOver = false; console.error('  over accepted', label, p.id, c, avail + 1); }
+        }
+      }
+      ok(`overview: ${label}: what is shown as available is accepted by the reservation, one cent more is refused`, allFit && allOver && (any || o.payments.every((p: any) => p.reason_unavailable !== null || p.remaining_total_cents === 0)));
+    };
+
+    {
+      const order = await newOrder();
+      const p = await addPay(order, { dep: 10000, bal: 3000, tip: 2000 });
+      const o = ovw(order);
+      eq('overview: a clean payment shows its components, nothing refunded or pending, and everything available', [o.payments.length, o.payments[0].refundable, o.payments[0].classified, o.payments[0].deposit_cents, o.payments[0].balance_cents, o.payments[0].tip_cents, [o.payments[0].available.deposit_cents, o.payments[0].available.balance_cents, o.payments[0].available.tip_cents], o.payments[0].remaining_total_cents, o.payments[0].reason_unavailable], [1, true, true, 10000, 3000, 2000, [10000, 3000, 2000], 15000, null]);
+      checkAgainstReservation('a clean payment', order);
+
+      const k1 = newKey();
+      await reserve(order, k1, [line(p.id, 4000, 0, 500)]);
+      await markSent(k1);
+      const o2 = ovw(order);
+      eq('overview: a pending allocated refund reduces availability but is shown as pending, not as refunded', [o2.payments[0].pending.deposit_cents, o2.payments[0].pending.tip_cents, o2.payments[0].refunded.deposit_cents, o2.payments[0].available.deposit_cents, o2.payments[0].available.tip_cents, o2.payments[0].remaining_total_cents], [4000, 500, 0, 6000, 1500, 10500]);
+      checkAgainstReservation('a pending refund', order);
+      const rid = (await rowsOf(k1))[0].id;
+      await event((await rowsOf(k1))[0].stripe_refund_id, p.pi, 4500, 'succeeded', rid);
+      const o3 = ovw(order);
+      eq('overview: once it succeeds it is refunded, no longer pending, and availability is unchanged', [o3.payments[0].refunded.deposit_cents, o3.payments[0].refunded.tip_cents, o3.payments[0].pending.deposit_cents, o3.payments[0].available.deposit_cents, o3.payments[0].available.tip_cents], [4000, 500, 0, 6000, 1500]);
+      checkAgainstReservation('a succeeded refund', order);
+      const k2 = newKey();
+      await reserve(order, k2, [line(p.id, 0, 3000, 0)]);
+      await markSent(k2);
+      await event((await rowsOf(k2))[0].stripe_refund_id, p.pi, 3000, 'failed', (await rowsOf(k2))[0].id);
+      const o4 = ovw(order);
+      eq('overview: a failed refund releases its availability', [o4.payments[0].available.balance_cents, o4.payments[0].pending.balance_cents, o4.payments[0].refunded.balance_cents], [3000, 0, 0]);
+      checkAgainstReservation('a failed refund', order);
+      eq('overview: the history lists every refund, newest first, with its split and status', [o4.refunds.length, o4.refunds[0].status, o4.refunds[0].balance_cents, o4.refunds[1].status, o4.refunds[1].deposit_cents], [2, 'failed', 3000, 'succeeded', 4000]);
+    }
+    {
+      const order = await newOrder();
+      const p = await addPay(order, { dep: 10000, tip: 2000 });
+      await addLegacyRefund(order, { amount: 5000, status: 'succeeded', payId: p.id, pi: p.pi });
+      const o = ovw(order);
+      eq('overview: an earlier refund with no breakdown is unknown history: only what is certainly still there is available', [o.payments[0].has_unclassified_history, [o.payments[0].available.deposit_cents, o.payments[0].available.balance_cents, o.payments[0].available.tip_cents], o.payments[0].remaining_total_cents, o.payments[0].refunded.unclassified_cents], [true, [5000, 0, 0], 7000, 5000]);
+      checkAgainstReservation('an unknown historical refund', order);
+      const hist = o.refunds[0];
+      eq('overview: ...and that refund is shown with no allocation', [hist.allocation_version, hist.deposit_cents, hist.tip_cents], [null, null, null]);
+    }
+    {
+      // the balance principal obeys the same unknown-history rule
+      const order = await newOrder();
+      const pb = await addPay(order, { bal: 4000, tip: 1000 });
+      await addLegacyRefund(order, { amount: 3000, status: 'succeeded', payId: pb.id, pi: pb.pi });
+      eq('overview: with an earlier refund of unknown composition, only the balance principal that is certainly left is available', ovw(order).payments[0].available.balance_cents, 1000);
+      checkAgainstReservation('an unknown historical refund on a balance payment', order);
+    }
+    {
+      const order = await newOrder();
+      const p1 = await addPay(order, { dep: 10000 });
+      await addPay(order, { tip: 3000 });
+      await addLegacyRefund(order, { amount: 1000, status: 'succeeded', ledger: null });
+      const o = ovw(order);
+      eq('overview: older unlinked refunds beside several refundable payments make every payment unavailable, with the reason', [o.payments.map((x: any) => x.reason_unavailable), o.payments.map((x: any) => x.available.deposit_cents + x.available.tip_cents)], [['history_ambiguous', 'history_ambiguous'], [0, 0]]);
+      checkAgainstReservation('unlinked history beside two payments', order);
+      void p1;
+      const single = await newOrder();
+      await addPay(single, { dep: 10000, tip: 2000 });
+      await addLegacyRefund(single, { amount: 4000, status: 'succeeded', ledger: null });
+      checkAgainstReservation('unlinked history beside one payment', single);
+      eq('overview: ...beside ONE payment it counts against that payment', ovw(single).payments[0].available.deposit_cents, 6000);
+    }
+    {
+      const order = await newOrder();
+      await addPay(order, { classified: false, amount: 5000 });
+      await addPay(order, { method: 'cash', bal: 5000 });
+      const o = ovw(order);
+      eq('overview: an unclassified card payment and a cash payment are listed with the reason, and nothing is available', [o.payments.map((x: any) => [x.refundable, x.classified, x.reason_unavailable, x.available.deposit_cents + x.available.balance_cents + x.available.tip_cents]).sort()], [[[false, true, 'not_refundable', 0], [true, false, 'unclassified', 0]].sort()]);
+      eq('overview: an order with no payments has an empty overview', ovw(await newOrder()).payments, []);
+    }
+    {
+      // two payments with different component distributions
+      const order = await newOrder();
+      const a = await addPay(order, { dep: 7000, tip: 1000 });
+      await addPay(order, { bal: 4000 });
+      await addPay(order, { tip: 500 });
+      checkAgainstReservation('three payments with different splits', order);
+      const k = newKey();
+      await reserve(order, k, [line(a.id, 1000, 0, 1000)]);
+      await markSent(k);
+      checkAgainstReservation('three payments, one partly refunded', order);
+    }
+    {
+      // operations: complete and verified, or not
+      const order = await newOrder();
+      const p1 = await addPay(order, { dep: 10000, tip: 2000 });
+      const p2 = await addPay(order, { bal: 4000 });
+      const key = newKey();
+      await reserve(order, key, [line(p1.id, 3000, 0, 500), line(p2.id, 0, 1000, 0)]);
+      const o = ovw(order);
+      const op = o.operations[0];
+      eq('overview: an allocated operation is one entry with all its rows, unfinished and verified', [o.operations.length, op.operation_key, op.kind, op.unfinished, op.verified, op.request_amount_cents, op.rows.length, op.rows.map((r: any) => r.operation_index)], [1, key, 'allocated', true, true, 4500, 2, [0, 1]]);
+      eq('overview: ...its rows carry the stored components and statuses', op.rows.map((r: any) => [r.deposit_cents, r.balance_cents, r.tip_cents, r.unclassified_cents, r.status, r.stripe_refund_id, r.provider_attempted]), (await rowsOf(key)).map((r: any) => [r.deposit_principal_refunded_cents, r.balance_principal_refunded_cents, r.tip_refunded_cents, 0, 'pending', null, false]));
+      // tampering is detected, never repaired
+      const tamper = async (sql: string, label: string) => {
+        const before = JSON.stringify(await rowsOf(key));
+        await pg.exec(sql);
+        const v = ovw(order).operations[0].verified;
+        await pg.exec(`UPDATE public.order_refunds SET status = 'pending' WHERE operation_key = '${key}';`);
+        return [label, v, before !== JSON.stringify(await rowsOf(key))];
+      };
+      const t1 = await tamper(`UPDATE public.order_refunds SET deposit_principal_refunded_cents = deposit_principal_refunded_cents + 1, unclassified_refunded_cents = 0, amount_cents = amount_cents + 1 WHERE operation_key = '${key}' AND operation_index = 0;`, 'a changed component');
+      eq('overview: an operation whose stored components no longer match its recorded identity is not verified', [t1[1]], [false]);
+      await pg.exec(`UPDATE public.order_refunds SET deposit_principal_refunded_cents = deposit_principal_refunded_cents - 1, amount_cents = amount_cents - 1 WHERE operation_key = '${key}' AND operation_index = 0;`);
+      eq('overview: ...and is verified again once restored', ovw(order).operations[0].verified, true);
+      const rowId = (await rowsOf(key))[1].id;
+      await pg.exec(`UPDATE public.order_refunds SET operation_index = 5 WHERE id = '${rowId}';`);
+      eq('overview: an operation with a missing index is not verified', ovw(order).operations[0].verified, false);
+      await pg.exec(`UPDATE public.order_refunds SET operation_index = 1 WHERE id = '${rowId}';`);
+      await pg.exec(`UPDATE public.order_refunds SET request_allocation = 'v1|total=4500|other' WHERE operation_key = '${key}';`);
+      eq('overview: an operation whose recorded identity is not the one its rows produce is not verified', ovw(order).operations[0].verified, false);
+      void t1;
+
+      // amount-only operation
+      const o2 = await newOrder();
+      await addPay(o2, { dep: 10000, tip: 2000 });
+      const k2 = newKey();
+      await oldReserve(o2, k2, 3000);
+      const op2 = ovw(o2).operations[0];
+      eq('overview: an amount-only operation is reported as such, verified, with no allocation', [op2.kind, op2.verified, op2.unfinished, op2.request_amount_cents, op2.rows[0].allocation_version], ['amount_only', true, true, 3000, null]);
+      await markSent(k2);
+      await event((await rowsOf(k2))[0].stripe_refund_id, null, 3000, 'succeeded', (await rowsOf(k2))[0].id);
+      eq('overview: a finished operation is no longer unfinished', ovw(o2).operations[0].unfinished, false);
+    }
+    {
+      const order = await newOrder();
+      await addPay(order, { dep: 1000 });
+      eq('overview: the service role can read it; anonymous cannot execute it', [typeof asRole('service_role', null, `public.order_refund_overview('${order}')::text`), asRole('anon', null, `public.order_refund_overview('${order}')::text`)], ['string', 'DENIED']);
+      eq('overview: a missing order and a NULL id give NULL', [asRole('service_role', null, `public.order_refund_overview('${nextId()}')::text`), asRole('service_role', null, 'public.order_refund_overview(NULL)::text')], ['NULL', 'NULL']);
+      const fn = (await pg.query(`SELECT prosecdef, provolatile, proconfig::text AS cfg FROM pg_proc WHERE proname = 'order_refund_overview' AND pronamespace = 'public'::regnamespace`))[0];
+      eq('overview: it is SECURITY INVOKER, STABLE, with a fixed search_path, and writes nothing', [fn.prosecdef, fn.provolatile, /search_path=public/.test(fn.cfg ?? '')], [false, 's', true]);
+      const src = fs.readFileSync(PAY_MIGRATION_7, 'utf8').replace(/\/\*[\s\S]*?\*\//g, '').replace(/--.*$/gm, '');
+      ok('static: the overview migration only creates the function and its grants', !/\b(INSERT\s+INTO|UPDATE\s|DELETE\s+FROM|DROP\s|ALTER\s)/i.test(src) && (src.match(/CREATE OR REPLACE FUNCTION/g) ?? []).length === 1);
+    }
   }
 
   // cleanup
