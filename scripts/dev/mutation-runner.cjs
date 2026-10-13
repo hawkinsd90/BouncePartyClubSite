@@ -37,6 +37,15 @@
 //   NO_CACHE=1         neither read nor write the result cache
 //   MUTATION_TEST_TIMEOUT_MS=<ms>   how long one test file may run before it is stopped (default 300000)
 //
+// Speed (measured on this machine; creating or dropping one scratch database takes 3-50 s, which used to be paid on every attempt):
+//   - each worker builds its pristine databases AHEAD of time, in the background, from a private template nothing connects to, and
+//     takes one that is already built (DB_SLOTS=<n>, default 3 per worker); the wait for one is shown by PROFILE=1 as dbwait;
+//   - database work never blocks the runner, so one worker waiting on PostgreSQL does not stall the others;
+//   - tests are ordered by (chance of killing) / (running time), learned from earlier runs and kept in the cache;
+//   - PROFILE=1 prints, per mutant, how long each test file ran and whether it killed.
+// MUT_NS=<name> runs a second runner beside the first: it gets its own worker databases, work folder, cache and lock. It needs its
+// own pay_base_<name>_<n> databases (for example: CREATE DATABASE pay_base_<name>_0 TEMPLATE role_full).
+//
 // What makes a KILL trustworthy:
 //   - every mutant runs in a PRISTINE worker database (dropped before each attempt), so a kill can never come from rows an earlier
 //     mutant, an earlier run or an earlier killed test left behind;
@@ -51,13 +60,16 @@ const path = require('path');
 const { spawn, spawnSync } = require('child_process');
 
 const ROOT = path.resolve(__dirname, '../..');
-const WORK = path.join(os.tmpdir(), 'mutwork');
+// MUT_NS=<name> gives this run its own worker databases, work folder, cache and lock (to measure beside another run).
+const NS = process.env.MUT_NS ? `${process.env.MUT_NS}_` : '';
+const WORK = path.join(os.tmpdir(), NS ? `mutwork_${NS}` : 'mutwork');
+const mutDb = (i) => `pay_mut_${NS}${i}`;
 const PRELOAD = path.join(__dirname, 'mutation-preload.cjs');
 const PSQL = process.env.PAY_DB_PSQL || (fs.existsSync('C:/Program Files/PostgreSQL/18/bin/psql.exe') ? 'C:/Program Files/PostgreSQL/18/bin/psql.exe' : 'psql');
 const DB_HOST = process.env.ROLE_DB_HOST || process.env.CORE_DB_HOST || '127.0.0.1';
 const DB_PORT = process.env.ROLE_DB_PORT || process.env.CORE_DB_PORT || '54329';
 
-const CACHE_DIR = path.join(ROOT, 'node_modules', '.cache', 'mutation');
+const CACHE_DIR = path.join(ROOT, 'node_modules', '.cache', NS ? `mutation_${NS}` : 'mutation');
 const sha = (x) => crypto.createHash('sha256').update(x).digest('hex');
 const readText = (rel) => { try { return fs.readFileSync(path.join(ROOT, rel), 'utf8'); } catch { return null; } };
 
@@ -121,12 +133,39 @@ function loadCache(spec) {
   return { data, save };
 }
 
-// Kill-map ordering: last killer of this mutant, then the usual killer of this file, then the given order.
+// Test order for one mutant: the test with the best chance of killing it PER SECOND OF RUNNING goes first. The chance comes from how
+// often a test killed mutants of this file before (the last test to kill THIS mutant counts as a near certainty), the cost from how
+// long it ran. A cheap test that kills now and then runs before a slow test that kills slightly more often; with no history the order
+// given by the mutant file is kept. Order never changes a verdict, only how soon the kill comes.
+const DEFAULT_TEST_MS = 30000;
 function orderTests(cache, file, name, tests) {
+  const stats = cache.data.testStats || {};
+  const fileStats = stats[file] || {};
   const last = cache.data.killers[file + '|' + name];
-  const counts = cache.data.fileKillers[file] || {};
-  const rank = (t) => (t === last ? -1 : -(counts[t] || 0));
-  return tests.map((t, i) => [t, i]).sort((a, b) => rank(a[0]) - rank(b[0]) || a[1] - b[1]).map((x) => x[0]);
+  const anywhere = (t) => {
+    let ms = 0;
+    let n = 0;
+    for (const perFile of Object.values(stats)) if (perFile[t] && perFile[t].runs) { ms += perFile[t].ms; n += perFile[t].runs; }
+    return n ? ms / n : null;
+  };
+  const score = (t) => {
+    const x = fileStats[t];
+    const p = t === last ? 0.9 : x && x.runs ? (x.kills + 1) / (x.runs + 2) : 0.5;
+    const ms = Math.max(500, x && x.runs ? x.ms / x.runs : anywhere(t) ?? DEFAULT_TEST_MS);
+    return p / ms;
+  };
+  return tests.map((t, i) => [t, i, score(t)]).sort((x, y) => y[2] - x[2] || x[1] - y[1]).map((x) => x[0]);
+}
+
+function recordTimings(cache, file, timings) {
+  const perFile = ((cache.data.testStats = cache.data.testStats || {})[file] = (cache.data.testStats || {})[file] || {});
+  for (const x of timings || []) {
+    if (x.error) continue; // a timed-out or crashed test says nothing about cost
+    const e = (perFile[x.test] = perFile[x.test] || { runs: 0, kills: 0, ms: 0 });
+    e.runs++;
+    e.ms += x.ms;
+    if (x.killed) e.kills++;
+  }
 }
 
 function changedFiles() {
@@ -149,6 +188,27 @@ function sync(dest) {
 const dropDb = (name) =>
   spawnSync(PSQL, ['-h', DB_HOST, '-p', DB_PORT, '-U', 'postgres', '-d', 'postgres', '-X', '-q', '-c', `DROP DATABASE IF EXISTS ${name}`], { encoding: 'utf8' });
 
+// Creating or dropping a scratch database takes seconds (3-50 s measured on this machine) and every attempt needs a pristine one. So the
+// next pristine database is built in the background while the current attempt runs, from a private template nothing connects to
+// (a test connects to its pay_base_N database, and a database cannot be copied while someone is connected to it).
+const psqlAsync = (sql) =>
+  new Promise((resolve) => {
+    const p = spawn(PSQL, ['-h', DB_HOST, '-p', DB_PORT, '-U', 'postgres', '-d', 'postgres', '-X', '-q', '-c', sql], { stdio: 'ignore' });
+    p.on('error', () => resolve(1));
+    p.on('close', (code) => resolve(code));
+  });
+const dropDbAsync = (name) => psqlAsync(`DROP DATABASE IF EXISTS ${name}`);
+const createDbAsync = (name, template) => psqlAsync(`CREATE DATABASE ${name} TEMPLATE ${template}`);
+
+// Only a test that goes through the payment harness (or names PAY_DB_FULL) uses the worker database; the others need none prepared.
+const usesFullDbMemo = new Map();
+function usesFullDb(testRel) {
+  if (!usesFullDbMemo.has(testRel)) {
+    usesFullDbMemo.set(testRel, [...closureOf(testRel)].some((rel) => /ensurePayDatabase|PAY_DB_FULL/.test(readText(rel) || '')));
+  }
+  return usesFullDbMemo.get(testRel);
+}
+
 const TEST_TIMEOUT_MS = Number(process.env.MUTATION_TEST_TIMEOUT_MS) || 300000;
 // Output that means the ENVIRONMENT failed, not that a mutant was caught.
 const INFRA_OUTPUT = /ECONNREFUSED|could not connect to server|connection to server at .* failed|Connection refused|ENOSPC|No space left on device|EMFILE|too many connections|spawn .* ENOENT|(role|database) "[^"]+" does not exist/i;
@@ -165,13 +225,13 @@ function judge(code, signal, timedOut, stderr) {
   return { killed: true };
 }
 
-function runTests(cwd, tests, idx, fast) {
+function runTests(cwd, tests, idx, fast, dbFull) {
   const env = {
     ...process.env,
     MUTATION_FAILFAST: '1',
     ...(fast ? { MUTATION_SKIP_CONCURRENT: '1' } : {}),
-    PAY_DB_BASE: `pay_base_${idx}`,
-    PAY_DB_FULL: `pay_mut_${idx}`,
+    PAY_DB_BASE: `pay_base_${NS}${idx}`,
+    PAY_DB_FULL: dbFull || mutDb(idx),
     ROLE_DB_REQUIRE: '1',
     CORE_DB_NAME: 'clean_new',
     CORE_DB_PORT: DB_PORT,
@@ -181,9 +241,11 @@ function runTests(cwd, tests, idx, fast) {
   return new Promise((resolve) => {
     let stderr = '';
     let i = 0;
+    const timings = [];
     const next = () => {
-      if (i >= tests.length) return resolve({ killed: false, stderr });
+      if (i >= tests.length) return resolve({ killed: false, stderr, timings });
       const t = tests[i++];
+      const tStart = Date.now();
       const p = spawn('node', ['--require', PRELOAD, 'node_modules/jiti/bin/jiti.js', t], { cwd, env });
       let timedOut = false;
       let settled = false;
@@ -194,9 +256,11 @@ function runTests(cwd, tests, idx, fast) {
         if (settled) return;
         settled = true;
         clearTimeout(timer);
-        if (code === 0 && !signal && !timedOut) return next();
+        const ms = Date.now() - tStart;
+        if (code === 0 && !signal && !timedOut) { timings.push({ test: t, ms, killed: false, fast }); return next(); }
         const v = judge(code, signal, timedOut, stderr);
-        resolve({ ...v, stderr, test: t });
+        timings.push({ test: t, ms, killed: !!v.killed, error: !!v.error, fast });
+        resolve({ ...v, stderr, test: t, timings });
       };
       p.on('error', (e) => { stderr += `\nSPAWN ERROR ${e.message}`; finish(1, null); });
       p.on('close', finish);
@@ -251,7 +315,7 @@ exports.runMutants = async function runMutants({ M, tests, spec = 'mutants' }) {
   if (todo.length) {
     // The worker databases have fixed names, so two runners at once would drop and fill each other's databases and every verdict
     // would be debris. Refuse to start beside another runner of this tool.
-    const lock = path.join(require('os').tmpdir(), 'bpc-mutation-runner.lock');
+    const lock = path.join(require('os').tmpdir(), NS ? `bpc-mutation-runner-${NS}.lock` : 'bpc-mutation-runner.lock');
     let other = 0;
     try { other = Number(fs.readFileSync(lock, 'utf8')); } catch { /* no lock */ }
     if (other && other !== process.pid) {
@@ -275,7 +339,7 @@ exports.runMutants = async function runMutants({ M, tests, spec = 'mutants' }) {
   if (todo.length && !process.env.SKIP_BASELINE && !process.env.NO_CACHE && cache.data.baseline === baselineKey) {
     console.log('baseline reused (no input changed since it last passed)');
   } else if (todo.length && !process.env.SKIP_BASELINE) {
-    dropDb('pay_mut_0');
+    dropDb(mutDb(0));
     const base = await runTests(dirs[0], baselineTests, 0);
     if (base.killed || base.error) {
       console.log('BASELINE FAILS in ' + base.test + (base.error ? '\n' + base.error : '') + '\n' + base.stderr.split('\n').filter((l) => /^FAIL/.test(l)).slice(0, 8).join('\n'));
@@ -287,7 +351,21 @@ exports.runMutants = async function runMutants({ M, tests, spec = 'mutants' }) {
   console.log(`baseline ok; ${todo.length} mutants on ${used} worker(s)`);
   // Whatever an earlier run, a killed test or a skipped baseline left in the worker databases is gone before the first mutant; each
   // mutant then gets its own pristine database below.
-  for (let i = 0; i < used; i++) dropDb(`pay_mut_${i}`);
+  for (let i = 0; i < used; i++) dropDb(mutDb(i));
+
+  // Per worker: a private template (a copy of its pay_base database, made while nothing is connected) and DB_SLOTS (default 3) rotating databases.
+  // An attempt takes one that is already built; as soon as it ends that one is dropped and rebuilt in the background.
+  const SLOTS = Math.max(2, Number(process.env.DB_SLOTS) || 3);
+  const pools = dirs.map((_, i) => ({ tmpl: `${mutDb(i)}_t`, slots: Array.from({ length: SLOTS }, (__, k) => `${mutDb(i)}_${k}`), ready: Array.from({ length: SLOTS }, () => Promise.resolve()), next: 0 }));
+  if (todo.some(({ m }) => testsFor(m[0]).some(usesFullDb))) {
+    await Promise.all(
+      pools.map(async (p, i) => {
+        await dropDbAsync(p.tmpl);
+        await createDbAsync(p.tmpl, `pay_base_${NS}${i}`);
+        p.ready = p.slots.map((slot) => dropDbAsync(slot).then(() => createDbAsync(slot, p.tmpl)));
+      }),
+    );
+  }
 
   const fastPass = process.env.FAST_PASS !== '0';
   let cursor = 0;
@@ -309,14 +387,31 @@ exports.runMutants = async function runMutants({ M, tests, spec = 'mutants' }) {
       // would hand its rows to the next mutant (and a schema mutant's schema too); a kill must come from the check that guards the
       // property, never from debris. Creating the database costs seconds; the tests then create it from the unmutated template.
       const ordered = orderTests(cache, file, name, testsFor(file));
-      dropDb(`pay_mut_${idx}`);
-      let r = await runTests(dir, ordered, idx, fastPass);
+      const usesDb = testsFor(file).some(usesFullDb);
+      let waitMs = 0;
+      const pool = pools[idx];
+      const acquire = async () => {
+        if (!usesDb) return { name: mutDb(idx), release: () => {} };
+        const k = pool.next++ % SLOTS;
+        const w0 = Date.now();
+        await pool.ready[k];
+        waitMs += Date.now() - w0;
+        return { name: pool.slots[k], release: () => { pool.ready[k] = dropDbAsync(pool.slots[k]).then(() => createDbAsync(pool.slots[k], pool.tmpl)); } };
+      };
+      let db = await acquire();
+      let r = await runTests(dir, ordered, idx, fastPass, db.name);
+      db.release();
       // A mutant is only SURVIVED after a complete attempt: the fast first pass skips the slow concurrent section, so retry in full.
       if (fastPass && !r.killed && !r.error) {
-        dropDb(`pay_mut_${idx}`);
-        r = await runTests(dir, ordered, idx, false);
+        const first = r;
+        db = await acquire();
+        r = await runTests(dir, ordered, idx, false, db.name);
+        db.release();
+        r.timings = [...(first.timings || []), ...(r.timings || [])];
       }
       fs.writeFileSync(target, originals[file]);
+      recordTimings(cache, file, r.timings);
+      if (process.env.PROFILE) console.log(`PROFILE ${Math.round((Date.now() - t0) / 1000)}s dbwait=${waitMs}ms ${name.slice(0, 50)} | ${(r.timings || []).map((x) => `${path.basename(x.test)} ${(x.ms / 1000).toFixed(1)}s${x.killed ? ' KILL' : x.error ? ' ERR' : ''}${x.fast ? ' fast' : ''}`).join(' ; ')}`);
       const first = r.stderr.split('\n').find((l) => /^FAIL/.test(l)) || '';
       if (r.error) {
         // An error is neither a kill nor a survivor and is never cached.
@@ -324,6 +419,7 @@ exports.runMutants = async function runMutants({ M, tests, spec = 'mutants' }) {
         continue;
       }
       results[index] = { name, status: r.killed ? 'KILLED' : 'SURVIVED', detail: first.slice(0, 110), seconds: Math.round((Date.now() - t0) / 1000), file, test: r.test };
+      cache.save();
       if (r.killed) {
         cache.data.entries[keyOf({ m })] = { status: 'KILLED', detail: first.slice(0, 110), test: r.test };
         cache.data.killers[file + '|' + name] = r.test;
@@ -335,7 +431,13 @@ exports.runMutants = async function runMutants({ M, tests, spec = 'mutants' }) {
   };
   await Promise.all(dirs.map((d, i) => worker(d, i)));
 
-  for (let i = 0; i < used; i++) dropDb(`pay_mut_${i}`);
+  await Promise.all(
+    pools.map(async (p) => {
+      await Promise.all(p.ready);
+      for (const name of [...p.slots, p.tmpl]) await dropDbAsync(name);
+    }),
+  );
+  for (let i = 0; i < used; i++) dropDb(mutDb(i));
   let survivors = 0;
   let errors = 0;
   const killers = new Map();

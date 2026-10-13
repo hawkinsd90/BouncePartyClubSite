@@ -4,6 +4,7 @@
 //   node scripts/dev/verify.cjs --no-mutants static checks and tests only
 //   NO_CACHE=1 node scripts/dev/verify.cjs   the final run before a commit: ignore the mutation result cache
 //   CHANGED=1  node scripts/dev/verify.cjs   while developing: only mutants touched by the current diff
+//   PARALLEL=n node scripts/dev/verify.cjs   how many database-free test files run at once (default 6; 1 = strictly serial)
 //
 // Typecheck, lint and build never touch the scratch databases, so they run alongside the database-backed chain. The tests and the
 // two mutation suites share scratch databases and the same source copies, so they stay strictly one after another.
@@ -19,12 +20,12 @@ fs.mkdirSync(LOGS, { recursive: true });
 const withMutants = !process.argv.includes('--no-mutants');
 const npm = process.platform === 'win32' ? 'npm.cmd' : 'npm';
 
-function step(name, cmd, args) {
+function step(name, cmd, args, env = process.env) {
   const log = path.join(LOGS, `${name}.log`);
   const t0 = Date.now();
   return new Promise((resolve) => {
     const out = fs.openSync(log, 'w');
-    const p = spawn(cmd, args, { cwd: ROOT, stdio: ['ignore', out, out], shell: process.platform === 'win32' });
+    const p = spawn(cmd, args, { cwd: ROOT, env, stdio: ['ignore', out, out], shell: process.platform === 'win32' });
     p.on('close', (code) => {
       fs.closeSync(out);
       const seconds = Math.round((Date.now() - t0) / 1000);
@@ -42,7 +43,8 @@ function step(name, cmd, args) {
     step('build', npm, ['run', 'build']),
   ]);
   const chain = (async () => {
-    const results = [await step('tests', 'node', ['scripts/dev/run-tests.cjs'])];
+    // The test files that touch no scratch database run six at a time (PARALLEL=1 for strictly serial); the database tests stay serial.
+    const results = [await step('tests', 'node', ['scripts/dev/run-tests.cjs'], { ...process.env, PARALLEL: process.env.PARALLEL || '6' })];
     if (withMutants) {
       results.push(await step('payment-mutants', 'node', ['scripts/dev/mutation-runner.cjs', 'scripts/dev/payment-mutants.cjs']));
       results.push(await step('pricing-mutants', 'node', ['scripts/dev/mutation-runner.cjs', 'scripts/dev/pricing-mutants.cjs']));
