@@ -58,7 +58,11 @@ Deno.serve(async (req: Request) => {
 
     const result = await runRefundOperation(
       { db, stripe },
-      { orderId: body.orderId, operationKey: body.operationKey, amountCents: body.amountCents, reason: body.reason, actorId: gate.userId },
+      {
+        orderId: body.orderId, operationKey: body.operationKey, amountCents: body.amountCents, reason: body.reason, actorId: gate.userId,
+        // Present only for an allocation-aware request; the actor is always the verified caller, never a value from the body.
+        ...(Object.prototype.hasOwnProperty.call(body, "allocations") ? { allocations: body.allocations } : {}),
+      },
     );
     return respond(result.status, result.body);
   } catch (error: unknown) {

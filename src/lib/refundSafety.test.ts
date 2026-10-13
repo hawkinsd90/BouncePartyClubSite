@@ -23,7 +23,7 @@ declare const require: (id: string) => any;
 
 import * as authHelpers from '../../supabase/functions/_shared/auth';
 import * as refundOps from '../../supabase/functions/_shared/refund-operations';
-import { PgPool, ensurePayDatabase, makeWorld, makeClient, loadHandler, loadModule, callHandler, type World } from './paymentHarness';
+import { PgPool, ensurePayDatabase, psqlArgs, makeWorld, makeClient, loadHandler, loadModule, callHandler, SERVICE_KEY, type World } from './paymentHarness';
 import { classifyRefundResponse, refundAttemptFor } from './refundOperationKey';
 
 let passed = 0;
@@ -1006,6 +1006,408 @@ const newKey = (label = 'op') => `${label}-${TAG}-${String(++keyCounter).padStar
     ok('wiring: order approval and rejection no longer write payment rows or payment-state flags from the browser', !/from\('payments'\)\s*\.(update|insert|upsert|delete)/.test(approval) && !/stripe_payment_status\s*:/.test(approval));
     const lifecycle = read('supabase/functions/order-lifecycle/index.ts');
     ok('wiring: the waived-deposit marker is written by the lifecycle function for a trusted admin approval only', /trustedCaller && requestedOutcome === "waived" && source === "admin_approve_zero_deposit" && depositDue === 0/.test(lifecycle));
+  }
+
+  // =================================================================================================================
+  // 13. Allocation-aware refunds through the real function: deposit / balance / tip chosen per original payment
+  // =================================================================================================================
+  {
+    const { spawnSync } = require('child_process');
+    const NLC = String.fromCharCode(10);
+    // order_net_financials as the service role (the payment scratch database has no default table grants, so they are granted inside a rolled-back transaction)
+    const netOf = (orderId: string): any => {
+      const script = `BEGIN;${NLC}GRANT SELECT ON public.payments, public.order_refunds, public.orders TO service_role;${NLC}SET LOCAL ROLE service_role;${NLC}SELECT 'R|' || public.order_net_financials('${orderId}')::text;${NLC}ROLLBACK;`;
+      const pr = spawnSync(db.psql, [...psqlArgs(db.db)], { input: script, encoding: 'utf8' });
+      const line = String(pr.stdout ?? '').split(NLC).find((l: string) => l.startsWith('R|'));
+      try { return JSON.parse((line ?? '').slice(2).trim()); } catch { return null; }
+    };
+    // An order whose card payments carry their recorded deposit / balance / tip split. Payment ids ascend, and the reservation orders the
+    // lines by payment id, so the first payment is the first provider request.
+    async function newAllocCase(parts: Array<{ dep?: number; bal?: number; tip?: number }>): Promise<Case> {
+      const w = makeWorld(pg);
+      w.users = { 'jwt-admin': ADMIN, 'jwt-master': MASTER, 'jwt-crew': CREW, 'jwt-cust': CUST };
+      w.tables.user_roles = [{ user_id: MASTER, role: 'master' }, { user_id: ADMIN, role: 'admin' }, { user_id: CREW, role: 'crew' }, { user_id: CUST, role: 'customer' }];
+      const orderId = nextId();
+      createdOrders.push(orderId);
+      await pg.exec(`INSERT INTO public.orders (id, status, location_type, event_date, event_end_date, start_window, end_window, pickup_preference, subtotal_cents, deposit_due_cents, balance_due_cents, deposit_paid_cents, balance_paid_cents, tip_cents, stripe_payment_status)
+        VALUES ('${orderId}', 'confirmed', 'residential', '2030-06-01', '2030-06-01', '10:00', '12:00', 'next_day', 60000, 25661, 34339, 25661, 0, 5132, 'paid');`);
+      const pis: string[] = [];
+      const payIds: string[] = [];
+      for (const part of parts) {
+        const dep = part.dep ?? 0, bal = part.bal ?? 0, tip = part.tip ?? 0;
+        const amount = dep + bal + tip;
+        const pi = w.stripe.addSucceededPaymentIntent(amount);
+        const id = nextId();
+        pis.push(pi.id);
+        payIds.push(id);
+        await pg.exec(`INSERT INTO public.payments (id, order_id, type, amount_cents, status, stripe_payment_intent_id, paid_at, payment_method, payment_brand, principal_amount_cents, tip_amount_cents, deposit_principal_cents, balance_principal_cents, order_financials_applied)
+          VALUES ('${id}', '${orderId}', '${dep > 0 ? 'deposit' : 'balance'}', ${amount}, 'succeeded', '${pi.id}', now(), 'card', 'visa', ${dep + bal}, ${tip}, ${dep}, ${bal}, true);`);
+      }
+      return { w, orderId, pis, payIds };
+    }
+    const L = (paymentId: string, d: number, b: number, t: number) => ({ paymentId, depositPrincipalCents: d, balancePrincipalCents: b, tipCents: t });
+    const allocCall = (c: Case, key: string, allocations: unknown, extra: Record<string, unknown> = {}, bearer: string | null = 'jwt-admin') => refundCall(c, { operationKey: key, allocations, ...extra }, bearer);
+    const names = (c: Case) => c.w.rpcCalls.map((x) => x.name);
+    const OPERATIONAL = ['deposit_due_cents', 'deposit_paid_cents', 'balance_due_cents', 'balance_paid_cents', 'tip_cents', 'stripe_payment_status', 'status'];
+    const opFields = async (id: string) => { const o = await orderRow(id); return OPERATIONAL.map((k) => o[k]); };
+    const sortedIds = (c: Case) => [...c.payIds].sort();
+    const compsOf = (rows: any[]) => rows.map((x: any) => [x.deposit_principal_refunded_cents, x.balance_principal_refunded_cents, x.tip_refunded_cents, x.unclassified_refunded_cents, x.allocation_version]);
+
+    // ---- routing and request validation
+    {
+      const c = await newAllocCase([{ dep: 25661, tip: 5132 }]);
+      const pay = c.payIds[0];
+      const r1 = await refundCall(c, { amountCents: 1000, operationKey: newKey() });
+      eq('routing: an amount-only request uses the amount-only reservation only', [r1.status, names(c).includes('reserve_refund_operation'), names(c).includes('reserve_refund_allocation')], [200, true, false]);
+      const c2 = await newAllocCase([{ dep: 25661, tip: 5132 }]);
+      const r2 = await allocCall(c2, newKey(), [L(c2.payIds[0], 7500, 0, 2500)], { amountCents: 10000 });
+      eq('routing: an allocation-aware request uses the allocation reservation only', [r2.status, names(c2).includes('reserve_refund_allocation'), names(c2).includes('reserve_refund_operation')], [200, true, false]);
+      void pay;
+      const c3 = await newAllocCase([{ dep: 5000, tip: 1000 }]);
+      const p3 = c3.payIds[0];
+      const bad: Array<[string, unknown, Record<string, unknown>, string]> = [
+        ['an empty allocation list with an amount (mixed mode)', [], { amountCents: 1000 }, 'allocations_required'],
+        ['allocations that are not a list', 'x', {}, 'allocations_required'],
+        ['allocations that are null', null, { amountCents: 1000 }, 'allocations_required'],
+        ['a line that is not an object', [5], {}, 'line_not_an_object'],
+        ['a missing component', [{ paymentId: p3, depositPrincipalCents: 100, tipCents: 0 }], {}, 'component_missing'],
+        ['a component sent as text', [{ ...L(p3, 100, 0, 0), tipCents: '5' }], {}, 'component_missing'],
+        ['a negative component', [L(p3, -1, 0, 100)], {}, 'component_negative'],
+        ['a fractional component', [{ ...L(p3, 100, 0, 0), balancePrincipalCents: 0.5 }], {}, 'component_fractional'],
+        ['an invalid payment id', [L('not-a-uuid', 100, 0, 0)], {}, 'payment_id_invalid'],
+        ['the same payment twice', [L(p3, 100, 0, 0), L(p3, 0, 0, 100)], {}, 'duplicate_payment'],
+        ['the same payment twice in different letter case', [L(p3, 100, 0, 0), L(p3.toUpperCase(), 0, 0, 100)], {}, 'duplicate_payment'],
+        ['an unknown field', [{ ...L(p3, 100, 0, 0), note: 'x' }], {}, 'unknown_field'],
+        ['a zero line', [L(p3, 0, 0, 0)], {}, 'zero_line'],
+        ['more than the maximum number of lines', Array.from({ length: 21 }, () => L(p3, 1, 0, 0)), {}, 'allocations_required'],
+        ['a declared amount that is not a number', [L(p3, 100, 0, 0)], { amountCents: '100' }, 'declared_total_invalid'],
+      ];
+      for (const [label, alloc, extra, detail] of bad) {
+        const r = await allocCall(c3, newKey(), alloc, extra);
+        eq(`validation: ${label} is refused before the database or Stripe is contacted`, [r.status, r.json?.code, r.json?.detail], [400, 'INVALID_ALLOCATION', detail]);
+      }
+      const mism = await allocCall(c3, newKey(), [L(p3, 100, 0, 100)], { amountCents: 150 });
+      eq('validation: a declared total that disagrees with the allocations is refused', [mism.status, mism.json?.code], [400, 'ALLOCATION_TOTAL_MISMATCH']);
+      eq('validation: ...none of them reached a reservation function or Stripe', [names(c3).filter((n) => n.startsWith('reserve_')).length, c3.w.stripe.calls.length, (await refundRows(c3.orderId)).length], [0, 0, 0]);
+    }
+
+    // ---- Stripe execution from the reserved rows
+    {
+      const kinds: Array<[string, { dep?: number; bal?: number; tip?: number }, [number, number, number]]> = [
+        ['deposit principal only', { dep: 25661, bal: 10000, tip: 5132 }, [5000, 0, 0]],
+        ['tip only', { dep: 25661, bal: 10000, tip: 5132 }, [0, 0, 3000]],
+        ['deposit principal + tip', { dep: 25661, bal: 10000, tip: 5132 }, [7500, 0, 2500]],
+        ['balance principal + tip', { dep: 25661, bal: 10000, tip: 5132 }, [0, 4000, 1500]],
+      ];
+      for (const [label, parts, [d, b, t]] of kinds) {
+        const c = await newAllocCase([parts]);
+        const key = newKey();
+        const r = await allocCall(c, key, [L(c.payIds[0], d, b, t)]);
+        const rows = await refundRows(c.orderId);
+        eq(`stripe: ${label}: one Stripe refund for the reserved amount on the original PaymentIntent, with the row's idempotency key and metadata`, [r.status, r.json?.status, creates(c).map((x) => [x.params.amount, x.params.payment_intent, x.key, x.params.metadata.bpc_refund_id === rows[0].id])], [200, 'succeeded', [[d + b + t, c.pis[0], `refund:${key}:0`, true]]]);
+        eq(`stripe: ${label}: the row carries exactly the allocation and it is settled`, [compsOf(rows), rows.map((x: any) => x.status), rows.map((x: any) => x.ledger_version)], [[[d, b, t, 0, 1]], ['succeeded'], [2]]);
+      }
+      // several original payments
+      const c = await newAllocCase([{ dep: 25661, tip: 5132 }, { bal: 10000 }, { tip: 3000 }]);
+      const key = newKey();
+      const [p1, p2, p3] = c.payIds;
+      const r = await allocCall(c, key, [L(p3, 0, 0, 3000), L(p1, 7500, 0, 2500), L(p2, 0, 4000, 0)], { amountCents: 17000 });
+      eq('stripe: three original payments: one Stripe refund per payment, each on its own PaymentIntent for its own amount', [r.status, r.json?.requestedCents, r.json?.succeededCents, [...creates(c).map((x) => [x.params.payment_intent, x.params.amount])].sort()], [200, 17000, 17000, [[c.pis[0], 10000], [c.pis[1], 4000], [c.pis[2], 3000]].sort()]);
+      eq('stripe: ...with stable keys by operation index, and the response states each line', [creates(c).map((x) => x.key), r.json?.refunds?.map((x: any) => [x.paymentId, x.depositPrincipalCents, x.balancePrincipalCents, x.tipCents])], [[0, 1, 2].map((i) => `refund:${key}:${i}`), (await refundRows(c.orderId)).map((x: any) => [x.payment_id, x.deposit_principal_refunded_cents, x.balance_principal_refunded_cents, x.tip_refunded_cents])]);
+      void p1; void p2; void p3;
+    }
+    {
+      // a refused reservation contacts nobody
+      const c = await newAllocCase([{ dep: 5000, tip: 1000 }]);
+      const r = await allocCall(c, newKey(), [L(c.payIds[0], 5001, 0, 0)]);
+      eq('stripe: a request over a payment\'s capacity is refused with the component named and zero Stripe calls', [r.status, r.json?.code, r.json?.remainingCents, c.w.stripe.calls.length, (await refundRows(c.orderId)).length], [400, 'DEPOSIT_CAPACITY_EXCEEDED', 5000, 0, 0]);
+      const t = await allocCall(c, newKey(), [L(c.payIds[0], 0, 0, 1001)]);
+      eq('stripe: ...a tip over the payment\'s tip', [t.status, t.json?.code, t.json?.remainingCents], [400, 'TIP_CAPACITY_EXCEEDED', 1000]);
+      const b = await allocCall(c, newKey(), [L(c.payIds[0], 0, 1, 0)]);
+      eq('stripe: ...balance principal the payment never had', [b.status, b.json?.code], [400, 'BALANCE_CAPACITY_EXCEEDED']);
+      const tot = await allocCall(c, newKey(), [L(c.payIds[0], 5000, 0, 1001)]);
+      eq('stripe: ...and a total over the payment', [tot.status, tot.json?.code, tot.json?.maxRefundableCents], [400, 'EXCEEDS_REFUNDABLE', 6000]);
+      const other = await newAllocCase([{ dep: 5000 }]);
+      const wrong = await allocCall(c, newKey(), [L(other.payIds[0], 100, 0, 0)]);
+      eq('stripe: a payment of another order is refused', [wrong.status, wrong.json?.code], [400, 'PAYMENT_NOT_ON_ORDER']);
+      const nf = await allocCall(c, newKey(), [L(nextId(), 100, 0, 0)]);
+      eq('stripe: a payment that does not exist is refused', [nf.status, nf.json?.code], [404, 'PAYMENT_NOT_FOUND']);
+      const pendPay = nextId();
+      await pg.exec(`INSERT INTO public.payments (id, order_id, type, amount_cents, status, stripe_payment_intent_id, payment_method, principal_amount_cents, tip_amount_cents, deposit_principal_cents, balance_principal_cents) VALUES ('${pendPay}', '${c.orderId}', 'deposit', 500, 'pending', 'pi_alloc_pend_${TAG}', 'card', 500, 0, 500, 0);`);
+      ok('fixture: the pending payment row exists', (await pg.query(`SELECT 1 AS x FROM public.payments WHERE id = '${pendPay}'`)).length === 1);
+      const pr = await allocCall(c, newKey(), [L(pendPay, 100, 0, 0)]);
+      eq('stripe: a payment that has not succeeded is refused', [pr.status, pr.json?.code], [409, 'PAYMENT_NOT_SUCCEEDED']);
+      const uncPay = nextId();
+      await pg.exec(`INSERT INTO public.payments (id, order_id, type, amount_cents, status, stripe_payment_intent_id, payment_method) VALUES ('${uncPay}', '${c.orderId}', 'deposit', 500, 'succeeded', 'pi_alloc_unc_${TAG}', 'card');`);
+      ok('fixture: the unclassified payment row exists', (await pg.query(`SELECT 1 AS x FROM public.payments WHERE id = '${uncPay}'`)).length === 1);
+      const ur = await allocCall(c, newKey(), [L(uncPay, 100, 0, 0)]);
+      eq('stripe: a payment with no recorded split is refused', [ur.status, ur.json?.code], [409, 'PAYMENT_UNCLASSIFIED']);
+      eq('stripe: none of those refusals contacted Stripe or left a row', [c.w.stripe.calls.length, (await refundRows(c.orderId)).length], [0, 0]);
+      c.w.failRpc['reserve_refund_allocation'] = { error: { message: 'permission denied for function reserve_refund_allocation', code: '42501' }, times: 1 };
+      const denied = await allocCall(c, newKey(), [L(c.payIds[0], 100, 0, 0)]);
+      eq('stripe: a database permission failure on the reservation stops everything before Stripe', [denied.status, denied.json?.code, c.w.stripe.calls.length, (await refundRows(c.orderId)).length], [500, 'REFUND_RESERVATION_FAILED', 0, 0]);
+      c.w.failRpc['reserve_refund_allocation'] = { error: null, times: 0 };
+    }
+    {
+      // A reservation answer that is incomplete, or does not match EXACTLY what was asked for each payment, fails closed BEFORE any
+      // provider request or attempt marker: the database is the authority, and this is a second barrier between it and Stripe.
+      const key = newKey();
+      const [p1, p2] = [nextId(), nextId()].sort();
+      const oid = nextId();
+      const row = (i: number, pid: string, d: number, b: number, t: number, over: Record<string, unknown> = {}) => ({
+        id: nextId(), operation_index: i, payment_id: pid, stripe_payment_intent_id: `pi_direct_${i}`, amount_cents: d + b + t, status: 'pending', stripe_refund_id: null,
+        provider_idempotency_key: `refund:${key}:${i}`, provider_attempted_at: null, allocation_version: 1,
+        deposit_principal_refunded_cents: d, balance_principal_refunded_cents: b, tip_refunded_cents: t, unclassified_refunded_cents: 0, created_at: new Date().toISOString(), ...over,
+      });
+      // the canonical identity the database records: total, then the lines sorted by payment id
+      const canon = (ls: Array<{ paymentId: string; depositPrincipalCents: number; balancePrincipalCents: number; tipCents: number }>) => {
+        const sorted = [...ls].sort((x, y) => (x.paymentId < y.paymentId ? -1 : 1));
+        return `v1|total=${sorted.reduce((acc, l) => acc + l.depositPrincipalCents + l.balancePrincipalCents + l.tipCents, 0)}|${sorted.map((l) => `${l.paymentId}:${l.depositPrincipalCents}:${l.balancePrincipalCents}:${l.tipCents}`).join('|')}`;
+      };
+      const lines = [L(p1, 100, 0, 50), L(p2, 0, 40, 0)];
+      const SIG = canon(lines);
+      const run = async (answer: any, sent: unknown = lines) => {
+        const calls: string[] = [];
+        const db = { rpc: async (name: string) => { calls.push(name); return { data: name === 'reserve_refund_allocation' ? answer : null, error: null }; } };
+        const stripe = { refunds: { create: async () => { calls.push('stripe.create'); throw new Error('must not be called'); }, list: async () => { calls.push('stripe.list'); return { data: [], has_more: false }; }, retrieve: async () => { calls.push('stripe.retrieve'); return {}; } } };
+        const res = await refundOps.runRefundOperation({ db, stripe }, { orderId: oid, operationKey: key, amountCents: undefined, reason: 'x', actorId: ADMIN, allocations: sent });
+        return { res, calls };
+      };
+      const good = [row(0, p1, 100, 0, 50), row(1, p2, 0, 40, 0)];
+      const reserved = (refunds: any[], request_allocation: unknown = SIG) => ({ outcome: 'reserved', request_allocation, refunds });
+      const cases: Array<[string, any]> = [
+        ['a row without a PaymentIntent', reserved([{ ...good[0], stripe_payment_intent_id: null }, good[1]])],
+        ['a row with another idempotency key', reserved([{ ...good[0], provider_idempotency_key: 'refund:other:0' }, good[1]])],
+        ['a row for a payment that was not requested', reserved([good[0], row(1, nextId(), 0, 40, 0)])],
+        ['the same payment reserved twice', reserved([good[0], row(1, p1, 0, 40, 0)])],
+        ['an extra row for a payment that already has one', reserved([good[0], good[1], row(2, p1, 0, 40, 0)])],
+        ['a missing line', reserved([good[0]])],
+        ['no rows at all', reserved([])],
+        ['rows in another order than the database fixes', reserved([row(0, p2, 0, 40, 0), row(1, p1, 100, 0, 50)])],
+        ['amounts moved between the rows while every component and the total look right', reserved([{ ...good[0], amount_cents: 155 }, { ...good[1], amount_cents: 35 }])],
+        ['a row with no allocation recorded', reserved([good[0], { ...good[1], allocation_version: null }])],
+        ['a row whose components disagree with its amount', reserved([good[0], { ...good[1], tip_refunded_cents: 5 }])],
+        ['the right payment and total but a different deposit principal (and tip)', reserved([row(0, p1, 120, 0, 30), good[1]])],
+        ['the right payment and total but a different balance principal (and deposit)', reserved([row(0, p1, 0, 100, 50), good[1]])],
+        ['the right payment and total but a different tip (and deposit)', reserved([row(0, p1, 50, 0, 100), good[1]])],
+        ['a different deposit principal alone', reserved([row(0, p1, 101, 0, 50), good[1]])],
+        ['a different balance principal alone', reserved([good[0], row(1, p2, 0, 41, 0)])],
+        ['a different tip alone', reserved([row(0, p1, 100, 0, 51), good[1]])],
+        ['a nonzero unclassified component (amount includes it)', reserved([row(0, p1, 100, 0, 50, { unclassified_refunded_cents: 5, amount_cents: 155 }), good[1]])],
+        ['a nonzero unclassified component taking the place of tip', reserved([row(0, p1, 100, 0, 45, { unclassified_refunded_cents: 5, amount_cents: 150 }), good[1]])],
+        ['components swapped between the two payments', reserved([row(0, p1, 0, 40, 0), row(1, p2, 100, 0, 50)])],
+        ['the right total overall but a wrong split on one payment', reserved([row(0, p1, 140, 0, 10), good[1]])],
+        ['an identity that is not the canonical one', reserved(good, 'v1|total=190|x')],
+        ['an identity of different lines with the same total', reserved(good, canon([L(p1, 150, 0, 0), L(p2, 0, 40, 0)]))],
+        ['an identity for the lines in a non-canonical order', reserved(good, `v1|total=190|${p2}:0:40:0|${p1}:100:0:50`)],
+        ['no request identity', { outcome: 'reserved', refunds: good }],
+        ['an outcome the function does not know', { outcome: 'something_new', refunds: good }],
+        ['an empty answer', null],
+      ];
+      for (const [label, answer] of cases) {
+        const { res, calls } = await run(answer);
+        eq(`fail closed: ${label}: refused, and neither the attempt marker nor Stripe was touched`, [res.status, res.body.code, calls], [500, 'REFUND_RESERVATION_FAILED', ['reserve_refund_allocation']]);
+      }
+      const sound = await run(reserved(good));
+      ok('fail closed: an exact answer is accepted (the first provider step starts with the attempt marker)', sound.calls[0] === 'reserve_refund_allocation' && sound.calls[1] === 'mark_refund_provider_attempt');
+      ok('fail closed: ...and the requested total is the reserved one (190)', sound.res.body.requestedCents === 190);
+      const reordered = await run(reserved(good), [lines[1], lines[0]]);
+      ok('fail closed: the same lines requested in another order are accepted (the rows are in the database order)', reordered.calls[1] === 'mark_refund_provider_attempt' && reordered.res.body.requestedCents === 190);
+      const single = await run(reserved([row(0, p1, 75, 0, 25)], canon([L(p1, 75, 0, 25)])), [L(p1, 75, 0, 25)]);
+      ok('fail closed: an exact single-payment deposit + tip answer is accepted', single.calls[1] === 'mark_refund_provider_attempt' && single.res.body.requestedCents === 100);
+    }
+
+    // ---- idempotency, conflicts and the operation identity
+    {
+      const c = await newAllocCase([{ dep: 25661, tip: 5132 }, { bal: 10000 }]);
+      const [pa, pb] = c.payIds;
+      const key = newKey();
+      c.w.stripe.refundBehaviors = ['pending', 'pending'];
+      const lines = [L(pa, 7500, 0, 2500), L(pb, 0, 4000, 0)];
+      const first = await allocCall(c, key, lines, { amountCents: 14000 });
+      const rows0 = await refundRows(c.orderId);
+      eq('identity: the first request reserves two rows and asks Stripe twice', [first.status, first.json?.status, rows0.length, creates(c).length], [200, 'pending', 2, 2]);
+      const same = await allocCall(c, key, lines, { amountCents: 14000 });
+      eq('identity: the identical request resumes the same operation and asks Stripe for nothing more', [same.status, same.json?.existing, creates(c).length, allCreateAttempts(c).length, (await refundRows(c.orderId)).length], [200, true, 2, 2, 2]);
+      const rev = await allocCall(c, key, [lines[1], lines[0]]);
+      eq('identity: the same lines in another order resume it too (no declared total needed)', [rev.status, rev.json?.existing, allCreateAttempts(c).length], [200, true, 2]);
+      const changes: Array<[string, unknown[]]> = [
+        ['a changed payment', [L(pa, 7500, 0, 2500), L(nextId(), 0, 4000, 0)]],
+        ['a changed deposit amount', [L(pa, 7501, 0, 2500), lines[1]]],
+        ['a changed balance amount', [lines[0], L(pb, 0, 3999, 0)]],
+        ['a changed tip amount', [L(pa, 7500, 0, 2499), lines[1]]],
+        ['a changed total', [L(pa, 7500, 0, 2500), L(pb, 0, 4000, 1)]],
+        ['a dropped line', [lines[0]]],
+      ];
+      for (const [label, alloc] of changes) {
+        const r = await allocCall(c, key, alloc);
+        ok(`identity: ${label} under the same key is refused (${r.status} ${r.json?.code}${r.json?.detail ? ' ' + r.json.detail : ''})`, r.status === 409 && r.json?.code === 'OPERATION_KEY_REUSED' || (label === 'a changed payment' && r.status >= 400));
+      }
+      const rowsAfter = await refundRows(c.orderId);
+      eq('identity: no conflicting request changed a row, the identity or the provider calls', [JSON.stringify(rowsAfter) === JSON.stringify(rows0), allCreateAttempts(c).length], [true, 2]);
+      // an old (amount-only) client resumes an allocated operation only when it is the same refund
+      const viaOld = await refundCall(c, { amountCents: 14000, operationKey: key });
+      eq('identity: an amount-only request with the same key and total only resumes the same rows (nothing new, no new Stripe request)', [viaOld.status, viaOld.json?.existing, (await refundRows(c.orderId)).length, allCreateAttempts(c).length], [200, true, 2, 2]);
+      const viaOldWrong = await refundCall(c, { amountCents: 13999, operationKey: key });
+      eq('identity: an amount-only request with another total under that key is a conflict', [viaOldWrong.status, viaOldWrong.json?.code], [409, 'OPERATION_KEY_REUSED']);
+      eq('identity: ...and the allocation of the operation was untouched by all of it', JSON.stringify(compsOf(await refundRows(c.orderId))), JSON.stringify(compsOf(rows0)));
+    }
+    {
+      // an operation reserved by the amount-only path before: an allocation can never be attached to it
+      const c = await newAllocCase([{ dep: 25661, tip: 5132 }]);
+      const key = newKey();
+      c.w.stripe.refundBehaviors = ['connection_error_before'];
+      const first = await refundCall(c, { amountCents: 3000, operationKey: key });
+      eq('legacy operation: an amount-only refund with an unknown outcome stays unresolved', [first.status, first.json?.status], [202, 'unresolved']);
+      const rows0 = await refundRows(c.orderId);
+      const attach = await allocCall(c, key, [L(c.payIds[0], 3000, 0, 0)], { amountCents: 3000 });
+      eq('legacy operation: supplying an allocation for its key is a conflict', [attach.status, attach.json?.code, attach.json?.detail], [409, 'OPERATION_KEY_REUSED', 'amount_only_operation']);
+      eq('legacy operation: ...and nothing about it changed (allocation columns stay NULL, no new Stripe request)', [JSON.stringify(await refundRows(c.orderId)) === JSON.stringify(rows0), compsOf(rows0), allCreateAttempts(c).length], [true, [[null, null, null, null, null]], 1]);
+      const resume = await refundCall(c, { amountCents: 3000, operationKey: key });
+      eq('legacy operation: the amount-only retry still resumes through the same row and the same idempotency key', [resume.status, resume.json?.status, creates(c).length, creates(c)[creates(c).length - 1].key], [200, 'succeeded', 2, `refund:${key}:0`]);
+      const nr = await allocCall(c, newKey(), [L(c.payIds[0], 25661, 0, 0)]);
+      eq('legacy operation: its settled three thousand cents are unknown composition: a claim beyond what is certainly still there is ambiguous', [nr.status, nr.json?.code], [409, 'REFUND_HISTORY_AMBIGUOUS']);
+      const certain = await allocCall(c, newKey(), [L(c.payIds[0], 22661, 0, 0)]);
+      eq('legacy operation: ...and what is certainly there (deposit 25661 - the unknown 3000) can be refunded', [certain.status, certain.json?.status], [200, 'succeeded']);
+    }
+
+    // ---- unknown outcomes, attempt marker, lookup, expiry, cross-session recovery
+    {
+      const c = await newAllocCase([{ dep: 25661, tip: 5132 }]);
+      const key = newKey();
+      c.w.failRpc['mark_refund_provider_attempt'] = { error: retryError, times: 1 };
+      const r = await allocCall(c, key, [L(c.payIds[0], 7500, 0, 2500)]);
+      const rows = await refundRows(c.orderId);
+      eq('marker: when the attempt marker cannot be written nothing is sent to Stripe, and the reservation and allocation are kept', [r.status, r.json?.status, creates(c).length, rows.map((x: any) => x.status), compsOf(rows)], [202, 'unresolved', 0, ['pending'], [[7500, 0, 2500, 0, 1]]]);
+      const retry = await allocCall(c, key, [L(c.payIds[0], 7500, 0, 2500)]);
+      eq('marker: the retry writes the marker and then sends the one request', [retry.status, retry.json?.status, creates(c).length, creates(c)[0].key], [200, 'succeeded', 1, `refund:${key}:0`]);
+    }
+    {
+      const c = await newAllocCase([{ dep: 25661, tip: 5132 }]);
+      const key = newKey();
+      c.w.stripe.refundBehaviors = ['succeed_then_connection_error'];
+      const r = await allocCall(c, key, [L(c.payIds[0], 7500, 0, 2500)]);
+      const rows = await refundRows(c.orderId);
+      eq('unknown outcome: a response lost after Stripe created the refund leaves the reservation, the marker and the allocation', [r.status, r.json?.status, rows.map((x: any) => [x.status, x.provider_attempted_at !== null, x.provider_idempotency_key]), compsOf(rows)], [202, 'unresolved', [['pending', true, `refund:${key}:0`]], [[7500, 0, 2500, 0, 1]]]);
+      // many refunds on the PaymentIntent from elsewhere push ours onto a later listing page
+      for (let i = 0; i < 120; i++) c.w.stripe.externalRefund(c.pis[0], 1);
+      const retry = await allocCall(c, key, [L(c.payIds[0], 7500, 0, 2500)]);
+      eq('recovery: the retry finds the refund Stripe already created, on a later listing page, and creates nothing', [retry.status, retry.json?.status, creates(c).length, c.w.stripe.calls.filter((x) => x.api === 'refunds.list').length >= 2], [200, 'succeeded', 1, true]);
+      const done = await refundRows(c.orderId);
+      eq('recovery: the row now carries the provider id and still the same allocation; the order total counted it once', [done[0].stripe_refund_id !== null, done.map((x: any) => x.status), compsOf(done), (await orderRow(c.orderId)).total_refunded_cents], [true, ['succeeded'], [[7500, 0, 2500, 0, 1]], 10000]);
+    }
+    {
+      // incomplete lookup outside the replay window never authorises a blind request; a contacted operation never expires
+      const c = await newAllocCase([{ dep: 25661, tip: 5132 }]);
+      const key = newKey();
+      c.w.stripe.refundBehaviors = ['connection_error_before'];
+      await allocCall(c, key, [L(c.payIds[0], 7500, 0, 2500)]);
+      await pg.exec(`UPDATE public.order_refunds SET created_at = now() - interval '21 hours' WHERE order_id = '${c.orderId}';`);
+      c.w.stripe.refundListMode = 'throw';
+      const stuck = await allocCall(c, key, [L(c.payIds[0], 7500, 0, 2500)]);
+      eq('lookup: an unreadable listing outside the replay window does not authorise a new request', [stuck.status, stuck.json?.status, allCreateAttempts(c).length], [202, 'unresolved', 1]);
+      const other = await allocCall(c, newKey(), [L(c.payIds[0], 100, 0, 0)]);
+      eq('expiry: a contacted operation is not released by age; a new request still has to resume it', [other.status, other.json?.code, other.json?.resumeOperationKey], [409, 'UNSETTLED_REFUND_EXISTS', key]);
+      eq('expiry: ...the row is still pending with its marker', (await refundRows(c.orderId)).map((x: any) => [x.status, x.provider_attempted_at !== null]), [['pending', true]]);
+      c.w.stripe.refundListMode = 'normal';
+      // another session (a freshly loaded function) resumes with the same key and the same lines
+      const session2 = await callHandler(loadHandler('stripe-refund', c.w, shared), { orderId: c.orderId, reason: 'x', operationKey: key, allocations: [L(c.payIds[0], 7500, 0, 2500)] }, 'jwt-master');
+      eq('cross-session: another staff session resumes it with the same key, creating no second refund row', [session2.status, session2.json?.status, (await refundRows(c.orderId)).length, c.w.stripe.refundCreatedCount], [200, 'succeeded', 1, 1]);
+    }
+
+    // ---- partial results across two payments
+    {
+      const c = await newAllocCase([{ dep: 25661, tip: 5132 }, { bal: 10000 }]);
+      const key = newKey();
+      const [pa, pb] = sortedIds(c);
+      const lineFor = (id: string) => (id === c.payIds[0] ? L(id, 7500, 0, 2500) : L(id, 0, 4000, 0));
+      const lines = [lineFor(pa), lineFor(pb)];
+      c.w.stripe.refundBehaviors = ['succeed', 'pending'];
+      const before = await opFields(c.orderId);
+      const r = await allocCall(c, key, lines, { amountCents: 14000 });
+      const total = lines.reduce((a, l) => a + l.depositPrincipalCents + l.balancePrincipalCents + l.tipCents, 0);
+      eq('partial: one line succeeds and one stays pending: the operation is not final and says so', [r.status, r.json?.status, r.json?.final, r.json?.succeededCents, r.json?.pendingCents, r.json?.requestedCents], [200, 'pending', false, creates(c)[0].params.amount, creates(c)[1].params.amount, total]);
+      const rows = await refundRows(c.orderId);
+      eq('partial: the first payment\'s refund is recorded once; the second is reserved but not counted as returned', [rows.map((x: any) => x.status), (await orderRow(c.orderId)).total_refunded_cents, (await negativePayments(c.orderId)).length], [['succeeded', 'pending'], creates(c)[0].params.amount, 1]);
+      const n1 = netOf(c.orderId);
+      eq('partial: net figures reduce only for the succeeded line; the pending line is reserved', [n1.pending_refund_reservations_cents, n1.total_succeeded_refunds_cents], [creates(c)[1].params.amount, creates(c)[0].params.amount]);
+      const retry = await allocCall(c, key, lines);
+      eq('partial: retrying never repeats the successful line; the pending line is only looked at', [retry.status, retry.json?.status, creates(c).length, c.w.stripe.refundCreatedCount], [200, 'pending', 2, 2]);
+      // the pending one settles by webhook, twice
+      const second = Object.keys(c.w.stripe.refunds_)[1];
+      c.w.stripe.setRefundStatus(second, 'succeeded');
+      const w1 = wh(c);
+      await w1.h.handleRefundEvent(refundEvent(c, second), w1.client);
+      await w1.h.handleRefundEvent(refundEvent(c, second), w1.client);
+      const n2 = netOf(c.orderId);
+      eq('partial: both settled once: totals, one negative copy per refund, no double subtraction', [(await orderRow(c.orderId)).total_refunded_cents, (await negativePayments(c.orderId)).length, n2.total_succeeded_refunds_cents, n2.refund_copy_cents, n2.unbacked_refund_copy_cents, n2.missing_refund_copy_cents, n2.refund_copies_match_ledger], [total, 2, total, total, 0, 0, true]);
+      eq('partial: net principal and tips follow the allocation exactly (deposit 25661-7500, balance 10000-4000, tips 5132-2500)', [n2.known_net_deposit_principal_cents, n2.known_net_balance_principal_cents, n2.known_net_tips_cents, n2.classification_complete, n2.recorded_net_cash_retained_cents], [18161, 6000, 2632, true, 26793]);
+      eq('partial: the operational columns never moved', await opFields(c.orderId), before);
+      eq('partial: the allocation is immutable through settlement', compsOf(await refundRows(c.orderId)), compsOf(rows));
+      // a failure after success reverses by the existing rules; the allocation stays
+      c.w.stripe.setRefundStatus(second, 'failed', 'declined');
+      await w1.h.handleRefundEvent(refundEvent(c, second), w1.client);
+      const n3 = netOf(c.orderId);
+      eq('partial: a later failure of a succeeded line reverses only that line (existing reversal rules); the other is unchanged', [(await orderRow(c.orderId)).total_refunded_cents, n3.known_net_balance_principal_cents, n3.known_net_deposit_principal_cents, n3.known_net_tips_cents], [creates(c)[0].params.amount, 10000, 18161, 2632]);
+      eq('partial: ...the allocation is still the one reserved', compsOf(await refundRows(c.orderId)), compsOf(rows));
+    }
+    {
+      // one succeeds, one is rejected: partial (207); the rejected line releases its capacity; the successful one is not repeated
+      const c = await newAllocCase([{ dep: 25661, tip: 5132 }, { bal: 10000 }]);
+      const key = newKey();
+      const ord = sortedIds(c);
+      const lineFor = (id: string) => (id === c.payIds[0] ? L(id, 7500, 0, 2500) : L(id, 0, 4000, 0));
+      c.w.stripe.refundBehaviors = ['succeed', 'invalid_request'];
+      const r = await allocCall(c, key, [lineFor(ord[0]), lineFor(ord[1])]);
+      eq('partial failure: 207 with the successful and the rejected portion stated separately', [r.status, r.json?.status, r.json?.final, r.json?.succeededCents, r.json?.failedCents], [207, 'partial', true, creates(c)[0].params.amount, creates(c)[1].params.amount]);
+      const retry = await allocCall(c, key, [lineFor(ord[0]), lineFor(ord[1])]);
+      eq('partial failure: a retry neither repeats the success nor re-sends the rejected line', [retry.status, allCreateAttempts(c).length], [207, 2]);
+      const again = await allocCall(c, newKey(), [lineFor(ord[1])]);
+      eq('partial failure: the rejected line\'s capacity is free for a new request', [again.status, again.json?.status], [200, 'succeeded']);
+    }
+
+    {
+      // every portion rejected: the whole request failed (422), nothing is counted, and the capacity is free again
+      const c = await newAllocCase([{ dep: 25661, tip: 5132 }]);
+      c.w.stripe.refundBehaviors = ['invalid_request'];
+      const r = await allocCall(c, newKey(), [L(c.payIds[0], 7500, 0, 2500)]);
+      eq('rejected: a request Stripe rejects entirely is a failure (422) with nothing counted', [r.status, r.json?.code, r.json?.failedCents, r.json?.requestedCents, (await orderRow(c.orderId)).total_refunded_cents], [422, 'REFUND_FAILED', 10000, 10000, 0]);
+      const again = await allocCall(c, newKey(), [L(c.payIds[0], 7500, 0, 2500)]);
+      eq('rejected: ...and the same components can be requested again', [again.status, again.json?.status], [200, 'succeeded']);
+    }
+
+    // ---- security
+    {
+      const c = await newAllocCase([{ dep: 25661, tip: 5132 }]);
+      const line = (suffix: number) => [L(c.payIds[0], suffix, 0, 0)];
+      eq('security: Admin is allowed', (await allocCall(c, newKey(), line(100), {}, 'jwt-admin')).status, 200);
+      eq('security: Master is allowed', (await allocCall(c, newKey(), line(100), {}, 'jwt-master')).status, 200);
+      eq('security: Crew is denied', (await allocCall(c, newKey(), line(100), {}, 'jwt-crew')).status, 403);
+      eq('security: a customer is denied', (await allocCall(c, newKey(), line(100), {}, 'jwt-cust')).status, 403);
+      eq('security: an anonymous caller is denied', (await allocCall(c, newKey(), line(100), {}, null)).status, 401);
+      eq('security: denied callers reserved nothing and contacted nobody (only the two allowed requests exist)', [(await refundRows(c.orderId)).length, creates(c).length], [2, 2]);
+      const r = await allocCall(c, newKey(), line(100), { actorId: CUST, refunded_by: CUST, actor: CUST, p_actor: CUST }, 'jwt-admin');
+      const last = (await refundRows(c.orderId)).slice(-1)[0];
+      eq('security: an actor named in the request body is ignored; the verified caller is recorded and sent to Stripe', [r.status, last.refunded_by, creates(c).slice(-1)[0].params.metadata.refunded_by], [200, ADMIN, ADMIN]);
+      ok('security: no response carries the service credentials', !JSON.stringify(r.json).includes(SERVICE_KEY));
+      const read = (f: string) => require('fs').readFileSync(f, 'utf8');
+      const src = read('supabase/functions/stripe-refund/index.ts');
+      ok('security: the function reads the service key only on the server and never echoes it', !/SUPABASE_SERVICE_ROLE_KEY[^)]*\)[^;]*respond/.test(src) && !/respond\([^)]*SERVICE_ROLE/.test(src));
+    }
+
+    // ---- existing behaviour is intact
+    {
+      const c = await newAllocCase([{ dep: 25661, bal: 0, tip: 5132 }]);
+      const before = await opFields(c.orderId);
+      const key = newKey();
+      const r = await allocCall(c, key, [L(c.payIds[0], 7500, 0, 2500)], { amountCents: 10000 });
+      const done = await refundRows(c.orderId);
+      const n = netOf(c.orderId);
+      eq('end to end: the policy example (deposit 75.00 + tip 25.00 of a 307.93 payment) leaves net deposit 181.61, net tip 26.32, net recorded 207.93', [r.status, n.known_net_deposit_principal_cents, n.known_net_tips_cents, n.recorded_net_cash_retained_cents, n.classification_complete], [200, 18161, 2632, 20793, true]);
+      eq('end to end: no charge or payment of any kind was created', [c.w.stripe.calls.filter((x) => /paymentIntents\.create|checkout\.sessions\.create|charges\.create/.test(x.api)).length, Number((await pg.query(`SELECT count(*) AS n FROM public.payments WHERE order_id = '${c.orderId}' AND amount_cents > 0`))[0].n)], [0, 1]);
+      eq('end to end: the operational deposit / balance / tip / status fields are exactly as before', await opFields(c.orderId), before);
+      eq('end to end: the row is a ledger-version-2 row with its allocation intact', [done.map((x: any) => x.ledger_version), compsOf(done)], [[2], [[7500, 0, 2500, 0, 1]]]);
+    }
   }
 
   // cleanup

@@ -22,6 +22,14 @@
 //   - an operation with any unfinished portion keeps its identity, and another operation on the same order cannot be started until it
 //     is settled (the answer names it so the caller can resume it).
 //
+// Two request modes share everything after the reservation:
+//   - amount-only (the original shape): reserve_refund_operation reserves the total as unclassified refund rows;
+//   - allocation-aware: the caller names, for each ORIGINAL payment, how much deposit principal, balance principal and tip to return;
+//     reserve_refund_allocation validates every line against that payment's remaining capacity (the database is the authority and the
+//     only place capacity is computed) and reserves one row per payment.
+// Either way the provider requests are made from the RESERVED rows only (their PaymentIntent, amount and idempotency key), never from
+// a value the caller sent.
+//
 // Pure of Deno globals so the same code runs in the Edge Functions and in the tests.
 
 // deno-lint-ignore no-explicit-any
@@ -40,6 +48,8 @@ export interface RefundRequest {
   amountCents: unknown;
   reason: unknown;
   actorId: string;
+  // Present (even if empty or malformed) means an allocation-aware request.
+  allocations?: unknown;
 }
 
 export interface HttpResult {
@@ -78,6 +88,11 @@ interface RefundRow {
   provider_attempted_at?: string | null;
   failure_reason?: string | null;
   created_at?: string;
+  allocation_version?: number | null;
+  deposit_principal_refunded_cents?: number | null;
+  balance_principal_refunded_cents?: number | null;
+  tip_refunded_cents?: number | null;
+  unclassified_refunded_cents?: number | null;
   // Set when this process could not settle the row.
   unresolved?: boolean;
   // Set when no provider request was made for it in this attempt (the durable marker could not be written).
@@ -192,19 +207,141 @@ async function settleRow(deps: RefundDeps, row: RefundRow, ctx: { orderId: strin
   return { row: { ...row, stripe_refund_id: refund?.id ?? null, unresolved: true }, halt: false };
 }
 
+const MAX_ALLOCATION_LINES = 20;
+const ALLOCATION_FIELDS = ["paymentId", "depositPrincipalCents", "balancePrincipalCents", "tipCents"];
+
+export interface AllocationLine {
+  paymentId: string;
+  depositPrincipalCents: number;
+  balancePrincipalCents: number;
+  tipCents: number;
+}
+
+// Lightweight checks for helpful errors. The database repeats and enforces all of them; it alone decides capacity.
+export function validateAllocationRequest(raw: unknown, declaredTotal: unknown): { ok: true; lines: AllocationLine[]; total: number; declared: number | null } | { ok: false; status: number; code: string; detail: string } {
+  const bad = (detail: string, code = "INVALID_ALLOCATION") => ({ ok: false as const, status: 400, code, detail });
+  if (!Array.isArray(raw) || raw.length === 0 || raw.length > MAX_ALLOCATION_LINES) return bad("allocations_required");
+  const lines: AllocationLine[] = [];
+  const seen = new Set<string>();
+  let total = 0;
+  for (const el of raw) {
+    if (el === null || typeof el !== "object" || Array.isArray(el)) return bad("line_not_an_object");
+    const keys = Object.keys(el as Record<string, unknown>);
+    if (keys.some((k) => !ALLOCATION_FIELDS.includes(k))) return bad("unknown_field");
+    const e = el as Record<string, unknown>;
+    if (typeof e.paymentId !== "string" || !UUID_RE.test(e.paymentId)) return bad("payment_id_invalid");
+    const id = e.paymentId.toLowerCase();
+    if (seen.has(id)) return bad("duplicate_payment");
+    seen.add(id);
+    const c: number[] = [];
+    for (const k of ["depositPrincipalCents", "balancePrincipalCents", "tipCents"]) {
+      const v = e[k];
+      if (typeof v !== "number" || !Number.isFinite(v)) return bad("component_missing");
+      if (v < 0) return bad("component_negative");
+      if (!Number.isInteger(v)) return bad("component_fractional");
+      if (v > MAX_AMOUNT_CENTS) return bad("component_too_large");
+      c.push(v);
+    }
+    if (c[0] + c[1] + c[2] === 0) return bad("zero_line");
+    total += c[0] + c[1] + c[2];
+    lines.push({ paymentId: id, depositPrincipalCents: c[0], balancePrincipalCents: c[1], tipCents: c[2] });
+  }
+  if (total <= 0 || total > MAX_AMOUNT_CENTS) return bad("total_out_of_range");
+  let declared: number | null = null;
+  if (declaredTotal !== undefined && declaredTotal !== null) {
+    if (typeof declaredTotal !== "number" || !Number.isSafeInteger(declaredTotal) || declaredTotal <= 0) return bad("declared_total_invalid");
+    if (declaredTotal !== total) return bad("total_mismatch", "ALLOCATION_TOTAL_MISMATCH");
+    declared = declaredTotal;
+  }
+  return { ok: true, lines, total, declared };
+}
+
+// The rows the database says it reserved must be complete and consistent with the request before anything is sent to Stripe.
+function reservedRowsAreSound(rows: RefundRow[], operationKey: string, lines: AllocationLine[], signature: unknown): { ok: boolean; total: number } {
+  const fail = { ok: false, total: 0 };
+  if (!rows.length || rows.length > MAX_ALLOCATION_LINES || typeof signature !== "string") return fail;
+  // The identity the database recorded must be exactly the one these lines have: lines sorted by payment id, each
+  // "<payment id>:<deposit>:<balance>:<tip>", behind the total. (The database computes the same string; it stays the authority.)
+  const sorted = [...lines].sort((a, b) => (a.paymentId < b.paymentId ? -1 : a.paymentId > b.paymentId ? 1 : 0));
+  const wantedTotal = sorted.reduce((a, l) => a + l.depositPrincipalCents + l.balancePrincipalCents + l.tipCents, 0);
+  const expectedSignature = `v1|total=${wantedTotal}|${sorted.map((l) => `${l.paymentId}:${l.depositPrincipalCents}:${l.balancePrincipalCents}:${l.tipCents}`).join("|")}`;
+  if (signature !== expectedSignature) return fail;
+  if (rows.length !== sorted.length) return fail;
+  const byPayment = new Map(sorted.map((l) => [l.paymentId, l]));
+  const wanted = new Set(sorted.map((l) => l.paymentId));
+  const used = new Set<string>();
+  let total = 0;
+  for (let i = 0; i < rows.length; i++) {
+    const x = rows[i];
+    if (!x || typeof x.id !== "string" || !UUID_RE.test(x.id)) return fail;
+    if (typeof x.stripe_payment_intent_id !== "string" || !x.stripe_payment_intent_id) return fail;
+    if (!Number.isSafeInteger(x.amount_cents) || x.amount_cents <= 0) return fail;
+    if (x.provider_idempotency_key !== `refund:${operationKey}:${x.operation_index}`) return fail;
+    if (x.operation_index !== i) return fail;
+    if (x.allocation_version !== 1) return fail;
+    const pid = typeof x.payment_id === "string" ? x.payment_id.toLowerCase() : "";
+    if (!wanted.has(pid) || used.has(pid)) return fail;
+    used.add(pid);
+    // Rows come back in the database's fixed order (by payment id), one per requested line.
+    if (pid !== sorted[i].paymentId) return fail;
+    const d = x.deposit_principal_refunded_cents, b = x.balance_principal_refunded_cents, t = x.tip_refunded_cents, u = x.unclassified_refunded_cents;
+    if (![d, b, t, u].every((v) => typeof v === "number" && Number.isSafeInteger(v) && v >= 0)) return fail;
+    // Each reserved row must carry exactly what was asked for this payment: not just the same total.
+    const asked = byPayment.get(pid) as AllocationLine;
+    if (d !== asked.depositPrincipalCents || b !== asked.balancePrincipalCents || t !== asked.tipCents || u !== 0) return fail;
+    if ((d as number) + (b as number) + (t as number) + (u as number) !== x.amount_cents) return fail;
+    total += x.amount_cents;
+  }
+  if (used.size !== wanted.size || total !== wantedTotal) return fail;
+  return { ok: true, total };
+}
+
+function allocationOutcomeResponse(r: Any): HttpResult | null {
+  switch (r.outcome) {
+    case "invalid_allocation": return json(400, { success: false, code: "INVALID_ALLOCATION", error: "The refund allocation is not valid.", detail: r.detail ?? null });
+    case "payment_not_found": return json(404, { success: false, code: "PAYMENT_NOT_FOUND", error: "One of the payments in the request was not found." });
+    case "payment_wrong_order": return json(400, { success: false, code: "PAYMENT_NOT_ON_ORDER", error: "One of the payments in the request does not belong to this order." });
+    case "payment_not_succeeded": return json(409, { success: false, code: "PAYMENT_NOT_SUCCEEDED", error: "One of the payments in the request was not completed, so it cannot be refunded.", paymentId: r.payment_id ?? null });
+    case "payment_not_refundable": return json(409, { success: false, code: "PAYMENT_NOT_REFUNDABLE", error: "One of the payments in the request cannot be refunded through Stripe.", paymentId: r.payment_id ?? null });
+    case "unclassified_payment": return json(409, { success: false, code: "PAYMENT_UNCLASSIFIED", error: "One of the payments in the request has no recorded deposit, balance and tip split, so a split refund cannot be validated.", paymentId: r.payment_id ?? null });
+    case "ambiguous_historical_refund": return json(409, { success: false, code: "REFUND_HISTORY_AMBIGUOUS", error: "Earlier refunds on this payment have no recorded split, so this refund cannot be proven to fit. It needs manual review.", detail: r.detail ?? null, paymentId: r.payment_id ?? null });
+    case "deposit_capacity_exceeded": return json(400, { success: false, code: "DEPOSIT_CAPACITY_EXCEEDED", error: "The deposit principal requested is more than that payment can still return.", paymentId: r.payment_id ?? null, remainingCents: r.remaining_cents ?? 0 });
+    case "balance_capacity_exceeded": return json(400, { success: false, code: "BALANCE_CAPACITY_EXCEEDED", error: "The balance principal requested is more than that payment can still return.", paymentId: r.payment_id ?? null, remainingCents: r.remaining_cents ?? 0 });
+    case "tip_capacity_exceeded": return json(400, { success: false, code: "TIP_CAPACITY_EXCEEDED", error: "The tip requested is more than that payment can still return.", paymentId: r.payment_id ?? null, remainingCents: r.remaining_cents ?? 0 });
+    case "total_capacity_exceeded": return json(400, { success: false, code: "EXCEEDS_REFUNDABLE", error: "The refund requested is more than that payment can still return.", paymentId: r.payment_id ?? null, maxRefundableCents: r.remaining_cents ?? 0 });
+    default: return null;
+  }
+}
+
 export async function runRefundOperation(deps: RefundDeps, req: RefundRequest): Promise<HttpResult> {
   const { db } = deps;
   const orderId = typeof req.orderId === "string" && UUID_RE.test(req.orderId) ? req.orderId : null;
   const operationKey = typeof req.operationKey === "string" && OPERATION_KEY_RE.test(req.operationKey) ? req.operationKey : null;
-  const amount = typeof req.amountCents === "number" && Number.isSafeInteger(req.amountCents) && req.amountCents > 0 && req.amountCents <= MAX_AMOUNT_CENTS ? req.amountCents : null;
+  let amount = typeof req.amountCents === "number" && Number.isSafeInteger(req.amountCents) && req.amountCents > 0 && req.amountCents <= MAX_AMOUNT_CENTS ? req.amountCents : null;
   const reason = typeof req.reason === "string" ? req.reason.slice(0, 500) : "";
   if (!orderId) return json(400, { success: false, code: "INVALID_REQUEST", error: "A valid orderId is required." });
   if (!operationKey) return json(400, { success: false, code: "OPERATION_KEY_REQUIRED", error: "A refund request needs an operationKey (8-64 letters, digits, - or _) that stays the same when the request is retried." });
-  if (amount === null) return json(400, { success: false, code: "INVALID_REQUEST", error: "A positive whole-cent amount is required." });
 
-  const reserved = await db.rpc("reserve_refund_operation", {
-    p_order_id: orderId, p_operation_key: operationKey, p_amount_cents: amount, p_reason: reason, p_actor: req.actorId,
-  });
+  const allocationMode = req.allocations !== undefined;
+  let lines: AllocationLine[] = [];
+  if (allocationMode) {
+    // The declared amount, if any, is only an expected total; the allocations are the request.
+    const v = validateAllocationRequest(req.allocations, req.amountCents);
+    if (!v.ok) return json(v.status, { success: false, code: v.code, error: "The refund allocation is not valid.", detail: v.detail });
+    lines = v.lines;
+    amount = null;
+  } else if (amount === null) {
+    return json(400, { success: false, code: "INVALID_REQUEST", error: "A positive whole-cent amount is required." });
+  }
+
+  const reserved = allocationMode
+    ? await db.rpc("reserve_refund_allocation", {
+        p_order_id: orderId, p_operation_key: operationKey, p_allocations: lines, p_reason: reason, p_actor: req.actorId,
+        p_expected_total_cents: typeof req.amountCents === "number" ? req.amountCents : null,
+      })
+    : await db.rpc("reserve_refund_operation", {
+        p_order_id: orderId, p_operation_key: operationKey, p_amount_cents: amount, p_reason: reason, p_actor: req.actorId,
+      });
   if (reserved?.error) {
     const msg = String(reserved.error.message ?? "");
     if (msg.includes("refund_allocation_incomplete")) {
@@ -213,13 +350,17 @@ export async function runRefundOperation(deps: RefundDeps, req: RefundRequest): 
     return json(500, { success: false, code: "REFUND_RESERVATION_FAILED", error: "The refund could not be started. Nothing was refunded." });
   }
   const r = reserved?.data ?? {};
+  if (allocationMode) {
+    const mapped = allocationOutcomeResponse(r);
+    if (mapped) return mapped;
+  }
   switch (r.outcome) {
     case "order_not_found": return json(404, { success: false, code: "ORDER_NOT_FOUND", error: "Order not found." });
     case "no_refundable_payment": return json(404, { success: false, code: "NO_REFUNDABLE_PAYMENT", error: "No successful Stripe payments found for this order." });
     case "exceeds_refundable": return json(400, { success: false, code: "EXCEEDS_REFUNDABLE", error: `Refund amount exceeds maximum refundable amount. Max: ${r.max_refundable_cents} cents`, maxRefundableCents: r.max_refundable_cents });
     case "unsettled_operation": return json(409, { success: false, code: "UNSETTLED_REFUND_EXISTS", error: "An earlier refund request for this order has not been settled yet. Resume it (send its operation key again) before starting another refund; resuming never refunds twice.", resumeOperationKey: r.operation_key, resumeAmountCents: r.request_amount_cents });
     case "allocation_ambiguous": return json(409, { success: false, code: "REFUND_ALLOCATION_AMBIGUOUS", error: "This order has refunds recorded before refunds were linked to a payment, so a new refund cannot be matched to the right payment automatically. Issue it in Stripe; it will be recorded here." });
-    case "key_conflict": return json(409, { success: false, code: "OPERATION_KEY_REUSED", error: "That operation key was already used for a different refund request." });
+    case "key_conflict": return json(409, { success: false, code: "OPERATION_KEY_REUSED", error: "That operation key was already used for a different refund request.", ...(typeof r.detail === "string" ? { detail: r.detail } : {}) });
     case "invalid_request": return json(400, { success: false, code: "INVALID_REQUEST", error: "Invalid refund request." });
     case "reserved":
     case "existing":
@@ -229,6 +370,14 @@ export async function runRefundOperation(deps: RefundDeps, req: RefundRequest): 
   }
 
   const rows: RefundRow[] = Array.isArray(r.refunds) ? r.refunds : [];
+  // Allocation-aware: the reserved rows must be complete and must match the request before Stripe is contacted. The total is the
+  // one the database reserved, not anything the caller declared.
+  let total = amount as number;
+  if (allocationMode) {
+    const sound = reservedRowsAreSound(rows, operationKey, lines, r.request_allocation);
+    if (!sound.ok) return json(500, { success: false, code: "REFUND_RESERVATION_FAILED", error: "The refund could not be started. Nothing was refunded." });
+    total = sound.total;
+  }
   const settled: RefundRow[] = [];
   let halted = false;
   for (const row of rows) {
@@ -247,15 +396,18 @@ export async function runRefundOperation(deps: RefundDeps, req: RefundRequest): 
   // FINAL: every portion is either succeeded or failed. Anything else (pending at Stripe, or unknown) is unfinished, and an unfinished
   // operation keeps its identity: the caller must send the same operation key again, never start a new request for the rest.
   const final = pendingCents === 0 && unresolvedCents === 0;
-  const refunds = settled.map((x) => ({ id: x.id, amount: x.amount_cents, status: x.status, stripeRefundId: x.stripe_refund_id ?? null, unresolved: x.unresolved === true }));
-  const base = { operationKey, existing: r.outcome === "existing", requestedCents: amount, succeededCents, pendingCents, failedCents, unresolvedCents, final, refunds };
+  const refunds = settled.map((x) => ({
+    id: x.id, amount: x.amount_cents, status: x.status, stripeRefundId: x.stripe_refund_id ?? null, unresolved: x.unresolved === true,
+    ...(allocationMode ? { paymentId: x.payment_id ?? null, depositPrincipalCents: x.deposit_principal_refunded_cents ?? 0, balancePrincipalCents: x.balance_principal_refunded_cents ?? 0, tipCents: x.tip_refunded_cents ?? 0 } : {}),
+  }));
+  const base = { operationKey, existing: r.outcome === "existing", requestedCents: total, ...(allocationMode ? { allocated: true } : {}), succeededCents, pendingCents, failedCents, unresolvedCents, final, refunds };
 
   if (!final && (unresolvedCents > 0 || failedCents > 0)) {
     const where = notSent ? "A refund could not be started safely (nothing was sent to Stripe for that part)." : "The result of part of this refund is not known yet.";
     return json(202, { success: failedCents === 0, code: "REFUND_UNRESOLVED", status: "unresolved", warning: `${where} ${failedCents > 0 ? "Another part was rejected by Stripe. " : ""}Send the same request again to settle it; nothing is refunded twice.`, ...base });
   }
   if (!final) return json(200, { success: true, status: "pending", ...base });
-  if (failedCents === amount) return json(422, { success: false, code: "REFUND_FAILED", status: "failed", error: "Stripe rejected the refund.", ...base });
+  if (failedCents === total) return json(422, { success: false, code: "REFUND_FAILED", status: "failed", error: "Stripe rejected the refund.", ...base });
   if (failedCents > 0) return json(207, { success: false, code: "REFUND_PARTIAL", status: "partial", error: "Part of the refund was rejected by Stripe; the rest is recorded.", ...base });
   return json(200, { success: true, status: "succeeded", ...base });
 }
