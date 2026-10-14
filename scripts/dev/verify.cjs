@@ -4,7 +4,8 @@
 //                                            suites, which rerun only the mutants whose inputs changed (a pure move or rename reruns none)
 //   node scripts/dev/verify.cjs --quick      static checks and tests only (no mutants)
 //   node scripts/dev/verify.cjs --plan       say how many mutants the current changes would rerun, without running anything
-//   node scripts/dev/verify.cjs --full       everything from scratch, ignoring the mutation cache: the run before the final commit
+//   node scripts/dev/verify.cjs --full       everything from scratch: stored verdicts are ignored, then the new ones REPLACE the cache, so
+//                                            the next default run is cheap again. The run before the final commit.
 //   CHANGED=1  node scripts/dev/verify.cjs   only mutants whose file or test is in the current git diff (faster, less thorough)
 //   PARALLEL=n node scripts/dev/verify.cjs   how many database-free test files run at once (default 6; 1 = strictly serial)
 //
@@ -22,7 +23,7 @@ fs.mkdirSync(LOGS, { recursive: true });
 const withMutants = !process.argv.includes('--no-mutants') && !process.argv.includes('--quick');
 const full = process.argv.includes('--full');
 const npm = process.platform === 'win32' ? 'npm.cmd' : 'npm';
-// --full ignores the mutation cache (and writes nothing to it); everything else reuses verdicts whose inputs did not change.
+// --full ignores the stored mutation verdicts and refreshes them with what it finds; everything else reuses verdicts whose inputs did not change.
 const mutationEnv = full ? { ...process.env, NO_CACHE: '1' } : process.env;
 
 if (process.argv.includes('--plan')) {

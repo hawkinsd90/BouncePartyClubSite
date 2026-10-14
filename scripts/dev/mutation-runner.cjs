@@ -26,7 +26,7 @@
 //     runs first. Order never changes a verdict, only how soon a kill happens;
 //   - RESULT CACHE: a verdict is reused when nothing it could depend on changed (the mutant definition, the mutated file, the
 //     covering tests and everything those tests import or read, and the migrations). Results are saved as they arrive, so an
-//     interrupted run resumes instead of starting over. NO_CACHE=1 ignores the cache (do this for the final run before a commit);
+//     interrupted run resumes instead of starting over. NO_CACHE=1 ignores the stored verdicts, runs everything and records the new ones (do this for the final run before a commit);
 //   - FAST FIRST PASS: the slow concurrent-database section of paymentOperations.test.ts is skipped on the first attempt
 //     (MUTATION_SKIP_CONCURRENT=1). A mutant is only reported SURVIVED after a second, complete attempt, so no verdict is weakened.
 //     FAST_PASS=0 turns the first pass off.
@@ -34,14 +34,16 @@
 // More environment:
 //   ONLY_FILE=<regex>  run only mutants whose target file path matches (e.g. \.sql$)
 //   CHANGED=1          run only mutants whose file, or covering test, differs from HEAD (git diff + untracked files)
-//   NO_CACHE=1         neither read nor write the result cache
+//   NO_CACHE=1         ignore the stored verdicts and run everything; the results REPLACE the cache (nothing is written when ONLY, ONLY_FILE or CHANGED
+//                      narrows the run, so a partial run cannot wipe the rest)
+//   CACHE_OFF=1        neither read nor write the result cache
 //   PLAN=1             say how many mutants this change would run (and for which files), without running anything
 //   MUTATION_TEST_TIMEOUT_MS=<ms>   how long one test file may run before it is stopped (default 300000)
 //
 // Incremental: a KILLED verdict is reused while nothing it depends on changed (see "what a cached verdict depends on" below). The key is
 // CONTENT: a moved or renamed file, or an edit that touches only the import lines pointing at it, keeps every verdict; a real edit
 // of the mutated source, of a covering test, of anything those tests load, or (for tests that read them) of the migrations, reruns just
-// the mutants it touches. NO_CACHE=1 ignores the cache and runs everything (the full run before a commit).
+// the mutants it touches. NO_CACHE=1 runs everything from scratch and refreshes the cache with what it finds (the full run before a commit).
 //
 // Speed (measured on this machine; creating or dropping one scratch database takes 3-50 s, which used to be paid on every attempt):
 //   - each worker builds its pristine databases AHEAD of time, in the background, from a private template nothing connects to, and
@@ -191,14 +193,17 @@ function loadCache(spec) {
   const file = path.join(CACHE_DIR, path.basename(spec).replace(/\W/g, '_') + '.json');
   const empty = () => ({ keyVersion: KEY_VERSION, entries: {}, killers: {}, fileKillers: {}, testStats: {}, baseline: null });
   let data = empty();
-  if (!process.env.NO_CACHE) {
+  if (!process.env.NO_CACHE && !process.env.CACHE_OFF) {
     try {
       const read = JSON.parse(fs.readFileSync(file, 'utf8'));
       if (read.keyVersion === KEY_VERSION) data = { ...data, ...read }; // an older key scheme's entries could never match: start empty
     } catch { /* no cache yet, or unreadable: start empty */ }
   }
   const save = () => {
-    if (process.env.NO_CACHE) return;
+    // CACHE_OFF=1 writes nothing. NO_CACHE=1 starts from an empty cache and RECORDS what the run finds (replacing the old file), but only
+    // when it runs every mutant: with ONLY / ONLY_FILE / CHANGED it would wipe the verdicts of the mutants it skipped, so it writes nothing.
+    const partial = !!(process.env.ONLY || process.env.ONLY_FILE || process.env.CHANGED);
+    if (process.env.CACHE_OFF || (process.env.NO_CACHE && partial)) return;
     fs.mkdirSync(CACHE_DIR, { recursive: true });
     fs.writeFileSync(file + '.tmp', JSON.stringify(data));
     fs.renameSync(file + '.tmp', file);
