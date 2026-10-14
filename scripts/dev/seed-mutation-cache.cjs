@@ -57,15 +57,18 @@ if (newer.length) refuse(`${newer.length} file(s) were modified after ${since.to
 const originals = {};
 for (const f of new Set(mod.M.map((m) => m[0]))) originals[f] = fs.readFileSync(path.join(ROOT, f), 'utf8');
 const testsFor = (file) => (typeof mod.tests === 'function' ? mod.tests(file) : mod.tests);
-const { idOf, setDigest } = runner.makeKeyer(testsFor, originals);
+const { idOf, setDigest, valid } = runner.makeKeyer(testsFor, originals);
 const cache = runner.loadCache(spec);
 let seeded = 0;
+let kept = 0;
 for (const [i, m] of mod.M.entries()) {
   const id = idOf(m);
   if (!id) refuse(`an anchor of "${m[1]}" no longer matches`);
+  // a verdict that is already recorded and still valid (it knows its killer) is more exact than anything a log can give: keep it
+  if (valid(cache.data.entries[id], m)) { kept++; continue; }
   // the log does not say which test killed it, so the verdict is tied to the whole set of covering tests until the mutant is run again
   cache.data.entries[id] = { status: 'KILLED', detail: killed[i], setDigest: setDigest(m), seeded: true };
   seeded++;
 }
 cache.save();
-console.log(`seeded ${seeded} KILLED verdict(s) from ${path.basename(logFile)} (run started ${since.toISOString()}).`);
+console.log(`kept ${kept} exact verdict(s) already in the cache; seeded ${seeded} KILLED verdict(s) from ${path.basename(logFile)} (run started ${since.toISOString()}).`);

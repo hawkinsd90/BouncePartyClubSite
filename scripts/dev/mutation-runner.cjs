@@ -204,9 +204,22 @@ function loadCache(spec) {
     // when it runs every mutant: with ONLY / ONLY_FILE / CHANGED it would wipe the verdicts of the mutants it skipped, so it writes nothing.
     const partial = !!(process.env.ONLY || process.env.ONLY_FILE || process.env.CHANGED);
     if (process.env.CACHE_OFF || (process.env.NO_CACHE && partial)) return;
-    fs.mkdirSync(CACHE_DIR, { recursive: true });
-    fs.writeFileSync(file + '.tmp', JSON.stringify(data));
-    fs.renameSync(file + '.tmp', file);
+    // Saving the cache must NEVER stop a verification run. On Windows, renaming over a file that something else briefly holds open
+    // (a virus scanner, the indexer) fails with EPERM/EBUSY now and then, so retry a few times, then copy, and if even that fails keep going:
+    // the verdicts are only a shortcut, and the run's own results are unaffected.
+    try {
+      fs.mkdirSync(CACHE_DIR, { recursive: true });
+      fs.writeFileSync(file + '.tmp', JSON.stringify(data));
+      const pause = (ms) => Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms);
+      for (let attempt = 0; ; attempt++) {
+        try { fs.renameSync(file + '.tmp', file); break; } catch (e) {
+          if (attempt >= 6) { fs.copyFileSync(file + '.tmp', file); try { fs.unlinkSync(file + '.tmp'); } catch { /* left behind: harmless */ } break; }
+          pause(50 * (attempt + 1));
+        }
+      }
+    } catch (e) {
+      if (!save.warned) { save.warned = true; console.error(`WARNING: could not save the mutation cache (${e.code || e.message}); continuing without it.`); }
+    }
   };
   return { data, save };
 }
