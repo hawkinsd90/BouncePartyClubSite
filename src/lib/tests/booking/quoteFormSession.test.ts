@@ -5,8 +5,8 @@
 //   - old generated 9AM/5PM values do NOT resurrect (pre-version-2 cleared)
 //   - new/cleared session starts blank
 
-import { normalizeStoredQuoteForm } from '../../../hooks/useQuoteForm';
-import type { QuoteFormData } from '../../../hooks/useQuoteForm';
+import { normalizeStoredQuoteForm } from '../../../hooks/booking/useQuoteForm';
+import type { QuoteFormData } from '../../../hooks/booking/useQuoteForm';
 
 let passed = 0;
 let failed = 0;

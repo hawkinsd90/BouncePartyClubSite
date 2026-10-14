@@ -8,7 +8,7 @@
 // Preserved quirks (do not "fix" here): delivery/damage ids use the LAST 16 characters of the URL, so two photos
 // in one task status that end the same way share an id; missing timestamps fall back to the current time.
 
-import type { AdminPhoto, PhotoCounts } from '../../hooks/useAdminPhotos';
+import type { AdminPhoto, PhotoCounts } from '../../hooks/admin/useAdminPhotos';
 
 export interface TaskStatusRow {
   id: string;

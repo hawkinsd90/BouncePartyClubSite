@@ -1,6 +1,6 @@
 import { useState, useMemo, useEffect } from 'react';
 import { RefreshCw, AlertCircle } from 'lucide-react';
-import { useAdminPhotos, type AdminPhoto, type PhotoSource } from '../../hooks/useAdminPhotos';
+import { useAdminPhotos, type AdminPhoto, type PhotoSource } from '../../hooks/admin/useAdminPhotos';
 import {
   PhotoFilterBar,
   type SortOrder,

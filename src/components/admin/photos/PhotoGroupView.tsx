@@ -1,6 +1,6 @@
 import { ChevronDown, ChevronRight, Image } from 'lucide-react';
 import { useState } from 'react';
-import type { AdminPhoto, PhotoSource } from '../../../hooks/useAdminPhotos';
+import type { AdminPhoto, PhotoSource } from '../../../hooks/admin/useAdminPhotos';
 import type { GroupByMode } from './PhotoFilterBar';
 import { PhotoCard } from './PhotoCard';
 

@@ -1,4 +1,4 @@
-import { useAdminSettings } from '../../hooks/useAdminSettings';
+import { useAdminSettings } from '../../hooks/admin/useAdminSettings';
 import { StripeSettingsSection } from './StripeSettingsSection';
 import { TwilioSettingsSection } from './TwilioSettingsSection';
 import { PaymentBackfillSection } from './PaymentBackfillSection';

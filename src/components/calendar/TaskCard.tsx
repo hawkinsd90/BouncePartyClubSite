@@ -1,5 +1,5 @@
 import { User, MapPin, Clock, AlertTriangle, CheckCircle, Navigation, ArrowRight, History } from 'lucide-react';
-import { Task } from '../../hooks/useCalendarTasks';
+import { Task } from '../../hooks/admin/useCalendarTasks';
 import { ORDER_STATUS } from '../../lib/constants/statuses';
 
 export type TaskPosition = 'current' | 'next' | 'previous' | null;

@@ -1,5 +1,5 @@
 import { Calendar, Home, Building2, Clock, AlertCircle, Ban } from 'lucide-react';
-import type { QuoteFormData } from '../../hooks/useQuoteForm';
+import type { QuoteFormData } from '../../hooks/booking/useQuoteForm';
 import { DatePickerInput } from '../ui/DatePickerInput';
 import { TimePickerInput } from '../ui/TimePickerInput';
 

@@ -8,7 +8,7 @@
 
 import { normalizeAdminPhotos, countPhotosBySource, extractPathFromPublicUrl, buildCustomerName } from '../../tasks/adminPhotoNormalizers';
 import type { AdminPhotoSourceRows } from '../../tasks/adminPhotoNormalizers';
-import type { AdminPhoto } from '../../../hooks/useAdminPhotos';
+import type { AdminPhoto } from '../../../hooks/admin/useAdminPhotos';
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 

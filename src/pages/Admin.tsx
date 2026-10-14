@@ -28,7 +28,7 @@ import { NotificationFailuresAlert } from '../components/admin/NotificationFailu
 import { AdminFloatingOrderHeader } from '../components/admin/AdminFloatingOrderHeader';
 import { TabNavigation, type AdminTab } from '../components/admin/TabNavigation';
 import { PendingOrderCardRef } from '../components/admin/PendingOrderCard';
-import { useDataFetch } from '../hooks/useDataFetch';
+import { useDataFetch } from '../hooks/core/useDataFetch';
 import { handleError } from '../lib/core/errorHandling';
 import { LoadingSpinner } from '../components/common/LoadingSpinner';
 import type { Unit, PricingRules } from '../types';

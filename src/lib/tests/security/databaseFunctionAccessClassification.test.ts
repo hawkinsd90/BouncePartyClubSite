@@ -110,7 +110,7 @@ const sql = stripSql(raw);
   ok('source: the Admin notification screen is the only caller of get_unresolved_failures_count (through the notification module)', withRpc(browser, 'get_unresolved_failures_count').join() === 'src/lib/notifications/notificationFailures.ts' && browser.filter((f) => /notificationFailures'/.test(read(f))).join() === 'src/components/admin/NotificationFailuresAlert.tsx');
   ok('source: the browser notification module no longer records failures or successes', !/\.rpc\(\s*['"`]record_notification_(failure|success)/.test(read('src/lib/notifications/notificationFailures.ts')));
 
-  const staff = /^src\/(components\/admin\/|hooks\/useAdminAnalytics|lib\/orders\/orderApprovalService|lib\/queries\/products|components\/admin\/photos\/)/;
+  const staff = /^src\/(components\/admin\/|hooks\/admin\/useAdminAnalytics|lib\/orders\/orderApprovalService|lib\/queries\/products|components\/admin\/photos\/)/;
   for (const [fn, who] of [['get_all_role_users', staff], ['assign_role_by_email', staff], ['get_booking_source_analytics', staff], ['get_delivery_timing_analytics', staff], ['save_inventory_product_v2', staff], ['save_product_bundle_v2', staff], ['generate_invoice_number', staff]] as Array<[string, RegExp]>) {
     const callers = withRpc(browser, fn);
     ok(`source: ${fn} is called only from Admin / staff screens (${callers.length} caller${callers.length === 1 ? '' : 's'})`, callers.length >= 1 && callers.every((c) => who.test(c)));

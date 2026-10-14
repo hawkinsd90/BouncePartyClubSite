@@ -3,7 +3,7 @@ import { supabase } from '../../lib/supabase';
 import { Mail, Phone, Calendar, CreditCard as Edit2, X, Star, TrendingUp, Trash2 } from 'lucide-react';
 import { format } from 'date-fns';
 import { formatCurrency } from '../../lib/pricing';
-import { useSupabaseQuery, useMutation } from '../../hooks/useDataFetch';
+import { useSupabaseQuery, useMutation } from '../../hooks/core/useDataFetch';
 
 interface Contact {
   id: string;

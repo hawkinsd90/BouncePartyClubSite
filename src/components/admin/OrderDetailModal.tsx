@@ -32,8 +32,8 @@ import {
 } from './order-detail-modal/generatorStagedItems';
 import { buildGeneratorResolverCatalog } from './order-detail-modal/generatorResolverCatalog';
 import { buildOrderDetailPricingRevision, buildGeneratorContextRevision } from './order-detail-modal/orderDetailRevisions';
-import { usePricing } from '../../hooks/usePricing';
-import { useAdminOrderDetails } from '../../hooks/useAdminOrderDetails';
+import { usePricing } from '../../hooks/booking/usePricing';
+import { useAdminOrderDetails } from '../../hooks/admin/useAdminOrderDetails';
 import { saveOrderChanges } from '../../lib/orders/staffOrderSaveRequest';
 import { orderPricingState } from '../../lib/pricing/orderPricingState';
 import { initDepositOverrideState } from '../../lib/pricing/depositCalculation';

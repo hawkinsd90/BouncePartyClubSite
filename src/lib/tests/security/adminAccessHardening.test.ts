@@ -326,7 +326,7 @@ function applyPrivileges(sql: string): Record<string, Set<string>> {
   eq('no browser code calls get_user_creation_logs', srcText(/get_user_creation_logs/).filter((f) => !/database\.types/.test(f)), []);
   eq('no browser code calls cleanup_old_rate_limits', srcText(/cleanup_old_rate_limits/).filter((f) => !/database\.types/.test(f)), []);
   eq('no browser code invokes create-admin-user', srcText(/create-admin-user/), []);
-  eq('the analytics RPC is called only by the admin analytics hook', srcText(/rpc\(\s*'get_admin_analytics'/), ['hooks/useAdminAnalytics.ts']);
+  eq('the analytics RPC is called only by the admin analytics hook', srcText(/rpc\(\s*'get_admin_analytics'/), ['hooks/admin/useAdminAnalytics.ts']);
   const fnDirs: string[] = fs.readdirSync('supabase/functions');
   const backendCallers: string[] = [];
   for (const d of fnDirs) {

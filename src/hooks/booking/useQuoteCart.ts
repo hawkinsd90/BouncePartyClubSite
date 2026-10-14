@@ -1,0 +1,326 @@
+import { useState, useEffect, useCallback, useRef } from 'react';
+import { checkMultipleUnitsAvailabilityPublic } from '../../lib/booking/availability';
+import { SafeStorage } from '../../lib/core/safeStorage';
+import { supabase } from '../../lib/supabase';
+import { checkProductAvailability } from '../../lib/queries/products';
+import {
+  normalizeCartItems,
+  isInflatableCartItem,
+  isEventEssentialProductCartItem,
+  isEventEssentialBundleCartItem,
+  expandCartToProductQuantities,
+  mapProductAvailabilityToItem,
+  mapBundleAvailabilityToItem,
+  mergeProductIntoCart,
+  filterOutEventEssentialProduct,
+  filterOutEventEssentialBundle,
+} from '../../lib/eventEssentials/unifiedCart';
+import type {
+  UnifiedCartItem,
+  InflatableCartItem,
+  EventEssentialProductCartItem,
+  EventEssentialBundleCartItem,
+} from '../../types';
+
+export interface CartAvailabilityResult {
+  cart: UnifiedCartItem[];
+  eventEssentialsCheckFailed: boolean;
+}
+
+const CART_STORAGE_KEY = 'bpc_cart';
+
+export function useQuoteCart() {
+  const [cart, setCart] = useState<UnifiedCartItem[]>([]);
+  const cartRef = useRef<UnifiedCartItem[]>([]);
+
+  useEffect(() => {
+    loadCart();
+  }, []);
+
+  async function loadCart() {
+    const savedCart = SafeStorage.getItem<unknown>(CART_STORAGE_KEY, {
+      expirationDays: 7,
+    });
+    if (!savedCart) {
+      cartRef.current = [];
+      setCart([]);
+      return;
+    }
+
+    const normalized = normalizeCartItems(savedCart);
+
+    if (normalized.length === 0) {
+      const hadEntries = Array.isArray(savedCart) && (savedCart as unknown[]).length > 0;
+      if (hadEntries) {
+        SafeStorage.removeItem(CART_STORAGE_KEY);
+        window.dispatchEvent(new CustomEvent('bpc-cart-updated'));
+      }
+      cartRef.current = [];
+      setCart([]);
+      return;
+    }
+
+    const rawArrayLen = Array.isArray(savedCart) ? (savedCart as unknown[]).length : -1;
+    if (normalized.length !== rawArrayLen) {
+      SafeStorage.setItem(CART_STORAGE_KEY, normalized, { expirationDays: 7 });
+      window.dispatchEvent(new CustomEvent('bpc-cart-updated'));
+    }
+
+    const needsHydration = normalized.filter(
+      (item): item is InflatableCartItem =>
+        isInflatableCartItem(item) &&
+        item.is_combo === true &&
+        (item.price_dry_cents == null || item.price_water_cents == null)
+    );
+
+    if (needsHydration.length === 0) {
+      cartRef.current = normalized;
+      setCart(normalized);
+      return;
+    }
+
+    try {
+      const unitIds = [...new Set(needsHydration.map((i) => i.unit_id))];
+      const { data: units } = await supabase
+        .from('units')
+        .select('id, price_dry_cents, price_water_cents')
+        .in('id', unitIds);
+
+      const priceMap = new Map((units || []).map((u) => [u.id, u]));
+      const hydrated = normalized.map((item) => {
+        if (
+          !isInflatableCartItem(item) ||
+          !item.is_combo ||
+          (item.price_dry_cents != null && item.price_water_cents != null)
+        ) {
+          return item;
+        }
+        const unit = priceMap.get(item.unit_id);
+        if (!unit) return item;
+        return {
+          ...item,
+          price_dry_cents: unit.price_dry_cents,
+          price_water_cents: unit.price_water_cents || unit.price_dry_cents,
+        };
+      });
+
+      cartRef.current = hydrated;
+      setCart(hydrated);
+      SafeStorage.setItem(CART_STORAGE_KEY, hydrated, { expirationDays: 7 });
+    } catch {
+      cartRef.current = normalized;
+      setCart(normalized);
+    }
+  }
+
+  function notifyCartUpdate() {
+    window.dispatchEvent(new CustomEvent('bpc-cart-updated'));
+  }
+
+  function persistCart(newCart: UnifiedCartItem[]) {
+    SafeStorage.setItem(CART_STORAGE_KEY, newCart, { expirationDays: 7 });
+    notifyCartUpdate();
+  }
+
+  function addToCart(item: UnifiedCartItem) {
+    let newCart: UnifiedCartItem[];
+    if (isEventEssentialProductCartItem(item)) {
+      newCart = mergeProductIntoCart(cartRef.current, item);
+    } else {
+      newCart = [...cartRef.current, item];
+    }
+    cartRef.current = newCart;
+    setCart(newCart);
+    persistCart(newCart);
+  }
+
+  function updateCartItem(index: number, updates: Partial<UnifiedCartItem>) {
+    const newCart = [...cartRef.current];
+    newCart[index] = { ...newCart[index], ...updates } as UnifiedCartItem;
+    cartRef.current = newCart;
+    setCart(newCart);
+    persistCart(newCart);
+  }
+
+  function removeFromCart(index: number) {
+    const newCart = cartRef.current.filter((_, i) => i !== index);
+    cartRef.current = newCart;
+    setCart(newCart);
+    persistCart(newCart);
+  }
+
+  function removeEventEssentialProduct(productId: string): boolean {
+    const before = cartRef.current;
+    const nextCart = filterOutEventEssentialProduct(before, productId);
+    if (nextCart.length === before.length) return false;
+    cartRef.current = nextCart;
+    setCart(nextCart);
+    persistCart(nextCart);
+    return true;
+  }
+
+  function removeEventEssentialBundle(bundleId: string): boolean {
+    const before = cartRef.current;
+    const nextCart = filterOutEventEssentialBundle(before, bundleId);
+    if (nextCart.length === before.length) return false;
+    cartRef.current = nextCart;
+    setCart(nextCart);
+    persistCart(nextCart);
+    return true;
+  }
+
+  function applyEventEssentialsRepricedCart(
+    expectedCart: UnifiedCartItem[],
+    repricedCart: UnifiedCartItem[],
+  ): boolean {
+    if (cartRef.current !== expectedCart) {
+      // A newer cart is present (e.g. user toggled dry/water or added/removed
+      // an item after the repricer read the source cart). Reject the stale
+      // repriced result; the newer cart will be repriced on the next render.
+      return false;
+    }
+    cartRef.current = repricedCart;
+    setCart(repricedCart);
+    persistCart(repricedCart);
+    return true;
+  }
+
+  function clearCart() {
+    cartRef.current = [];
+    setCart([]);
+    SafeStorage.removeItem(CART_STORAGE_KEY);
+    notifyCartUpdate();
+  }
+
+  const checkAllCartAvailability = useCallback(
+    async (eventStartDate: string, eventEndDate: string): Promise<CartAvailabilityResult> => {
+      if (!eventStartDate || !eventEndDate || cartRef.current.length === 0) {
+        return { cart: cartRef.current, eventEssentialsCheckFailed: false };
+      }
+
+      // Snapshot the cart at the start so async RPC results are merged into
+      // the same cart we inspected, not a cart that may have been replaced
+      // by the repricing hook while we were awaiting the RPC.
+      const snapshotCart = cartRef.current;
+
+      const inflatableEntries: { item: InflatableCartItem; cartIndex: number }[] = [];
+      snapshotCart.forEach((item, cartIndex) => {
+        if (isInflatableCartItem(item)) {
+          inflatableEntries.push({ item, cartIndex });
+        }
+      });
+
+      const eventEssentialsItems = snapshotCart.filter(
+        (item) =>
+          isEventEssentialProductCartItem(item) ||
+          isEventEssentialBundleCartItem(item)
+      ) as (EventEssentialProductCartItem | EventEssentialBundleCartItem)[];
+
+      const hasInflatables = inflatableEntries.length > 0;
+      const hasEventEssentials = eventEssentialsItems.length > 0;
+
+      if (!hasInflatables && !hasEventEssentials) {
+        return { cart: snapshotCart, eventEssentialsCheckFailed: false };
+      }
+
+      const inflatableRequests = inflatableEntries.map(({ item }) => ({
+        unitId: item.unit_id,
+        eventStartDate,
+        eventEndDate,
+      }));
+
+      const productAllocation = expandCartToProductQuantities(eventEssentialsItems);
+
+      let eventEssentialsCheckFailed = false;
+
+      const [inflatableResults, productResults] = await Promise.all([
+        hasInflatables
+          ? checkMultipleUnitsAvailabilityPublic(inflatableRequests)
+          : Promise.resolve([]),
+        hasEventEssentials
+          ? checkProductAvailability(productAllocation, eventStartDate, eventEndDate, null)
+              .then((res) => {
+                if (res.error) {
+                  eventEssentialsCheckFailed = true;
+                  return [];
+                }
+                return res.data ?? [];
+              })
+              .catch(() => {
+                eventEssentialsCheckFailed = true;
+                return [];
+              })
+          : Promise.resolve([]),
+      ]);
+
+      // Merge results into the snapshot. If cartRef.current was replaced
+      // while we were awaiting, prefer the newer cart but still apply
+      // availability flags by matching item identity (unit_id / product_id /
+      // bundle_id).
+      const baseCart = cartRef.current;
+      const mergedCart = baseCart.map((item) => {
+        if (isInflatableCartItem(item)) {
+          const entry = inflatableEntries.find(
+            (e) => e.item.unit_id === item.unit_id,
+          );
+          if (entry) {
+            const resultIndex = inflatableEntries.indexOf(entry);
+            return {
+              ...item,
+              isAvailable: inflatableResults[resultIndex]?.isAvailable ?? true,
+            };
+          }
+          return item;
+        }
+        if (!eventEssentialsCheckFailed) {
+          if (isEventEssentialProductCartItem(item)) {
+            return {
+              ...item,
+              isAvailable: mapProductAvailabilityToItem(item, productResults),
+            };
+          }
+          if (isEventEssentialBundleCartItem(item)) {
+            return {
+              ...item,
+              isAvailable: mapBundleAvailabilityToItem(item, productResults),
+            };
+          }
+        }
+        return item;
+      });
+
+      // Only update state when at least one item's availability actually
+      // changed. When the newly calculated availability is identical to the
+      // current cart, return the existing reference and skip setCart so the
+      // date-change effect settles instead of re-triggering the RPC.
+      const availabilityChanged = mergedCart.some((item, i) => {
+        const prev = baseCart[i];
+        const prevAvail = (prev as any).isAvailable;
+        const newAvail = (item as any).isAvailable;
+        return prevAvail !== newAvail;
+      });
+
+      if (!availabilityChanged) {
+        return { cart: baseCart, eventEssentialsCheckFailed };
+      }
+
+      cartRef.current = mergedCart;
+      setCart(mergedCart);
+      persistCart(mergedCart);
+      return { cart: mergedCart, eventEssentialsCheckFailed };
+    },
+    [],
+  );
+
+  return {
+    cart,
+    addToCart,
+    updateCartItem,
+    removeFromCart,
+    removeEventEssentialProduct,
+    removeEventEssentialBundle,
+    applyEventEssentialsRepricedCart,
+    clearCart,
+    checkAllCartAvailability,
+  };
+}

@@ -3,7 +3,7 @@ import { Trash2, Pencil, Check, X } from 'lucide-react';
 import { formatCurrency } from '../../lib/pricing';
 import { showToast } from '../../lib/toasts';
 import { supabase } from '../../lib/supabase';
-import { useDiscountTemplates } from '../../hooks/useDiscountTemplates';
+import { useDiscountTemplates } from '../../hooks/invoices/useDiscountTemplates';
 import { dollarsToCents } from '../../lib/pricing/money';
 
 interface DiscountsManagerProps {

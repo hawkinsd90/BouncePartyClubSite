@@ -286,7 +286,7 @@ const PRIVATE = OWNED.filter((t) => !PUBLIC_READ.includes(t));
     /^src\/components\/customer-portal\//.test(f) ||
     /^src\/pages\/(CustomerPortal|ShortLink|StripeCheckoutReturn|StripeCheckoutCanceled|Checkout|Sign|Receipt|Quote|Catalog|UnitDetail|Home|Contact|About|EventEssentialsCatalog|LegacyInvoiceRedirect|Login|ForgotPassword|ResetPassword|MenuPreview|InvoicePreview)\.tsx$/.test(f) ||
     /^src\/lib\/(booking\/bookingApi|portal\/customerPortalApi|portal\/portalToken|portalLinks|core\/edgeAuth|customerPortalPolling|portal\/customerPortalRefreshSignal)\.ts$/.test(f) ||
-    /^src\/hooks\/(useBookingReturnConfirmation|useCheckoutData|useQuoteCart|useQuoteForm|useQuotePricing|useQuotePrefill)\.ts$/.test(f),
+    /^src\/hooks\/(booking\/useBookingReturnConfirmation|booking\/useCheckoutData|booking\/useQuoteCart|booking\/useQuoteForm|booking\/useQuotePricing|booking\/useQuotePrefill)\.ts$/.test(f),
   );
   ok('source: the public-surface file set is non-trivial', PUBLIC_SURFACE.length >= 25);
   for (const f of PUBLIC_SURFACE) ok(`source: ${f} has no direct access to a private table`, touches(f).length === 0);
@@ -295,7 +295,7 @@ const PRIVATE = OWNED.filter((t) => !PUBLIC_READ.includes(t));
   ok('source: no browser file calls a legacy token RPC at all (so revoking them breaks nothing)', allFiles.every((f) => !rpcCall(LEGACY_RPCS).test(strip(read(f)))));
 
   // Every remaining direct user must be a known staff / owner surface. A new file touching a private table fails here.
-  const STAFF = /^src\/(components\/(admin|order-detail|pending-order|calendar|crew)\/|components\/AdminCalendar\.tsx|pages\/(Admin|UnitForm)\.tsx|lib\/queries\/|lib\/(orders\/orderApprovalService|orders\/staffOrderSaveRequest|payments\/invoiceService|booking\/addressService|orders\/orderSummaryLoader|booking\/availability|tasks\/taskStatusService|payments\/transactionReceiptService|notifications\/orderNotificationService|notifications\/notificationFailures|orders\/orderLifecycleApi)\.ts|hooks\/(useCalendarTasks|useCustomerManagement|useAdminOrderDetails|usePendingOrderData|useAdminAnalytics|useAdminPhotos|useOrderDuplication|useInvoiceData|useAdminSettings)\.ts)/;
+  const STAFF = /^src\/(components\/(admin|order-detail|pending-order|calendar|crew)\/|components\/AdminCalendar\.tsx|pages\/(Admin|UnitForm)\.tsx|lib\/queries\/|lib\/(orders\/orderApprovalService|orders\/staffOrderSaveRequest|payments\/invoiceService|booking\/addressService|orders\/orderSummaryLoader|booking\/availability|tasks\/taskStatusService|payments\/transactionReceiptService|notifications\/orderNotificationService|notifications\/notificationFailures|orders\/orderLifecycleApi)\.ts|hooks\/(admin\/useCalendarTasks|admin\/useCustomerManagement|admin\/useAdminOrderDetails|orders\/usePendingOrderData|admin\/useAdminAnalytics|admin\/useAdminPhotos|orders\/useOrderDuplication|invoices\/useInvoiceData|admin\/useAdminSettings)\.ts)/;
   const OWNER = /^src\/(contexts\/CustomerProfileContext\.tsx|pages\/SignUp\.tsx)$/;
   const direct = allFiles.filter((f) => touches(f).length > 0);
   const unclassified = direct.filter((f) => !STAFF.test(f) && !OWNER.test(f));
@@ -304,10 +304,10 @@ const PRIVATE = OWNED.filter((t) => !PUBLIC_READ.includes(t));
   const cpc = strip(read('src/contexts/CustomerProfileContext.tsx'));
   ok('source: the profile context reads only customers and addresses directly (never orders, payments or contacts)', touches('src/contexts/CustomerProfileContext.tsx').sort().join() === 'addresses,customers' && !/from\('(orders|payments|contacts|customer_profiles)'\)/.test(cpc) && /rpc\('get_my_last_order_address'\)/.test(cpc));
   ok('source: sign-up reads only its own customers row (no CRM access)', touches('src/pages/SignUp.tsx').join() === 'customers' && !/from\('contacts'\)/.test(strip(read('src/pages/SignUp.tsx'))));
-  const useOrders = strip(read('src/hooks/useOrders.ts'));
+  const useOrders = strip(read('src/hooks/orders/useOrders.ts'));
   ok('source: the dashboard hook reads NO table: it calls get_my_orders only', !/\.from\(/.test(useOrders) && /rpc\('get_my_orders'\)/.test(useOrders));
   ok('source: the dashboard hook sends no identity (no email, customer id, contact id) and no select(*)', !/email|customer_id|contact|select\(/i.test(useOrders.replace(/userId/g, '')));
-  ok('source: the dashboard components, receipt flow and duplicate flow read no table at all', ['src/pages/CustomerDashboard.tsx', 'src/hooks/useOrderDuplication.ts', ...allFiles.filter((f) => /^src\/components\/dashboard\//.test(f))].every((f) => !/\.from\(|supabase\./.test(strip(read(f)))));
+  ok('source: the dashboard components, receipt flow and duplicate flow read no table at all', ['src/pages/CustomerDashboard.tsx', 'src/hooks/orders/useOrderDuplication.ts', ...allFiles.filter((f) => /^src\/components\/dashboard\//.test(f))].every((f) => !/\.from\(|supabase\./.test(strip(read(f)))));
   ok('source: the receipt is built from the loaded order (no direct orders query)', /buildOrderSummaryData\(/.test(strip(read('src/pages/CustomerDashboard.tsx'))) && !/loadOrderSummary/.test(strip(read('src/pages/CustomerDashboard.tsx'))));
   ok('source: the old payments embed and the email-based owner lookup are gone', !/payments\s*\(\s*\*\s*\)/.test(useOrders) && !/customer_profiles|contacts/.test(useOrders));
   ok('source: Customer Portal talks to the server APIs only', /customer-portal-data/.test(read('src/lib/portal/customerPortalApi.ts')) && /customer-portal-action/.test(read('src/lib/portal/customerPortalApi.ts')));

@@ -470,7 +470,7 @@ const UUID_PATH = (order: string, ext = 'jpg') => new RegExp(`^${order}/[0-9a-f]
     const action = text.get('supabase/functions/customer-portal-action/index.ts')!;
     ok('scan: the portal action maps a fixed kind to a bucket (no client-supplied bucket)', /const rules = PICTURE_KINDS\[p\.kind\]/.test(action) && /createSignedUploadUrl\(path\)/.test(action) && !/payload as \{[^}]*bucket/.test(action));
     ok('scan: the portal action authorizes the order before it validates or acts', action.indexOf('authorizePortalOrder(') > 0 && action.indexOf('authorizePortalOrder(') < action.indexOf('validateAction('));
-    const admin = text.get('src/hooks/useAdminPhotos.ts')!;
+    const admin = text.get('src/hooks/admin/useAdminPhotos.ts')!;
     ok('scan: the Admin photo library asks Storage for signed URLs for both buckets', /createSignedUrls\(paths, 3600\)/.test(admin) && /signPaths\('lot-pictures'/.test(admin) && /signPaths\('order-pictures'/.test(admin) && !/getPublicUrl/.test(admin));
     const lotDisplay = text.get('src/components/pending-order/LotPicturesDisplay.tsx')!;
     ok('scan: the Admin order lot-picture view (including saved address photos) uses signed URLs', /from\('lot-pictures'\)\.createSignedUrls\(wanted, 3600\)/.test(lotDisplay) && !/getPublicUrl/.test(lotDisplay));

@@ -1,5 +1,5 @@
 import { Image } from 'lucide-react';
-import type { AdminPhoto, PhotoSource } from '../../../hooks/useAdminPhotos';
+import type { AdminPhoto, PhotoSource } from '../../../hooks/admin/useAdminPhotos';
 import { PhotoCard } from './PhotoCard';
 
 export const PAGE_SIZE = 24;

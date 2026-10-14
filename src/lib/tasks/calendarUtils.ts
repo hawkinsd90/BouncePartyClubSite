@@ -1,5 +1,5 @@
 import { isSameDay } from 'date-fns';
-import { Task } from '../../hooks/useCalendarTasks';
+import { Task } from '../../hooks/admin/useCalendarTasks';
 import { ORDER_STATUS } from '../constants/statuses';
 
 export function getTasksForDate(tasks: Task[], date: Date): Task[] {

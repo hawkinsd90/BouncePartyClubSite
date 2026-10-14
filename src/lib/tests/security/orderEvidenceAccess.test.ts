@@ -104,7 +104,7 @@ const privatePath = (order: string, task: string, kind: 'delivery' | 'damage', o
     {
       const pickUp = `${ORDER_A}-pick-up-1760000000000-IMG_7.jpg`;
       const pickUpUrl = `https://qaagfafagdpgzcijnfbw.supabase.co/storage/v1/object/public/public-assets/${pickUp}`;
-      eq('pick-up: the vocabulary of task types in the app includes the hyphenated "pick-up" spelling', ['taskNotificationMessages.ts', 'useCalendarTasks.ts'].map((f) => /'drop-off'\s*\|\s*'pick-up'/.test(fs.readFileSync(f === 'useCalendarTasks.ts' ? `src/hooks/${f}` : `src/components/admin/task-detail/${f}`, 'utf8'))), [true, true]);
+      eq('pick-up: the vocabulary of task types in the app includes the hyphenated "pick-up" spelling', ['taskNotificationMessages.ts', 'useCalendarTasks.ts'].map((f) => /'drop-off'\s*\|\s*'pick-up'/.test(fs.readFileSync(f === 'useCalendarTasks.ts' ? `src/hooks/admin/${f}` : `src/components/admin/task-detail/${f}`, 'utf8'))), [true, true]);
       ok('pick-up: the old proof-photo uploader named files with the task\'s own type, so a pick-up task produced "-pick-up-" names', fs.readFileSync('src/components/admin/task-detail/taskPhotoUpload.test.ts', 'utf8').includes('`${task.orderId}-${task.type}-${now()}-'));
       ok('pick-up: every task type of the app is an accepted historical label', ['drop-off', 'pick-up'].every((label) => LEGACY_TASK_LABELS.includes(label) && isLegacyEvidenceObjectName(`${ORDER_A}-${label}-123-photo.jpg`)));
       eq('pick-up: the accepted labels are exactly these (nothing broader)', [...LEGACY_TASK_LABELS], ['drop-off', 'pick-up', 'pickup', 'damage']);
@@ -813,7 +813,7 @@ const privatePath = (order: string, task: string, kind: 'delivery' | 'damage', o
     ok('scan: the evidence columns are written only by the task-evidence function and the migration logic', hits(/update\(\{\s*\[EVIDENCE_COLUMNS|setColumn|\.update\(\{ \[column\]/).sort().join() === ['scripts/migrate-order-evidence.mjs', 'supabase/functions/_shared/evidence-migration.ts', 'supabase/functions/task-evidence/index.ts'].sort().join() || hits(/EVIDENCE_COLUMNS\[task\.kind\]\]: \[\.\.\.current/).join() === 'supabase/functions/task-evidence/index.ts');
     const grid = code('src/components/admin/task-detail/TaskDetailPhotosGrid.tsx');
     ok('scan: the task photo grid never uses a stored reference as an image source', /useTaskEvidenceUrls\(taskStatusId, deliveryImages, damageImages\)/.test(grid) && /tile\(urls\.delivery\[idx\]/.test(grid) && /tile\(urls\.damage\[idx\]/.test(grid) && !/src=\{(ref|_ref|deliveryImages|damageImages)/.test(grid));
-    const admin = code('src/hooks/useAdminPhotos.ts');
+    const admin = code('src/hooks/admin/useAdminPhotos.ts');
     ok('scan: the Admin photo library gets evidence URLs from the task-evidence function', /fetchTaskEvidenceViews\(/.test(admin) && /resolveEvidence:/.test(admin) && !/getPublicUrl/.test(admin));
     ok('scan: the Admin library resolves each evidence photo from the server views by task, kind and position, and drops untrusted ones', /evidenceViews\[taskStatusId\]\?\.\[kind\]\?\.\[index\]/.test(admin) && /view && view\.bucket \? \{ url: view\.url, bucket: view\.bucket, path: view\.path \} : null/.test(admin));
     const api = code('src/lib/tasks/taskEvidenceApi.ts');

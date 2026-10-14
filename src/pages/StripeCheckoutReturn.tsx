@@ -1,6 +1,6 @@
 import { useEffect } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
-import { useBookingReturnConfirmation } from '../hooks/useBookingReturnConfirmation';
+import { useBookingReturnConfirmation } from '../hooks/booking/useBookingReturnConfirmation';
 import { ConfirmingBookingState } from '../components/booking-return/ConfirmingBookingState';
 import { BookingConfirmationErrorState } from '../components/booking-return/BookingConfirmationErrorState';
 import { BookingRequestReceivedView } from '../components/booking-return/BookingRequestReceivedView';

@@ -5,7 +5,7 @@ import { supabase } from '../../lib/supabase';
 import { FileText, Calendar, Eye, CreditCard as Edit } from 'lucide-react';
 import { format } from 'date-fns';
 import { formatCurrency } from '../../lib/pricing';
-import { useSupabaseQuery, useMutation } from '../../hooks/useDataFetch';
+import { useSupabaseQuery, useMutation } from '../../hooks/core/useDataFetch';
 import { notifySuccess } from '../../lib/toasts';
 
 interface Invoice {

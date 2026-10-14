@@ -18,7 +18,7 @@ import {
   Image,
 } from 'lucide-react';
 import { supabase } from '../../../lib/supabase';
-import type { AdminPhoto, PhotoSource } from '../../../hooks/useAdminPhotos';
+import type { AdminPhoto, PhotoSource } from '../../../hooks/admin/useAdminPhotos';
 import { PromoteToUnitModal } from './PromoteToUnitModal';
 import { PromoteToCarouselModal } from './PromoteToCarouselModal';
 

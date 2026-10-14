@@ -11,7 +11,7 @@ import { formatOrderId } from '../utils';
 import { ORDER_STATUS } from '../constants/statuses';
 import { formatOperationalEquipment } from './operationalEquipment';
 import { aggregateOrderEquipment } from '../eventEssentials/customerGeneratorCart';
-import type { Task } from '../../hooks/useCalendarTasks';
+import type { Task } from '../../hooks/admin/useCalendarTasks';
 
 export type PickupReadiness = 'projected' | 'blocked' | 'ready' | 'completed';
 

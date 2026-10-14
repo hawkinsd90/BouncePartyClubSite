@@ -10,7 +10,7 @@ import {
   PACKAGE_CONTENTS_UNAVAILABLE,
 } from '../../tasks/operationalEquipment';
 import { formatStoredOrderItems } from '../../orders/formatStoredOrderItems';
-import { normalizeStoredQuoteForm } from '../../../hooks/useQuoteForm';
+import { normalizeStoredQuoteForm } from '../../../hooks/booking/useQuoteForm';
 import {
   expandCartToProductQuantities,
   mapBundleAvailabilityToItem,

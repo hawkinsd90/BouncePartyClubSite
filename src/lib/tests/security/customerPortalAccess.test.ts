@@ -922,7 +922,7 @@ ok('approval: records the payment selection and tip but does NOT confirm the ord
     const page = read('src/pages/CustomerPortal.tsx');
     ok('portal page: an access-required answer renders the recovery UI instead of any order data', /accessRequired && orderId\)\s*\{\s*return <SecureAccessRequired orderId=\{orderId\} \/>/.test(page));
     ok('portal page: the recovery UI is shown before the "Order Not Found" view and before any order view', page.indexOf('SecureAccessRequired orderId') < page.indexOf('Order Not Found') && page.indexOf('SecureAccessRequired orderId') < page.indexOf('<RegularPortalView'));
-    ok('portal page: a signed-in owner is never asked for a link (the server accepts the session)', /accessRequired/.test(read('src/hooks/useCustomerPortalOrder.ts')) && !/owner/.test(read('src/components/customer-portal/SecureAccessRequired.tsx')));
+    ok('portal page: a signed-in owner is never asked for a link (the server accepts the session)', /accessRequired/.test(read('src/hooks/portal/useCustomerPortalOrder.ts')) && !/owner/.test(read('src/components/customer-portal/SecureAccessRequired.tsx')));
     // end to end with the real function: UUID-only → denied; token → ok; owner → ok
     const h = fixture();
     const fn = loadFunction('customer-portal-data', h);
@@ -1006,7 +1006,7 @@ ok('approval: records the payment selection and tip but does NOT confirm the ord
     ok('refresh: a failed refetch does not stop later ones', n === 3);
     c.stop();
 
-    const hookSrc = read('src/hooks/useCustomerPortalRefresh.ts');
+    const hookSrc = read('src/hooks/portal/useCustomerPortalRefresh.ts');
     ok('refresh hook: no Realtime / websocket subscription remains (guests cannot rely on direct table access)', !/\.channel\(|postgres_changes|supabase\.|removeChannel/.test(hookSrc));
     ok('refresh hook: the controller is stopped on unmount', /controller\.stop\(\)/.test(hookSrc));
     const pageSrc = read('src/pages/CustomerPortal.tsx');
@@ -1022,8 +1022,8 @@ ok('approval: records the payment selection and tip but does NOT confirm the ord
       'src/pages/CustomerPortal.tsx',
       'src/pages/Receipt.tsx',
       'src/pages/Sign.tsx',
-      'src/hooks/useCustomerPortalOrder.ts',
-      'src/hooks/useCustomerPortalRefresh.ts',
+      'src/hooks/portal/useCustomerPortalOrder.ts',
+      'src/hooks/portal/useCustomerPortalRefresh.ts',
       'src/lib/portal/portalOrderLoader.ts',
       'src/lib/portal/customerPortalApi.ts',
       ...fs.readdirSync('src/components/customer-portal').filter((f: string) => f.endsWith('.tsx')).map((f: string) => `src/components/customer-portal/${f}`),
@@ -1044,14 +1044,14 @@ ok('approval: records the payment selection and tip but does NOT confirm the ord
     ok('exit criteria: the browser no longer reads admin settings or calls notification relays from the portal', !/admin_settings/.test(portalGraph) && !/functions\/v1\/send-sms-notification|functions\/v1\/send-email/.test(read('src/components/customer-portal/LotPicturesTab.tsx')));
     ok('exit criteria: the Stripe identifiers are never read by portal components (presence flag only)', !/stripe_customer_id|stripe_payment_method_id/.test(portalGraph));
     ok('exit criteria: portal summary building never writes travel miles back from the customer\'s browser', /persistTravelMiles: false/.test(read('src/lib/portal/portalOrderLoader.ts')) && /persistTravelMiles: false/.test(read('src/pages/Receipt.tsx')));
-    ok('exit criteria: the legacy get_order_with_relations_by_token rpc is no longer called by the app', !/get_order_with_relations_by_token/.test(read('src/hooks/useCustomerPortalOrder.ts')));
+    ok('exit criteria: the legacy get_order_with_relations_by_token rpc is no longer called by the app', !/get_order_with_relations_by_token/.test(read('src/hooks/portal/useCustomerPortalOrder.ts')));
   }
 
   // =============================================================================================================
   // Token leakage
   // =============================================================================================================
   {
-    const sources = ['supabase/functions/customer-portal-data/index.ts', 'supabase/functions/customer-portal-action/index.ts', 'src/lib/portal/customerPortalApi.ts', 'src/lib/portal/portalOrderLoader.ts', 'src/hooks/useCustomerPortalOrder.ts', 'src/components/customer-portal/SecureAccessRequired.tsx'];
+    const sources = ['supabase/functions/customer-portal-data/index.ts', 'supabase/functions/customer-portal-action/index.ts', 'src/lib/portal/customerPortalApi.ts', 'src/lib/portal/portalOrderLoader.ts', 'src/hooks/portal/useCustomerPortalOrder.ts', 'src/components/customer-portal/SecureAccessRequired.tsx'];
     const logging = sources.flatMap((f) => (read(f).match(/console\.(log|warn|error|info)\([^)]*\)/g) ?? []).map((l) => `${f}: ${l}`));
     ok('leakage: no portal source logs a token, the request body, or a URL', logging.every((l) => !/token|body|url|href|location/i.test(l)));
     const h = fixture();

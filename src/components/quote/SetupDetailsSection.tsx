@@ -1,5 +1,5 @@
 import { Zap, AlertCircle, CheckCircle2, Anchor, CheckCircle } from 'lucide-react';
-import type { GeneratorCheckboxState } from '../../hooks/useGeneratorCheckbox';
+import type { GeneratorCheckboxState } from '../../hooks/booking/useGeneratorCheckbox';
 
 interface SetupDetailsSectionProps {
   formData: {

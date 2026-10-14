@@ -7,7 +7,7 @@
 // - no other validation, no de-duplication.
 
 import { isTaskActiveRouteStop } from '../../../lib/tasks/calendarUtils';
-import type { Task } from '../../../hooks/useCalendarTasks';
+import type { Task } from '../../../hooks/admin/useCalendarTasks';
 
 export function getRoutePool(
   task: Pick<Task, 'type'>,

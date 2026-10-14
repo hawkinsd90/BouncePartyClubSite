@@ -1,5 +1,5 @@
 import { ShieldAlert, MapPin } from 'lucide-react';
-import type { AdminPhoto, PhotoCounts, PhotoSource } from '../../../hooks/useAdminPhotos';
+import type { AdminPhoto, PhotoCounts, PhotoSource } from '../../../hooks/admin/useAdminPhotos';
 
 interface PhotoStatsBarProps {
   counts: PhotoCounts;

@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { format } from 'date-fns';
 import { X, Truck as TruckIcon, Package, MousePointer, Car, Settings, ClipboardList, AlertTriangle, Clock, CheckCircle, Gauge } from 'lucide-react';
-import { Task } from '../../hooks/useCalendarTasks';
+import { Task } from '../../hooks/admin/useCalendarTasks';
 import { getStopNumber, sortTasksByOrder, isTaskActiveRouteStop, isDropOffPlanningOnly } from '../../lib/tasks/calendarUtils';
 import { TaskCard, TaskPosition } from './TaskCard';
 import { MileageModal } from './MileageModal';

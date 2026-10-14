@@ -1,6 +1,6 @@
 import { Search, ArrowDownNarrowWide, ChevronDown, ChevronUp, SlidersHorizontal } from 'lucide-react';
 import { useState } from 'react';
-import type { PhotoSource } from '../../../hooks/useAdminPhotos';
+import type { PhotoSource } from '../../../hooks/admin/useAdminPhotos';
 
 export type SortOrder = 'newest' | 'oldest' | 'source-az' | 'customer-az' | 'unit-az';
 export type DateRangeFilter = 'all' | '7d' | '30d' | '90d';

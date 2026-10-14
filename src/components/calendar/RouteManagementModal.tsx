@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import { X, Route as RouteIcon, Shuffle, ChevronUp, ChevronDown, Truck, Package, AlertTriangle, Clock, CheckCircle, Home, MapPin, Navigation, UserMinus, UserPlus } from 'lucide-react';
 import { format } from 'date-fns';
-import { Task } from '../../hooks/useCalendarTasks';
+import { Task } from '../../hooks/admin/useCalendarTasks';
 import { supabase } from '../../lib/supabase';
 import { showToast } from '../../lib/toasts';
 import { sortTasksByOrder, isTaskActiveRouteStop, isDropOffPlanningOnly } from '../../lib/tasks/calendarUtils';

@@ -8,7 +8,7 @@ import type { ShortPortalLinkResult } from '../../lib/portal/portalShortLink';
 import { decideActionRequiredSms, decideEnRouteReminders } from '../../lib/notifications/notificationDecision';
 import { showAlert, showConfirm, showModal } from '../common/CustomModal';
 import { getCurrentLocation, calculateETA } from '../../lib/routing/crewLocationEta';
-import { Task } from '../../hooks/useCalendarTasks';
+import { Task } from '../../hooks/admin/useCalendarTasks';
 import { getStopNumber } from '../../lib/tasks/calendarUtils';
 import { TaskDetailCustomerInfo } from './task-detail/TaskDetailCustomerInfo';
 import { TaskDetailOrderManagement } from './task-detail/TaskDetailOrderManagement';

@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { RotateCcw, ExternalLink } from 'lucide-react';
 import { formatCurrency } from '../../../lib/pricing';
-import { Task } from '../../../hooks/useCalendarTasks';
+import { Task } from '../../../hooks/admin/useCalendarTasks';
 import { supabase } from '../../../lib/supabase';
 import { RefundAllocationPanel } from '../refunds/RefundAllocationPanel';
 

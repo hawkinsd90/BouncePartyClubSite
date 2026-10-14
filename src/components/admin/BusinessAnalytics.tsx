@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { DollarSign, TrendingUp, TrendingDown, Users, ShoppingBag, CreditCard, Banknote, RotateCcw, Clock, Repeat, MapPin, Package, Star, AlertCircle, RefreshCw, Gauge, Car, AlertTriangle } from 'lucide-react';
-import { useAdminAnalytics, useMileageAnalytics, useDeliveryTimingAnalytics, AnalyticsPeriod, MissingMileageEntry } from '../../hooks/useAdminAnalytics';
+import { useAdminAnalytics, useMileageAnalytics, useDeliveryTimingAnalytics, AnalyticsPeriod, MissingMileageEntry } from '../../hooks/admin/useAdminAnalytics';
 import { LoadingSpinner } from '../common/LoadingSpinner';
 
 function formatCents(cents: number): string {

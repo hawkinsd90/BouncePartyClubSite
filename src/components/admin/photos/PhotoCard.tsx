@@ -1,5 +1,5 @@
 import { ShieldAlert, Image, MapPin, LayoutGrid, Images } from 'lucide-react';
-import type { AdminPhoto, PhotoSource } from '../../../hooks/useAdminPhotos';
+import type { AdminPhoto, PhotoSource } from '../../../hooks/admin/useAdminPhotos';
 
 interface PhotoCardProps {
   photo: AdminPhoto;

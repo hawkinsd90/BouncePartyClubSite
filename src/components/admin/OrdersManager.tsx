@@ -8,7 +8,7 @@ import { OrderDetailModal } from '../admin/OrderDetailModal';
 import { PendingOrderCard } from '../admin/PendingOrderCard';
 import { SingleOrderView } from '../admin/SingleOrderView';
 import { AdminFloatingOrderHeader } from '../admin/AdminFloatingOrderHeader';
-import { useDataFetch } from '../../hooks/useDataFetch';
+import { useDataFetch } from '../../hooks/core/useDataFetch';
 import { handleError } from '../../lib/core/errorHandling';
 import { formatOrderId } from '../../lib/utils';
 import { getAllOrdersWithContacts } from '../../lib/queries/orders';

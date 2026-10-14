@@ -1,4 +1,4 @@
-import { useTaskEvidenceUrls } from '../../../hooks/useTaskEvidenceUrls';
+import { useTaskEvidenceUrls } from '../../../hooks/admin/useTaskEvidenceUrls';
 
 interface Props {
   // The task the photos belong to, and the references stored on it (private object paths, or historical URLs).

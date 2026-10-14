@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { X, Image, ShieldAlert, Check, AlertTriangle } from 'lucide-react';
 import { supabase } from '../../../lib/supabase';
-import type { AdminPhoto } from '../../../hooks/useAdminPhotos';
+import type { AdminPhoto } from '../../../hooks/admin/useAdminPhotos';
 
 interface PromoteToCarouselModalProps {
   photo: AdminPhoto;

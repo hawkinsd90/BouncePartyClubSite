@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { ChevronDown, ChevronUp, Info, ShieldAlert, Video, Layers, AlertTriangle } from 'lucide-react';
-import type { AdminPhoto } from '../../../hooks/useAdminPhotos';
+import type { AdminPhoto } from '../../../hooks/admin/useAdminPhotos';
 
 interface PhotoMediaHealthPanelProps {
   allPhotos: AdminPhoto[];

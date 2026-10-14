@@ -5,7 +5,7 @@ import { formatCurrency } from '../lib/pricing';
 import { RentalTerms } from '../components/waiver/RentalTerms';
 import { BookingApiError, buildBookingRequest, createBooking, startBookingCardSetup } from '../lib/booking/bookingApi';
 import { useAuth } from '../contexts/AuthContext';
-import { useCheckoutData } from '../hooks/useCheckoutData';
+import { useCheckoutData } from '../hooks/booking/useCheckoutData';
 import { getPaymentAmountCentsFromTotals, getTipAmountCents, buildOrderSummary } from '../lib/booking/checkoutUtils';
 import { showToast } from '../lib/toasts';
 import { composeUnifiedQuoteTotals } from '../lib/pricing/unifiedTotals';

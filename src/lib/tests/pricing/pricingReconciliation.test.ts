@@ -559,7 +559,7 @@ const moneyKeys = ['subtotal_cents', 'travel_fee_cents', 'surface_fee_cents', 's
   const percentDiscountMath = files.filter((f) => /percentage\s*\/\s*100/.test(read(f)) && !/orderMoney|pricingRules|PricingRulesTab|AdminSettings|settings|\.test\./i.test(f));
   eq('no discount is computed outside orderMoney', percentDiscountMath.map((f) => f.replace(/\\/g, '/')), []);
   ok('the receipts and Edge Functions use the generated orderMoney copy, not their own total arithmetic', ['supabase/functions/_shared/receipt-order-totals.ts', 'supabase/functions/_shared/portal-actions.ts', 'supabase/functions/order-lifecycle/index.ts', 'supabase/functions/send-invoice/index.ts'].every((f) => /orderMoney/.test(read(f))));
-  ok('a blank deposit-override field is not a zero deposit', !/onApply\(0\)/.test(read('src/components/order-detail/DepositOverride.tsx')) && !/customDepositInput \|\| '0'/.test(read('src/hooks/useDepositOverride.ts')));
+  ok('a blank deposit-override field is not a zero deposit', !/onApply\(0\)/.test(read('src/components/order-detail/DepositOverride.tsx')) && !/customDepositInput \|\| '0'/.test(read('src/hooks/orders/useDepositOverride.ts')));
 }
 
 // ---------------------------------------------------------------------------------------------------------------------

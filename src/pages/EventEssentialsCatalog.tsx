@@ -18,8 +18,8 @@ import {
   checkProductAvailability,
 } from '../lib/queries/products';
 import { getInflatableUnitResolverConfigs } from '../lib/queries/units';
-import { useQuoteCart } from '../hooks/useQuoteCart';
-import { useEventEssentialsCartRepricing } from '../hooks/useEventEssentialsCartRepricing';
+import { useQuoteCart } from '../hooks/booking/useQuoteCart';
+import { useEventEssentialsCartRepricing } from '../hooks/booking/useEventEssentialsCartRepricing';
 import {
   buildBundleSnapshot,
   expandCartToProductQuantities,
@@ -52,7 +52,7 @@ import type {
   PricingContext,
   UnifiedCartItem,
 } from '../types';
-import type { QuoteFormData } from '../hooks/useQuoteForm';
+import type { QuoteFormData } from '../hooks/booking/useQuoteForm';
 import { EventDatesCard } from '../components/event-essentials-catalog/EventDatesCard';
 import { CatalogCategoryTabs } from '../components/event-essentials-catalog/CatalogCategoryTabs';
 import { CatalogCartSidebar } from '../components/event-essentials-catalog/CatalogCartSidebar';

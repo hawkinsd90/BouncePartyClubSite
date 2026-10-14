@@ -1,4 +1,4 @@
-import type { QuoteFormData } from '../../hooks/useQuoteForm';
+import type { QuoteFormData } from '../../hooks/booking/useQuoteForm';
 import type { UnifiedCartItem, InflatableCartItem, EventEssentialProductCartItem, EventEssentialBundleCartItem } from '../../types';
 
 interface ValidationResult {

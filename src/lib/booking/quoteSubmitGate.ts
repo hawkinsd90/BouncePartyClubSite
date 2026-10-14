@@ -14,7 +14,7 @@ import { validateCartPackageSnapshots } from '../pricing/packageDisplay';
 import { composeUnifiedQuoteTotals } from '../pricing/unifiedTotals';
 import { parseBookingDepositSettings } from '../pricing/depositCalculation';
 import type { PricingRules, PriceBreakdown } from '../pricing';
-import type { QuoteFormData } from '../../hooks/useQuoteForm';
+import type { QuoteFormData } from '../../hooks/booking/useQuoteForm';
 import type { UnifiedCartItem } from '../../types';
 
 export type QuoteSection = 'cart' | 'address' | 'event' | 'setup';

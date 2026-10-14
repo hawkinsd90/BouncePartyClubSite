@@ -3,7 +3,7 @@ import { Trash2, Pencil, Check, X } from 'lucide-react';
 import { formatCurrency } from '../../lib/pricing';
 import { showToast } from '../../lib/toasts';
 import { supabase } from '../../lib/supabase';
-import { useFeeTemplates } from '../../hooks/useFeeTemplates';
+import { useFeeTemplates } from '../../hooks/invoices/useFeeTemplates';
 import { dollarsToCents } from '../../lib/pricing/money';
 
 interface CustomFeesManagerProps {
