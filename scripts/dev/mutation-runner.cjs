@@ -35,7 +35,13 @@
 //   ONLY_FILE=<regex>  run only mutants whose target file path matches (e.g. \.sql$)
 //   CHANGED=1          run only mutants whose file, or covering test, differs from HEAD (git diff + untracked files)
 //   NO_CACHE=1         neither read nor write the result cache
+//   PLAN=1             say how many mutants this change would run (and for which files), without running anything
 //   MUTATION_TEST_TIMEOUT_MS=<ms>   how long one test file may run before it is stopped (default 300000)
+//
+// Incremental: a KILLED verdict is reused while nothing it depends on changed (see "what a cached verdict depends on" below). The key is
+// CONTENT: a moved or renamed file, or an edit that touches only the import lines pointing at it, keeps every verdict; a real edit
+// of the mutated source, of a covering test, of anything those tests load, or (for tests that read them) of the migrations, reruns just
+// the mutants it touches. NO_CACHE=1 ignores the cache and runs everything (the full run before a commit).
 //
 // Speed (measured on this machine; creating or dropping one scratch database takes 3-50 s, which used to be paid on every attempt):
 //   - each worker builds its pristine databases AHEAD of time, in the background, from a private template nothing connects to, and
@@ -73,56 +79,123 @@ const CACHE_DIR = path.join(ROOT, 'node_modules', '.cache', NS ? `mutation_${NS}
 const sha = (x) => crypto.createHash('sha256').update(x).digest('hex');
 const readText = (rel) => { try { return fs.readFileSync(path.join(ROOT, rel), 'utf8'); } catch { return null; } };
 
-// Every repository file a test file depends on: what it imports (relative specifiers) and the repository paths it names in
-// string literals (migrations and sources it reads). Followed transitively. Anything missed would only make the cache reuse a
-// verdict it should not have, so the migrations folder is always added below as well.
+// ---- what a cached verdict depends on, written as CONTENT so that moving or renaming a file changes nothing ---------------------------
+// A KILLED verdict is reused when nothing it depends on changed: the mutated source, and every file the covering tests load or read.
+// A reference from one file to another (a relative import, or a repository path in a string) goes into the digest as the DIGEST OF
+// THE TARGET'S CONTENT, never as a path. So moving a file, or editing only the import lines that point at it, changes no digest;
+// pointing a reference at a different file, or editing any code, does. (A target's own references are blanked when it is used as a
+// reference, so the digests are finite even for import cycles.) The mutated source itself is part of the key, so a changed anchor or
+// replacement in a mutants file is a different mutant, not a stale verdict.
+const KEY_VERSION = 'k3';
+const EXTS = ['', '.ts', '.tsx', '.js', '.cjs', '.mjs', '/index.ts', '/index.tsx'];
+const IMPORT_RE = /((?:from|import|require)\s*\(?\s*)(['"])(\.{1,2}\/[^'"]+)\2/g;
+const PATH_RE = /(['"`])((?:src|supabase|scripts)\/[A-Za-z0-9_.\-/]+\.(?:tsx?|sql|[cm]?js|json))\1/g;
+const CODE_RE = /\.(tsx?|[cm]?js)$/;
+const lf = (t) => t.replace(/\r\n/g, '\n');
+const isFile = (rel) => { try { return fs.statSync(path.join(ROOT, rel)).isFile(); } catch { return false; } };
+const bn = (p) => String(p).replace(/\\/g, '/').split('/').pop();
+
+function resolveImport(fromRel, spec) {
+  for (const e of EXTS) {
+    const cand = path.posix.normalize(path.posix.join(path.posix.dirname(fromRel), spec + e));
+    if (isFile(cand)) return cand;
+  }
+  return null;
+}
+// the text with every reference to a repository file replaced by refToken(target)
+function rewriteRefs(fromRel, text, refToken) {
+  if (!CODE_RE.test(fromRel)) return text;
+  return text
+    .replace(IMPORT_RE, (all, pre, q, spec) => { const t = resolveImport(fromRel, spec); return t ? `${pre}${q}<${refToken(t)}>${q}` : all; })
+    .replace(PATH_RE, (all, q, p) => (isFile(p) ? `${q}<${refToken(p)}>${q}` : all));
+}
+const anonMemo = new Map();
+function anonDigest(rel) { // a file's content with all of its references blanked
+  if (!anonMemo.has(rel)) anonMemo.set(rel, sha(rewriteRefs(rel, lf(readText(rel) ?? ''), () => 'ref')));
+  return anonMemo.get(rel);
+}
+function textDigest(rel, text) { // content with each reference replaced by the target's blanked digest
+  return sha(rewriteRefs(rel, lf(text), anonDigest));
+}
+const ndMemo = new Map();
+const nd = (rel) => { if (!ndMemo.has(rel)) ndMemo.set(rel, textDigest(rel, readText(rel) ?? '')); return ndMemo.get(rel); };
+
+// Every repository file a test file depends on: what it imports and the repository paths it names in strings (sources and migrations it
+// reads), followed transitively.
 const closureMemo = new Map();
 function closureOf(testRel) {
   if (closureMemo.has(testRel)) return closureMemo.get(testRel);
   const seen = new Set();
   const stack = [testRel];
-  const exts = ['', '.ts', '.tsx', '.js', '.cjs', '.mjs', '/index.ts', '/index.tsx'];
   while (stack.length) {
     const rel = stack.pop();
     if (seen.has(rel)) continue;
     const text = readText(rel);
     if (text === null) continue;
     seen.add(rel);
-    if (!/\.(tsx?|[cm]?js)$/.test(rel)) continue;
-    for (const m of text.matchAll(/(?:from|import|require)\s*\(?\s*['"](\.{1,2}\/[^'"]+)['"]/g)) {
-      for (const e of exts) {
-        const cand = path.posix.normalize(path.posix.join(path.posix.dirname(rel), m[1] + e));
-        if (readText(cand) !== null && fs.statSync(path.join(ROOT, cand)).isFile()) { stack.push(cand); break; }
-      }
-    }
-    for (const m of text.matchAll(/['"`]((?:src|supabase|scripts)\/[A-Za-z0-9_.\-/]+\.(?:tsx?|sql|[cm]?js|json))['"`]/g)) stack.push(m[1]);
+    if (!CODE_RE.test(rel)) continue;
+    for (const m of text.matchAll(IMPORT_RE)) { const t = resolveImport(rel, m[3]); if (t) stack.push(t); }
+    for (const m of text.matchAll(PATH_RE)) stack.push(m[2]);
   }
   closureMemo.set(testRel, seen);
   return seen;
+}
+const closureDigestMemo = new Map();
+function closureDigest(testRel) {
+  if (!closureDigestMemo.has(testRel)) closureDigestMemo.set(testRel, sha(JSON.stringify([...closureOf(testRel)].map(nd).sort())));
+  return closureDigestMemo.get(testRel);
+}
+// Only a test that mentions the migrations folder can depend on the migrations; the others keep their verdicts when one is added.
+const needsMigrationsMemo = new Map();
+function needsMigrations(testRel) {
+  if (!needsMigrationsMemo.has(testRel)) needsMigrationsMemo.set(testRel, [...closureOf(testRel)].some((rel) => /migrations/.test(readText(rel) ?? '')));
+  return needsMigrationsMemo.get(testRel);
 }
 let migrationsDigest;
 function migrations() {
   if (migrationsDigest) return migrationsDigest;
   const dir = path.join(ROOT, 'supabase', 'migrations');
   const h = crypto.createHash('sha256');
-  for (const n of fs.existsSync(dir) ? fs.readdirSync(dir).sort() : []) h.update(n).update(fs.readFileSync(path.join(dir, n)));
+  for (const n of fs.existsSync(dir) ? fs.readdirSync(dir).sort() : []) h.update(n).update(lf(fs.readFileSync(path.join(dir, n), 'utf8')));
   return (migrationsDigest = h.digest('hex'));
 }
-const testDigestMemo = new Map();
-function testDigest(testRel) {
-  if (!testDigestMemo.has(testRel)) {
-    const h = crypto.createHash('sha256');
-    for (const rel of [...closureOf(testRel)].sort()) h.update(rel).update(readText(rel));
-    testDigestMemo.set(testRel, h.digest('hex'));
-  }
-  return testDigestMemo.get(testRel);
+
+// A mutant is identified by what it IS: its name and the exact mutated source (so a changed anchor or replacement is a different mutant).
+// Its KILLED verdict stays valid while the test that killed it is unchanged: that test failed on the mutant, so a kill depends on that one
+// test's closure (and the migrations, when it reads them) and on nothing else; the other covering tests never mattered. An anchor that no
+// longer matches gives no id (and is never cached). A verdict seeded from an old log does not know its killer, so it is tied to the whole
+// set of covering tests instead.
+function makeKeyer(testsFor, originals) {
+  const mutatedSource = (m) => { let src = lf(originals[m[0]]); for (const fn of m[2]) src = fn(src); return src; };
+  const idOf = (m) => {
+    let mutated;
+    try { mutated = mutatedSource(m); } catch { return null; }
+    return sha(JSON.stringify([KEY_VERSION, m[1], textDigest(m[0], mutated), nd(m[0])]));
+  };
+  const killerDigest = (t) => sha(JSON.stringify([closureDigest(t), needsMigrations(t) ? migrations() : null]));
+  const setDigest = (m) => { const tests = testsFor(m[0]); return sha(JSON.stringify([tests.map(closureDigest), tests.some(needsMigrations) ? migrations() : null])); };
+  const valid = (entry, m) => {
+    if (!entry || entry.status !== 'KILLED') return false;
+    if (entry.killerDigest) {
+      const t = testsFor(m[0]).find((x) => bn(x) === entry.test);
+      return !!t && killerDigest(t) === entry.killerDigest;
+    }
+    return entry.setDigest === setDigest(m);
+  };
+  const entryFor = (killerTest, detail) => ({ status: 'KILLED', detail, test: bn(killerTest), killerDigest: killerDigest(killerTest) });
+  const baselineKey = (tests) => sha(JSON.stringify([KEY_VERSION, [...new Set(tests)].map(closureDigest).sort(), tests.some(needsMigrations) ? migrations() : null]));
+  return { idOf, valid, entryFor, setDigest, baselineKey };
 }
 
 function loadCache(spec) {
   const file = path.join(CACHE_DIR, path.basename(spec).replace(/\W/g, '_') + '.json');
-  let data = { entries: {}, killers: {}, fileKillers: {}, baseline: null };
+  const empty = () => ({ keyVersion: KEY_VERSION, entries: {}, killers: {}, fileKillers: {}, testStats: {}, baseline: null });
+  let data = empty();
   if (!process.env.NO_CACHE) {
-    try { data = { ...data, ...JSON.parse(fs.readFileSync(file, 'utf8')) }; } catch { /* no cache yet, or unreadable: start empty */ }
+    try {
+      const read = JSON.parse(fs.readFileSync(file, 'utf8'));
+      if (read.keyVersion === KEY_VERSION) data = { ...data, ...read }; // an older key scheme's entries could never match: start empty
+    } catch { /* no cache yet, or unreadable: start empty */ }
   }
   const save = () => {
     if (process.env.NO_CACHE) return;
@@ -140,17 +213,17 @@ function loadCache(spec) {
 const DEFAULT_TEST_MS = 30000;
 function orderTests(cache, file, name, tests) {
   const stats = cache.data.testStats || {};
-  const fileStats = stats[file] || {};
-  const last = cache.data.killers[file + '|' + name];
+  const fileStats = stats[bn(file)] || {};
+  const last = cache.data.killers[name];
   const anywhere = (t) => {
     let ms = 0;
     let n = 0;
-    for (const perFile of Object.values(stats)) if (perFile[t] && perFile[t].runs) { ms += perFile[t].ms; n += perFile[t].runs; }
+    for (const perFile of Object.values(stats)) if (perFile[bn(t)] && perFile[bn(t)].runs) { ms += perFile[bn(t)].ms; n += perFile[bn(t)].runs; }
     return n ? ms / n : null;
   };
   const score = (t) => {
-    const x = fileStats[t];
-    const p = t === last ? 0.9 : x && x.runs ? (x.kills + 1) / (x.runs + 2) : 0.5;
+    const x = fileStats[bn(t)];
+    const p = bn(t) === last ? 0.9 : x && x.runs ? (x.kills + 1) / (x.runs + 2) : 0.5;
     const ms = Math.max(500, x && x.runs ? x.ms / x.runs : anywhere(t) ?? DEFAULT_TEST_MS);
     return p / ms;
   };
@@ -158,10 +231,10 @@ function orderTests(cache, file, name, tests) {
 }
 
 function recordTimings(cache, file, timings) {
-  const perFile = ((cache.data.testStats = cache.data.testStats || {})[file] = (cache.data.testStats || {})[file] || {});
+  const perFile = ((cache.data.testStats = cache.data.testStats || {})[bn(file)] = (cache.data.testStats || {})[bn(file)] || {});
   for (const x of timings || []) {
     if (x.error) continue; // a timed-out or crashed test says nothing about cost
-    const e = (perFile[x.test] = perFile[x.test] || { runs: 0, kills: 0, ms: 0 });
+    const e = (perFile[bn(x.test)] = perFile[bn(x.test)] || { runs: 0, kills: 0, ms: 0 });
     e.runs++;
     e.ms += x.ms;
     if (x.killed) e.kills++;
@@ -296,15 +369,13 @@ exports.runMutants = async function runMutants({ M, tests, spec = 'mutants' }) {
   // Reuse a KILLED verdict when nothing it depends on changed. SURVIVED is never reused: survivors are the thing to look at.
   const cache = loadCache(spec);
   const results = new Array(M.length);
-  const keyOf = ({ m }) => {
-    const [file, name, muts] = m;
-    return sha(JSON.stringify([file, name, muts.map(String), originals[file], migrations(), testsFor(file).map(testDigest)]));
-  };
+  const { idOf, valid, entryFor, baselineKey: baselineKeyOf } = makeKeyer(testsFor, originals);
   const todo = [];
   let reused = 0;
   for (const item of selected) {
-    const hit = process.env.NO_CACHE ? null : cache.data.entries[keyOf(item)];
-    if (hit && hit.status === 'KILLED') {
+    const id = process.env.NO_CACHE ? null : idOf(item.m);
+    const hit = id ? cache.data.entries[id] : null;
+    if (valid(hit, item.m)) {
       results[item.index] = { name: item.m[1], status: 'KILLED', detail: hit.detail, cached: true };
       reused++;
     } else {
@@ -312,6 +383,14 @@ exports.runMutants = async function runMutants({ M, tests, spec = 'mutants' }) {
     }
   }
   if (reused) console.log(`${reused} mutant(s) reused from the cache (unchanged inputs); ${todo.length} to run`);
+  if (process.env.PLAN) {
+    // what this change would cost, without running anything
+    const perFile = {};
+    for (const { m } of todo) perFile[m[0]] = (perFile[m[0]] || 0) + 1;
+    console.log(`PLAN: ${todo.length} of ${selected.length} mutant(s) would run, ${reused} reused`);
+    for (const [file, n] of Object.entries(perFile).sort((a, b) => b[1] - a[1])) console.log(`  ${String(n).padStart(4)}  ${file}`);
+    return;
+  }
   if (todo.length) {
     // The worker databases have fixed names, so two runners at once would drop and fill each other's databases and every verdict
     // would be debris. Refuse to start beside another runner of this tool.
@@ -334,8 +413,9 @@ exports.runMutants = async function runMutants({ M, tests, spec = 'mutants' }) {
   if (todo.length) for (const d of dirs) sync(d);
 
   // The baseline only has to run when something will actually run, and not again while every input is as it was when it last passed.
-  const baselineTests = [...new Set(M.flatMap((m) => testsFor(m[0])))];
-  const baselineKey = sha(JSON.stringify([migrations(), baselineTests.map(testDigest), Object.values(originals)]));
+  // (and only for the tests the mutants that will run use: a verdict that is reused needs no baseline)
+  const baselineTests = [...new Set(todo.flatMap(({ m }) => testsFor(m[0])))];
+  const baselineKey = baselineKeyOf(baselineTests);
   if (todo.length && !process.env.SKIP_BASELINE && !process.env.NO_CACHE && cache.data.baseline === baselineKey) {
     console.log('baseline reused (no input changed since it last passed)');
   } else if (todo.length && !process.env.SKIP_BASELINE) {
@@ -421,10 +501,11 @@ exports.runMutants = async function runMutants({ M, tests, spec = 'mutants' }) {
       results[index] = { name, status: r.killed ? 'KILLED' : 'SURVIVED', detail: first.slice(0, 110), seconds: Math.round((Date.now() - t0) / 1000), file, test: r.test };
       cache.save();
       if (r.killed) {
-        cache.data.entries[keyOf({ m })] = { status: 'KILLED', detail: first.slice(0, 110), test: r.test };
-        cache.data.killers[file + '|' + name] = r.test;
-        const counts = (cache.data.fileKillers[file] = cache.data.fileKillers[file] || {});
-        counts[r.test] = (counts[r.test] || 0) + 1;
+        const id = idOf(m);
+        if (id) cache.data.entries[id] = entryFor(r.test, first.slice(0, 110));
+        cache.data.killers[name] = bn(r.test);
+        const counts = (cache.data.fileKillers[bn(file)] = cache.data.fileKillers[bn(file)] || {});
+        counts[bn(r.test)] = (counts[bn(r.test)] || 0) + 1;
         cache.save();
       }
     }
@@ -462,6 +543,10 @@ exports.runMutants = async function runMutants({ M, tests, spec = 'mutants' }) {
     process.exitCode = 1;
   }
 };
+
+exports.makeKeyer = makeKeyer;
+exports.digests = { closureOf, nd, closureDigest, needsMigrations, migrations };
+exports.loadCache = loadCache;
 
 if (require.main === module) {
   const spec = process.argv[2];

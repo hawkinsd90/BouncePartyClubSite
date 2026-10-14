@@ -1,9 +1,11 @@
 // One command for the whole verification chain, with the independent checks overlapped.
 //
-//   node scripts/dev/verify.cjs              typecheck + lint + build in parallel with tests -> payment mutants -> pricing mutants
-//   node scripts/dev/verify.cjs --no-mutants static checks and tests only
-//   NO_CACHE=1 node scripts/dev/verify.cjs   the final run before a commit: ignore the mutation result cache
-//   CHANGED=1  node scripts/dev/verify.cjs   while developing: only mutants touched by the current diff
+//   node scripts/dev/verify.cjs              the default, INCREMENTAL: typecheck + lint + build in parallel with tests, then both mutation
+//                                            suites, which rerun only the mutants whose inputs changed (a pure move or rename reruns none)
+//   node scripts/dev/verify.cjs --quick      static checks and tests only (no mutants)
+//   node scripts/dev/verify.cjs --plan       say how many mutants the current changes would rerun, without running anything
+//   node scripts/dev/verify.cjs --full       everything from scratch, ignoring the mutation cache: the run before the final commit
+//   CHANGED=1  node scripts/dev/verify.cjs   only mutants whose file or test is in the current git diff (faster, less thorough)
 //   PARALLEL=n node scripts/dev/verify.cjs   how many database-free test files run at once (default 6; 1 = strictly serial)
 //
 // Typecheck, lint and build never touch the scratch databases, so they run alongside the database-backed chain. The tests and the
@@ -17,8 +19,20 @@ const path = require('path');
 const ROOT = path.resolve(__dirname, '../..');
 const LOGS = path.join(os.tmpdir(), 'verify-logs');
 fs.mkdirSync(LOGS, { recursive: true });
-const withMutants = !process.argv.includes('--no-mutants');
+const withMutants = !process.argv.includes('--no-mutants') && !process.argv.includes('--quick');
+const full = process.argv.includes('--full');
 const npm = process.platform === 'win32' ? 'npm.cmd' : 'npm';
+// --full ignores the mutation cache (and writes nothing to it); everything else reuses verdicts whose inputs did not change.
+const mutationEnv = full ? { ...process.env, NO_CACHE: '1' } : process.env;
+
+if (process.argv.includes('--plan')) {
+  const { spawnSync } = require('child_process');
+  for (const suite of ['payment-mutants', 'pricing-mutants']) {
+    console.log(`== ${suite}`);
+    spawnSync('node', ['scripts/dev/mutation-runner.cjs', `scripts/dev/${suite}.cjs`], { cwd: ROOT, stdio: 'inherit', env: { ...process.env, PLAN: '1' } });
+  }
+  process.exit(0);
+}
 
 function step(name, cmd, args, env = process.env) {
   const log = path.join(LOGS, `${name}.log`);
@@ -46,8 +60,8 @@ function step(name, cmd, args, env = process.env) {
     // The test files that touch no scratch database run six at a time (PARALLEL=1 for strictly serial); the database tests stay serial.
     const results = [await step('tests', 'node', ['scripts/dev/run-tests.cjs'], { ...process.env, PARALLEL: process.env.PARALLEL || '6' })];
     if (withMutants) {
-      results.push(await step('payment-mutants', 'node', ['scripts/dev/mutation-runner.cjs', 'scripts/dev/payment-mutants.cjs']));
-      results.push(await step('pricing-mutants', 'node', ['scripts/dev/mutation-runner.cjs', 'scripts/dev/pricing-mutants.cjs']));
+      results.push(await step('payment-mutants', 'node', ['scripts/dev/mutation-runner.cjs', 'scripts/dev/payment-mutants.cjs'], mutationEnv));
+      results.push(await step('pricing-mutants', 'node', ['scripts/dev/mutation-runner.cjs', 'scripts/dev/pricing-mutants.cjs'], mutationEnv));
     }
     return results;
   })();
@@ -65,6 +79,10 @@ function step(name, cmd, args, env = process.env) {
       else if (m[1] !== '0') problems.push(`${r.name}: ${m[1]} survivor(s)`);
       if (/BASELINE FAILS/.test(text)) problems.push(`${r.name}: baseline fails`);
     }
+  }
+  for (const r of all.filter((x) => /mutants$/.test(x.name))) {
+    const m = fs.readFileSync(r.log, 'utf8').match(/^mutants: (\d+) \((\d+) from cache\)/m);
+    if (m) console.log(`${r.name}: ${m[1]} mutants, ${m[2]} reused from the cache, ${Number(m[1]) - Number(m[2])} run${full ? ' (--full: cache ignored)' : ''}`);
   }
   console.log(`\nelapsed ${Math.round((Date.now() - started) / 1000)}s; logs in ${LOGS}`);
   if (problems.length) {
