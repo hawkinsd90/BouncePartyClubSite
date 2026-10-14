@@ -142,8 +142,8 @@ const GOOD = { event_name: 'page_view', session_id: SESSION, page_path: '/' };
     const v = siteEvents.validateSiteEvent;
     ok('validator: a minimal valid event is accepted', v({ event_name: 'page_view' }) !== null);
     ok('validator: every event name the site sends is accepted', ['page_view', 'unit_view', 'cart_started', 'cart_submitted', 'checkout_started', 'checkout_completed', 'customer_portal_viewed', 'payment_link_opened', 'waiver_link_opened', 'cart_item_added', 'cart_item_removed', 'cart_address_entered', 'cart_date_selected', 'cart_price_calculated'].every((n) => v({ event_name: n, session_id: SESSION }) !== null));
-    ok('validator: the event names the site sends are exactly the allowlist (src/lib/siteEvents.ts union)', (() => {
-      const src = read('src/lib/siteEvents.ts');
+    ok('validator: the event names the site sends are exactly the allowlist (src/lib/core/siteEvents.ts union)', (() => {
+      const src = read('src/lib/core/siteEvents.ts');
       const union = [...src.slice(src.indexOf('export type SiteEventName'), src.indexOf('interface TrackEventOptions')).matchAll(/'([a-z_]+)'/g)].map((m) => m[1]).sort();
       return JSON.stringify(union) === JSON.stringify([...siteEvents.SITE_EVENT_NAMES].sort());
     })());
@@ -452,7 +452,7 @@ const GOOD = { event_name: 'page_view', session_id: SESSION, page_path: '/' };
     ok('source: it collects no new identifier (only the shared limiter\'s request address is used)', !/fingerprint|user-agent|cookie/i.test(fnSource));
     ok('source: every failure answer is generic', !/error\.message|error\.details|JSON\.stringify\(error\)/.test(fnSource));
     ok('config: the function is public (visitors are anonymous) and registered', /\[functions\.record-site-event\]\s*verify_jwt = false/.test(read('supabase/config.toml')));
-    const browser = read('src/lib/siteEvents.ts');
+    const browser = read('src/lib/core/siteEvents.ts');
     ok('browser: events go through the ingestion function, never a direct table insert', /functions\.invoke\('record-site-event'/.test(browser) && !/from\('site_events'\)/.test(browser));
     const sent = browser.slice(browser.indexOf("functions.invoke('record-site-event'"), browser.indexOf('} catch', browser.indexOf("functions.invoke('record-site-event'")));
     ok('browser: the browser sends only the six known fields', ['event_name', 'session_id', 'unit_id', 'order_id', 'page_path', 'metadata'].every((k) => sent.includes(k)) && !/created_at|user_id|referrer|email|phone/.test(sent));

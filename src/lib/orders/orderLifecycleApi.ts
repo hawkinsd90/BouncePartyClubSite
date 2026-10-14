@@ -1,4 +1,4 @@
-import { getEdgeAuthToken } from '../edgeAuth';
+import { getEdgeAuthToken } from '../core/edgeAuth';
 
 const LIFECYCLE_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/order-lifecycle`;
 

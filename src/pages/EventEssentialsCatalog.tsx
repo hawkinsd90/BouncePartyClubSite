@@ -8,8 +8,8 @@ import {
   Minus,
   Tag,
 } from 'lucide-react';
-import { getPublicBusinessSettings } from '../lib/adminSettingsCache';
-import { SafeStorage } from '../lib/safeStorage';
+import { getPublicBusinessSettings } from '../lib/core/adminSettingsCache';
+import { SafeStorage } from '../lib/core/safeStorage';
 import {
   fetchProductBundlesWithAllComponents,
   fetchProductPricing,

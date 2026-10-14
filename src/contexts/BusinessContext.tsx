@@ -1,6 +1,6 @@
 import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { supabase } from '../lib/supabase';
-import { getBusinessAddressText } from '../lib/adminSettingsCache';
+import { getBusinessAddressText } from '../lib/core/adminSettingsCache';
 
 export interface BusinessSettings {
   business_name: string;

@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { calculatePrice, calculateDrivingDistance, isSameDayWeekdayDelivery, type PricingRules } from '../lib/pricing';
-import { HOME_BASE } from '../lib/businessLocation';
-import { SafeStorage } from '../lib/safeStorage';
+import { HOME_BASE } from '../lib/core/businessLocation';
+import { SafeStorage } from '../lib/core/safeStorage';
 import type { QuoteFormData } from './useQuoteForm';
 import type { InflatableCartItem } from '../types';
 

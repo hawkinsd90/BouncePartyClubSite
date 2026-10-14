@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { X, AlertTriangle, Loader2, CheckCircle, XCircle } from 'lucide-react';
-import { getEdgeAuthToken } from '../../lib/edgeAuth';
+import { getEdgeAuthToken } from '../../lib/core/edgeAuth';
 
 interface CancelOrderModalProps {
   orderId: string;

@@ -11,7 +11,7 @@ import { formatOrderId } from '../utils';
 import { createShortPortalLink } from '../portal/portalShortLink';
 import { logGroupedTransactions } from '../payments/transactionReceiptService';
 import { enterConfirmed } from './orderLifecycleApi';
-import { getAdminSetting, ADMIN_SETTING_KEYS } from '../adminSettingsCache';
+import { getAdminSetting, ADMIN_SETTING_KEYS } from '../core/adminSettingsCache';
 import { calculateTotalFromOrder } from './orderSummaryLoader';
 
 const BUSINESS_PHONE_FALLBACK = '(313) 889-3860';

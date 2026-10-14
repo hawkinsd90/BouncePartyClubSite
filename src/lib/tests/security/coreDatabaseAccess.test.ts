@@ -285,7 +285,7 @@ const PRIVATE = OWNED.filter((t) => !PUBLIC_READ.includes(t));
   const PUBLIC_SURFACE = allFiles.filter((f) =>
     /^src\/components\/customer-portal\//.test(f) ||
     /^src\/pages\/(CustomerPortal|ShortLink|StripeCheckoutReturn|StripeCheckoutCanceled|Checkout|Sign|Receipt|Quote|Catalog|UnitDetail|Home|Contact|About|EventEssentialsCatalog|LegacyInvoiceRedirect|Login|ForgotPassword|ResetPassword|MenuPreview|InvoicePreview)\.tsx$/.test(f) ||
-    /^src\/lib\/(booking\/bookingApi|portal\/customerPortalApi|portal\/portalToken|portalLinks|edgeAuth|customerPortalPolling|portal\/customerPortalRefreshSignal)\.ts$/.test(f) ||
+    /^src\/lib\/(booking\/bookingApi|portal\/customerPortalApi|portal\/portalToken|portalLinks|core\/edgeAuth|customerPortalPolling|portal\/customerPortalRefreshSignal)\.ts$/.test(f) ||
     /^src\/hooks\/(useBookingReturnConfirmation|useCheckoutData|useQuoteCart|useQuoteForm|useQuotePricing|useQuotePrefill)\.ts$/.test(f),
   );
   ok('source: the public-surface file set is non-trivial', PUBLIC_SURFACE.length >= 25);

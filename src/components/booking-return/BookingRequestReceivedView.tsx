@@ -5,7 +5,7 @@ import { createShortPortalLink } from '../../lib/portal/portalShortLink';
 import { supabase } from '../../lib/supabase';
 import { portalPathForCurrentVisitor } from '../../lib/portal/portalToken';
 import { useState, useEffect } from 'react';
-import { getPublicBusinessSettings } from '../../lib/adminSettingsCache';
+import { getPublicBusinessSettings } from '../../lib/core/adminSettingsCache';
 
 interface OrderDetails {
   id: string;

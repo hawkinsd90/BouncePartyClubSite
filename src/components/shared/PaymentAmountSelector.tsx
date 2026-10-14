@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { DollarSign, CreditCard, ShieldCheck } from 'lucide-react';
 import { formatCurrency } from '../../lib/pricing';
-import { validateCustomAmount } from '../../lib/validation';
+import { validateCustomAmount } from '../../lib/core/validation';
 
 interface PaymentAmountSelectorProps {
   depositCents: number;

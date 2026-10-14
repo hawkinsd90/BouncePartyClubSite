@@ -3,7 +3,7 @@ import { supabase } from '../../lib/supabase';
 import { Shield, Trash2, History, UserPlus } from 'lucide-react';
 import { notifyError, notifySuccess, showConfirm } from '../../lib/toasts';
 import { LoadingSpinner } from '../common/LoadingSpinner';
-import { getAdminSetting } from '../../lib/adminSettingsCache';
+import { getAdminSetting } from '../../lib/core/adminSettingsCache';
 
 interface UserRole {
   user_id: string;

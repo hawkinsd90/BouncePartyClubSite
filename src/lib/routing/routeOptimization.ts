@@ -40,7 +40,7 @@ export async function optimizeMorningRoute(
     );
   }
 
-  const { getHomeBaseAddress } = await import('../adminSettingsCache');
+  const { getHomeBaseAddress } = await import('../core/adminSettingsCache');
   const homeBase = await getHomeBaseAddress();
   const homeBaseAddress = homeBase.address;
 

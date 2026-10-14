@@ -1,5 +1,5 @@
-import { notify, notifySuccess, notifyError, notifyWarning } from './toasts';
-import { showAlert, showConfirm } from '../components/common/CustomModal';
+import { notify, notifySuccess, notifyError, notifyWarning } from '../toasts';
+import { showAlert, showConfirm } from '../../components/common/CustomModal';
 
 // Automatically replace window.alert and window.confirm with custom modals
 if (typeof window !== 'undefined') {

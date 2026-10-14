@@ -12,7 +12,7 @@ import { OrderStatusView } from '../components/customer-portal/OrderStatusView';
 import { RegularPortalView } from '../components/customer-portal/RegularPortalView';
 import { LoadingSpinner } from '../components/common/LoadingSpinner';
 import { showToast } from '../lib/toasts';
-import { trackEvent } from '../lib/siteEvents';
+import { trackEvent } from '../lib/core/siteEvents';
 import { parsePortalToken } from '../lib/portal/portalToken';
 import { SecureAccessRequired } from '../components/customer-portal/SecureAccessRequired';
 

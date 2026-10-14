@@ -1,6 +1,6 @@
 import { createContext, useContext, useEffect, useState, useCallback, useMemo } from 'react';
 import { supabase } from '../lib/supabase';
-import { createLogger } from '../lib/logger';
+import { createLogger } from '../lib/core/logger';
 import { isPortalTokenHash } from '../lib/portal/portalToken';
 
 const log = createLogger('Auth');

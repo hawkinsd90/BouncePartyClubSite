@@ -5,7 +5,7 @@ import { UserPlus, Loader2, Eye, EyeOff, ArrowLeft, AlertTriangle, Mail, Shield,
 import { notifySuccess, notifyError } from '../lib/toasts';
 import { AddressAutocomplete } from '../components/order/AddressAutocomplete';
 import { useCustomerProfile } from '../contexts/CustomerProfileContext';
-import { createLogger } from '../lib/logger';
+import { createLogger } from '../lib/core/logger';
 
 const log = createLogger('SignUp');
 

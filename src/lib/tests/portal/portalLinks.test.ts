@@ -697,8 +697,8 @@ async function call(handler: (r: Request) => Promise<Response>, bearer: string |
   ok('redaction: /i/<code> never reaches an error report or analytics', !tokenLib.redactCredentialsInUrl('https://x.test/i/AAAAaaaa2222').includes('AAAAaaaa2222') && tokenLib.redactCredentialsInPath('/i/AAAAaaaa2222') === '/i/[redacted]');
   ok('redaction: ordinary paths are untouched', tokenLib.redactCredentialsInPath('/customer-portal/order-A') === '/customer-portal/order-A');
   const read = (p: string) => fs.readFileSync(p, 'utf8');
-  ok('analytics: site events store the redacted path', /redactCredentialsInPath\(window\.location\.pathname\)/.test(read('src/lib/siteEvents.ts')));
-  ok('error reports: the reported page URL is redacted', /redactCredentialsInUrl\(window\.location\.href\)/.test(read('src/lib/errorReporter.ts')));
+  ok('analytics: site events store the redacted path', /redactCredentialsInPath\(window\.location\.pathname\)/.test(read('src/lib/core/siteEvents.ts')));
+  ok('error reports: the reported page URL is redacted', /redactCredentialsInUrl\(window\.location\.href\)/.test(read('src/lib/core/errorReporter.ts')));
   ok('ads tag: /i short links are never an ads route', /BLOCKED_PREFIXES = \[[^\]]*'\/i'/.test(read('src/components/common/GoogleAdsTag.tsx')));
   ok('auth: the post-login hash cleanup leaves a portal token fragment alone', /isPortalTokenHash\(window\.location\.hash\)/.test(read('src/contexts/AuthContext.tsx')));
 

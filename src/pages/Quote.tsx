@@ -19,7 +19,7 @@ import {
 } from '../lib/pricing/depositCalculation';
 import type { PricingRules } from '../lib/pricing';
 import type { InflatableCartItem } from '../types';
-import { trackEvent, trackEventOnce } from '../lib/siteEvents';
+import { trackEvent, trackEventOnce } from '../lib/core/siteEvents';
 import { CartSection } from '../components/quote/CartSection';
 import { useEventEssentialsCartRepricing } from '../hooks/useEventEssentialsCartRepricing';
 import { useGeneratorCheckbox } from '../hooks/useGeneratorCheckbox';

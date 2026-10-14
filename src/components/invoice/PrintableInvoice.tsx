@@ -2,7 +2,7 @@ import { formatCurrency } from '../../lib/pricing';
 import { effectiveDiscountCents } from '../../lib/pricing/orderMoney';
 import { format } from 'date-fns';
 import { useState, useEffect } from 'react';
-import { getPublicBusinessSettings } from '../../lib/adminSettingsCache';
+import { getPublicBusinessSettings } from '../../lib/core/adminSettingsCache';
 
 interface PrintableInvoiceProps {
   quoteData: any;

@@ -2,7 +2,7 @@
 // (supabase/functions/staff-order-save) prices the result and writes it. The response carries no price the browser must trust: it
 // only says whether the save happened and what follow-up (notifications, lifecycle) applies.
 
-import { getEdgeAuthToken } from '../edgeAuth';
+import { getEdgeAuthToken } from '../core/edgeAuth';
 
 export class StaffOrderSaveError extends Error {
   code: string;

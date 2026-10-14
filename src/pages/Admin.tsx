@@ -29,7 +29,7 @@ import { AdminFloatingOrderHeader } from '../components/admin/AdminFloatingOrder
 import { TabNavigation, type AdminTab } from '../components/admin/TabNavigation';
 import { PendingOrderCardRef } from '../components/admin/PendingOrderCard';
 import { useDataFetch } from '../hooks/useDataFetch';
-import { handleError } from '../lib/errorHandling';
+import { handleError } from '../lib/core/errorHandling';
 import { LoadingSpinner } from '../components/common/LoadingSpinner';
 import type { Unit, PricingRules } from '../types';
 

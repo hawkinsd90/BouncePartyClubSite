@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { TextInput } from '../forms/TextInput';
-import { validateEmail, validatePhone, formatPhone, validateRequired } from '../../lib/validation';
+import { validateEmail, validatePhone, formatPhone, validateRequired } from '../../lib/core/validation';
 
 interface CustomerData {
   first_name: string;

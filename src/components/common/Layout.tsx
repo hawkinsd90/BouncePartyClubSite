@@ -1,10 +1,10 @@
 import { Link, Outlet, useNavigate } from 'react-router-dom';
 import { Phone, Mail, LogOut, LogIn, ShoppingCart, Menu, X, Instagram, Facebook } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
-import { SafeStorage } from '../../lib/safeStorage';
+import { SafeStorage } from '../../lib/core/safeStorage';
 import { useState, useEffect } from 'react';
 import { notifyError } from '../../lib/toasts';
-import { getPublicBusinessSettings, getPublicMenuGroups, type PublicMenuGroup } from '../../lib/adminSettingsCache';
+import { getPublicBusinessSettings, getPublicMenuGroups, type PublicMenuGroup } from '../../lib/core/adminSettingsCache';
 
 export function Layout() {
   const { user, isAdmin, hasRole, signOut } = useAuth();

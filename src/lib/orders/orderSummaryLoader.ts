@@ -1,6 +1,6 @@
 import { supabase } from '../supabase';
 import { calculateDrivingDistance } from '../pricing';
-import { HOME_BASE } from '../businessLocation';
+import { HOME_BASE } from '../core/businessLocation';
 import { buildOrderSummaryDisplay } from './orderSummaryDisplay';
 import { storedOrderTotalCents } from '../pricing/orderMoney';
 import { storedFeeAmounts } from '../pricing/orderFeeDisplay';

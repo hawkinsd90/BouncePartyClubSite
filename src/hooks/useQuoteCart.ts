@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { checkMultipleUnitsAvailabilityPublic } from '../lib/booking/availability';
-import { SafeStorage } from '../lib/safeStorage';
+import { SafeStorage } from '../lib/core/safeStorage';
 import { supabase } from '../lib/supabase';
 import { checkProductAvailability } from '../lib/queries/products';
 import {

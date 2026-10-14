@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { FileCheck, AlertCircle, Loader2 } from 'lucide-react';
 import { fetchPortalData, PortalAccessError } from '../lib/portal/customerPortalApi';
-import { trackEvent } from '../lib/siteEvents';
+import { trackEvent } from '../lib/core/siteEvents';
 import { portalPathForCurrentVisitor, readPortalToken } from '../lib/portal/portalToken';
 import { waiverFunctionHeaders } from '../lib/documents/waiverAccess';
 import SignaturePad from '../components/waiver/SignaturePad';

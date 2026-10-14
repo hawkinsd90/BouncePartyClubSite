@@ -26,7 +26,7 @@ import { formatOrderId } from '../../lib/utils';
 import { createShortPortalLink } from '../../lib/portal/portalShortLink';
 import { portalPathForCurrentVisitor } from '../../lib/portal/portalToken';
 import { ReferralSourceSelect } from '../shared/ReferralSourceSelect';
-import { getPublicBusinessSettings } from '../../lib/adminSettingsCache';
+import { getPublicBusinessSettings } from '../../lib/core/adminSettingsCache';
 
 interface InvoiceAcceptanceViewProps {
   order: any;

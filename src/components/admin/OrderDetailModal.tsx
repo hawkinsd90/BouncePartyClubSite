@@ -4,7 +4,7 @@ import { checkMultipleUnitsAvailability } from '../../lib/booking/availability';
 import { checkEventEssentialsAvailability } from '../../lib/queries/products';
 import { formatOrderSummary } from '../../lib/orders/orderSummaryLoader';
 import { calculateDrivingDistance } from '../../lib/pricing';
-import { HOME_BASE } from '../../lib/businessLocation';
+import { HOME_BASE } from '../../lib/core/businessLocation';
 import { StatusChangeDialog } from '../order-detail/StatusChangeDialog';
 import { OrderNotesTab } from '../order-detail/OrderNotesTab';
 import { OrderWorkflowTab } from '../order-detail/OrderWorkflowTab';

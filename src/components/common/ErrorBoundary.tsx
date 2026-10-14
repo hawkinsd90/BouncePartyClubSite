@@ -1,5 +1,5 @@
 import { Component, ReactNode } from 'react';
-import { reportError } from '../../lib/errorReporter';
+import { reportError } from '../../lib/core/errorReporter';
 
 interface Props {
   children: ReactNode;

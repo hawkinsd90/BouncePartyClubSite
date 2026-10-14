@@ -4,7 +4,7 @@ import { storedOrderTotalCents } from '../../lib/pricing/orderMoney';
 import { formatCurrency } from '../../lib/pricing';
 import { TipSelector, calculateTipCents } from '../payment/TipSelector';
 import { showToast } from '../../lib/toasts';
-import { getEdgeAuthToken } from '../../lib/edgeAuth';
+import { getEdgeAuthToken } from '../../lib/core/edgeAuth';
 
 interface PaymentTabProps {
   orderId: string;

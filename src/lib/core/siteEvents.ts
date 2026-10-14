@@ -1,5 +1,5 @@
-import { supabase } from './supabase';
-import { redactCredentialsInPath } from './portal/portalToken';
+import { supabase } from '../supabase';
+import { redactCredentialsInPath } from '../portal/portalToken';
 
 let sessionId: string | null = null;
 

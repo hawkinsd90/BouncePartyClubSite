@@ -1,8 +1,8 @@
 import { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
-import { SafeStorage } from '../lib/safeStorage';
-import { trackEvent } from '../lib/siteEvents';
+import { SafeStorage } from '../lib/core/safeStorage';
+import { trackEvent } from '../lib/core/siteEvents';
 import { notifyWarning } from '../lib/toasts';
 import {
   Users,

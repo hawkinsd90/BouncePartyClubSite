@@ -1,6 +1,6 @@
 import { supabase } from '../supabase';
 import { executeQuery, type QueryOptions, type QueryResult } from './base';
-import { handleError } from '../errorHandling';
+import { handleError } from '../core/errorHandling';
 import { loadAdminResolverCatalogRowsWith } from './adminResolverCatalogRows';
 import { checkEventEssentialsAvailabilityWith } from '../eventEssentials/eeOrderItemAvailability';
 import type { Json } from '../database.types';

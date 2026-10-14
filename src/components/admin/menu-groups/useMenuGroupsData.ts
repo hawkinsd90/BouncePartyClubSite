@@ -1,7 +1,7 @@
 import { useState, useCallback } from 'react';
 import { supabase } from '../../../lib/supabase';
 import { notifyError, showConfirm } from '../../../lib/toasts';
-import { clearPublicMenuGroupsCache } from '../../../lib/adminSettingsCache';
+import { clearPublicMenuGroupsCache } from '../../../lib/core/adminSettingsCache';
 
 const menuGroupsDb = supabase as any;
 

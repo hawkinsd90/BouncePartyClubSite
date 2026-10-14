@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { loadCompletedBooking } from '../lib/booking/bookingApi';
-import { SafeStorage } from '../lib/safeStorage';
+import { SafeStorage } from '../lib/core/safeStorage';
 import { sendCustomerBookingConfirmationNotifications } from '../lib/notifications/orderNotificationService';
 import { ORDER_STATUS } from '../lib/constants/statuses';
 import { confirmationSettled } from '../lib/booking/confirmationRetry';

@@ -22,9 +22,9 @@ import { TipSection } from '../components/checkout/TipSection';
 import { ConsentSection } from '../components/checkout/ConsentSection';
 import { CheckoutSummary } from '../components/checkout/CheckoutSummary';
 import { ReferralSourceSelect } from '../components/shared/ReferralSourceSelect';
-import { getPublicBusinessSettings } from '../lib/adminSettingsCache';
-import { createLogger } from '../lib/logger';
-import { trackEvent } from '../lib/siteEvents';
+import { getPublicBusinessSettings } from '../lib/core/adminSettingsCache';
+import { createLogger } from '../lib/core/logger';
+import { trackEvent } from '../lib/core/siteEvents';
 
 const log = createLogger('Checkout');
 

@@ -1,4 +1,4 @@
-import { supabase } from './supabase';
+import { supabase } from '../supabase';
 
 // Bearer token for Edge Function calls: the signed-in user's access token when there is a session, otherwise the
 // public anon key. The anon key proves nothing about a caller, so functions that need an admin or an order owner

@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { SafeStorage } from '../lib/safeStorage';
+import { SafeStorage } from '../lib/core/safeStorage';
 
 export interface QuoteFormData {
   event_date: string;

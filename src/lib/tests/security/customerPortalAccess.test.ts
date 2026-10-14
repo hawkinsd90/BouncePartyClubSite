@@ -1062,7 +1062,7 @@ ok('approval: records the payment selection and tip but does NOT confirm the ord
     ok('leakage: rejected / invalid requests log nothing containing the token', !h.logs.join('\n').includes(tp('order-act')) && !h.logs.join('\n').includes(te('order-act')));
     const resp = await callFunction(fn, ANON_KEY, { orderId: 'order-act', token: tp('order-act'), action: 'approve_changes', payload: { bad: 1 } });
     ok('leakage: error responses contain only a code, never the token or order data', !resp.text.includes(tp('order-act')) && Object.keys(resp.json).sort().join() === 'error,success' && resp.json.error === 'invalid_request');
-    ok('leakage: the analytics path / error report redaction from the secure-link work is intact', /redactCredentialsInPath\(window\.location\.pathname\)/.test(read('src/lib/siteEvents.ts')) && /redactCredentialsInUrl\(window\.location\.href\)/.test(read('src/lib/errorReporter.ts')));
+    ok('leakage: the analytics path / error report redaction from the secure-link work is intact', /redactCredentialsInPath\(window\.location\.pathname\)/.test(read('src/lib/core/siteEvents.ts')) && /redactCredentialsInUrl\(window\.location\.href\)/.test(read('src/lib/core/errorReporter.ts')));
     ok('leakage: portal credentials are not placed in notification failure context', !read('src/components/customer-portal/InvoiceAcceptanceView.tsx').includes('notification_failures'));
     ok('leakage: the new endpoints are registered for the browser and checked inside', /\[functions\.customer-portal-data\]\s+verify_jwt = false/.test(read('supabase/config.toml')) && /\[functions\.customer-portal-action\]\s+verify_jwt = false/.test(read('supabase/config.toml')));
   }

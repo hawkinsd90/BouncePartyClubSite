@@ -1,4 +1,4 @@
-import { getEdgeAuthToken } from '../edgeAuth';
+import { getEdgeAuthToken } from '../core/edgeAuth';
 import { callStaffOrderSave } from '../orders/staffOrderSaveApi';
 
 // Creating an Admin / Crew invoice. The browser describes the invoice (customer, equipment, event, discounts, custom fees, waivers,

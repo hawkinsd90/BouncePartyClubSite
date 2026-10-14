@@ -1,7 +1,7 @@
 import { createContext, useContext, useEffect, useState, useRef, ReactNode } from 'react';
 import { useAuth } from './AuthContext';
 import { supabase } from '../lib/supabase';
-import { createLogger } from '../lib/logger';
+import { createLogger } from '../lib/core/logger';
 
 const log = createLogger('CustomerProfile');
 

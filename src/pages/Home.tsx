@@ -16,7 +16,7 @@ import {
 } from 'lucide-react';
 import { AddressAutocomplete } from '../components/order/AddressAutocomplete';
 import { HeroCarousel } from '../components/admin/HeroCarousel';
-import { SafeStorage } from '../lib/safeStorage';
+import { SafeStorage } from '../lib/core/safeStorage';
 import { useAuth } from '../contexts/AuthContext';
 import { useCustomerProfile } from '../contexts/CustomerProfileContext';
 // BPC-SECURITY-HARDENING: COMMENTED OUT FOR PRODUCTION.

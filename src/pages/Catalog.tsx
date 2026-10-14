@@ -1,7 +1,7 @@
 import { useEffect, useState, useCallback, useRef } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
-import { SafeStorage } from '../lib/safeStorage';
+import { SafeStorage } from '../lib/core/safeStorage';
 import { Users, Maximize, Zap, Droplets, Download, Search, XCircle, CheckCircle, Tag } from 'lucide-react';
 import { notifyError } from '../lib/toasts';
 import { DatePickerInput } from '../components/ui/DatePickerInput';

@@ -1,4 +1,4 @@
-import { handleError } from '../errorHandling';
+import { handleError } from '../core/errorHandling';
 
 export interface QueryOptions {
   throwOnError?: boolean;

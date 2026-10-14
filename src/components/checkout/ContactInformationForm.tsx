@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { User } from 'lucide-react';
-import { validateEmail, validatePhone, formatPhone, validateRequired } from '../../lib/validation';
+import { validateEmail, validatePhone, formatPhone, validateRequired } from '../../lib/core/validation';
 
 interface ContactData {
   first_name: string;
