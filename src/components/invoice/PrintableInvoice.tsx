@@ -1,5 +1,5 @@
 import { formatCurrency } from '../../lib/pricing';
-import { effectiveDiscountCents } from '../../lib/orderMoney';
+import { effectiveDiscountCents } from '../../lib/pricing/orderMoney';
 import { format } from 'date-fns';
 import { useState, useEffect } from 'react';
 import { getPublicBusinessSettings } from '../../lib/adminSettingsCache';

@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { format } from 'date-fns';
-import { storedOrderTotalCents } from '../../lib/orderMoney';
+import { storedOrderTotalCents } from '../../lib/pricing/orderMoney';
 import { CheckCircle, XCircle, Phone, MapPin, Calendar, Package } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { formatCurrency } from '../../lib/pricing';

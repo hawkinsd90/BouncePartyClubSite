@@ -11,7 +11,7 @@ import {
   EMAIL_THEMES,
 } from './emailTemplateBase';
 import { formatOrderId } from '../utils';
-import { buildPackageDisplay } from '../packageDisplay';
+import { buildPackageDisplay } from '../pricing/packageDisplay';
 
 interface OrderEmailItem {
   qty: number;

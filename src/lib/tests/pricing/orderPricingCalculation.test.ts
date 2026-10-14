@@ -14,12 +14,12 @@
 
 import { calculatePrice } from '../../pricing';
 import type { PricingRules } from '../../pricing';
-import { calculateRequiredDepositCents, parseBookingDepositSettings } from '../../depositCalculation';
-import { calculateEventEssentialsSetupFeeCents } from '../../setupFeeCalculation';
-import { buildOrderSummaryDisplay } from '../../orderSummaryDisplay';
-import { formatStoredOrderItems } from '../../formatStoredOrderItems';
-import { calculateOrderPricing, shouldReuseSavedTravel } from '../../orderPricingCalculation';
-import type { CalculatePricingParams, CalculatedPricing } from '../../orderPricingCalculation';
+import { calculateRequiredDepositCents, parseBookingDepositSettings } from '../../pricing/depositCalculation';
+import { calculateEventEssentialsSetupFeeCents } from '../../pricing/setupFeeCalculation';
+import { buildOrderSummaryDisplay } from '../../orders/orderSummaryDisplay';
+import { formatStoredOrderItems } from '../../orders/formatStoredOrderItems';
+import { calculateOrderPricing, shouldReuseSavedTravel } from '../../pricing/orderPricingCalculation';
+import type { CalculatePricingParams, CalculatedPricing } from '../../pricing/orderPricingCalculation';
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 

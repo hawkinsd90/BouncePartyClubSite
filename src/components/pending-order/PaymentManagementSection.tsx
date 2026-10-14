@@ -1,7 +1,7 @@
 import { format } from 'date-fns';
 import { CreditCard } from 'lucide-react';
 import { formatCurrency } from '../../lib/pricing';
-import { storedOrderTotalCents } from '../../lib/orderMoney';
+import { storedOrderTotalCents } from '../../lib/pricing/orderMoney';
 import { RefundAllocationPanel } from '../admin/refunds/RefundAllocationPanel';
 import { REFUND_REASONS, componentSummary } from '../../lib/payments/refundAllocationRequest';
 

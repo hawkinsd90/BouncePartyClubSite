@@ -8,7 +8,7 @@ import {
   AlertCircle,
   Shield,
 } from 'lucide-react';
-import { OrderSummaryDisplay } from '../../lib/orderSummaryLoader';
+import { OrderSummaryDisplay } from '../../lib/orders/orderSummaryLoader';
 import { SimpleInvoiceDisplay } from '../shared/SimpleInvoiceDisplay';
 import { TipSelector } from '../payment/TipSelector';
 import { PaymentAmountSelector } from './PaymentAmountSelector';
@@ -17,7 +17,7 @@ import { CancelOrderModal } from './CancelOrderModal';
 import { showToast } from '../../lib/toasts';
 import { portalAction } from '../../lib/portal/customerPortalApi';
 import { checkEventEssentialsAvailability } from '../../lib/queries/products';
-import { enterConfirmed } from '../../lib/orderLifecycleApi';
+import { enterConfirmed } from '../../lib/orders/orderLifecycleApi';
 import {
   generateConfirmationReceiptEmail,
   generateConfirmationSmsMessage,

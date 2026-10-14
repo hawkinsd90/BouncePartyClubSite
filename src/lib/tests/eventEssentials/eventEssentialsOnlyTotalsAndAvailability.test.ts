@@ -1,9 +1,9 @@
 // Stage E4 — Final correction pass: real production-path tests.
 // Tests imported production helpers. No recreated validation logic.
 
-import { buildEventEssentialAvailabilityRequestFromOrderItems, validateAvailabilityResult } from '../../eeOrderItemAvailability';
-import { parseBookingDepositSettings, calculateRequiredDepositCents, calculateEEOnlyDepositCents, DEFAULT_EE_ONLY_DEPOSIT_SETTINGS } from '../../depositCalculation';
-import { composeUnifiedQuoteTotals } from '../../unifiedTotals';
+import { buildEventEssentialAvailabilityRequestFromOrderItems, validateAvailabilityResult } from '../../eventEssentials/eeOrderItemAvailability';
+import { parseBookingDepositSettings, calculateRequiredDepositCents, calculateEEOnlyDepositCents, DEFAULT_EE_ONLY_DEPOSIT_SETTINGS } from '../../pricing/depositCalculation';
+import { composeUnifiedQuoteTotals } from '../../pricing/unifiedTotals';
 import { formatCurrency } from '../../pricing';
 import type { UnifiedCartItem } from '../../../types';
 

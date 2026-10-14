@@ -1,7 +1,7 @@
 import { format } from 'date-fns';
 import { Order, Payment } from '../../types/orders';
 import { OrderSummary } from '../order/OrderSummary';
-import { OrderSummaryDisplay } from '../../lib/orderSummaryLoader';
+import { OrderSummaryDisplay } from '../../lib/orders/orderSummaryLoader';
 import { PrintModal } from '../common/PrintModal';
 import { formatCurrency } from '../../lib/pricing';
 import { formatOrderId } from '../../lib/utils';

@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import { calculatePrice, calculateDrivingDistance, isSameDayWeekdayDelivery, type PricingRules, type PriceBreakdown } from '../lib/pricing';
 import { HOME_BASE } from '../lib/businessLocation';
-import { calculateSalesTaxCents, composeOrderTotal, effectiveTaxEnabled } from '../lib/orderMoney';
+import { calculateSalesTaxCents, composeOrderTotal, effectiveTaxEnabled } from '../lib/pricing/orderMoney';
 
 interface CartItem {
   unit_id: string;

@@ -27,7 +27,7 @@ import {
   buildBundleConfigMap,
   buildCategoryMap,
   buildUnitMap,
-} from '../lib/eventEssentialsCatalogResolver';
+} from '../lib/eventEssentials/eventEssentialsCatalogResolver';
 import {
   repriceEventEssentialsCart,
   hasBlockingIssues,
@@ -36,11 +36,11 @@ import {
   bundleLineKey,
   type EventEssentialsCartIssue,
   type RepriceEventEssentialsCartResult,
-} from '../lib/eventEssentialsCartRepricing';
+} from '../lib/eventEssentials/eventEssentialsCartRepricing';
 import {
   isEventEssentialProductCartItem,
   isEventEssentialBundleCartItem,
-} from '../lib/unifiedCart';
+} from '../lib/eventEssentials/unifiedCart';
 
 export interface UseEventEssentialsCartRepricingResult {
   issues: EventEssentialsCartIssue[];

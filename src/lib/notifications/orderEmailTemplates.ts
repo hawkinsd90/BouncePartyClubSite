@@ -11,7 +11,7 @@ import {
   COMPANY_PHONE,
 } from './emailTemplateBase';
 import { formatOrderId } from '../utils';
-import { buildPackageDisplay } from '../packageDisplay';
+import { buildPackageDisplay } from '../pricing/packageDisplay';
 
 export function renderOrderEmailItems(items: any[]): Array<{ description: string; amount: string }> {
   const result: Array<{ description: string; amount: string }> = [];

@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { MapPin, Calculator, Info } from 'lucide-react';
 import { AddressAutocomplete } from '../order/AddressAutocomplete';
 import { TravelFeeBreakdown } from '../shared/TravelFeeBreakdown';
-import { calculateTravelFee, type TravelFeeCalculationResult } from '../../lib/travelFeeCalculator';
+import { calculateTravelFee, type TravelFeeCalculationResult } from '../../lib/pricing/travelFeeCalculator';
 import { loadGoogleMapsAPI } from '../../lib/routing/googleMapsLoader';
 import { formatCurrency } from '../../lib/pricing';
 import { supabase } from '../../lib/supabase';

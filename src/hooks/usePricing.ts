@@ -1,13 +1,13 @@
 import { useState, useCallback, useRef } from 'react';
 import { calculateDrivingDistance, isSameDayWeekdayDelivery } from '../lib/pricing';
-import { formatOrderSummary } from '../lib/orderSummaryLoader';
+import { formatOrderSummary } from '../lib/orders/orderSummaryLoader';
 import { HOME_BASE } from '../lib/businessLocation';
 import {
   calculateOrderPricing,
   shouldReuseSavedTravel,
   type CalculatedPricing,
   type CalculatePricingParams,
-} from '../lib/orderPricingCalculation';
+} from '../lib/pricing/orderPricingCalculation';
 
 export type PricingCalculationResult =
   | { status: 'success' }

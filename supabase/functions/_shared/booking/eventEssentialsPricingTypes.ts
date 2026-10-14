@@ -1,5 +1,5 @@
-// GENERATED COPY of src/lib/eventEssentialsPricingTypes.ts. Do not edit here.
-// Edit the source and run: node node_modules/jiti/bin/jiti.js src/lib/bookingSharedCopy.ts --write
+// GENERATED COPY of src/lib/eventEssentials/eventEssentialsPricingTypes.ts. Do not edit here.
+// Edit the source and run: node node_modules/jiti/bin/jiti.js src/lib/tooling/bookingSharedCopy.ts --write
 // A test fails if this file differs from its source. Used by create-booking so the server prices exactly like the Quote.
 
 // Stage E1 — Event Essentials Qualifying-Subtotal, Price-Resolution,

@@ -4,7 +4,7 @@ import { SafeStorage } from '../lib/safeStorage';
 import { useAuth } from '../contexts/AuthContext';
 import { useCustomerProfile } from '../contexts/CustomerProfileContext';
 import type { UnifiedCartItem, InflatableCartItem, EventEssentialProductCartItem, EventEssentialBundleCartItem } from '../types';
-import { isInflatableCartItem } from '../lib/unifiedCart';
+import { isInflatableCartItem } from '../lib/eventEssentials/unifiedCart';
 
 interface ContactData {
   first_name: string;

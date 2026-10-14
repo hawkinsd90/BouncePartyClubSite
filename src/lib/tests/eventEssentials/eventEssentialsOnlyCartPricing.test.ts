@@ -3,8 +3,8 @@
 // Real production-path tests using actual helpers. No local booleans,
 // copied Maps, or comment-only stubs.
 
-import { parseBookingDepositSettings, calculateRequiredDepositCents, DEFAULT_EE_ONLY_DEPOSIT_SETTINGS } from '../../depositCalculation';
-import { composeUnifiedQuoteTotals } from '../../unifiedTotals';
+import { parseBookingDepositSettings, calculateRequiredDepositCents, DEFAULT_EE_ONLY_DEPOSIT_SETTINGS } from '../../pricing/depositCalculation';
+import { composeUnifiedQuoteTotals } from '../../pricing/unifiedTotals';
 import { formatCurrency } from '../../pricing';
 import type { UnifiedCartItem } from '../../../types';
 

@@ -1,6 +1,6 @@
 // Catalog add-error decision tests, split out of the former stageE4DefectFixes.test.ts. They call the real production helpers.
 
-import { decideAddError } from '../../catalogAddError';
+import { decideAddError } from '../../eventEssentials/catalogAddError';
 
 let passed = 0;
 let failed = 0;

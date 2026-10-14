@@ -1,8 +1,8 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { supabase } from '../../lib/supabase';
-import { checkMultipleUnitsAvailability } from '../../lib/availability';
+import { checkMultipleUnitsAvailability } from '../../lib/booking/availability';
 import { checkEventEssentialsAvailability } from '../../lib/queries/products';
-import { formatOrderSummary } from '../../lib/orderSummaryLoader';
+import { formatOrderSummary } from '../../lib/orders/orderSummaryLoader';
 import { calculateDrivingDistance } from '../../lib/pricing';
 import { HOME_BASE } from '../../lib/businessLocation';
 import { StatusChangeDialog } from '../order-detail/StatusChangeDialog';
@@ -34,19 +34,19 @@ import { buildGeneratorResolverCatalog } from './order-detail-modal/generatorRes
 import { buildOrderDetailPricingRevision, buildGeneratorContextRevision } from './order-detail-modal/orderDetailRevisions';
 import { usePricing } from '../../hooks/usePricing';
 import { useAdminOrderDetails } from '../../hooks/useAdminOrderDetails';
-import { saveOrderChanges } from '../../lib/staffOrderSaveRequest';
-import { orderPricingState } from '../../lib/orderPricingState';
-import { initDepositOverrideState } from '../../lib/depositCalculation';
+import { saveOrderChanges } from '../../lib/orders/staffOrderSaveRequest';
+import { orderPricingState } from '../../lib/pricing/orderPricingState';
+import { initDepositOverrideState } from '../../lib/pricing/depositCalculation';
 import { sendOrderEditNotifications } from '../../lib/notifications/orderNotificationService';
 import { SimpleConfirmModal } from '../common/SimpleConfirmModal';
 import { ORDER_STATUS } from '../../lib/constants/statuses';
 import { showToast } from '../../lib/toasts';
-import { loadGeneratorCategoryProductIds } from '../../lib/customerGeneratorCart';
+import { loadGeneratorCategoryProductIds } from '../../lib/eventEssentials/customerGeneratorCart';
 import {
   resolveAdminGeneratorIncrease,
   decideAdminGeneratorDecrease,
   type AdminGeneratorStagedItem,
-} from '../../lib/adminGeneratorResolution';
+} from '../../lib/eventEssentials/adminGeneratorResolution';
 import { loadAdminResolverCatalogRows } from '../../lib/queries/products';
 
 interface OrderDetailModalProps {
@@ -424,7 +424,7 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
     setParksAcknowledgmentResolving(true);
     (async () => {
       try {
-        const { reverseGeocodeCounty, forwardGeocodeCounty } = await import('../../lib/addressService');
+        const { reverseGeocodeCounty, forwardGeocodeCounty } = await import('../../lib/booking/addressService');
         const lat = editedOrder.address_lat ?? null;
         const lng = editedOrder.address_lng ?? null;
         let county: string | null = null;
@@ -1013,7 +1013,7 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
     // Otherwise resolve county from the existing event address
     setParksAcknowledgmentResolving(true);
     try {
-      const { reverseGeocodeCounty, forwardGeocodeCounty } = await import('../../lib/addressService');
+      const { reverseGeocodeCounty, forwardGeocodeCounty } = await import('../../lib/booking/addressService');
       const lat = editedOrder.address_lat ?? order.addresses?.lat ?? null;
       const lng = editedOrder.address_lng ?? order.addresses?.lng ?? null;
       let county: string | null = null;

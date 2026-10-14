@@ -3,7 +3,7 @@
 // The Quote Summary uses formatQuantityLabel for the visible quantity text;
 // extended pricing is calculated separately as unit_price_cents × qty.
 
-import { formatQuantityLabel } from '../../packageDisplay';
+import { formatQuantityLabel } from '../../pricing/packageDisplay';
 
 let passed = 0;
 let failed = 0;

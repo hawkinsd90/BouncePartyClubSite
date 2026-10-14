@@ -16,7 +16,7 @@ import {
   sumCustomFeesCents,
   sumEffectiveDiscountsCents,
   wholeCentsOrZero,
-} from '../../orderMoney';
+} from '../../pricing/orderMoney';
 
 let passed = 0;
 let failed = 0;

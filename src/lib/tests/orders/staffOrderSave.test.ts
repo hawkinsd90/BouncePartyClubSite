@@ -19,10 +19,10 @@ declare const process: { env: Record<string, string | undefined> };
 import * as authHelpers from '../../../../supabase/functions/_shared/auth';
 import * as staffSave from '../../../../supabase/functions/_shared/staff-order-save';
 import { PgPool, PG_TABLES, ensurePayDatabase, makeWorld, loadHandler, callHandler, lit, SERVICE_KEY, type World } from '../support/paymentHarness';
-import { calculateOrderPricing } from '../../orderPricingCalculation';
-import { orderPricingState } from '../../orderPricingState';
-import { storedFeeAmounts } from '../../orderFeeDisplay';
-import { storedOrderTotalCents } from '../../orderMoney';
+import { calculateOrderPricing } from '../../pricing/orderPricingCalculation';
+import { orderPricingState } from '../../pricing/orderPricingState';
+import { storedFeeAmounts } from '../../pricing/orderFeeDisplay';
+import { storedOrderTotalCents } from '../../pricing/orderMoney';
 import { calculatePrice, isSameDayWeekdayDelivery } from '../../pricing';
 import type { PricingRules } from '../../pricing';
 

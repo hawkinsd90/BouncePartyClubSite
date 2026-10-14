@@ -14,8 +14,8 @@ import type {
   ResolverOutputLine,
   ResolverProductConfig,
   ResolverUnitConfig,
-} from '../../eventEssentialsPricingTypes';
-import { resolveEventEssentialsPricing } from '../../eventEssentialsPricing';
+} from '../../eventEssentials/eventEssentialsPricingTypes';
+import { resolveEventEssentialsPricing } from '../../eventEssentials/eventEssentialsPricing';
 
 // ---------------------------------------------------------------------------
 // Tiny test harness.

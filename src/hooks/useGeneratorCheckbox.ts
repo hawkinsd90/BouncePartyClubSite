@@ -23,7 +23,7 @@ import {
   normalizeCartLines,
   evaluateProductCandidate,
   deriveCandidateViewModel,
-} from '../lib/eventEssentialsCatalogResolver';
+} from '../lib/eventEssentials/eventEssentialsCatalogResolver';
 import { checkProductAvailability } from '../lib/queries/products';
 import {
   lookupGeneratorProduct,
@@ -38,7 +38,7 @@ import {
   type GeneratorProductConfiguration,
   type PackageGeneratorConfig,
   type GeneratorConfigurationStatus,
-} from '../lib/customerGeneratorCart';
+} from '../lib/eventEssentials/customerGeneratorCart';
 import type {
   UnifiedCartItem,
   EventEssentialProductCartItem,

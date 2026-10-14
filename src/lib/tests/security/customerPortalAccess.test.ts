@@ -212,7 +212,7 @@ function fixture(): Harness {
       'src/pages/CustomerPortal.tsx',
       'src/pages/Receipt.tsx',
       'src/pages/Sign.tsx',
-      'src/lib/orderSummaryLoader.ts',
+      'src/lib/orders/orderSummaryLoader.ts',
       'src/lib/notifications/orderEmailTemplates.ts',
       ...fs.readdirSync('src/components/customer-portal').filter((f: string) => f.endsWith('.tsx')).map((f: string) => `src/components/customer-portal/${f}`),
     ];

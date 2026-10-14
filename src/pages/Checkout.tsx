@@ -3,18 +3,18 @@ import { useNavigate } from 'react-router-dom';
 import { MapPin } from 'lucide-react';
 import { formatCurrency } from '../lib/pricing';
 import { RentalTerms } from '../components/waiver/RentalTerms';
-import { BookingApiError, buildBookingRequest, createBooking, startBookingCardSetup } from '../lib/bookingApi';
+import { BookingApiError, buildBookingRequest, createBooking, startBookingCardSetup } from '../lib/booking/bookingApi';
 import { useAuth } from '../contexts/AuthContext';
 import { useCheckoutData } from '../hooks/useCheckoutData';
-import { getPaymentAmountCentsFromTotals, getTipAmountCents, buildOrderSummary } from '../lib/checkoutUtils';
+import { getPaymentAmountCentsFromTotals, getTipAmountCents, buildOrderSummary } from '../lib/booking/checkoutUtils';
 import { showToast } from '../lib/toasts';
-import { composeUnifiedQuoteTotals } from '../lib/unifiedTotals';
-import { validateCartPackageSnapshots } from '../lib/packageDisplay';
+import { composeUnifiedQuoteTotals } from '../lib/pricing/unifiedTotals';
+import { validateCartPackageSnapshots } from '../lib/pricing/packageDisplay';
 import {
   parseBookingDepositSettings,
   fetchSingletonPricingRulesRow,
   type BookingDepositSettingsResult,
-} from '../lib/depositCalculation';
+} from '../lib/pricing/depositCalculation';
 import { ContactInformationForm } from '../components/checkout/ContactInformationForm';
 import { BillingAddressForm } from '../components/checkout/BillingAddressForm';
 import { PaymentAmountSelector } from '../components/checkout/PaymentAmountSelector';

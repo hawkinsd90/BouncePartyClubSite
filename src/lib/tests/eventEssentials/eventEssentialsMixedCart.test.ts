@@ -6,16 +6,16 @@
 // expandCartToProductQuantities. No React, no Supabase, no Admin/Crew.
 // jiti runner.
 
-import { composeUnifiedQuoteTotals } from '../../unifiedTotals';
-import { DEFAULT_EE_ONLY_DEPOSIT_SETTINGS, calculateRequiredDepositCents, initDepositOverrideState } from '../../depositCalculation';
-import { mapCartToOrderItems, hasEventEssentialsInCart, hasInflatablesInCart } from '../../eventEssentialsOrderItems';
-import { getPaymentAmountCentsFromTotals } from '../../checkoutUtils';
-import { expandCartToProductQuantities, isInflatableCartItem } from '../../unifiedCart';
-import { buildPackageDisplay } from '../../packageDisplay';
+import { composeUnifiedQuoteTotals } from '../../pricing/unifiedTotals';
+import { DEFAULT_EE_ONLY_DEPOSIT_SETTINGS, calculateRequiredDepositCents, initDepositOverrideState } from '../../pricing/depositCalculation';
+import { mapCartToOrderItems, hasEventEssentialsInCart, hasInflatablesInCart } from '../../eventEssentials/eventEssentialsOrderItems';
+import { getPaymentAmountCentsFromTotals } from '../../booking/checkoutUtils';
+import { expandCartToProductQuantities, isInflatableCartItem } from '../../eventEssentials/unifiedCart';
+import { buildPackageDisplay } from '../../pricing/packageDisplay';
 import {
   buildEventEssentialAvailabilityRequestFromOrderItems,
   validateAvailabilityResult,
-} from '../../eeOrderItemAvailability';
+} from '../../eventEssentials/eeOrderItemAvailability';
 import type {
   UnifiedCartItem,
   InflatableCartItem,

@@ -9,14 +9,14 @@ import { useQuoteForm } from '../hooks/useQuoteForm';
 import { useQuotePricing } from '../hooks/useQuotePricing';
 import { useQuotePrefill } from '../hooks/useQuotePrefill';
 import { useDataFetch } from '../hooks/useDataFetch';
-import { checkDateBlackout } from '../lib/availability';
-import { evaluateQuoteSubmitGate, evaluateAvailabilityRecheck } from '../lib/quoteSubmitGate';
-import type { QuoteSubmitGateFailure } from '../lib/quoteSubmitGate';
-import { composeUnifiedQuoteTotals } from '../lib/unifiedTotals';
+import { checkDateBlackout } from '../lib/booking/availability';
+import { evaluateQuoteSubmitGate, evaluateAvailabilityRecheck } from '../lib/booking/quoteSubmitGate';
+import type { QuoteSubmitGateFailure } from '../lib/booking/quoteSubmitGate';
+import { composeUnifiedQuoteTotals } from '../lib/pricing/unifiedTotals';
 import {
   parseBookingDepositSettings,
   fetchSingletonPricingRulesRow,
-} from '../lib/depositCalculation';
+} from '../lib/pricing/depositCalculation';
 import type { PricingRules } from '../lib/pricing';
 import type { InflatableCartItem } from '../types';
 import { trackEvent, trackEventOnce } from '../lib/siteEvents';

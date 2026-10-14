@@ -15,7 +15,7 @@ import { useCustomerManagement } from '../../hooks/useCustomerManagement';
 import { useInvoiceEventDetails } from '../../hooks/useInvoiceEventDetails';
 import { generateInvoice } from '../../lib/payments/invoiceService';
 import { buildInvoiceSummary } from '../../lib/payments/invoiceSummaryBuilder';
-import { checkMultipleUnitsAvailability } from '../../lib/availability';
+import { checkMultipleUnitsAvailability } from '../../lib/booking/availability';
 
 export function CrewInvoiceBuilder() {
   const { customers, units, pricingRules, addCustomer } = useInvoiceData();

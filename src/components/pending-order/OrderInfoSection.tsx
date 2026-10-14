@@ -2,9 +2,9 @@ import { format } from 'date-fns';
 import { useState, useEffect } from 'react';
 import { CreditCard as Edit2 } from 'lucide-react';
 import { formatOrderId } from '../../lib/utils';
-import { eventAddressLine2 } from '../../lib/eventAddress';
+import { eventAddressLine2 } from '../../lib/booking/eventAddress';
 import { ORDER_STATUS_LABELS } from '../../lib/constants/statuses';
-import { hasGeneratorInOrderItemsByCategory, loadGeneratorCategoryProductIds } from '../../lib/customerGeneratorCart';
+import { hasGeneratorInOrderItemsByCategory, loadGeneratorCategoryProductIds } from '../../lib/eventEssentials/customerGeneratorCart';
 
 interface OrderInfoSectionProps {
   order: any;

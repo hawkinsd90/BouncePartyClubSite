@@ -751,7 +751,7 @@ function realMoneyScope(): Record<string, unknown> {
     new Function('exports', 'module', ...names, transpile(src))(mod.exports, mod, ...names.map((n) => scope[n]));
     return mod.exports;
   };
-  const money = run('src/lib/orderMoney.ts', {});
+  const money = run('src/lib/pricing/orderMoney.ts', {});
   const receipts = run('supabase/functions/_shared/receipt-order-totals.ts', money);
   realMoney = { ...money, ...receipts };
   return realMoney;

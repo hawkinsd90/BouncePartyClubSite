@@ -13,12 +13,12 @@ import {
   decideLegacySync,
   isConversionAllowed,
   type PackageGeneratorConfig,
-} from '../lib/customerGeneratorCart';
+} from '../lib/eventEssentials/customerGeneratorCart';
 import {
   normalizeCartLines,
   evaluateProductCandidate,
   deriveCandidateViewModel,
-} from '../lib/eventEssentialsCatalogResolver';
+} from '../lib/eventEssentials/eventEssentialsCatalogResolver';
 import type {
   UnifiedCartItem,
   InflatableCartItem,

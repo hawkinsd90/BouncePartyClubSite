@@ -2,12 +2,12 @@
 // pickup validation, and configurable EE-only deposits.
 // jiti runner. Tests imported production helpers.
 
-import { calculateRequiredDepositCents, calculateEEOnlyDepositCents, DEFAULT_EE_ONLY_DEPOSIT_SETTINGS, type EEOnlyDepositSettings } from '../../depositCalculation';
-import { buildPackageDisplay } from '../../packageDisplay';
-import { hasGeneratorInOrderItems } from '../../customerGeneratorCart';
-import { composeUnifiedQuoteTotals } from '../../unifiedTotals';
-import { mapCartToOrderItems } from '../../eventEssentialsOrderItems';
-import { getPaymentAmountCentsFromTotals } from '../../checkoutUtils';
+import { calculateRequiredDepositCents, calculateEEOnlyDepositCents, DEFAULT_EE_ONLY_DEPOSIT_SETTINGS, type EEOnlyDepositSettings } from '../../pricing/depositCalculation';
+import { buildPackageDisplay } from '../../pricing/packageDisplay';
+import { hasGeneratorInOrderItems } from '../../eventEssentials/customerGeneratorCart';
+import { composeUnifiedQuoteTotals } from '../../pricing/unifiedTotals';
+import { mapCartToOrderItems } from '../../eventEssentials/eventEssentialsOrderItems';
+import { getPaymentAmountCentsFromTotals } from '../../booking/checkoutUtils';
 import type { UnifiedCartItem, InflatableCartItem, EventEssentialProductCartItem, EventEssentialBundleCartItem, BundleComponentSnapshot } from '../../../types';
 
 let passed = 0;

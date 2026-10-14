@@ -3,10 +3,10 @@
 // Real production-path tests for the 16 required scenarios. Uses actual
 // production helpers — no local booleans, copied Maps, or comment-only stubs.
 
-import { parseBookingDepositSettings } from '../../depositCalculation';
-import { composeUnifiedQuoteTotals } from '../../unifiedTotals';
-import { parseMoneyInput, validateEEDepositSettingsInput } from '../../moneySettings';
-import { determineCheckoutRenderState } from '../../checkoutUtils';
+import { parseBookingDepositSettings } from '../../pricing/depositCalculation';
+import { composeUnifiedQuoteTotals } from '../../pricing/unifiedTotals';
+import { parseMoneyInput, validateEEDepositSettingsInput } from '../../pricing/moneySettings';
+import { determineCheckoutRenderState } from '../../booking/checkoutUtils';
 import { renderOrderEmailItems } from '../../notifications/orderEmailTemplates';
 import type { PriceBreakdown } from '../../pricing';
 import type { UnifiedCartItem } from '../../../types';

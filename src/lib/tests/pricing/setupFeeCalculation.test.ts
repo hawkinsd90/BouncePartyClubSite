@@ -3,7 +3,7 @@
 // Pure; no database, no network.
 // Run: node node_modules/jiti/bin/jiti.js src/lib/setupFeeCalculation.test.ts
 
-import { calculateEventEssentialsSetupFeeCents, EVENT_ESSENTIALS_SETUP_MINIMUM_CENTS } from '../../setupFeeCalculation';
+import { calculateEventEssentialsSetupFeeCents, EVENT_ESSENTIALS_SETUP_MINIMUM_CENTS } from '../../pricing/setupFeeCalculation';
 
 let passed = 0;
 let failed = 0;

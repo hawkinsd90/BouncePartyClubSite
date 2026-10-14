@@ -1,6 +1,6 @@
-import type { OrderSummaryDisplay } from '../orderSummaryLoader';
+import type { OrderSummaryDisplay } from '../orders/orderSummaryLoader';
 import type { PriceBreakdown } from '../pricing';
-import { buildOrderSummaryDisplay } from '../orderSummaryDisplay';
+import { buildOrderSummaryDisplay } from '../orders/orderSummaryDisplay';
 
 interface CartItem {
   unit_name: string;

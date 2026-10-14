@@ -7,12 +7,12 @@
 // `applyGateFailure` is a copy of the thin helper the page uses to apply a returned failure, recording the
 // same side effects, so old and new are compared as complete ordered side-effect logs.
 
-import { validateQuote } from '../../quoteValidation';
-import { validateCartPackageSnapshots } from '../../packageDisplay';
-import { composeUnifiedQuoteTotals } from '../../unifiedTotals';
-import { parseBookingDepositSettings } from '../../depositCalculation';
-import { evaluateQuoteSubmitGate, evaluateAvailabilityRecheck } from '../../quoteSubmitGate';
-import type { QuoteSubmitGateFailure, QuoteSubmitGateInput } from '../../quoteSubmitGate';
+import { validateQuote } from '../../booking/quoteValidation';
+import { validateCartPackageSnapshots } from '../../pricing/packageDisplay';
+import { composeUnifiedQuoteTotals } from '../../pricing/unifiedTotals';
+import { parseBookingDepositSettings } from '../../pricing/depositCalculation';
+import { evaluateQuoteSubmitGate, evaluateAvailabilityRecheck } from '../../booking/quoteSubmitGate';
+import type { QuoteSubmitGateFailure, QuoteSubmitGateInput } from '../../booking/quoteSubmitGate';
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 

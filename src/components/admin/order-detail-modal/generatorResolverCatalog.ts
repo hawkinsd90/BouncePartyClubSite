@@ -29,19 +29,19 @@ import {
   buildBundleConfigMap,
   buildCategoryMap,
   buildUnitMap,
-} from '../../../lib/eventEssentialsCatalogResolver';
+} from '../../../lib/eventEssentials/eventEssentialsCatalogResolver';
 import type {
   CatalogProductRow,
   CatalogPricingRow,
   CatalogCategoryRow,
   CatalogBundleRow,
-} from '../../../lib/eventEssentialsCatalogResolver';
+} from '../../../lib/eventEssentials/eventEssentialsCatalogResolver';
 import type {
   ResolverProductConfig,
   ResolverBundleConfig,
   ResolverCategory,
   ResolverUnitConfig,
-} from '../../../lib/eventEssentialsPricingTypes';
+} from '../../../lib/eventEssentials/eventEssentialsPricingTypes';
 
 export type { CatalogProductRow, CatalogPricingRow, CatalogCategoryRow, CatalogBundleRow };
 

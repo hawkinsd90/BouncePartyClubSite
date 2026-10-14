@@ -1,6 +1,6 @@
 import { useState, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { storedOrderTotalCents } from '../../lib/orderMoney';
+import { storedOrderTotalCents } from '../../lib/pricing/orderMoney';
 import { supabase } from '../../lib/supabase';
 import { FileText, Calendar, Eye, CreditCard as Edit } from 'lucide-react';
 import { format } from 'date-fns';

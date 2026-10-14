@@ -1,6 +1,6 @@
 import { X } from 'lucide-react';
 import { SimpleInvoiceDisplay } from '../shared/SimpleInvoiceDisplay';
-import { buildOrderSummary } from '../../lib/checkoutUtils';
+import { buildOrderSummary } from '../../lib/booking/checkoutUtils';
 
 interface InvoicePreviewModalProps {
   quoteData: any;

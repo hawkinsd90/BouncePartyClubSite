@@ -2,9 +2,9 @@
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
-import { hasGeneratorInOrderItems } from '../../customerGeneratorCart';
-import { buildPackageDisplay, isPackageItem, validatePackageSnapshot } from '../../packageDisplay';
-import { formatStoredOrderItems } from '../../formatStoredOrderItems';
+import { hasGeneratorInOrderItems } from '../../eventEssentials/customerGeneratorCart';
+import { buildPackageDisplay, isPackageItem, validatePackageSnapshot } from '../../pricing/packageDisplay';
+import { formatStoredOrderItems } from '../../orders/formatStoredOrderItems';
 import type { BundleComponentSnapshot } from '../../../types';
 
 let passed = 0;

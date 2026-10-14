@@ -1,7 +1,7 @@
 // Stage E4 — Order-item mapping tests (corrected).
 // jiti runner, no React/Supabase.
 
-import { mapCartToOrderItems, hasEventEssentialsInCart, hasInflatablesInCart } from '../../eventEssentialsOrderItems';
+import { mapCartToOrderItems, hasEventEssentialsInCart, hasInflatablesInCart } from '../../eventEssentials/eventEssentialsOrderItems';
 import type {
   UnifiedCartItem,
   InflatableCartItem,

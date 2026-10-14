@@ -10,10 +10,10 @@ import type {
   ResolverOutputLine,
   ResolverProductConfig,
   ResolverUnitConfig,
-} from '../../eventEssentialsPricingTypes';
-import { resolveEventEssentialsPricing } from '../../eventEssentialsPricing';
-import { buildEventEssentialAvailabilityRequestFromOrderItems, validateAvailabilityResult } from '../../eeOrderItemAvailability';
-import { calculateRequiredDepositCents, parseBookingDepositSettings, DEFAULT_EE_ONLY_DEPOSIT_SETTINGS } from '../../depositCalculation';
+} from '../../eventEssentials/eventEssentialsPricingTypes';
+import { resolveEventEssentialsPricing } from '../../eventEssentials/eventEssentialsPricing';
+import { buildEventEssentialAvailabilityRequestFromOrderItems, validateAvailabilityResult } from '../../eventEssentials/eeOrderItemAvailability';
+import { calculateRequiredDepositCents, parseBookingDepositSettings, DEFAULT_EE_ONLY_DEPOSIT_SETTINGS } from '../../pricing/depositCalculation';
 
 let passCount = 0;
 let failCount = 0;

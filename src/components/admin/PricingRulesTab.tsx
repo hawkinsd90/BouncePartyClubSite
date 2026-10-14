@@ -2,8 +2,8 @@ import { useState, useEffect } from 'react';
 import { CreditCard as Edit2, Save, X } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { notifyError, notifySuccess } from '../../lib/toasts';
-import { calculateEEOnlyDepositCents } from '../../lib/depositCalculation';
-import { validateEEDepositSettingsInput, parseMoneyInput } from '../../lib/moneySettings';
+import { calculateEEOnlyDepositCents } from '../../lib/pricing/depositCalculation';
+import { validateEEDepositSettingsInput, parseMoneyInput } from '../../lib/pricing/moneySettings';
 import { formatCurrency } from '../../lib/pricing';
 
 interface PricingRules {

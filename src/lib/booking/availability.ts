@@ -1,0 +1,195 @@
+import { supabase } from '../supabase';
+import { ORDER_STATUS } from '../constants/statuses';
+import { checkUnitsAvailabilityPublic } from './bookingApi';
+
+export interface BlackoutCheckResult {
+  is_full_blocked: boolean;
+  is_same_day_pickup_blocked: boolean;
+}
+
+export async function checkDateBlackout(
+  startDate: string,
+  endDate: string
+): Promise<BlackoutCheckResult> {
+  const { data, error } = await supabase
+    .rpc('check_date_blackout', {
+      p_start: startDate.substring(0, 10),
+      p_end: endDate.substring(0, 10),
+    })
+    .maybeSingle();
+
+  if (error) {
+    console.error('Error checking blackout dates:', error);
+    return { is_full_blocked: false, is_same_day_pickup_blocked: false };
+  }
+
+  return data ?? { is_full_blocked: false, is_same_day_pickup_blocked: false };
+}
+
+export interface AvailabilityCheck {
+  unitId: string;
+  eventStartDate: string;
+  eventEndDate: string;
+  excludeOrderId?: string;
+}
+
+export interface UnitAvailability {
+  unitId: string;
+  isAvailable: boolean;
+  conflictingOrders?: {
+    orderId: string;
+    eventStartDate: string;
+    eventEndDate: string;
+    status: string;
+  }[];
+}
+
+const BLOCKED_STATUSES = [ORDER_STATUS.PENDING, ORDER_STATUS.AWAITING_CUSTOMER_APPROVAL, 'approved', ORDER_STATUS.CONFIRMED, ORDER_STATUS.IN_PROGRESS, ORDER_STATUS.COMPLETED];
+
+export async function checkUnitAvailability(
+  check: AvailabilityCheck,
+  precomputedBlackout?: BlackoutCheckResult
+): Promise<UnitAvailability> {
+  const { unitId, eventStartDate, eventEndDate, excludeOrderId } = check;
+
+  const blackout = precomputedBlackout ?? await checkDateBlackout(eventStartDate, eventEndDate);
+  if (blackout.is_full_blocked) {
+    return { unitId, isAvailable: false, conflictingOrders: [] };
+  }
+
+  let query = supabase
+    .from('order_items')
+    .select(`
+      order_id,
+      orders!inner(
+        id,
+        event_date,
+        event_end_date,
+        status
+      )
+    `)
+    .eq('unit_id', unitId)
+    .in('orders.status', BLOCKED_STATUSES);
+
+  if (excludeOrderId) {
+    query = query.neq('order_id', excludeOrderId);
+  }
+
+  const { data: orderItems, error } = await query;
+
+  if (error) {
+    console.error('Error checking availability:', error);
+    return {
+      unitId,
+      isAvailable: false,
+      conflictingOrders: [],
+    };
+  }
+
+  const conflictingOrders = (orderItems || [])
+    .filter((item: any) => {
+      const order = item.orders;
+      if (!order) return false;
+
+      const orderStart = new Date(order.event_date);
+      const orderEnd = new Date(order.event_end_date);
+      const checkStart = new Date(eventStartDate);
+      const checkEnd = new Date(eventEndDate);
+
+      const conflicts = (
+        (checkStart >= orderStart && checkStart <= orderEnd) ||
+        (checkEnd >= orderStart && checkEnd <= orderEnd) ||
+        (checkStart <= orderStart && checkEnd >= orderEnd)
+      );
+
+      return conflicts;
+    })
+    .map((item: any) => ({
+      orderId: item.orders.id,
+      eventStartDate: item.orders.event_date,
+      eventEndDate: item.orders.event_end_date,
+      status: item.orders.status,
+    }));
+
+  return {
+    unitId,
+    isAvailable: conflictingOrders.length === 0,
+    conflictingOrders: conflictingOrders.length > 0 ? conflictingOrders : undefined,
+  };
+}
+
+export async function checkMultipleUnitsAvailability(
+  checks: AvailabilityCheck[]
+): Promise<UnitAvailability[]> {
+  if (checks.length === 0) return [];
+
+  // One blackout RPC call per unique (start, end) date range.
+  // All current callers pass the same range for every check (same event date),
+  // so this always reduces to exactly 1 RPC call in practice.
+  // Mixed-range callers (future) get correct per-range results without false positives.
+  const uniqueRanges = new Map<string, BlackoutCheckResult>();
+  await Promise.all(
+    Array.from(
+      new Set(checks.map(c => `${c.eventStartDate}|${c.eventEndDate}`))
+    ).map(async key => {
+      const [start, end] = key.split('|');
+      uniqueRanges.set(key, await checkDateBlackout(start, end));
+    })
+  );
+
+  const results = await Promise.all(
+    checks.map(check => {
+      const key = `${check.eventStartDate}|${check.eventEndDate}`;
+      return checkUnitAvailability(check, uniqueRanges.get(key));
+    })
+  );
+  return results;
+}
+
+// PUBLIC (anonymous visitor) availability. The browser does not read orders or order_items; the check-availability Edge
+// Function applies the same rules server-side and answers true/false per unit with no booking details. Staff screens that
+// need conflict details or an excluded order keep using checkUnitAvailability / checkMultipleUnitsAvailability above.
+export async function checkMultipleUnitsAvailabilityPublic(checks: AvailabilityCheck[]): Promise<UnitAvailability[]> {
+  return checkUnitsAvailabilityPublic(
+    checks.map((c) => ({ unitId: c.unitId, eventStartDate: c.eventStartDate, eventEndDate: c.eventEndDate })),
+  );
+}
+
+export async function getUnavailableDatesForUnit(
+  unitId: string,
+  startDate?: string,
+  endDate?: string
+): Promise<{ start: string; end: string; status: string }[]> {
+  let query = supabase
+    .from('order_items')
+    .select(`
+      orders!inner(
+        event_date,
+        event_end_date,
+        status
+      )
+    `)
+    .eq('unit_id', unitId)
+    .in('orders.status', BLOCKED_STATUSES);
+
+  if (startDate) {
+    query = query.gte('orders.event_end_date', startDate);
+  }
+
+  if (endDate) {
+    query = query.lte('orders.event_date', endDate);
+  }
+
+  const { data, error } = await query;
+
+  if (error) {
+    console.error('Error fetching unavailable dates:', error);
+    return [];
+  }
+
+  return (data || []).map((item: any) => ({
+    start: item.orders.event_date,
+    end: item.orders.event_end_date,
+    status: item.orders.status,
+  }));
+}

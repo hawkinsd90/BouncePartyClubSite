@@ -1,6 +1,6 @@
-import { calculateTravelFeeFromDistance } from './travelFeeCalculator';
-import { calculateSalesTaxCents, effectiveTaxEnabled } from './orderMoney';
-import { calculateDistance as _calculateDistance, calculateDrivingDistance as _calculateDrivingDistance } from './distanceCalculator';
+import { calculateTravelFeeFromDistance } from './pricing/travelFeeCalculator';
+import { calculateSalesTaxCents, effectiveTaxEnabled } from './pricing/orderMoney';
+import { calculateDistance as _calculateDistance, calculateDrivingDistance as _calculateDrivingDistance } from './pricing/distanceCalculator';
 
 // Re-export for backward compatibility
 export const calculateDistance = _calculateDistance;

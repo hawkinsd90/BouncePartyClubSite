@@ -1,9 +1,9 @@
 // Stage E4 — Pure money + unified composer tests (corrected).
 // jiti runner, no React/Supabase.
 
-import { calculateEventEssentialsSubtotalCents } from '../../eventEssentialsMoney';
-import { composeUnifiedQuoteTotals } from '../../unifiedTotals';
-import { DEFAULT_EE_ONLY_DEPOSIT_SETTINGS } from '../../depositCalculation';
+import { calculateEventEssentialsSubtotalCents } from '../../eventEssentials/eventEssentialsMoney';
+import { composeUnifiedQuoteTotals } from '../../pricing/unifiedTotals';
+import { DEFAULT_EE_ONLY_DEPOSIT_SETTINGS } from '../../pricing/depositCalculation';
 import type { PriceBreakdown } from '../../pricing';
 import type {
   UnifiedCartItem,

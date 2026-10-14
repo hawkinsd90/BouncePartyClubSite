@@ -10,8 +10,8 @@
 import { format } from 'date-fns';
 import { formatOrderId } from '../../utils';
 import { ORDER_STATUS } from '../../constants/statuses';
-import { categorizeOrders, filterAndSortOrders, computeTabCounts, pickDefaultTab } from '../../ordersListModel';
-import type { OrderTab } from '../../ordersListModel';
+import { categorizeOrders, filterAndSortOrders, computeTabCounts, pickDefaultTab } from '../../orders/ordersListModel';
+import type { OrderTab } from '../../orders/ordersListModel';
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 

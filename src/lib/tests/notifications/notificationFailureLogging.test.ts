@@ -215,7 +215,7 @@ function evalLiteral(literal: string, scope: Record<string, any>): any {
   (globalThis as any).window = { localStorage: { getItem: () => null, setItem: () => {}, removeItem: () => {} }, location: { origin: 'https://site.test' } };
   const realConsoleError = console.error;
   console.error = () => {};
-  const approval = await import('../../orderApprovalService');
+  const approval = await import('../../orders/orderApprovalService');
   const editNotif = await import('../../notifications/orderNotificationService');
   const { supabase } = await import('../../supabase');
   console.error = realConsoleError;
@@ -346,7 +346,7 @@ function evalLiteral(literal: string, scope: Record<string, any>): any {
   eq('repo has exactly 6 direct notification_failures inserts', allSites.length, 6);
   eq('inserts per file', Object.fromEntries(Object.entries(allSites.reduce((m: Record<string, number>, s) => { m[s.file] = (m[s.file] || 0) + 1; return m; }, {})).sort()), {
     'src/components/admin/PendingOrderCard.tsx': 1, 'src/components/admin/TaskDetailModal.tsx': 2,
-    'src/lib/orderApprovalService.ts': 2, 'src/lib/notifications/orderNotificationService.ts': 1,
+    'src/lib/orders/orderApprovalService.ts': 2, 'src/lib/notifications/orderNotificationService.ts': 1,
   });
   ok('no insert casts the table name to any', allSites.every(s => !s.asAny));
   ok('no insert payload names a stale column', allSites.every(s => !/\border_id\b|\bchannel\b|\bmessage_type\b|\bcreated_at\b/.test(s.argText)));

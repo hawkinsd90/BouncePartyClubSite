@@ -2,9 +2,9 @@
 // Verifies deposit, Setup Mode, and total persistence invariants.
 // jiti runner, pure logic — no live Stripe calls.
 
-import { composeUnifiedQuoteTotals } from '../../unifiedTotals';
-import { calculateEventEssentialsSubtotalCents } from '../../eventEssentialsMoney';
-import { DEFAULT_EE_ONLY_DEPOSIT_SETTINGS } from '../../depositCalculation';
+import { composeUnifiedQuoteTotals } from '../../pricing/unifiedTotals';
+import { calculateEventEssentialsSubtotalCents } from '../../eventEssentials/eventEssentialsMoney';
+import { DEFAULT_EE_ONLY_DEPOSIT_SETTINGS } from '../../pricing/depositCalculation';
 import type { PriceBreakdown } from '../../pricing';
 import type {
   UnifiedCartItem,

@@ -1,6 +1,6 @@
 import { useState, useRef } from 'react';
 import { supabase } from '../lib/supabase';
-import { loadOrderSummary, formatOrderSummary } from '../lib/orderSummaryLoader';
+import { loadOrderSummary, formatOrderSummary } from '../lib/orders/orderSummaryLoader';
 
 export interface DamageRecord {
   orderId: string;

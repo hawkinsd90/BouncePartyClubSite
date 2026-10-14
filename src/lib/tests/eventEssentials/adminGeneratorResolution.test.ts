@@ -8,7 +8,7 @@
 //   - historical mixed: legacy 1 → requested 2 with EE → legacy1 + EE1
 //   - decrease removes most recently added (EE first, then legacy)
 
-import type { GeneratorAvailabilityOutcome, CurrentGeneratorRepresentation } from '../../adminGeneratorResolution';
+import type { GeneratorAvailabilityOutcome, CurrentGeneratorRepresentation } from '../../eventEssentials/adminGeneratorResolution';
 declare const require: (id: string) => any;
 // the module reaches the Supabase client, which reads window.localStorage when it loads; a plain script has no window
 if (typeof (globalThis as any).window === 'undefined') (globalThis as any).window = { localStorage: { getItem: () => null, setItem: () => {}, removeItem: () => {} } };
@@ -22,8 +22,8 @@ nodeModule._resolveFilename = function (request: string, parent: any, ...rest: a
   if (request === './toasts' && /errorHandling.ts$/.test(String(parent?.filename ?? ''))) return STUB;
   return realResolve.call(this, request, parent, ...rest);
 };
-const { decideAdminGeneratorIncrease, decideAdminGeneratorDecrease, computeVisibleGeneratorQty } = require('../../adminGeneratorResolution');
-import type { GeneratorProductConfiguration } from '../../customerGeneratorCart';
+const { decideAdminGeneratorIncrease, decideAdminGeneratorDecrease, computeVisibleGeneratorQty } = require('../../eventEssentials/adminGeneratorResolution');
+import type { GeneratorProductConfiguration } from '../../eventEssentials/customerGeneratorCart';
 
 let passed = 0;
 let failed = 0;

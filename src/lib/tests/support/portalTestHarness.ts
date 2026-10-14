@@ -15,7 +15,7 @@ import * as projection from '../../../../supabase/functions/_shared/portal-proje
 import * as actions from '../../../../supabase/functions/_shared/portal-actions';
 import * as portalLink from '../../../../supabase/functions/_shared/portal-link';
 import * as lifecycleOutcome from '../../../../supabase/functions/_shared/lifecycle-outcome';
-import * as orderMoney from '../../orderMoney';
+import * as orderMoney from '../../pricing/orderMoney';
 import * as mediaPaths from '../../../../supabase/functions/_shared/media-paths';
 import * as evidenceMedia from '../../../../supabase/functions/_shared/evidence-media';
 

@@ -7,12 +7,12 @@ import {
   calculateEEOnlyDepositCents,
   calculateRequiredDepositCents,
   type EEOnlyDepositSettings,
-} from '../../depositCalculation';
+} from '../../pricing/depositCalculation';
 import {
   validateCartPackageSnapshots,
   buildPackageDisplay,
-} from '../../packageDisplay';
-import { composeUnifiedQuoteTotals } from '../../unifiedTotals';
+} from '../../pricing/packageDisplay';
+import { composeUnifiedQuoteTotals } from '../../pricing/unifiedTotals';
 import type { PriceBreakdown } from '../../pricing';
 
 let passed = 0;

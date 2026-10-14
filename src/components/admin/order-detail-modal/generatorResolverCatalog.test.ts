@@ -35,7 +35,7 @@ import type {
   ResolverCategory,
   ResolverUnitConfig,
   InflatableEligibilityMode,
-} from '../../../lib/eventEssentialsPricingTypes';
+} from '../../../lib/eventEssentials/eventEssentialsPricingTypes';
 
 let passed = 0;
 let failed = 0;

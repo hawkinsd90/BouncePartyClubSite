@@ -16,7 +16,7 @@ const fs = require('fs');
 const nodeCrypto = require('crypto');
 
 import { createBookingRequest } from '../../../../supabase/functions/_shared/booking/createBooking';
-import { eventAddressLine2 } from '../../eventAddress';
+import { eventAddressLine2 } from '../../booking/eventAddress';
 import { validateBookingInput } from '../../../../supabase/functions/_shared/booking/bookingInput';
 import { buildBooking } from '../../../../supabase/functions/_shared/booking/bookingBuild';
 import { checkPublicUnitAvailability } from '../../../../supabase/functions/_shared/booking/publicAvailability';
@@ -35,9 +35,9 @@ import { resolveReturnOrigin } from '../../../../supabase/functions/_shared/book
 import { validateOrderToken, proveOrderAccess } from '../../../../supabase/functions/_shared/auth';
 import { PROOF_LINK_TYPES } from '../../../../supabase/functions/_shared/portal-link';
 import { CUSTOMER_CONFIRM_SOURCES, evaluateCustomerConfirmation } from '../../../../supabase/functions/_shared/lifecycle-outcome';
-import { SHARED_COPIES, renderSharedCopy } from '../../bookingSharedCopy';
+import { SHARED_COPIES, renderSharedCopy } from '../../tooling/bookingSharedCopy';
 import { calculatePrice as clientCalculatePrice } from '../../pricing';
-import { composeUnifiedQuoteTotals as clientCompose } from '../../unifiedTotals';
+import { composeUnifiedQuoteTotals as clientCompose } from '../../pricing/unifiedTotals';
 import { calculatePrice as serverCalculatePrice } from '../../../../supabase/functions/_shared/booking/pricing';
 import { composeUnifiedQuoteTotals as serverCompose } from '../../../../supabase/functions/_shared/booking/unifiedTotals';
 
@@ -457,7 +457,7 @@ const noRows = (w: World, snapshot: string) => JSON.stringify(w.db) === snapshot
     ok('account (SQL): the rejection comes BEFORE the profile update, contacts, addresses, orders, items, consents and proof writes', ['UPDATE customers', 'INSERT INTO contacts', 'INSERT INTO addresses', 'INSERT INTO orders', 'INSERT INTO order_items', 'INSERT INTO consent_records', 'INSERT INTO booking_setup_proofs'].every((t) => sqlText.indexOf(t) > raise));
     ok('account (SQL): IS DISTINCT FROM treats a NULL (anonymous) caller as a mismatch', !/v_customer_uid <> p_caller_user_id|v_customer_uid != p_caller_user_id/.test(sqlText));
     ok('account (SQL): the Edge Function relies on the RPC (no separate lookup of customers)', !/from\("customers"\)/.test(read('supabase/functions/_shared/booking/createBooking.ts')) && /account_sign_in_required/.test(read('supabase/functions/_shared/booking/createBooking.ts')));
-    ok('account: the browser shows the sign-in message and does not retry', /ACCOUNT_SIGN_IN_REQUIRED/.test(read('src/pages/Checkout.tsx')) && /BookingApiError/.test(read('src/lib/bookingApi.ts')));
+    ok('account: the browser shows the sign-in message and does not retry', /ACCOUNT_SIGN_IN_REQUIRED/.test(read('src/pages/Checkout.tsx')) && /BookingApiError/.test(read('src/lib/booking/bookingApi.ts')));
 
     // address: server derives the key, the existing canonical address keeps owner and coordinates
     const w6 = makeWorld();
@@ -674,7 +674,7 @@ const noRows = (w: World, snapshot: string) => JSON.stringify(w.db) === snapshot
     ok('no-charge: the booking-mode Stripe session is mode "setup" with no line items', /bookingMode\s*\?\s*\{[\s\S]{0,200}mode:\s*"setup"/.test(checkout) && !/bookingMode\s*\?\s*\{[\s\S]{0,400}line_items/.test(bookingParams));
     ok('no-charge: the booking session metadata says booking_request', /payment_type:\s*"booking_request"/.test(checkout));
     ok('no-charge: a deposit is only ever charged by the separate admin/lifecycle paths (not create/complete-booking)', !/charge-deposit/.test(createSources.map((x) => x[1]).join('\n')));
-    ok('no-charge: the browser booking API never calls a charge endpoint', !/charge-deposit|stripe-charge|customer-balance-payment|stripe-refund/.test(read('src/lib/bookingApi.ts')));
+    ok('no-charge: the browser booking API never calls a charge endpoint', !/charge-deposit|stripe-charge|customer-balance-payment|stripe-refund/.test(read('src/lib/booking/bookingApi.ts')));
   }
 
   // =============================================================================================================
@@ -795,7 +795,7 @@ const noRows = (w: World, snapshot: string) => JSON.stringify(w.db) === snapshot
   {
     const CORE_TABLES = ['customers', 'addresses', 'orders', 'order_items', 'consent_records', 'payments', 'invoice_links', 'contacts'];
     const directAccess = (src: string) => CORE_TABLES.filter((t) => new RegExp(`\\.from\\(\\s*['"\`]${t}['"\`]`).test(src));
-    const publicBookingFiles = ['src/pages/Checkout.tsx', 'src/lib/bookingApi.ts', 'src/hooks/useBookingReturnConfirmation.ts', 'src/pages/StripeCheckoutReturn.tsx', 'src/components/booking-return/BookingRequestReceivedView.tsx', 'src/hooks/useCheckoutData.ts', 'src/pages/LegacyInvoiceRedirect.tsx', 'src/hooks/useQuoteCart.ts', 'src/pages/Catalog.tsx'];
+    const publicBookingFiles = ['src/pages/Checkout.tsx', 'src/lib/booking/bookingApi.ts', 'src/hooks/useBookingReturnConfirmation.ts', 'src/pages/StripeCheckoutReturn.tsx', 'src/components/booking-return/BookingRequestReceivedView.tsx', 'src/hooks/useCheckoutData.ts', 'src/pages/LegacyInvoiceRedirect.tsx', 'src/hooks/useQuoteCart.ts', 'src/pages/Catalog.tsx'];
     for (const f of publicBookingFiles) {
       const src = read(f);
       ok(`source scan: ${f} has no direct access to customers/addresses/orders/order_items/consent_records/payments/invoice_links/contacts`, directAccess(src).length === 0);
@@ -804,7 +804,7 @@ const noRows = (w: World, snapshot: string) => JSON.stringify(w.db) === snapshot
     ok('source scan: nothing in src calls upsert_contact_from_checkout any more', !fs.readdirSync('src', { recursive: true }).filter((f: string) => /\.(ts|tsx)$/.test(f) && !/\.test\./.test(f) && !/database\.types\.ts$/.test(f)).some((f: string) => /upsert_contact_from_checkout/.test(read(`src/${f}`))));
     ok('source scan: the Checkout page sends the booking through createBooking and never imports orderCreation', /createBooking\(/.test(read('src/pages/Checkout.tsx')) && !/orderCreation/.test(read('src/pages/Checkout.tsx')));
     ok('source scan: the Checkout page does not read pricing_rules or availability to SUBMIT (display totals only)', !/checkMultipleUnitsAvailability|createOrderBeforePayment/.test(read('src/pages/Checkout.tsx')));
-    const req = read('src/lib/bookingApi.ts');
+    const req = read('src/lib/booking/bookingApi.ts');
     const buildFn = req.slice(req.indexOf('export function buildBookingRequest'), req.indexOf('export interface CreatedBooking'));
     ok('source scan: the booking request builder sends no price, deposit, total, status, customer id or address id', !/unit_price_cents|deposit_due|deposit_cents|total_cents|subtotal|tax_cents|status|customer_id|address_id/.test(buildFn));
     ok('source scan: the booking card setup call sends the proof and order id, not money', /orderId: booking\.orderId,\s*bookingMode: true,\s*bookingToken: booking\.bookingToken/.test(req) && !/depositCents|tipCents|customerEmail/.test(req.slice(req.indexOf('export async function startBookingCardSetup'), req.indexOf('export interface CompletedBooking'))));

@@ -10,7 +10,7 @@ import { format, parseISO, addDays } from 'date-fns';
 import { formatOrderId } from '../../utils';
 import { ORDER_STATUS } from '../../constants/statuses';
 import { formatOperationalEquipment } from '../../tasks/operationalEquipment';
-import { aggregateOrderEquipment } from '../../customerGeneratorCart';
+import { aggregateOrderEquipment } from '../../eventEssentials/customerGeneratorCart';
 import { buildCalendarTasks, deriveWaiverType, derivePickupReadiness, derivePickupBlockReason } from '../../tasks/calendarTaskAssembly';
 
 /* eslint-disable @typescript-eslint/no-explicit-any */

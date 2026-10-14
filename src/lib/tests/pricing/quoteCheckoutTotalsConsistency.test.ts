@@ -3,10 +3,10 @@
 // Tests production helpers and extracted submit decisions for the 16 required
 // consistency defect coverage scenarios.
 
-import { validateQuote } from '../../quoteValidation';
-import type { EEOnlyDepositSettings } from '../../depositCalculation';
-import { composeUnifiedQuoteTotals } from '../../unifiedTotals';
-import { parseMoneyInput, validateEEDepositSettingsInput } from '../../moneySettings';
+import { validateQuote } from '../../booking/quoteValidation';
+import type { EEOnlyDepositSettings } from '../../pricing/depositCalculation';
+import { composeUnifiedQuoteTotals } from '../../pricing/unifiedTotals';
+import { parseMoneyInput, validateEEDepositSettingsInput } from '../../pricing/moneySettings';
 import type { PriceBreakdown } from '../../pricing';
 import type { UnifiedCartItem } from '../../../types';
 

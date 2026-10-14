@@ -17,7 +17,7 @@ const ts = require('typescript');
 import * as authHelpers from '../../../../supabase/functions/_shared/auth';
 import * as portalActions from '../../../../supabase/functions/_shared/portal-actions';
 import * as customerNotice from '../../../../supabase/functions/_shared/customer-notice';
-import { confirmationSettled } from '../../confirmationRetry';
+import { confirmationSettled } from '../../booking/confirmationRetry';
 
 let passed = 0;
 let failed = 0;
@@ -893,8 +893,8 @@ const NONE = { provider: 0, rpcs: 0, writes: 0, fetches: 0, settingsReads: 0 };
     ok(`callers: ${file} (customer-facing) no longer reaches a relay directly`, !/functions\/v1\/send-(email|sms-notification)|invoke\(\s*['"]send-(email|sms-notification)['"]/.test(s));
   }
   ok('callers: Approval and Invoice screens send their confirmation through the portal action', /portalAction\(order\.id, invoiceLinkToken, 'send_confirmation'/.test(text.get(CUSTOMER_SCREENS[0])!) && /portalAction\(order\.id, invoiceToken, 'send_confirmation'/.test(text.get(CUSTOMER_SCREENS[1])!));
-  ok('callers: the payment-complete flow sends its confirmation through complete-booking with the Stripe session', /sendCustomerBookingConfirmationNotifications\(order, sessionId!\)/.test(text.get(CUSTOMER_SCREENS[2])!) && /action: 'send_confirmation'/.test(text.get('src/lib/bookingApi.ts')!));
-  ok('callers: the payment-complete flow no longer depends on a second, cooperative mark_confirmation_sent call', !/markBookingConfirmationSent|mark_confirmation_sent/.test(text.get(CUSTOMER_SCREENS[2])! + text.get('src/lib/bookingApi.ts')!));
+  ok('callers: the payment-complete flow sends its confirmation through complete-booking with the Stripe session', /sendCustomerBookingConfirmationNotifications\(order, sessionId!\)/.test(text.get(CUSTOMER_SCREENS[2])!) && /action: 'send_confirmation'/.test(text.get('src/lib/booking/bookingApi.ts')!));
+  ok('callers: the payment-complete flow no longer depends on a second, cooperative mark_confirmation_sent call', !/markBookingConfirmationSent|mark_confirmation_sent/.test(text.get(CUSTOMER_SCREENS[2])! + text.get('src/lib/booking/bookingApi.ts')!));
   ok('callers: complete-booking claims through the database function BEFORE it sends, finalizes only a delivered confirmation and releases otherwise, and never writes the sent flag itself', (() => {
     const cb = text.get('supabase/functions/complete-booking/index.ts')!;
     const blk = cb.slice(cb.indexOf('if (action === "send_confirmation")'), cb.indexOf('const { data: order, error: orderError }'));
@@ -914,7 +914,7 @@ const NONE = { provider: 0, rpcs: 0, writes: 0, fetches: 0, settingsReads: 0 };
     ok('browser: the payment-complete page sets payment_processed_<order> only when the confirmation is settled', /const settled = await sendNotificationsIfNeeded\(order\);\s*if \(settled\) SafeStorage\.setItem\(processedKey, 'true'\);/.test(hook) && (hook.match(/SafeStorage\.setItem\(processedKey/g) ?? []).length === 1);
     ok('browser: the settled decision comes from the shared helper for both the already-sent and the just-sent result', hook.includes('return confirmationSettled(true, null);') && hook.includes('return confirmationSettled(false, result);'));
     ok('browser: the rest of the completion flow is intact (clear cart storage, success status, first-visit flag)', hook.includes("SafeStorage.removeItem('bpc_cart')") && hook.includes("setStatus('success')") && hook.includes('setIsFirstVisit(true)') && hook.includes('const alreadyProcessed = SafeStorage.getItem(processedKey);'));
-    const api = text.get('src/lib/bookingApi.ts')!;
+    const api = text.get('src/lib/booking/bookingApi.ts')!;
     ok('browser: a busy answer is reported as not sent (emailSent only when the server says true)', api.includes('emailSent: data.emailSent === true'));
   }
   ok('callers: the browser customer helpers carry no recipient in the request', !/to:\s*order\.customer\.email|to:\s*customer\.email/.test(text.get(CUSTOMER_SCREENS[0])! + text.get(CUSTOMER_SCREENS[1])!));

@@ -1,7 +1,7 @@
 import { CreditCard as Edit2, AlertTriangle, CheckCircle } from 'lucide-react';
 import { formatCurrency } from '../../lib/pricing';
 import { ORDER_STATUS } from '../../lib/constants/statuses';
-import { calculateStoredOrderTotal } from '../../lib/storedOrderTotals';
+import { calculateStoredOrderTotal } from '../../lib/orders/storedOrderTotals';
 import { OrderSummary } from '../order/OrderSummary';
 import { EventDetailsEditor } from './EventDetailsEditor';
 import { ItemsEditor } from '../shared/ItemsEditor';
@@ -13,7 +13,7 @@ import { TaxWaiver } from './TaxWaiver';
 import { TravelFeeManager } from './TravelFeeManager';
 import { FeeWaiver } from '../shared/FeeWaiver';
 import { CardOnFileRequirement } from '../shared/CardOnFileRequirement';
-import { VALID_ADMIN_TRANSITIONS } from '../../lib/adminStatusTransitions';
+import { VALID_ADMIN_TRANSITIONS } from '../../lib/orders/adminStatusTransitions';
 import { AddEventEssentialsSection } from './AddEventEssentialsSection';
 
 interface OrderDetailsTabProps {

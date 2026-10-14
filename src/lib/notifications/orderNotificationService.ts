@@ -11,7 +11,7 @@ import {
 import { formatOrderId } from '../utils';
 import { createShortPortalLink } from '../portal/portalShortLink';
 import { supabase } from '../supabase';
-import { sendBookingConfirmation } from '../bookingApi';
+import { sendBookingConfirmation } from '../booking/bookingApi';
 
 interface SendOrderEditNotificationsParams {
   order: any;

@@ -1,7 +1,7 @@
 // Generator Workflow Unification — legacy detection helper tests.
 // jiti runner, no React/Supabase.
 
-import { hasLegacyGeneratorSelected } from '../../generatorConflictGuard';
+import { hasLegacyGeneratorSelected } from '../../eventEssentials/generatorConflictGuard';
 
 let passed = 0;
 let failed = 0;

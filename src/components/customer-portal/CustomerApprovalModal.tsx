@@ -11,10 +11,10 @@ import { showToast } from '../../lib/toasts';
 import { formatOrderId } from '../../lib/utils';
 import { format } from 'date-fns';
 import { formatCurrency } from '../../lib/pricing';
-import { storedOrderTotalCents } from '../../lib/orderMoney';
+import { storedOrderTotalCents } from '../../lib/pricing/orderMoney';
 import { portalAction, PortalActionError } from '../../lib/portal/customerPortalApi';
 import { checkEventEssentialsAvailability } from '../../lib/queries/products';
-import { enterConfirmed } from '../../lib/orderLifecycleApi';
+import { enterConfirmed } from '../../lib/orders/orderLifecycleApi';
 import { COMPANY_PHONE } from '../../lib/notifications/emailTemplateBase';
 
 interface ApprovalModalProps {

@@ -7,7 +7,7 @@
 // The re-export from queries/products is covered by typecheck and build, since
 // real importers use that path.
 
-import { parsePrice, priceErrorMessage, centsToDollars } from '../../priceInput';
+import { parsePrice, priceErrorMessage, centsToDollars } from '../../pricing/priceInput';
 
 let passed = 0;
 let failed = 0;

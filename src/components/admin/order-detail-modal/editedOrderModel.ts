@@ -15,7 +15,7 @@
 //
 // Its only import is the pure eventAddress helper, so it can still be loaded from Node-based tests.
 
-import { eventAddressLine2 } from '../../../lib/eventAddress';
+import { eventAddressLine2 } from '../../../lib/booking/eventAddress';
 
 // Only the stored order fields these helpers read.
 export interface EditableOrderSource {

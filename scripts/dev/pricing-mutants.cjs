@@ -1,10 +1,10 @@
 // Mutants for pricing, deposit, catch-up and cash/check: each one breaks one money rule; a test must fail.
 // Run:  node scripts/dev/mutation-runner.cjs scripts/dev/pricing-mutants.cjs      (ONLY=<regex> to run a few while developing)
 const MIG2 = 'supabase/migrations/20261020120000_deposit_catch_up_and_offline_payment_parity.sql';
-const MONEY = 'src/lib/orderMoney.ts';
-const ENGINE = 'src/lib/orderPricingCalculation.ts';
-const UNIFIED = 'src/lib/unifiedTotals.ts';
-const PLAN = 'src/lib/orderChangePlanning.ts';
+const MONEY = 'src/lib/pricing/orderMoney.ts';
+const ENGINE = 'src/lib/pricing/orderPricingCalculation.ts';
+const UNIFIED = 'src/lib/pricing/unifiedTotals.ts';
+const PLAN = 'src/lib/orders/orderChangePlanning.ts';
 const RECEIPT = 'supabase/functions/_shared/receipt-order-totals.ts';
 const DEPOSIT_UI = 'src/components/order-detail/DepositOverride.tsx';
 const MIG3 = 'supabase/migrations/20261021120000_server_authoritative_order_pricing_saves.sql';
@@ -12,8 +12,8 @@ const SAVE = 'supabase/functions/_shared/staff-order-save.ts';
 const SAVE_INDEX = 'supabase/functions/staff-order-save/index.ts';
 const SEND_INVOICE = 'supabase/functions/send-invoice/index.ts';
 const CREW = 'src/components/crew/CrewInvoiceBuilder.tsx';
-const FEE_DISPLAY = 'src/lib/orderFeeDisplay.ts';
-const STATE = 'src/lib/orderPricingState.ts';
+const FEE_DISPLAY = 'src/lib/pricing/orderFeeDisplay.ts';
+const STATE = 'src/lib/pricing/orderPricingState.ts';
 const STATE_SRV = 'supabase/functions/_shared/booking/orderPricingState.ts';
 
 const repl = (a, b) => (src) => {
@@ -249,10 +249,10 @@ const M = [
   [SAVE, 'a Google outage is read as zero miles', [repl('    } catch {\n      return null;\n    }\n  };\n}', '    } catch {\n      return 0;\n    }\n  };\n}')]],
   [SAVE, 'an unavailable distance still creates the invoice', [repl('  const distance = await resolveDistance(deps, params, parsedEvent);\n  if (!distance.ok) return json(503,', '  const distance = await resolveDistance(deps, params, parsedEvent);\n  if (false) return json(503,')]],
   ["src/components/admin/OrderDetailModal.tsx", 'the order modal writes computed miles back to the order', [repl('            // Display only: the miles are never written back from the browser (the server owns the travel snapshot).', "            await supabase.from('orders').update({ travel_total_miles: travelMiles }).eq('id', order.id);")]],
-  ["src/lib/orderSummaryLoader.ts", 'the summary loader writes computed miles back to the order', [repl('            if (travelMiles <= 0) {', "            supabase.from('orders').update({ travel_total_miles: travelMiles }).eq('id', orderId);\n            if (travelMiles <= 0) {")]],
+  ["src/lib/orders/orderSummaryLoader.ts", 'the summary loader writes computed miles back to the order', [repl('            if (travelMiles <= 0) {', "            supabase.from('orders').update({ travel_total_miles: travelMiles }).eq('id', orderId);\n            if (travelMiles <= 0) {")]],
   ["src/lib/payments/invoiceService.ts", 'the invoice request sends the browser mileage again', [repl('    requireCardOnFile: invoiceData.requireCardOnFile !== false,\n  };', '    requireCardOnFile: invoiceData.requireCardOnFile !== false,\n    measuredDistanceMiles: 0,\n  };')]],
-  ["src/lib/staffOrderSaveRequest.ts", 'the editor writes an order discount row directly', [repl("import { showToast } from './toasts';", "import { showToast } from './toasts';\nimport { supabase } from './supabase';\nvoid supabase.from('order_discounts').insert({ amount_cents: 1 });")]],
-  ["src/lib/staffOrderSaveRequest.ts", 'the editor creates an order row directly', [repl("import { showToast } from './toasts';", "import { showToast } from './toasts';\nimport { supabase } from './supabase';\nvoid supabase.from('orders').insert({ subtotal_cents: 1 });")]],
+  ["src/lib/orders/staffOrderSaveRequest.ts", 'the editor writes an order discount row directly', [repl("import { showToast } from '../toasts';", "import { showToast } from '../toasts';\nimport { supabase } from '../supabase';\nvoid supabase.from('order_discounts').insert({ amount_cents: 1 });")]],
+  ["src/lib/orders/staffOrderSaveRequest.ts", 'the editor creates an order row directly', [repl("import { showToast } from '../toasts';", "import { showToast } from '../toasts';\nimport { supabase } from '../supabase';\nvoid supabase.from('orders').insert({ subtotal_cents: 1 });")]],
 ];
 
 // guard_order_pricing_authority is RESTATED (with the payment-state flags added) by the refund-safety migration, which sorts after

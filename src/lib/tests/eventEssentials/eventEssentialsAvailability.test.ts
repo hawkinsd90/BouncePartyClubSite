@@ -22,8 +22,8 @@ import {
   buildEventEssentialAvailabilityRequestFromOrderItems as build,
   validateAvailabilityResult as validate,
   checkEventEssentialsAvailabilityWith as checkWith,
-} from '../../eeOrderItemAvailability';
-import type { EventEssentialsAvailabilityQuery } from '../../eeOrderItemAvailability';
+} from '../../eventEssentials/eeOrderItemAvailability';
+import type { EventEssentialsAvailabilityQuery } from '../../eventEssentials/eeOrderItemAvailability';
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 

@@ -15,7 +15,7 @@ if (typeof (globalThis as any).window === 'undefined') (globalThis as any).windo
 // no network: the service reads an admin setting through the real client; answer "no such setting" at once so it uses its fallback
 // (a refused request would instead be retried with a delay on every declined-payment email)
 (globalThis as any).fetch = async () => new Response('null', { status: 200, headers: { 'Content-Type': 'application/json' } });
-const mod = require('../../orderApprovalService');
+const mod = require('../../orders/orderApprovalService');
 const { sendApprovalConfirmationNotifications, sendCardDeclinedNotifications, buildDeclineAdminMessage } = mod;
 
 let passed = 0;

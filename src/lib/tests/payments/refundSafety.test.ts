@@ -1003,7 +1003,7 @@ const newKey = (label = 'op') => `${label}-${TAG}-${String(++keyCounter).padStar
     const ops = read('supabase/functions/_shared/refund-operations.ts');
     ok('wiring: every Stripe refund request carries the row\'s stable idempotency key', /\{ idempotencyKey: row\.provider_idempotency_key \}/.test(ops));
     ok('wiring: a refund names its row in its metadata', /bpc_refund_id: row\.id/.test(ops));
-    const approval = read('src/lib/orderApprovalService.ts').replace(/\/\/.*$/gm, '');
+    const approval = read('src/lib/orders/orderApprovalService.ts').replace(/\/\/.*$/gm, '');
     ok('wiring: order approval and rejection no longer write payment rows or payment-state flags from the browser', !/from\('payments'\)\s*\.(update|insert|upsert|delete)/.test(approval) && !/stripe_payment_status\s*:/.test(approval));
     const lifecycle = read('supabase/functions/order-lifecycle/index.ts');
     ok('wiring: the waived-deposit marker is written by the lifecycle function for a trusted admin approval only', /trustedCaller && requestedOutcome === "waived" && source === "admin_approve_zero_deposit" && depositDue === 0/.test(lifecycle));

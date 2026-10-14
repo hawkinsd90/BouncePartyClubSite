@@ -1,13 +1,13 @@
 import { useState, useEffect, useCallback } from 'react';
 import { Plus, Package, ShoppingBag, Minus } from 'lucide-react';
 import { formatCurrency } from '../../lib/pricing';
-import { resolveEventEssentialsPricing } from '../../lib/eventEssentialsPricing';
+import { resolveEventEssentialsPricing } from '../../lib/eventEssentials/eventEssentialsPricing';
 import type {
   ResolverInput,
   ResolverInputLine,
-} from '../../lib/eventEssentialsPricingTypes';
+} from '../../lib/eventEssentials/eventEssentialsPricingTypes';
 import { buildGeneratorResolverCatalog } from '../admin/order-detail-modal/generatorResolverCatalog';
-import { buildBundleSnapshot } from '../../lib/unifiedCart';
+import { buildBundleSnapshot } from '../../lib/eventEssentials/unifiedCart';
 import type { BundleComponentSnapshot } from '../admin/OrderDetailModal';
 import {
   loadAdminResolverCatalogRows,

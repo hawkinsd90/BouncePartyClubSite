@@ -1,0 +1,770 @@
+import { supabase } from '../supabase';
+import { ORDER_STATUS } from '../constants/statuses';
+import { sendEmail } from '../notifications/notificationService';
+import {
+  generateConfirmationReceiptEmail,
+  generateConfirmationSmsMessage,
+  generateRejectionSmsMessage,
+} from '../notifications/orderEmailTemplates';
+import { checkMultipleUnitsAvailability } from '../booking/availability';
+import { formatOrderId } from '../utils';
+import { createShortPortalLink } from '../portal/portalShortLink';
+import { logGroupedTransactions } from '../payments/transactionReceiptService';
+import { enterConfirmed } from './orderLifecycleApi';
+import { getAdminSetting, ADMIN_SETTING_KEYS } from '../adminSettingsCache';
+import { calculateTotalFromOrder } from './orderSummaryLoader';
+
+const BUSINESS_PHONE_FALLBACK = '(313) 889-3860';
+
+interface ApprovalResult {
+  success: boolean;
+  error?: string;
+  notificationWarning?: string;
+}
+
+export interface NotificationChannelResult {
+  emailSent: boolean | null;
+  smsSent: boolean | null;
+  errors: string[];
+}
+
+const NOT_A_DECLINE_CODES = ['PAYMENT_IN_PROGRESS', 'ORDER_STATUS_NOT_PAYABLE', 'DEPOSIT_CATCH_UP_REVIEW_REQUIRED', 'PAYMENT_RECORDS_CONFLICT', 'PAYMENT_STATUS_UNKNOWN', 'PAYMENT_PROCESSING', 'PAYMENT_REQUEST_INVALID', 'ORDER_NOT_FOUND', 'NO_DEPOSIT_DUE'];
+
+export async function approveOrder(
+  orderId: string,
+  sendSms: (message: string) => Promise<boolean>
+): Promise<ApprovalResult> {
+  try {
+    // First, fetch the order and check availability
+    const { data: orderData } = await supabase
+      .from('orders')
+      .select('*, order_items (*), order_custom_fees (*), order_discounts (*)')
+      .eq('id', orderId)
+      .maybeSingle();
+
+    if (!orderData) {
+      throw new Error('Order not found');
+    }
+
+    // Idempotency guard: if already confirmed/cancelled/void, abort gracefully
+    if ([ORDER_STATUS.CONFIRMED, ORDER_STATUS.CANCELLED, ORDER_STATUS.VOID].includes(orderData.status as typeof ORDER_STATUS.CONFIRMED)) {
+      throw new Error('This order has already been confirmed or cancelled. Refresh the page to see the current status.');
+    }
+
+    // Check inflatable availability before approving — only items with valid unit_id
+    const orderItems = (Array.isArray(orderData.order_items) ? orderData.order_items : []) as any[];
+    const inflatableItems = orderItems.filter(item => item.unit_id != null && typeof item.unit_id === 'string' && item.unit_id.trim() !== '');
+    const availabilityChecks = inflatableItems.map(item => ({
+      unitId: item.unit_id,
+      eventStartDate: orderData.event_date,
+      eventEndDate: orderData.event_end_date || orderData.event_date,
+      excludeOrderId: orderId,
+    }));
+
+    const availabilityResults = availabilityChecks.length > 0
+      ? await checkMultipleUnitsAvailability(availabilityChecks)
+      : [];
+    const unavailableUnits = availabilityResults.filter(result => !result.isAvailable);
+
+    if (unavailableUnits.length > 0) {
+      const { data: units } = await supabase
+        .from('units')
+        .select('id, name')
+        .in('id', unavailableUnits.map(u => u.unitId));
+
+      const unitNames = unavailableUnits.map(u => {
+        const unit = units?.find(unit => unit.id === u.unitId);
+        return unit?.name || 'Unknown unit';
+      }).join(', ');
+
+      throw new Error(
+        `Cannot approve order: The following units are no longer available for the selected dates: ${unitNames}. Please check the calendar for conflicts.`
+      );
+    }
+
+    // Check Event Essentials product availability from saved component snapshots
+    await checkEEProductAvailability(orderItems, orderData, orderId);
+
+    // If deposit is $0 (admin set deposit override to 0), skip charging entirely.
+    // Just confirm the order and keep card on file for the final payment.
+    const effectiveDeposit = orderData.deposit_due_cents ?? 0;
+    if (effectiveDeposit <= 0) {
+      const { data: claimedRows, error: confirmError } = await supabase
+        .from('orders')
+        // The waiver marker (stripe_payment_status 'paid' for a waived deposit) is written by the server in
+        // order-lifecycle's enterConfirmed below; a browser session cannot write payment-state columns.
+        .update({ status: ORDER_STATUS.CONFIRMED })
+        .eq('id', orderId)
+        .not('status', 'in', '("confirmed","cancelled","void")')
+        .select('id');
+
+      if (confirmError) throw new Error('Failed to confirm order: ' + confirmError.message);
+      if (!claimedRows || claimedRows.length === 0) {
+        throw new Error('This order has already been confirmed or cancelled. Refresh the page to see the current status.');
+      }
+
+      const { data: orderWithRelationsNoDeposit, error: reloadErrorNoDeposit } = await supabase
+        .from('orders')
+        .select('*, customers (*), addresses (*), order_items (*, units (*))')
+        .eq('id', orderId)
+        .maybeSingle();
+
+      // Use effective total including relational custom fees and discounts.
+      const orderCustomFeesNoDeposit = (orderData as any).order_custom_fees || [];
+      const orderDiscountsNoDeposit = (orderData as any).order_discounts || [];
+      const totalCentsNoDeposit = calculateTotalFromOrder(orderData, orderDiscountsNoDeposit, orderCustomFeesNoDeposit);
+
+      let notificationWarning: string | undefined;
+      if (reloadErrorNoDeposit || !orderWithRelationsNoDeposit) {
+        notificationWarning = 'The order was approved, but confirmation details could not be loaded. Retry the notification from the order.';
+      } else {
+        try {
+          const notifResult = await sendApprovalConfirmationNotifications(
+            orderWithRelationsNoDeposit,
+            totalCentsNoDeposit,
+            sendSms,
+          );
+          if (notifResult.errors.length > 0) {
+            notificationWarning = notifResult.errors.join('; ');
+          }
+        } catch (notifErr: any) {
+          console.error('[orderApprovalService] confirmation notifications failed (non-fatal):', notifErr);
+          notificationWarning = (notifErr as any)?.message || 'Confirmation notification failed. Retry the notification from the order.';
+        }
+      }
+
+      try {
+        const lifecycle = await enterConfirmed(orderId, 'admin_approve_zero_deposit', 'waived', orderData.status);
+        if (lifecycle && lifecycle.success === false) {
+          // The order IS confirmed and no money is involved; only the confirmation record (the waived-deposit marker the portal reads and
+          // the admin alert) is missing. Say so; nothing is charged either way.
+          notificationWarning = [notificationWarning, 'The order was confirmed, but its confirmation record (waived-deposit marker and admin alert) could not be completed. No payment is affected: the deposit is $0 and nothing was charged.'].filter(Boolean).join('; ');
+        }
+      } catch (lifecycleErr) {
+        console.error('[orderApprovalService] enterConfirmed (zero-deposit) failed (non-fatal):', lifecycleErr);
+      }
+
+      return { success: true, notificationWarning };
+    }
+
+    // Proceed with charging deposit
+    const { data: { session: adminSession } } = await supabase.auth.getSession();
+    if (!adminSession) throw new Error('Not authenticated');
+
+    const apiUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/charge-deposit`;
+    const response = await fetch(apiUrl, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${adminSession.access_token}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ orderId }),
+    });
+
+    let data: any = {};
+    try {
+      data = await response.json();
+    } catch {
+      if (!response.ok) {
+        throw new Error(`Payment service error (${response.status}). Please try again or contact support.`);
+      }
+    }
+
+    if (!response.ok || !data.success) {
+      // BPC-SECURITY-HARDENING: raw response object removed — could expose Stripe error internals in browser console.
+      console.error('Charge deposit failed:', data?.error || '(no error message)');
+      const safePaymentReason = typeof data?.error === 'string' && data.error.trim() !== ''
+        ? data.error.trim()
+        : 'Failed to charge card.';
+
+      // Only a refused card is a reason to tell the customer their card was declined. A payment already in progress, an order
+      // that is not in a chargeable state, or a deposit that needs a catch-up are not declines.
+      if (typeof data?.code === 'string' && NOT_A_DECLINE_CODES.includes(data.code)) {
+        throw new Error(safePaymentReason);
+      }
+
+      let declineNotificationResult: NotificationChannelResult;
+      try {
+        const { data: fullOrderRaw, error: fullOrderError } = await supabase
+          .from('orders')
+          .select('*, customers(*), addresses(*)')
+          .eq('id', orderId)
+          .maybeSingle();
+
+        if (fullOrderError || !fullOrderRaw) {
+          declineNotificationResult = { emailSent: null, smsSent: null, errors: ['The order was not confirmed, and customer notification details could not be loaded.'] };
+        } else {
+          declineNotificationResult = await sendCardDeclinedNotifications(
+            fullOrderRaw as any,
+            orderId,
+            sendSms,
+          );
+        }
+      } catch (notifyErr: any) {
+        console.error('Failed to send decline notifications:', notifyErr);
+        declineNotificationResult = { emailSent: null, smsSent: null, errors: ['Decline notification failed unexpectedly.'] };
+      }
+
+      const declineMessage = buildDeclineAdminMessage(safePaymentReason, declineNotificationResult);
+      throw new Error(declineMessage);
+    }
+
+    // BPC-SECURITY-HARDENING: deposit response logging removed — Stripe IDs must not appear in browser console in production.
+
+    // Get payment record to link to transaction receipt
+    const { data: paymentRecord } = await supabase
+      .from('payments')
+      .select('id')
+      .eq('stripe_payment_intent_id', data.paymentDetails?.paymentIntentId)
+      .maybeSingle();
+
+    // Get customer data for transaction receipt
+    const { data: customerData } = await supabase
+      .from('customers')
+      .select('*')
+      .eq('id', orderData.customer_id ?? '')
+      .maybeSingle();
+
+    // Use Stripe's actual charge amount as the source of truth for receipts and invoice
+    // This prevents drift between what was charged vs what we record in accounting
+    const stripeGrossCents = data.paymentDetails?.amountCents ?? null;
+    // The server reports how the charge divides into rental principal and tip; the tip charged is the one the server decided,
+    // not whatever the order row said before the charge.
+    const tipAmountCents: number =
+      typeof data.paymentDetails?.tipCents === 'number' ? data.paymentDetails.tipCents : 0;
+    // For booking approval, the charge amount is always deposit_due_cents.
+    // customer_selected_payment_cents is NOT used for the approval charge.
+    const depositAmountCents: number =
+      typeof data.paymentDetails?.principalCents === 'number'
+        ? data.paymentDetails.principalCents
+        : stripeGrossCents != null
+          ? Math.max(0, stripeGrossCents - tipAmountCents)
+          : (orderData.deposit_due_cents ?? 0);
+    const paidAmountCents: number = depositAmountCents;
+
+    // Log deposit transaction and notify admin with grouped receipts
+    if (customerData && orderData.customer_id) {
+      // Build array of transactions to log (grouped)
+      const transactions: Array<{ transactionType: 'deposit' | 'balance' | 'refund' | 'tip' | 'full_payment'; orderId: string; customerId: string; paymentId?: string; amountCents: number; paymentMethod?: string; paymentMethodBrand?: string; stripeChargeId?: string; stripePaymentIntentId?: string; notes?: string }> = [
+        {
+          transactionType: 'deposit' as const,
+          orderId,
+          customerId: orderData.customer_id as string,
+          paymentId: paymentRecord?.id,
+          amountCents: depositAmountCents,
+          paymentMethod: data.paymentDetails?.paymentMethod,
+          paymentMethodBrand: data.paymentDetails?.paymentBrand,
+          stripeChargeId: data.paymentDetails?.chargeId,
+          stripePaymentIntentId: data.paymentDetails?.paymentIntentId,
+          notes: `Deposit payment for Order ${formatOrderId(orderId)}`,
+        }
+      ];
+
+      // Add tip transaction if present
+      if (tipAmountCents > 0) {
+        transactions.push({
+          transactionType: 'tip' as const,
+          orderId,
+          customerId: orderData.customer_id as string,
+          paymentId: paymentRecord?.id,
+          amountCents: tipAmountCents,
+          paymentMethod: data.paymentDetails?.paymentMethod,
+          paymentMethodBrand: data.paymentDetails?.paymentBrand,
+          stripeChargeId: data.paymentDetails?.chargeId,
+          stripePaymentIntentId: data.paymentDetails?.paymentIntentId,
+          notes: `Crew tip for Order ${formatOrderId(orderId)}`,
+        });
+      }
+
+      // Log all transactions as a grouped receipt
+      await logGroupedTransactions(transactions, orderData, customerData);
+    }
+
+    const { data: invoiceNumberData } = await supabase.rpc('generate_invoice_number');
+    const invoiceNumber = invoiceNumberData || `INV-${Date.now()}`;
+
+    // Use effective total including relational custom fees and discounts.
+    // order_custom_fees and order_discounts are fetched at the top of this function.
+    const orderCustomFees = (orderData as any).order_custom_fees || [];
+    const orderDiscounts = (orderData as any).order_discounts || [];
+    const totalCents = calculateTotalFromOrder(orderData, orderDiscounts, orderCustomFees);
+
+    // Determine invoice status based on payment amount vs total
+    const invoiceStatus = paidAmountCents >= totalCents ? 'paid' : (paidAmountCents > 0 ? 'partial' : 'sent');
+
+    const { error: invoiceError } = await supabase.from('invoices').insert({
+      invoice_number: invoiceNumber,
+      order_id: orderId,
+      customer_id: orderData.customer_id,
+      due_date: orderData.event_date,
+      status: invoiceStatus,
+      subtotal_cents: orderData.subtotal_cents ?? 0,
+      tax_cents: orderData.tax_cents ?? 0,
+      travel_fee_cents: orderData.travel_fee_cents ?? 0,
+      surface_fee_cents: (orderData as any).surface_fee_cents ?? 0,
+      same_day_pickup_fee_cents: (orderData as any).same_day_pickup_fee_cents ?? 0,
+      generator_fee_cents: (orderData as any).generator_fee_cents ?? 0,
+      total_cents: totalCents,
+      paid_amount_cents: paidAmountCents,
+    });
+    if (invoiceError) {
+      console.error('[orderApprovalService] Invoice insert failed (non-fatal, order already confirmed):', invoiceError);
+    }
+
+    const { data: orderWithRelations, error: reloadError } = await supabase
+      .from('orders')
+      .select(`*, customers (*), addresses (*), order_items (*, units (*))`)
+      .eq('id', orderId)
+      .maybeSingle();
+
+    let notificationWarning: string | undefined;
+    if (reloadError || !orderWithRelations) {
+      notificationWarning = 'The order was approved, but confirmation details could not be loaded. Retry the notification from the order.';
+    } else {
+      try {
+        const notifResult = await sendApprovalConfirmationNotifications(
+          orderWithRelations,
+          totalCents,
+          sendSms,
+        );
+        if (notifResult.errors.length > 0) {
+          notificationWarning = notifResult.errors.join('; ');
+        }
+      } catch (notifErr: any) {
+        console.error('[orderApprovalService] confirmation notifications failed (non-fatal):', notifErr);
+        notificationWarning = (notifErr as any)?.message || 'Confirmation notification failed. Retry the notification from the order.';
+      }
+    }
+
+    try {
+      await enterConfirmed(orderId, 'admin_approve_charge_deposit', 'charged_now', orderData.status);
+    } catch (lifecycleErr) {
+      console.error('[orderApprovalService] enterConfirmed (charge-deposit) failed (non-fatal):', lifecycleErr);
+    }
+
+    return { success: true, notificationWarning };
+  } catch (error: any) {
+    console.error('Error approving order:', error);
+    return { success: false, error: error.message || 'Failed to approve order' };
+  }
+}
+
+export async function forceApproveOrder(orderId: string): Promise<ApprovalResult> {
+  try {
+    // Fetch the order and check availability
+    const { data: orderData } = await supabase
+      .from('orders')
+      .select('*, order_items (*)')
+      .eq('id', orderId)
+      .maybeSingle();
+
+    if (!orderData) {
+      throw new Error('Order not found');
+    }
+
+    // Idempotency guard: abort if already confirmed/cancelled/void
+    if ([ORDER_STATUS.CONFIRMED, ORDER_STATUS.CANCELLED, ORDER_STATUS.VOID].includes(orderData.status as typeof ORDER_STATUS.CONFIRMED)) {
+      throw new Error('This order has already been confirmed or cancelled. Refresh the page to see the current status.');
+    }
+
+    // Check availability before force approving — only items with valid unit_id
+    const orderItems = (Array.isArray(orderData.order_items) ? orderData.order_items : []) as any[];
+    const inflatableItems = orderItems.filter(item => item.unit_id != null && typeof item.unit_id === 'string' && item.unit_id.trim() !== '');
+    const availabilityChecks = inflatableItems.map(item => ({
+      unitId: item.unit_id,
+      eventStartDate: orderData.event_date,
+      eventEndDate: orderData.event_end_date || orderData.event_date,
+      excludeOrderId: orderId,
+    }));
+
+    const availabilityResults = availabilityChecks.length > 0
+      ? await checkMultipleUnitsAvailability(availabilityChecks)
+      : [];
+    const unavailableUnits = availabilityResults.filter(result => !result.isAvailable);
+
+    if (unavailableUnits.length > 0) {
+      const { data: units } = await supabase
+        .from('units')
+        .select('id, name')
+        .in('id', unavailableUnits.map(u => u.unitId));
+
+      const unitNames = unavailableUnits.map(u => {
+        const unit = units?.find(unit => unit.id === u.unitId);
+        return unit?.name || 'Unknown unit';
+      }).join(', ');
+
+      throw new Error(
+        `Cannot force approve order: The following units are not available: ${unitNames}. There are conflicting bookings for these dates.`
+      );
+    }
+
+    // Check Event Essentials product availability from saved component snapshots
+    await checkEEProductAvailability(orderItems, orderData, orderId);
+
+    // Proceed with force approval — predicated on status to guard against races
+    const { data: claimedRows, error } = await supabase
+      .from('orders')
+      .update({ status: ORDER_STATUS.CONFIRMED })
+      .eq('id', orderId)
+      .not('status', 'in', '("confirmed","cancelled","void")')
+      .select('id');
+
+    if (error) throw error;
+    if (!claimedRows || claimedRows.length === 0) {
+      throw new Error('This order has already been confirmed or cancelled. Refresh the page to see the current status.');
+    }
+
+    try {
+      await enterConfirmed(orderId, 'admin_force_approve', 'waived', orderData.status);
+    } catch (lifecycleErr) {
+      console.error('[orderApprovalService] enterConfirmed (force-approve) failed (non-fatal):', lifecycleErr);
+    }
+
+    return { success: true };
+  } catch (error: any) {
+    console.error('Error force approving order:', error);
+    return { success: false, error: error.message || 'Failed to force approve order' };
+  }
+}
+
+export async function rejectOrder(
+  order: any,
+  reason: string,
+  sendSms: (message: string) => Promise<boolean>
+): Promise<ApprovalResult> {
+  try {
+    const { error } = await supabase
+      .from('orders')
+      .update({
+        status: ORDER_STATUS.CANCELLED,
+        cancelled_at: new Date().toISOString(),
+        cancellation_reason: reason?.trim() || 'Rejected by admin',
+      })
+      .eq('id', order.id);
+
+    if (error) throw error;
+
+    // Payment attempts that never reached the provider are cancelled by the database when the order is cancelled; an attempt that
+    // did reach it is settled by the provider's own result (a payment browsers cannot cancel or fabricate).
+
+    const rejectionMessage = generateRejectionSmsMessage(order, order.customers?.first_name, reason);
+
+    try {
+      await sendSms(rejectionMessage);
+    } catch (smsError) {
+      console.error('Error sending rejection SMS:', smsError);
+      throw new Error('Booking rejected (SMS notification failed - please contact customer manually).');
+    }
+
+    return { success: true };
+  } catch (error: any) {
+    console.error('Error rejecting order:', error);
+    return { success: false, error: error.message || 'Failed to reject order' };
+  }
+}
+
+async function checkEEProductAvailability(orderItems: any[], orderData: any, orderId: string) {
+  const { checkEventEssentialsAvailability } = await import('../queries/products');
+  const check = await checkEventEssentialsAvailability({
+    items: orderItems,
+    eventDate: orderData.event_date,
+    eventEndDate: orderData.event_end_date || orderData.event_date,
+    excludeOrderId: orderId,
+  });
+  if (!check.ok) {
+    if (check.kind === 'invalid_requirement') {
+      throw new Error(check.error);
+    }
+    throw new Error(`Cannot approve order: ${check.error}`);
+  }
+}
+
+function generateCardDeclinedEmail(order: any, portalUrl: string, businessPhone: string): string {
+  const firstName = order.customers?.first_name || 'Customer';
+  const shortId = order.id.replace(/-/g, '').toUpperCase().slice(0, 8);
+  return `<!DOCTYPE html>
+<html>
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"></head>
+<body style="margin:0;padding:0;font-family:Arial,sans-serif;background-color:#f5f5f5;">
+<table width="100%" cellpadding="0" cellspacing="0" style="background-color:#f5f5f5;padding:20px;">
+<tr><td align="center">
+<table width="600" cellpadding="0" cellspacing="0" style="background-color:#ffffff;border-radius:8px;border:1px solid #fecaca;">
+  <tr>
+    <td align="center" style="padding:24px 40px 16px;border-bottom:2px solid #fecaca;background-color:#fef2f2;border-radius:8px 8px 0 0;">
+      <h1 style="margin:0;color:#dc2626;font-size:24px;font-weight:bold;">Payment Declined</h1>
+    </td>
+  </tr>
+  <tr>
+    <td style="padding:28px 40px;">
+      <p style="margin:0 0 16px;color:#374151;font-size:15px;">Hi ${firstName},</p>
+      <p style="margin:0 0 16px;color:#374151;font-size:15px;">
+        We were unable to process your payment for Order <strong>#${shortId}</strong>. Your card was declined and your booking could not be confirmed.
+      </p>
+      <p style="margin:0 0 24px;color:#374151;font-size:15px;">
+        To save your booking, please visit your customer portal to update your payment method and try again.
+      </p>
+      <div style="text-align:center;margin-bottom:24px;">
+        <a href="${portalUrl}" style="display:inline-block;background-color:#2563eb;color:#ffffff;text-decoration:none;font-weight:bold;font-size:15px;padding:14px 36px;border-radius:6px;">Update Payment Method</a>
+      </div>
+      <p style="margin:0;color:#6b7280;font-size:13px;text-align:center;">If you have questions, please call us at ${businessPhone}.</p>
+    </td>
+  </tr>
+</table>
+</td></tr>
+</table>
+</body>
+</html>`;
+}
+
+function hasEmailChannel(customer: any): boolean {
+  return typeof customer?.email === 'string' && customer.email.trim() !== '';
+}
+
+function hasPhoneChannel(customer: any): boolean {
+  return typeof customer?.phone === 'string' && customer.phone.trim() !== '';
+}
+
+export async function sendApprovalConfirmationNotifications(
+  orderWithItems: any,
+  totalCents: number,
+  sendSmsFn: (message: string) => Promise<boolean>,
+  deps?: {
+    createLink?: typeof createShortPortalLink;
+    sendEmailFn?: typeof sendEmail;
+    supabaseClient?: typeof supabase;
+  },
+): Promise<NotificationChannelResult> {
+  const result: NotificationChannelResult = { emailSent: null, smsSent: null, errors: [] };
+
+  const createLink = deps?.createLink ?? createShortPortalLink;
+  const sendEmailImpl = deps?.sendEmailFn ?? sendEmail;
+  const sb = deps?.supabaseClient ?? supabase;
+
+  try {
+    const customer = orderWithItems?.customers as any;
+    const hasEmail = hasEmailChannel(customer);
+    const hasPhone = hasPhoneChannel(customer);
+
+    // 1. No contact channels — skip short link, payment query, and failure rows
+    if (!hasEmail && !hasPhone) {
+      result.errors.push('No customer email address or phone number was available.');
+      return result;
+    }
+
+    const { data: payment } = await sb
+      .from('payments')
+      .select('*')
+      .eq('order_id', orderWithItems.id)
+      .eq('type', 'deposit')
+      .eq('status', 'succeeded')
+      .order('paid_at', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    const address = orderWithItems?.addresses as any;
+    const items = (orderWithItems?.order_items as any) || [];
+
+    // 2. Create one short portal link shared by all available channels
+    const linkResult = await createLink(orderWithItems.id, sb, orderWithItems.event_date);
+
+    if (!linkResult.success) {
+      console.error('[orderApprovalService] Short-link failed, skipping all confirmation notifications:', linkResult.error);
+      const failureContext = { orderId: orderWithItems.id, messageType: 'booking_confirmation', source: 'orderApprovalService' };
+      const failureRows: Array<{ notification_type: 'email' | 'sms'; intended_recipient: string; subject: string; error_message: string; context: typeof failureContext }> = [];
+      if (hasEmail) {
+        result.emailSent = false;
+        failureRows.push({ notification_type: 'email', intended_recipient: customer.email, subject: 'Booking confirmation not sent', error_message: linkResult.error, context: failureContext });
+      }
+      if (hasPhone) {
+        result.smsSent = false;
+        failureRows.push({ notification_type: 'sms', intended_recipient: customer.phone, subject: 'Booking confirmation not sent', error_message: linkResult.error, context: failureContext });
+      }
+      if (failureRows.length > 0) {
+        try {
+          const { error: logError } = await sb.from('notification_failures').insert(failureRows);
+          if (logError) console.error('[orderApprovalService] Failed to log notification failure:', logError);
+        } catch (logErr) {
+          console.error('[orderApprovalService] Failed to log notification failure:', logErr);
+        }
+      }
+      result.errors.push(linkResult.error);
+      return result;
+    }
+
+    const portalUrl = linkResult.url!;
+
+    // 3. Send email only when email exists
+    if (hasEmail) {
+      const emailHtml = generateConfirmationReceiptEmail({
+        order: orderWithItems,
+        customer,
+        address,
+        items,
+        payment,
+        totalCents,
+        portalUrl,
+      });
+
+      try {
+        await sendEmailImpl({
+          to: customer.email,
+          subject: `Booking Confirmed - Receipt for Order #${formatOrderId(orderWithItems.id)}`,
+          html: emailHtml,
+        });
+        result.emailSent = true;
+      } catch (emailErr: any) {
+        console.error('[orderApprovalService] Email send failed:', emailErr);
+        result.emailSent = false;
+        const errMsg = (emailErr as any)?.message || 'Email send failed';
+        result.errors.push(`Email: ${errMsg}`);
+      }
+    }
+
+    // 4. Send SMS only when phone exists
+    if (hasPhone) {
+      const smsMessage = generateConfirmationSmsMessage(orderWithItems, customer.first_name, portalUrl);
+      try {
+        const smsOk = await sendSmsFn(smsMessage);
+        result.smsSent = smsOk;
+        if (!smsOk) {
+          result.errors.push('SMS: send returned false');
+        }
+      } catch (smsErr: any) {
+        console.error('[orderApprovalService] SMS send failed:', smsErr);
+        result.smsSent = false;
+        const errMsg = (smsErr as any)?.message || 'SMS send failed';
+        result.errors.push(`SMS: ${errMsg}`);
+      }
+    }
+
+    return result;
+  } catch (err: any) {
+    console.error('[orderApprovalService] Confirmation notifications error:', err);
+    result.errors.push((err as any)?.message || 'Unknown error');
+    return result;
+  }
+}
+
+export async function sendCardDeclinedNotifications(
+  order: any,
+  orderId: string,
+  sendSmsFn: (message: string) => Promise<boolean>,
+  deps?: {
+    createLink?: typeof createShortPortalLink;
+    sendEmailFn?: typeof sendEmail;
+    supabaseClient?: typeof supabase;
+  },
+): Promise<NotificationChannelResult> {
+  const result: NotificationChannelResult = { emailSent: null, smsSent: null, errors: [] };
+
+  const createLink = deps?.createLink ?? createShortPortalLink;
+  const sendEmailImpl = deps?.sendEmailFn ?? sendEmail;
+  const sb = deps?.supabaseClient ?? supabase;
+
+  try {
+    const customer = order?.customers as any;
+    const hasEmail = hasEmailChannel(customer);
+    const hasPhone = hasPhoneChannel(customer);
+
+    // 1. No contact channels — do not create short link or failure rows
+    if (!hasEmail && !hasPhone) {
+      result.errors.push('No customer email address or phone number was available.');
+      return result;
+    }
+
+    // 2. Create one short portal link shared by all available channels
+    const linkResult = await createLink(orderId, sb, order?.event_date);
+
+    if (!linkResult.success) {
+      console.error('[orderApprovalService] Short-link failed, skipping decline notifications:', linkResult.error);
+      const failureContext = { orderId, messageType: 'card_declined', source: 'orderApprovalService' };
+      const failureRows: Array<{ notification_type: 'email' | 'sms'; intended_recipient: string; subject: string; error_message: string; context: typeof failureContext }> = [];
+      if (hasEmail) {
+        result.emailSent = false;
+        failureRows.push({ notification_type: 'email', intended_recipient: customer.email, subject: 'Payment declined notification not sent', error_message: linkResult.error, context: failureContext });
+      }
+      if (hasPhone) {
+        result.smsSent = false;
+        failureRows.push({ notification_type: 'sms', intended_recipient: customer.phone, subject: 'Payment declined notification not sent', error_message: linkResult.error, context: failureContext });
+      }
+      if (failureRows.length > 0) {
+        try {
+          const { error: logError } = await sb.from('notification_failures').insert(failureRows);
+          if (logError) console.error('[orderApprovalService] Failed to log notification failure:', logError);
+        } catch (logErr) {
+          console.error('[orderApprovalService] Failed to log notification failure:', logErr);
+        }
+      }
+      result.errors.push(linkResult.error);
+      return result;
+    }
+
+    const portalUrl = linkResult.url!;
+
+    // 3. Send email only when email exists
+    if (hasEmail) {
+      const businessPhone = (await getAdminSetting(ADMIN_SETTING_KEYS.BUSINESS_PHONE)) ?? BUSINESS_PHONE_FALLBACK;
+      const declineEmailHtml = generateCardDeclinedEmail(order, portalUrl, businessPhone);
+      try {
+        await sendEmailImpl({
+          to: customer.email,
+          subject: `Action Required: Payment Declined for Order #${formatOrderId(orderId)}`,
+          html: declineEmailHtml,
+        });
+        result.emailSent = true;
+      } catch (emailErr: any) {
+        console.error('[orderApprovalService] Decline email send failed:', emailErr);
+        result.emailSent = false;
+        const errMsg = (emailErr as any)?.message || 'Email send failed';
+        result.errors.push(`Email: ${errMsg}`);
+      }
+    }
+
+    // 4. Send SMS only when phone exists
+    if (hasPhone) {
+      const firstName = customer?.first_name || 'Customer';
+      const declineSms = `Bounce Party Club: Hi ${firstName}, your card was declined for Order #${formatOrderId(orderId)}. Your booking could not be confirmed. Please update your payment method at: ${portalUrl}`;
+      try {
+        const smsOk = await sendSmsFn(declineSms);
+        result.smsSent = smsOk;
+        if (!smsOk) {
+          result.errors.push('SMS: send returned false');
+        }
+      } catch (smsErr: any) {
+        console.error('[orderApprovalService] Decline SMS send failed:', smsErr);
+        result.smsSent = false;
+        const errMsg = (smsErr as any)?.message || 'SMS send failed';
+        result.errors.push(`SMS: ${errMsg}`);
+      }
+    }
+
+    return result;
+  } catch (err: any) {
+    console.error('[orderApprovalService] Decline notifications error:', err);
+    result.errors.push((err as any)?.message || 'Unknown error');
+    return result;
+  }
+}
+
+export function buildDeclineAdminMessage(
+  paymentReason: string,
+  notifResult: NotificationChannelResult,
+): string {
+  const hasEmail = notifResult.emailSent === true;
+  const hasSms = notifResult.smsSent === true;
+  const noContact = notifResult.errors.some(e => e.includes('No customer email address or phone number'));
+
+  if (noContact) {
+    return `${paymentReason} The order was not confirmed. No customer email address or phone number was available.`;
+  }
+
+  if (hasEmail && hasSms) {
+    return `${paymentReason} The order was not confirmed. The customer was notified.`;
+  }
+
+  if (notifResult.errors.length > 0 || notifResult.emailSent === false || notifResult.smsSent === false) {
+    return `${paymentReason} The order was not confirmed. The customer notification also failed; contact the customer manually.`;
+  }
+
+  return `${paymentReason} The order was not confirmed. The customer was notified.`;
+}

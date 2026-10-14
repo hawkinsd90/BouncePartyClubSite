@@ -8,8 +8,8 @@ import { OrderPaymentStatus } from './OrderPaymentStatus';
 import { formatCurrency } from '../../lib/pricing';
 import { formatTime } from '../../lib/utils';
 import { isOrderCancellable } from '../../lib/constants/statuses';
-import { eventAddressLine2 } from '../../lib/eventAddress';
-import { calculateTotalFromOrder } from '../../lib/orderSummaryLoader';
+import { eventAddressLine2 } from '../../lib/booking/eventAddress';
+import { calculateTotalFromOrder } from '../../lib/orders/orderSummaryLoader';
 import { fetchSignedWaiverPdfUrl } from '../../lib/documents/waiverAccess';
 import { notifyError } from '../../lib/toasts';
 

@@ -2,7 +2,7 @@ import { supabase } from '../supabase';
 import { executeQuery, type QueryOptions, type QueryResult } from './base';
 import { handleError } from '../errorHandling';
 import { loadAdminResolverCatalogRowsWith } from './adminResolverCatalogRows';
-import { checkEventEssentialsAvailabilityWith } from '../eeOrderItemAvailability';
+import { checkEventEssentialsAvailabilityWith } from '../eventEssentials/eeOrderItemAvailability';
 import type { Json } from '../database.types';
 import type {
   InventoryProduct,
@@ -27,8 +27,8 @@ import type {
 // Shared currency validation (used by ProductForm and PackageForm)
 // ---------------------------------------------------------------------------
 
-export { parsePrice, priceErrorMessage, centsToDollars } from '../priceInput';
-export type { PriceParseResult } from '../priceInput';
+export { parsePrice, priceErrorMessage, centsToDollars } from '../pricing/priceInput';
+export type { PriceParseResult } from '../pricing/priceInput';
 
 // ---------------------------------------------------------------------------
 // Slug generation

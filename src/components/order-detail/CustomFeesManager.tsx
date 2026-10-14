@@ -4,7 +4,7 @@ import { formatCurrency } from '../../lib/pricing';
 import { showToast } from '../../lib/toasts';
 import { supabase } from '../../lib/supabase';
 import { useFeeTemplates } from '../../hooks/useFeeTemplates';
-import { dollarsToCents } from '../../lib/money';
+import { dollarsToCents } from '../../lib/pricing/money';
 
 interface CustomFeesManagerProps {
   customFees: any[];

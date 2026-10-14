@@ -16,7 +16,7 @@ import {
   formatPriceCents,
   qualificationMessage,
   type CandidateEvalContext,
-} from '../../eventEssentialsCatalogResolver';
+} from '../../eventEssentials/eventEssentialsCatalogResolver';
 import type {
   InventoryProduct,
   ProductPricing,

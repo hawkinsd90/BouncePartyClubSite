@@ -285,7 +285,7 @@ const PRIVATE = OWNED.filter((t) => !PUBLIC_READ.includes(t));
   const PUBLIC_SURFACE = allFiles.filter((f) =>
     /^src\/components\/customer-portal\//.test(f) ||
     /^src\/pages\/(CustomerPortal|ShortLink|StripeCheckoutReturn|StripeCheckoutCanceled|Checkout|Sign|Receipt|Quote|Catalog|UnitDetail|Home|Contact|About|EventEssentialsCatalog|LegacyInvoiceRedirect|Login|ForgotPassword|ResetPassword|MenuPreview|InvoicePreview)\.tsx$/.test(f) ||
-    /^src\/lib\/(bookingApi|portal\/customerPortalApi|portal\/portalToken|portalLinks|edgeAuth|customerPortalPolling|portal\/customerPortalRefreshSignal)\.ts$/.test(f) ||
+    /^src\/lib\/(booking\/bookingApi|portal\/customerPortalApi|portal\/portalToken|portalLinks|edgeAuth|customerPortalPolling|portal\/customerPortalRefreshSignal)\.ts$/.test(f) ||
     /^src\/hooks\/(useBookingReturnConfirmation|useCheckoutData|useQuoteCart|useQuoteForm|useQuotePricing|useQuotePrefill)\.ts$/.test(f),
   );
   ok('source: the public-surface file set is non-trivial', PUBLIC_SURFACE.length >= 25);
@@ -295,7 +295,7 @@ const PRIVATE = OWNED.filter((t) => !PUBLIC_READ.includes(t));
   ok('source: no browser file calls a legacy token RPC at all (so revoking them breaks nothing)', allFiles.every((f) => !rpcCall(LEGACY_RPCS).test(strip(read(f)))));
 
   // Every remaining direct user must be a known staff / owner surface. A new file touching a private table fails here.
-  const STAFF = /^src\/(components\/(admin|order-detail|pending-order|calendar|crew)\/|components\/AdminCalendar\.tsx|pages\/(Admin|UnitForm)\.tsx|lib\/queries\/|lib\/(orderApprovalService|staffOrderSaveRequest|payments\/invoiceService|addressService|orderSummaryLoader|availability|tasks\/taskStatusService|payments\/transactionReceiptService|notifications\/orderNotificationService|notifications\/notificationFailures|orderLifecycleApi)\.ts|hooks\/(useCalendarTasks|useCustomerManagement|useAdminOrderDetails|usePendingOrderData|useAdminAnalytics|useAdminPhotos|useOrderDuplication|useInvoiceData|useAdminSettings)\.ts)/;
+  const STAFF = /^src\/(components\/(admin|order-detail|pending-order|calendar|crew)\/|components\/AdminCalendar\.tsx|pages\/(Admin|UnitForm)\.tsx|lib\/queries\/|lib\/(orders\/orderApprovalService|orders\/staffOrderSaveRequest|payments\/invoiceService|booking\/addressService|orders\/orderSummaryLoader|booking\/availability|tasks\/taskStatusService|payments\/transactionReceiptService|notifications\/orderNotificationService|notifications\/notificationFailures|orders\/orderLifecycleApi)\.ts|hooks\/(useCalendarTasks|useCustomerManagement|useAdminOrderDetails|usePendingOrderData|useAdminAnalytics|useAdminPhotos|useOrderDuplication|useInvoiceData|useAdminSettings)\.ts)/;
   const OWNER = /^src\/(contexts\/CustomerProfileContext\.tsx|pages\/SignUp\.tsx)$/;
   const direct = allFiles.filter((f) => touches(f).length > 0);
   const unclassified = direct.filter((f) => !STAFF.test(f) && !OWNER.test(f));
@@ -311,7 +311,7 @@ const PRIVATE = OWNED.filter((t) => !PUBLIC_READ.includes(t));
   ok('source: the receipt is built from the loaded order (no direct orders query)', /buildOrderSummaryData\(/.test(strip(read('src/pages/CustomerDashboard.tsx'))) && !/loadOrderSummary/.test(strip(read('src/pages/CustomerDashboard.tsx'))));
   ok('source: the old payments embed and the email-based owner lookup are gone', !/payments\s*\(\s*\*\s*\)/.test(useOrders) && !/customer_profiles|contacts/.test(useOrders));
   ok('source: Customer Portal talks to the server APIs only', /customer-portal-data/.test(read('src/lib/portal/customerPortalApi.ts')) && /customer-portal-action/.test(read('src/lib/portal/customerPortalApi.ts')));
-  ok('source: public booking goes through create-booking and the booking proof', /create-booking/.test(read('src/lib/bookingApi.ts')) && /bookingToken/.test(read('src/lib/bookingApi.ts')));
+  ok('source: public booking goes through create-booking and the booking proof', /create-booking/.test(read('src/lib/booking/bookingApi.ts')) && /bookingToken/.test(read('src/lib/booking/bookingApi.ts')));
 
   // Printable classification table (documentation of the direct-dependency map)
   const groups: Record<string, string[]> = { staff: [], owner: [] };

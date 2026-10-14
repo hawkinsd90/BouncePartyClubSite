@@ -1,6 +1,6 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
-// GENERATED COPY of src/lib/eeOrderItemAvailability.ts. Do not edit here.
-// Edit the source and run: node node_modules/jiti/bin/jiti.js src/lib/bookingSharedCopy.ts --write
+// GENERATED COPY of src/lib/eventEssentials/eeOrderItemAvailability.ts. Do not edit here.
+// Edit the source and run: node node_modules/jiti/bin/jiti.js src/lib/tooling/bookingSharedCopy.ts --write
 // A test fails if this file differs from its source. Used by create-booking so the server prices exactly like the Quote.
 
 // Stage E4 — Pure production helper for expanding Event Essentials order items

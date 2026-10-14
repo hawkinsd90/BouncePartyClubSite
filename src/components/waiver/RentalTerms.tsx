@@ -1,7 +1,7 @@
 import { FileText } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import { formatCurrency } from '../../lib/pricing';
-import { getDepositAmount, getGeneratorFeeSingle } from '../../lib/pricingCache';
+import { getDepositAmount, getGeneratorFeeSingle } from '../../lib/pricing/pricingCache';
 
 export function RentalTerms() {
   const [depositCents, setDepositCents] = useState(5000);

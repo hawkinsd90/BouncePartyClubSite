@@ -5,7 +5,7 @@ import { Package } from 'lucide-react';
 import { Order, Payment } from '../types/orders';
 import { useOrders } from '../hooks/useOrders';
 import { useOrderDuplication } from '../hooks/useOrderDuplication';
-import { buildOrderSummaryData, formatOrderSummary, OrderSummaryDisplay } from '../lib/orderSummaryLoader';
+import { buildOrderSummaryData, formatOrderSummary, OrderSummaryDisplay } from '../lib/orders/orderSummaryLoader';
 import { showToast } from '../lib/toasts';
 import { CancelOrderModal } from '../components/customer-portal/CancelOrderModal';
 import { OrderCard } from '../components/dashboard/OrderCard';

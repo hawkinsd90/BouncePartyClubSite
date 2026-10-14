@@ -13,13 +13,13 @@ import {
   inflatableLineKey,
   deriveEventEssentialsValidationState,
   type RepriceEventEssentialsCartInput,
-} from '../../eventEssentialsCartRepricing';
+} from '../../eventEssentials/eventEssentialsCartRepricing';
 import type {
   ResolverProductConfig,
   ResolverBundleConfig,
   ResolverCategory,
   ResolverUnitConfig,
-} from '../../eventEssentialsPricingTypes';
+} from '../../eventEssentials/eventEssentialsPricingTypes';
 import type {
   UnifiedCartItem,
   InflatableCartItem,

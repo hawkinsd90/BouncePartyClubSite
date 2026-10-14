@@ -2,12 +2,12 @@ import { useNavigate } from 'react-router-dom';
 import { useState } from 'react';
 import { Trash2, Sun, Droplets, XCircle, AlertCircle, Package, AlertTriangle, Plus, Minus } from 'lucide-react';
 import type { UnifiedCartItem } from '../../types';
-import type { EventEssentialsCartIssue } from '../../lib/eventEssentialsCartRepricing';
-import { formatPriceCents } from '../../lib/eventEssentialsCatalogResolver';
-import { productLineKey, bundleLineKey } from '../../lib/eventEssentialsCartRepricing';
-import { isInflatableCartItem as isInflatable, isEventEssentialProductCartItem, isEventEssentialBundleCartItem, expandCartToProductQuantities } from '../../lib/unifiedCart';
+import type { EventEssentialsCartIssue } from '../../lib/eventEssentials/eventEssentialsCartRepricing';
+import { formatPriceCents } from '../../lib/eventEssentials/eventEssentialsCatalogResolver';
+import { productLineKey, bundleLineKey } from '../../lib/eventEssentials/eventEssentialsCartRepricing';
+import { isInflatableCartItem as isInflatable, isEventEssentialProductCartItem, isEventEssentialBundleCartItem, expandCartToProductQuantities } from '../../lib/eventEssentials/unifiedCart';
 import { checkProductAvailability } from '../../lib/queries/products';
-import { validateAvailabilityResult } from '../../lib/eeOrderItemAvailability';
+import { validateAvailabilityResult } from '../../lib/eventEssentials/eeOrderItemAvailability';
 
 interface CartSectionProps {
   cart: UnifiedCartItem[];

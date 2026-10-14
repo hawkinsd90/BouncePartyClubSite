@@ -1,5 +1,5 @@
-import { formatPriceCents } from '../../lib/eventEssentialsCatalogResolver';
-import { isEventEssentialBundleCartItem } from '../../lib/unifiedCart';
+import { formatPriceCents } from '../../lib/eventEssentials/eventEssentialsCatalogResolver';
+import { isEventEssentialBundleCartItem } from '../../lib/eventEssentials/unifiedCart';
 import type { EventEssentialProductCartItem, EventEssentialBundleCartItem } from '../../types';
 
 interface Props {

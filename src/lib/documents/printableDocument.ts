@@ -1,6 +1,6 @@
 import { formatOrderId } from '../utils';
-import { effectiveDiscountCents, storedOrderTotalCents } from '../orderMoney';
-import { eventAddressLine2 } from '../eventAddress';
+import { effectiveDiscountCents, storedOrderTotalCents } from '../pricing/orderMoney';
+import { eventAddressLine2 } from '../booking/eventAddress';
 
 // Enhanced Type Safety
 export interface PrintableItem {

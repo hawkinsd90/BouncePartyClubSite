@@ -11,10 +11,10 @@
 import {
   filterOutEventEssentialProduct,
   filterOutEventEssentialBundle,
-} from '../../unifiedCart';
+} from '../../eventEssentials/unifiedCart';
 import {
   repriceEventEssentialsCart,
-} from '../../eventEssentialsCartRepricing';
+} from '../../eventEssentials/eventEssentialsCartRepricing';
 import type {
   UnifiedCartItem,
   InflatableCartItem,
@@ -27,7 +27,7 @@ import type {
   ResolverBundleConfig,
   ResolverCategory,
   ResolverUnitConfig,
-} from '../../eventEssentialsPricingTypes';
+} from '../../eventEssentials/eventEssentialsPricingTypes';
 
 let passed = 0;
 let failed = 0;

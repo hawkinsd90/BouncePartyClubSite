@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { checkMultipleUnitsAvailabilityPublic } from '../lib/availability';
+import { checkMultipleUnitsAvailabilityPublic } from '../lib/booking/availability';
 import { SafeStorage } from '../lib/safeStorage';
 import { supabase } from '../lib/supabase';
 import { checkProductAvailability } from '../lib/queries/products';
@@ -14,7 +14,7 @@ import {
   mergeProductIntoCart,
   filterOutEventEssentialProduct,
   filterOutEventEssentialBundle,
-} from '../lib/unifiedCart';
+} from '../lib/eventEssentials/unifiedCart';
 import type {
   UnifiedCartItem,
   InflatableCartItem,

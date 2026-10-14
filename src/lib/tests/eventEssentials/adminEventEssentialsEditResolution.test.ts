@@ -1,8 +1,8 @@
 // Admin Edit EE — Phase 2 focused regression tests
 // Runnable via: npx jiti src/lib/adminEventEssentialsEditResolution.test.ts
 
-import { validateAvailabilityResult } from '../../eeOrderItemAvailability';
-import { aggregateOrderEquipment } from '../../customerGeneratorCart';
+import { validateAvailabilityResult } from '../../eventEssentials/eeOrderItemAvailability';
+import { aggregateOrderEquipment } from '../../eventEssentials/customerGeneratorCart';
 
 let passCount = 0;
 let failCount = 0;

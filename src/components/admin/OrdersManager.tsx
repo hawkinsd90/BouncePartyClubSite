@@ -14,8 +14,8 @@ import { formatOrderId } from '../../lib/utils';
 import { getAllOrdersWithContacts } from '../../lib/queries/orders';
 import { showConfirm } from '../common/CustomModal';
 import { OrderStatusBadge } from '../dashboard/OrderStatusBadge';
-import { categorizeOrders, filterAndSortOrders, computeTabCounts, pickDefaultTab } from '../../lib/ordersListModel';
-import type { OrderTab } from '../../lib/ordersListModel';
+import { categorizeOrders, filterAndSortOrders, computeTabCounts, pickDefaultTab } from '../../lib/orders/ordersListModel';
+import type { OrderTab } from '../../lib/orders/ordersListModel';
 
 
 interface OrdersData {

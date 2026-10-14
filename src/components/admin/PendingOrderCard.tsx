@@ -3,7 +3,7 @@ import { OrderDetailModal } from './OrderDetailModal';
 import { OrderSummary } from '../order/OrderSummary';
 import { usePendingOrderData } from '../../hooks/usePendingOrderData';
 import { usePendingOrderSms } from '../../hooks/usePendingOrderSms';
-import { approveOrder, forceApproveOrder, rejectOrder } from '../../lib/orderApprovalService';
+import { approveOrder, forceApproveOrder, rejectOrder } from '../../lib/orders/orderApprovalService';
 import { generatePaymentLinkSmsMessage } from '../../lib/notifications/orderEmailTemplates';
 import { formatOrderId } from '../../lib/utils';
 import { createShortPortalLink } from '../../lib/portal/portalShortLink';

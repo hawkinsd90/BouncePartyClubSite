@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { notifyError } from '../lib/toasts';
-import { decideAddError } from '../lib/catalogAddError';
+import { decideAddError } from '../lib/eventEssentials/catalogAddError';
 import {
   ShoppingCart,
   Plus,
@@ -25,7 +25,7 @@ import {
   expandCartToProductQuantities,
   isEventEssentialProductCartItem,
   isEventEssentialBundleCartItem,
-} from '../lib/unifiedCart';
+} from '../lib/eventEssentials/unifiedCart';
 import {
   buildProductConfigMap,
   buildBundleConfigMap,
@@ -38,8 +38,8 @@ import {
   formatPriceCents,
   qualificationMessage,
   type CandidateEvalContext,
-} from '../lib/eventEssentialsCatalogResolver';
-import type { ResolverOutputLine } from '../lib/eventEssentialsPricingTypes';
+} from '../lib/eventEssentials/eventEssentialsCatalogResolver';
+import type { ResolverOutputLine } from '../lib/eventEssentials/eventEssentialsPricingTypes';
 import type {
   ProductBundleWithConfiguration,
   ProductPricing,

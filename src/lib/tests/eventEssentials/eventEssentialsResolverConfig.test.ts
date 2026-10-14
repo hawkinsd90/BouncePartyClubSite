@@ -29,16 +29,16 @@
 //  E. The shared bundle snapshot equals the old inline AEES snapshot on every reachable input;
 //     only a synthetic empty string differs (accepted canonicalization).
 
-import { resolveEventEssentialsPricing } from '../../eventEssentialsPricing';
+import { resolveEventEssentialsPricing } from '../../eventEssentials/eventEssentialsPricing';
 import {
   buildProductConfigMap,
   buildBundleConfigMap,
   buildCategoryMap,
   buildUnitMap,
-} from '../../eventEssentialsCatalogResolver';
+} from '../../eventEssentials/eventEssentialsCatalogResolver';
 import { buildGeneratorResolverCatalog } from '../../../components/admin/order-detail-modal/generatorResolverCatalog';
-import { buildBundleSnapshot } from '../../unifiedCart';
-import type { ResolverInput, ResolverInputLine } from '../../eventEssentialsPricingTypes';
+import { buildBundleSnapshot } from '../../eventEssentials/unifiedCart';
+import type { ResolverInput, ResolverInputLine } from '../../eventEssentials/eventEssentialsPricingTypes';
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 

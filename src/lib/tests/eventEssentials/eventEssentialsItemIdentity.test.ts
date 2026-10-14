@@ -1,9 +1,9 @@
 // Stage E4 — Production-helper focused tests
-import { buildEventEssentialAvailabilityRequestFromOrderItems } from '../../eeOrderItemAvailability';
-import { getQuotePricingDisplayState } from '../../quotePricingDisplayState';
+import { buildEventEssentialAvailabilityRequestFromOrderItems } from '../../eventEssentials/eeOrderItemAvailability';
+import { getQuotePricingDisplayState } from '../../booking/quotePricingDisplayState';
 import { buildReceiptEmailInput, generateConfirmationSmsMessage } from '../../notifications/orderEmailTemplates';
-import { composeUnifiedQuoteTotals } from '../../unifiedTotals';
-import { DEFAULT_EE_ONLY_DEPOSIT_SETTINGS } from '../../depositCalculation';
+import { composeUnifiedQuoteTotals } from '../../pricing/unifiedTotals';
+import { DEFAULT_EE_ONLY_DEPOSIT_SETTINGS } from '../../pricing/depositCalculation';
 import type { PriceBreakdown } from '../../pricing';
 import type { UnifiedCartItem } from '../../../types';
 

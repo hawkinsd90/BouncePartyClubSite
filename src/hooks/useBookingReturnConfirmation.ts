@@ -1,9 +1,9 @@
 import { useState, useEffect } from 'react';
-import { loadCompletedBooking } from '../lib/bookingApi';
+import { loadCompletedBooking } from '../lib/booking/bookingApi';
 import { SafeStorage } from '../lib/safeStorage';
 import { sendCustomerBookingConfirmationNotifications } from '../lib/notifications/orderNotificationService';
 import { ORDER_STATUS } from '../lib/constants/statuses';
-import { confirmationSettled } from '../lib/confirmationRetry';
+import { confirmationSettled } from '../lib/booking/confirmationRetry';
 
 interface OrderDetails {
   id: string;
@@ -137,7 +137,7 @@ export function useBookingReturnConfirmation(orderId: string | null, sessionId: 
 
           let lifecycleOk = false;
           try {
-            const { enterPendingReview, enterConfirmed } = await import('../lib/orderLifecycleApi');
+            const { enterPendingReview, enterConfirmed } = await import('../lib/orders/orderLifecycleApi');
             let lifecycleResult;
             if (completed.isAdminInvoice) {
               lifecycleResult = await enterConfirmed(orderId!, 'webhook_fallback_admin_invoice', 'charged_now', undefined, { sessionId });

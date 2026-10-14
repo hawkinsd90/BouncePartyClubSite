@@ -5,7 +5,7 @@ import { SafeStorage } from '../lib/safeStorage';
 import { Users, Maximize, Zap, Droplets, Download, Search, XCircle, CheckCircle, Tag } from 'lucide-react';
 import { notifyError } from '../lib/toasts';
 import { DatePickerInput } from '../components/ui/DatePickerInput';
-import { checkMultipleUnitsAvailabilityPublic } from '../lib/availability';
+import { checkMultipleUnitsAvailabilityPublic } from '../lib/booking/availability';
 
 
 interface Unit {

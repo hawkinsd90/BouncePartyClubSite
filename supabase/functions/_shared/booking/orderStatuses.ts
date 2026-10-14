@@ -1,5 +1,5 @@
 // GENERATED COPY of src/lib/constants/statuses.ts (sliced). Do not edit here.
-// Edit the source and run: node node_modules/jiti/bin/jiti.js src/lib/bookingSharedCopy.ts --write
+// Edit the source and run: node node_modules/jiti/bin/jiti.js src/lib/tooling/bookingSharedCopy.ts --write
 // A test fails if this file differs from its source. Used by create-booking so the server prices exactly like the Quote.
 
 export const ORDER_STATUS = {

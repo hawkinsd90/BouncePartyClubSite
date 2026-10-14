@@ -9,12 +9,12 @@ import {
   aggregateEquipmentAcrossOrders,
   PACKAGE_CONTENTS_UNAVAILABLE,
 } from '../../tasks/operationalEquipment';
-import { formatStoredOrderItems } from '../../formatStoredOrderItems';
+import { formatStoredOrderItems } from '../../orders/formatStoredOrderItems';
 import { normalizeStoredQuoteForm } from '../../../hooks/useQuoteForm';
 import {
   expandCartToProductQuantities,
   mapBundleAvailabilityToItem,
-} from '../../unifiedCart';
+} from '../../eventEssentials/unifiedCart';
 import type {
   EventEssentialBundleCartItem,
   ProductAvailabilityResult,

@@ -1,7 +1,7 @@
 // Pure validation for the Event Essentials package form. Moved verbatim from
 // PackageForm.validate(); the component keeps the setErrors step.
 
-import { parsePrice, priceErrorMessage } from '../../../../lib/priceInput';
+import { parsePrice, priceErrorMessage } from '../../../../lib/pricing/priceInput';
 import type { InventoryProductWithPricing, AdminInflatableUnit } from '../../../../types';
 import {
   MAX_INT,

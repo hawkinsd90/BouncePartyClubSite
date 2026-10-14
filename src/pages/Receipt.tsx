@@ -7,8 +7,8 @@ import { readPortalToken } from '../lib/portal/portalToken';
 import { formatCurrency } from '../lib/pricing';
 import { formatOrderId } from '../lib/utils';
 import { OrderSummary } from '../components/order/OrderSummary';
-import type { OrderSummaryDisplay } from '../lib/orderSummaryLoader';
-import { buildOrderSummaryData, formatOrderSummary } from '../lib/orderSummaryLoader';
+import type { OrderSummaryDisplay } from '../lib/orders/orderSummaryLoader';
+import { buildOrderSummaryData, formatOrderSummary } from '../lib/orders/orderSummaryLoader';
 import { formatTime } from '../lib/utils';
 import { LoadingSpinner } from '../components/common/LoadingSpinner';
 

@@ -1,8 +1,8 @@
 import type { UnifiedCartItem, InflatableCartItem, EventEssentialProductCartItem, EventEssentialBundleCartItem } from '../../types';
-import { calculateEventEssentialsSubtotalCents } from '../../lib/eventEssentialsMoney';
+import { calculateEventEssentialsSubtotalCents } from '../../lib/eventEssentials/eventEssentialsMoney';
 import { formatCurrency } from '../../lib/pricing';
-import { buildPackageDisplay, formatQuantityLabel } from '../../lib/packageDisplay';
-import type { UnifiedQuoteTotals } from '../../lib/unifiedTotals';
+import { buildPackageDisplay, formatQuantityLabel } from '../../lib/pricing/packageDisplay';
+import type { UnifiedQuoteTotals } from '../../lib/pricing/unifiedTotals';
 
 interface PriceBreakdown {
   travel_fee_cents: number;
@@ -26,7 +26,7 @@ interface QuoteSummarySectionProps {
   isCalculating: boolean;
 }
 
-export { getQuotePricingDisplayState } from '../../lib/quotePricingDisplayState';
+export { getQuotePricingDisplayState } from '../../lib/booking/quotePricingDisplayState';
 
 function isInflatable(item: UnifiedCartItem): item is InflatableCartItem {
   return item.item_type === undefined || item.item_type === 'inflatable';
