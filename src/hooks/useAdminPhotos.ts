@@ -1,10 +1,10 @@
 import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '../lib/supabase';
-import { fetchTaskEvidenceViews } from '../lib/taskEvidenceApi';
-import { normalizeAdminPhotos, countPhotosBySource } from '../lib/adminPhotoNormalizers';
+import { fetchTaskEvidenceViews } from '../lib/tasks/taskEvidenceApi';
+import { normalizeAdminPhotos, countPhotosBySource } from '../lib/tasks/adminPhotoNormalizers';
 import type {
   TaskStatusRow, LotPictureRow, AddressLotPictureRow, OrderPictureRow, UnitMediaRow, CarouselRow,
-} from '../lib/adminPhotoNormalizers';
+} from '../lib/tasks/adminPhotoNormalizers';
 
 export type PhotoSource = 'lot' | 'order' | 'delivery' | 'damage' | 'unit' | 'carousel';
 

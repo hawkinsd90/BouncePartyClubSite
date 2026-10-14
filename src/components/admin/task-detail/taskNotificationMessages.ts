@@ -8,7 +8,7 @@
 // the customer "before we arrive" right after "We have arrived").
 
 import { formatCurrency } from '../../../lib/pricing';
-import type { ShortPortalLinkResult } from '../../../lib/portalShortLink';
+import type { ShortPortalLinkResult } from '../../../lib/portal/portalShortLink';
 import type { CompletionSummaryData } from './PickupCompletionSummary';
 
 export type TaskType = 'drop-off' | 'pick-up';

@@ -5,7 +5,7 @@ import { ConfirmingBookingState } from '../components/booking-return/ConfirmingB
 import { BookingConfirmationErrorState } from '../components/booking-return/BookingConfirmationErrorState';
 import { BookingRequestReceivedView } from '../components/booking-return/BookingRequestReceivedView';
 import { trackEvent } from '../lib/siteEvents';
-import { portalPathForCurrentVisitor } from '../lib/portalToken';
+import { portalPathForCurrentVisitor } from '../lib/portal/portalToken';
 
 export function StripeCheckoutReturn() {
   const [searchParams] = useSearchParams();

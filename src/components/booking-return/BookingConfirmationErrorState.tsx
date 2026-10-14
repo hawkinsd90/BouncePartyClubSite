@@ -1,5 +1,5 @@
 import { useSearchParams } from 'react-router-dom';
-import { portalPathForCurrentVisitor } from '../../lib/portalToken';
+import { portalPathForCurrentVisitor } from '../../lib/portal/portalToken';
 
 interface PaymentErrorStateProps {
   error: string | null;

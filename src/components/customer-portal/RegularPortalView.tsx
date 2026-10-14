@@ -1,13 +1,13 @@
 import { useState, useEffect } from 'react';
-import { tokenFragment } from '../../lib/portalToken';
+import { tokenFragment } from '../../lib/portal/portalToken';
 import { format } from 'date-fns';
 import { FileText, CreditCard, CheckCircle, Image as ImageIcon, MapPin, Printer, Calendar, MapPin as MapPinIcon, Truck, Navigation, Clock, Package, Lock } from 'lucide-react';
 import { useNavigate, useLocation, useSearchParams } from 'react-router-dom';
 import { formatCurrency } from '../../lib/pricing';
 import { formatOrderId } from '../../lib/utils';
-import { portalAction, type PortalDeliveryState } from '../../lib/customerPortalApi';
-import { uploadPortalPictures, discardPortalPictures } from '../../lib/portalPictureUpload';
-import { resolveCustomerPortalTab, buildTabUrlParam, type PortalTabKey, type PortalNavSection } from '../../lib/customerPortalTab';
+import { portalAction, type PortalDeliveryState } from '../../lib/portal/customerPortalApi';
+import { uploadPortalPictures, discardPortalPictures } from '../../lib/portal/portalPictureUpload';
+import { resolveCustomerPortalTab, buildTabUrlParam, type PortalTabKey, type PortalNavSection } from '../../lib/portal/customerPortalTab';
 import WaiverTab from '../waiver/WaiverTab';
 import { PaymentTab } from './PaymentTab';
 import { PicturesTab } from './PicturesTab';

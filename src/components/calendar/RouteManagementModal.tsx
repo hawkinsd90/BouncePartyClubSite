@@ -4,10 +4,10 @@ import { format } from 'date-fns';
 import { Task } from '../../hooks/useCalendarTasks';
 import { supabase } from '../../lib/supabase';
 import { showToast } from '../../lib/toasts';
-import { sortTasksByOrder, isTaskActiveRouteStop, isDropOffPlanningOnly } from '../../lib/calendarUtils';
+import { sortTasksByOrder, isTaskActiveRouteStop, isDropOffPlanningOnly } from '../../lib/tasks/calendarUtils';
 import { SimpleConfirmModal } from '../common/SimpleConfirmModal';
-import type { RouteOriginOptions } from '../../lib/routeOptimization';
-import { getOrCreateTaskStatusRow } from '../../lib/taskStatusService';
+import type { RouteOriginOptions } from '../../lib/routing/routeOptimization';
+import { getOrCreateTaskStatusRow } from '../../lib/tasks/taskStatusService';
 
 export type RouteStartMode = 'home_base' | 'last_completed' | 'current_location';
 

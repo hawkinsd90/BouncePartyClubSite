@@ -6,7 +6,7 @@
 // - the pool is sorted in place by sortOrder ?? 0 (Array.sort is stable, ties keep input order);
 // - no other validation, no de-duplication.
 
-import { isTaskActiveRouteStop } from '../../../lib/calendarUtils';
+import { isTaskActiveRouteStop } from '../../../lib/tasks/calendarUtils';
 import type { Task } from '../../../hooks/useCalendarTasks';
 
 export function getRoutePool(

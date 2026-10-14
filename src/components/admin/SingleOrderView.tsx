@@ -1,11 +1,11 @@
 import { useState, useEffect, useRef } from 'react';
-import { buildPortalPath } from '../../lib/portalToken';
+import { buildPortalPath } from '../../lib/portal/portalToken';
 import { ArrowLeft, Copy, Check, ExternalLink, Link } from 'lucide-react';
 import { PendingOrderCard } from './PendingOrderCard';
 import { AdminFloatingOrderHeader } from './AdminFloatingOrderHeader';
 import { supabase } from '../../lib/supabase';
 import { ORDER_STATUS } from '../../lib/constants/statuses';
-import { createShortPortalLink } from '../../lib/portalShortLink';
+import { createShortPortalLink } from '../../lib/portal/portalShortLink';
 
 interface SingleOrderViewProps {
   orderId: string;

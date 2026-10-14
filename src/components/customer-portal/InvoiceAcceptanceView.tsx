@@ -15,16 +15,16 @@ import { PaymentAmountSelector } from './PaymentAmountSelector';
 import { CustomerInfoForm } from './CustomerInfoForm';
 import { CancelOrderModal } from './CancelOrderModal';
 import { showToast } from '../../lib/toasts';
-import { portalAction } from '../../lib/customerPortalApi';
+import { portalAction } from '../../lib/portal/customerPortalApi';
 import { checkEventEssentialsAvailability } from '../../lib/queries/products';
 import { enterConfirmed } from '../../lib/orderLifecycleApi';
 import {
   generateConfirmationReceiptEmail,
   generateConfirmationSmsMessage,
-} from '../../lib/orderEmailTemplates';
+} from '../../lib/notifications/orderEmailTemplates';
 import { formatOrderId } from '../../lib/utils';
-import { createShortPortalLink } from '../../lib/portalShortLink';
-import { portalPathForCurrentVisitor } from '../../lib/portalToken';
+import { createShortPortalLink } from '../../lib/portal/portalShortLink';
+import { portalPathForCurrentVisitor } from '../../lib/portal/portalToken';
 import { ReferralSourceSelect } from '../shared/ReferralSourceSelect';
 import { getPublicBusinessSettings } from '../../lib/adminSettingsCache';
 

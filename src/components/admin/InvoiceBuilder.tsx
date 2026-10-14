@@ -16,7 +16,7 @@ import { usePricing } from '../../hooks/usePricing';
 import { useInvoiceCart } from '../../hooks/useInvoiceCart';
 import { useCustomerManagement } from '../../hooks/useCustomerManagement';
 import { useInvoiceEventDetails } from '../../hooks/useInvoiceEventDetails';
-import { generateInvoice } from '../../lib/invoiceService';
+import { generateInvoice } from '../../lib/payments/invoiceService';
 import { checkMultipleUnitsAvailability } from '../../lib/availability';
 import { resolveAdminGeneratorIncrease, decideAdminGeneratorDecrease } from '../../lib/adminGeneratorResolution';
 import { fetchAdminProductCategories, fetchAdminInventoryProducts, loadAdminResolverCatalogRows, checkEventEssentialsAvailability } from '../../lib/queries/products';

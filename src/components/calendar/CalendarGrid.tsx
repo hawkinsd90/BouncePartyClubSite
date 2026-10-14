@@ -1,7 +1,7 @@
 import { format, isSameDay, startOfMonth, endOfMonth, eachDayOfInterval } from 'date-fns';
 import { Truck as TruckIcon, Package } from 'lucide-react';
 import { Task } from '../../hooks/useCalendarTasks';
-import { getTasksForDate } from '../../lib/calendarUtils';
+import { getTasksForDate } from '../../lib/tasks/calendarUtils';
 
 interface CalendarGridProps {
   currentMonth: Date;

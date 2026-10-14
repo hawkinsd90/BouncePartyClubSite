@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { fetchTaskEvidenceViews } from '../lib/taskEvidenceApi';
+import { fetchTaskEvidenceViews } from '../lib/tasks/taskEvidenceApi';
 
 export interface TaskEvidenceUrls {
   // One entry per stored reference, in stored order; null while loading or when the reference cannot be shown.

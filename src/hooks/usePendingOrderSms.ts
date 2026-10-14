@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { sendSms as sendSmsNotification } from '../lib/notificationService';
+import { sendSms as sendSmsNotification } from '../lib/notifications/notificationService';
 import { showToast } from '../lib/toasts';
 
 export function usePendingOrderSms(orderId: string, customerPhone: string) {

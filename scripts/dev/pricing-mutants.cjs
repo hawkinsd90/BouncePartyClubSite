@@ -250,9 +250,9 @@ const M = [
   [SAVE, 'an unavailable distance still creates the invoice', [repl('  const distance = await resolveDistance(deps, params, parsedEvent);\n  if (!distance.ok) return json(503,', '  const distance = await resolveDistance(deps, params, parsedEvent);\n  if (false) return json(503,')]],
   ["src/components/admin/OrderDetailModal.tsx", 'the order modal writes computed miles back to the order', [repl('            // Display only: the miles are never written back from the browser (the server owns the travel snapshot).', "            await supabase.from('orders').update({ travel_total_miles: travelMiles }).eq('id', order.id);")]],
   ["src/lib/orderSummaryLoader.ts", 'the summary loader writes computed miles back to the order', [repl('            if (travelMiles <= 0) {', "            supabase.from('orders').update({ travel_total_miles: travelMiles }).eq('id', orderId);\n            if (travelMiles <= 0) {")]],
-  ["src/lib/invoiceService.ts", 'the invoice request sends the browser mileage again', [repl('    requireCardOnFile: invoiceData.requireCardOnFile !== false,\n  };', '    requireCardOnFile: invoiceData.requireCardOnFile !== false,\n    measuredDistanceMiles: 0,\n  };')]],
-  ["src/lib/staffOrderSaveRequest.ts", 'the editor writes an order discount row directly', [repl("import { showToast } from './notifications';", "import { showToast } from './notifications';\nimport { supabase } from './supabase';\nvoid supabase.from('order_discounts').insert({ amount_cents: 1 });")]],
-  ["src/lib/staffOrderSaveRequest.ts", 'the editor creates an order row directly', [repl("import { showToast } from './notifications';", "import { showToast } from './notifications';\nimport { supabase } from './supabase';\nvoid supabase.from('orders').insert({ subtotal_cents: 1 });")]],
+  ["src/lib/payments/invoiceService.ts", 'the invoice request sends the browser mileage again', [repl('    requireCardOnFile: invoiceData.requireCardOnFile !== false,\n  };', '    requireCardOnFile: invoiceData.requireCardOnFile !== false,\n    measuredDistanceMiles: 0,\n  };')]],
+  ["src/lib/staffOrderSaveRequest.ts", 'the editor writes an order discount row directly', [repl("import { showToast } from './toasts';", "import { showToast } from './toasts';\nimport { supabase } from './supabase';\nvoid supabase.from('order_discounts').insert({ amount_cents: 1 });")]],
+  ["src/lib/staffOrderSaveRequest.ts", 'the editor creates an order row directly', [repl("import { showToast } from './toasts';", "import { showToast } from './toasts';\nimport { supabase } from './supabase';\nvoid supabase.from('orders').insert({ subtotal_cents: 1 });")]],
 ];
 
 // guard_order_pricing_authority is RESTATED (with the payment-state flags added) by the refund-safety migration, which sorts after
@@ -260,20 +260,20 @@ const M = [
 const MIG4_GUARD = /staff session may|may write orders.|order may be created|pricing guard exempts|weekday delivery waiver reason directly/;
 for (const m of M) if (m[0] === MIG3 && MIG4_GUARD.test(m[1])) m[0] = 'supabase/migrations/20261022120000_refund_safety_and_financial_write_authority.sql';
 
-const PURE = ['src/lib/orderMoney.test.ts', 'src/lib/pricingReconciliation.test.ts', 'src/lib/orderPricingCalculation.test.ts', 'src/lib/orderChangePlanning.test.ts', 'src/lib/eventEssentialsMoney.test.ts'];
-const SQL = ['src/lib/paymentOperations.test.ts', 'src/lib/paymentCharging.test.ts'];
-const SERVER = ['src/lib/staffOrderSave.test.ts', 'src/lib/pricingReconciliation.test.ts'];
-const BROWSER_SRC = ['src/lib/pricingReconciliation.test.ts', 'src/lib/customerPortalAccess.test.ts'];
+const PURE = ['src/lib/tests/pricing/orderMoney.test.ts', 'src/lib/tests/pricing/pricingReconciliation.test.ts', 'src/lib/tests/pricing/orderPricingCalculation.test.ts', 'src/lib/tests/orders/orderChangePlanning.test.ts', 'src/lib/tests/eventEssentials/eventEssentialsMoney.test.ts'];
+const SQL = ['src/lib/tests/payments/paymentOperations.test.ts', 'src/lib/tests/payments/paymentCharging.test.ts'];
+const SERVER = ['src/lib/tests/orders/staffOrderSave.test.ts', 'src/lib/tests/pricing/pricingReconciliation.test.ts'];
+const BROWSER_SRC = ['src/lib/tests/pricing/pricingReconciliation.test.ts', 'src/lib/tests/security/customerPortalAccess.test.ts'];
 module.exports = {
   M,
   tests: (file) => {
-    if (file.includes('20261022')) return ['src/lib/staffOrderSave.test.ts', 'src/lib/coreDatabaseAccess.test.ts', 'src/lib/pricingReconciliation.test.ts'];
-    if (file.endsWith('.sql')) return file.includes('20261021') ? ['src/lib/staffOrderSave.test.ts', 'src/lib/coreDatabaseAccess.test.ts', 'src/lib/pricingReconciliation.test.ts', 'src/lib/paymentOperations.test.ts'] : SQL;
+    if (file.includes('20261022')) return ['src/lib/tests/orders/staffOrderSave.test.ts', 'src/lib/tests/security/coreDatabaseAccess.test.ts', 'src/lib/tests/pricing/pricingReconciliation.test.ts'];
+    if (file.endsWith('.sql')) return file.includes('20261021') ? ['src/lib/tests/orders/staffOrderSave.test.ts', 'src/lib/tests/security/coreDatabaseAccess.test.ts', 'src/lib/tests/pricing/pricingReconciliation.test.ts', 'src/lib/tests/payments/paymentOperations.test.ts'] : SQL;
     if (file.includes('orderPricingState')) return SERVER;
-    if (/OrderDetailModal|orderSummary\.ts|invoiceService|orderSaveService/.test(file)) return BROWSER_SRC;
-    if (file.endsWith('receipt-order-totals.ts')) return ['src/lib/paymentCharging.test.ts', ...PURE];
+    if (/OrderDetailModal|orderSummaryLoader\.ts|invoiceService|staffOrderSaveRequest/.test(file)) return BROWSER_SRC;
+    if (file.endsWith('receipt-order-totals.ts')) return ['src/lib/tests/payments/paymentCharging.test.ts', ...PURE];
     if (file.includes('staff-order-save') || file.includes('send-invoice') || file.includes('CrewInvoiceBuilder')) return SERVER;
-    if (file.endsWith('orderFeeDisplay.ts')) return ['src/lib/pricingReconciliation.test.ts', 'src/lib/staffOrderSave.test.ts'];
+    if (file.endsWith('orderFeeDisplay.ts')) return ['src/lib/tests/pricing/pricingReconciliation.test.ts', 'src/lib/tests/orders/staffOrderSave.test.ts'];
     return PURE;
   },
 };

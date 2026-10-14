@@ -7,7 +7,7 @@ import {
   markFailureResolved,
   type NotificationFailure,
   type SystemStatus,
-} from '../../lib/notificationFailures';
+} from '../../lib/notifications/notificationFailures';
 import { showToast } from '../../lib/toasts';
 
 export function NotificationFailuresAlert() {

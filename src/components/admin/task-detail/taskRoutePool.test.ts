@@ -9,7 +9,7 @@
 // validated.
 
 import { getRoutePool } from './taskRoutePool';
-import { isTaskActiveRouteStop } from '../../../lib/calendarUtils';
+import { isTaskActiveRouteStop } from '../../../lib/tasks/calendarUtils';
 import type { Task } from '../../../hooks/useCalendarTasks';
 
 let passed = 0;

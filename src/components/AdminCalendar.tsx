@@ -6,7 +6,7 @@ import { DayViewModal } from './calendar/DayViewModal';
 import { MileageModal } from './calendar/MileageModal';
 import { useCalendarTasks, Task } from '../hooks/useCalendarTasks';
 import { useRouteOptimization } from '../hooks/useRouteOptimization';
-import { getTasksForDate } from '../lib/calendarUtils';
+import { getTasksForDate } from '../lib/tasks/calendarUtils';
 import { format, parse, startOfMonth, endOfMonth } from 'date-fns';
 import { supabase } from '../lib/supabase';
 

@@ -1,7 +1,7 @@
 import { useNavigate } from 'react-router-dom';
 import { Home, FileText } from 'lucide-react';
 import { formatOrderId } from '../../lib/utils';
-import { portalPathForCurrentVisitor } from '../../lib/portalToken';
+import { portalPathForCurrentVisitor } from '../../lib/portal/portalToken';
 import { useBusinessSettings } from '../../contexts/BusinessContext';
 
 interface ApprovalSuccessViewProps {

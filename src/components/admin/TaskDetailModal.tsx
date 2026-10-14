@@ -3,13 +3,13 @@ import { format } from 'date-fns';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '../../lib/supabase';
 import { formatCurrency } from '../../lib/pricing';
-import { createShortPortalLink } from '../../lib/portalShortLink';
-import type { ShortPortalLinkResult } from '../../lib/portalShortLink';
-import { decideActionRequiredSms, decideEnRouteReminders } from '../../lib/notificationDecision';
+import { createShortPortalLink } from '../../lib/portal/portalShortLink';
+import type { ShortPortalLinkResult } from '../../lib/portal/portalShortLink';
+import { decideActionRequiredSms, decideEnRouteReminders } from '../../lib/notifications/notificationDecision';
 import { showAlert, showConfirm, showModal } from '../common/CustomModal';
-import { getCurrentLocation, calculateETA } from '../../lib/crewLocationEta';
+import { getCurrentLocation, calculateETA } from '../../lib/routing/crewLocationEta';
 import { Task } from '../../hooks/useCalendarTasks';
-import { getStopNumber } from '../../lib/calendarUtils';
+import { getStopNumber } from '../../lib/tasks/calendarUtils';
 import { TaskDetailCustomerInfo } from './task-detail/TaskDetailCustomerInfo';
 import { TaskDetailOrderManagement } from './task-detail/TaskDetailOrderManagement';
 import { TaskDetailActions } from './task-detail/TaskDetailActions';
@@ -23,7 +23,7 @@ import { TaskDetailNotesCard } from './task-detail/TaskDetailNotesCard';
 import { TaskDetailPhotosGrid } from './task-detail/TaskDetailPhotosGrid';
 import { getRoutePool } from './task-detail/taskRoutePool';
 import { uploadTaskPhotos, buildPhotoUploadSummary } from './task-detail/taskPhotoUpload';
-import { getOrCreateTaskStatusRow } from '../../lib/taskStatusService';
+import { getOrCreateTaskStatusRow } from '../../lib/tasks/taskStatusService';
 import {
   buildEnRouteMessage, buildEnRouteResultMessage, buildArrivedMessage, buildArrivedResultMessage,
   buildDropOffRulesMessage, buildDropOffResultMessage, buildPickupCompletionSummary,

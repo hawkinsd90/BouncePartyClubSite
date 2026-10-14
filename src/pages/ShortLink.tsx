@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
-import { buildPortalPath } from '../lib/portalToken';
+import { buildPortalPath } from '../lib/portal/portalToken';
 
 // /i/<shortCode>: the short code is a bearer credential. The server resolves it (rate limited, service role) and
 // returns only the order id and, for order-bound proof links, the token. The token is then carried in the URL

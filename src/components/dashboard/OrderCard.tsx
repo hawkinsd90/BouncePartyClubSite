@@ -10,7 +10,7 @@ import { formatTime } from '../../lib/utils';
 import { isOrderCancellable } from '../../lib/constants/statuses';
 import { eventAddressLine2 } from '../../lib/eventAddress';
 import { calculateTotalFromOrder } from '../../lib/orderSummaryLoader';
-import { fetchSignedWaiverPdfUrl } from '../../lib/waiverAccess';
+import { fetchSignedWaiverPdfUrl } from '../../lib/documents/waiverAccess';
 import { notifyError } from '../../lib/toasts';
 
 interface OrderCardProps {

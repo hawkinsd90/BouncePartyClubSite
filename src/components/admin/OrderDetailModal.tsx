@@ -37,7 +37,7 @@ import { useAdminOrderDetails } from '../../hooks/useAdminOrderDetails';
 import { saveOrderChanges } from '../../lib/staffOrderSaveRequest';
 import { orderPricingState } from '../../lib/orderPricingState';
 import { initDepositOverrideState } from '../../lib/depositCalculation';
-import { sendOrderEditNotifications } from '../../lib/orderNotificationService';
+import { sendOrderEditNotifications } from '../../lib/notifications/orderNotificationService';
 import { SimpleConfirmModal } from '../common/SimpleConfirmModal';
 import { ORDER_STATUS } from '../../lib/constants/statuses';
 import { showToast } from '../../lib/toasts';

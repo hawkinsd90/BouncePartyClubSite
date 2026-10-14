@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { optimizeMorningRoute, type MorningRouteStop, type RouteOriginOptions } from '../lib/routeOptimization';
+import { optimizeMorningRoute, type MorningRouteStop, type RouteOriginOptions } from '../lib/routing/routeOptimization';
 import { Task } from './useCalendarTasks';
 
 export function useRouteOptimization() {

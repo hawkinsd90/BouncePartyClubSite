@@ -21,9 +21,9 @@ const OAS = 'src/lib/orderApprovalService.ts';
 const UI_PAYMENTS_TAB = 'src/components/order-detail/PaymentsTab.tsx';
 const UI_PAY_SECTION = 'src/components/pending-order/PaymentManagementSection.tsx';
 const UI_TASK_MODAL = 'src/components/admin/TaskDetailModal.tsx';
-const KEYFILE = 'src/lib/refundOperationKey.ts';
-const REQ = 'src/lib/refundAllocationRequest.ts';
-const CTL = 'src/lib/refundController.ts';
+const KEYFILE = 'src/lib/payments/refundOperationKey.ts';
+const REQ = 'src/lib/payments/refundAllocationRequest.ts';
+const CTL = 'src/lib/payments/refundController.ts';
 const PAN = 'src/components/admin/refunds/RefundAllocationPanel.tsx';
 const MIG8 = 'supabase/migrations/20261025120000_refund_overview_for_admin.sql';
 
@@ -453,22 +453,22 @@ for (const m of M) if (m[0] === SQL && LIVE_CLAIM.includes(m[1])) m[0] = SQL2;
 
 // SQL mutants are decided by the database tests; code mutants by the handler tests. Putting the likelier killer first means most
 // mutants die in the first test file.
-const SQL_FIRST = ['src/lib/paymentOperations.test.ts', 'src/lib/paymentCharging.test.ts'];
-const CODE_FIRST = ['src/lib/paymentCharging.test.ts', 'src/lib/paymentOperations.test.ts'];
-const REFUND_TESTS = ['src/lib/refundSafety.test.ts'];
-const AUTHORITY_TESTS = ['src/lib/refundSafety.test.ts', 'src/lib/coreDatabaseAccess.test.ts'];
-const ALLOCATION_TESTS = ['src/lib/refundAllocation.test.ts', 'src/lib/coreDatabaseAccess.test.ts'];
-const ACCOUNTING_TESTS = ['src/lib/refundAccounting.test.ts', 'src/lib/coreDatabaseAccess.test.ts'];
+const SQL_FIRST = ['src/lib/tests/payments/paymentOperations.test.ts', 'src/lib/tests/payments/paymentCharging.test.ts'];
+const CODE_FIRST = ['src/lib/tests/payments/paymentCharging.test.ts', 'src/lib/tests/payments/paymentOperations.test.ts'];
+const REFUND_TESTS = ['src/lib/tests/payments/refundSafety.test.ts'];
+const AUTHORITY_TESTS = ['src/lib/tests/payments/refundSafety.test.ts', 'src/lib/tests/security/coreDatabaseAccess.test.ts'];
+const ALLOCATION_TESTS = ['src/lib/tests/payments/refundAllocation.test.ts', 'src/lib/tests/security/coreDatabaseAccess.test.ts'];
+const ACCOUNTING_TESTS = ['src/lib/tests/payments/refundAccounting.test.ts', 'src/lib/tests/security/coreDatabaseAccess.test.ts'];
 module.exports = {
   M,
   tests: (file) => {
     if (file.includes('20261025')) return ALLOCATION_TESTS;
-    if (/refundAllocationRequest|refundController|RefundAllocationPanel/.test(file)) return ['src/lib/refundAllocationUi.test.ts', 'src/lib/refundSafety.test.ts'];
-    if (file.endsWith('refundOperationKey.ts')) return ['src/lib/refundAllocationUi.test.ts', 'src/lib/refundSafety.test.ts'];
+    if (/refundAllocationRequest|refundController|RefundAllocationPanel/.test(file)) return ['src/lib/tests/payments/refundAllocationUi.test.ts', 'src/lib/tests/payments/refundSafety.test.ts'];
+    if (file.endsWith('refundOperationKey.ts')) return ['src/lib/tests/payments/refundAllocationUi.test.ts', 'src/lib/tests/payments/refundSafety.test.ts'];
     if (file.includes('20261024')) return ALLOCATION_TESTS;
     if (file.includes('20261023')) return ACCOUNTING_TESTS;
     if (file.includes('20261022')) return AUTHORITY_TESTS;
-    if (file.endsWith('order-lifecycle/index.ts')) return [...REFUND_TESTS, 'src/lib/customerPortalAccess.test.ts'];
+    if (file.endsWith('order-lifecycle/index.ts')) return [...REFUND_TESTS, 'src/lib/tests/security/customerPortalAccess.test.ts'];
     if (file.endsWith('refund-operations.ts') || file.endsWith('refundOperationKey.ts') || file.endsWith('stripe-refund/index.ts') || file.endsWith('stripe-webhook/index.ts')) return REFUND_TESTS;
     if (file.endsWith('orderApprovalService.ts') || /PaymentsTab|PaymentManagementSection|TaskDetailModal/.test(file)) return REFUND_TESTS;
     if (file.endsWith('stripe-webhook/handlers.ts')) return [...CODE_FIRST, ...REFUND_TESTS];

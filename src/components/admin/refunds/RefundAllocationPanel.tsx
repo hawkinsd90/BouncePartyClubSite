@@ -6,18 +6,18 @@
 // The numbers come from the database (order_refund_overview) and the database decides every refund: this screen cannot authorize one.
 import { useEffect, useMemo, useRef, useSyncExternalStore } from 'react';
 import { RotateCcw, RefreshCw, AlertTriangle, CheckCircle2, Clock } from 'lucide-react';
-import { RefundController, type ControllerState, type RefundApi, type RecoveryView } from '../../../lib/refundController';
+import { RefundController, type ControllerState, type RefundApi, type RecoveryView } from '../../../lib/payments/refundController';
 import {
   COMPONENT_LABEL, REFUND_REASONS, ROW_STATE_LABEL, buildAllocation, componentSummary, fieldId, formatCents, isEligible, paymentTitle, rowState,
   type Component, type OverviewPayment, type OverviewRow,
-} from '../../../lib/refundAllocationRequest';
+} from '../../../lib/payments/refundAllocationRequest';
 
 const COMPONENTS: Component[] = ['deposit', 'balance', 'tip'];
 
 // The two server calls are loaded only when the panel is used, so the screen's logic and drawing never depend on the browser client.
 const lazyApi: RefundApi = {
-  loadOverview: async (id) => (await import('../../../lib/refundClient')).loadRefundOverview(id),
-  submit: async (body) => (await import('../../../lib/refundClient')).submitRefundRequest(body),
+  loadOverview: async (id) => (await import('../../../lib/payments/refundClient')).loadRefundOverview(id),
+  submit: async (body) => (await import('../../../lib/payments/refundClient')).submitRefundRequest(body),
 };
 
 const TONE: Record<string, string> = {

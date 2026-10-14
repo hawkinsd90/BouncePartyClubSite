@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { portalAction } from '../../lib/customerPortalApi';
+import { portalAction } from '../../lib/portal/customerPortalApi';
 import { showToast } from '../../lib/toasts';
 import { useBusinessSettings } from '../../contexts/BusinessContext';
 

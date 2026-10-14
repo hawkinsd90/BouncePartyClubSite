@@ -2,12 +2,12 @@ import { useState, useEffect } from 'react';
 import { format } from 'date-fns';
 import { X, Truck as TruckIcon, Package, MousePointer, Car, Settings, ClipboardList, AlertTriangle, Clock, CheckCircle, Gauge } from 'lucide-react';
 import { Task } from '../../hooks/useCalendarTasks';
-import { getStopNumber, sortTasksByOrder, isTaskActiveRouteStop, isDropOffPlanningOnly } from '../../lib/calendarUtils';
+import { getStopNumber, sortTasksByOrder, isTaskActiveRouteStop, isDropOffPlanningOnly } from '../../lib/tasks/calendarUtils';
 import { TaskCard, TaskPosition } from './TaskCard';
 import { MileageModal } from './MileageModal';
 import { RouteManagementModal } from './RouteManagementModal';
 import { EquipmentChecklistModal } from './EquipmentChecklistModal';
-import type { RouteOriginOptions } from '../../lib/routeOptimization';
+import type { RouteOriginOptions } from '../../lib/routing/routeOptimization';
 import { supabase } from '../../lib/supabase';
 
 interface MileageLogEntry {

@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '../../lib/supabase';
-import { ensureGoogleMapsLoaded } from '../../lib/googleMapsLoader';
+import { ensureGoogleMapsLoaded } from '../../lib/routing/googleMapsLoader';
 import { MapPin, Play, CheckCircle, AlertCircle, Loader2 } from 'lucide-react';
 
 interface BackfillAddress {

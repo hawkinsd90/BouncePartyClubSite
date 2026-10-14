@@ -2,12 +2,12 @@ import { useState, useEffect, useRef } from 'react';
 import { supabase } from '../lib/supabase';
 import { format, startOfMonth, endOfMonth, addDays } from 'date-fns';
 import { ORDER_STATUS } from '../lib/constants/statuses';
-import { type OperationalEquipmentItem } from '../lib/operationalEquipment';
+import { type OperationalEquipmentItem } from '../lib/tasks/operationalEquipment';
 import { loadGeneratorCategoryProductIds } from '../lib/customerGeneratorCart';
-import { buildCalendarTasks, type PickupReadiness } from '../lib/calendarTaskAssembly';
+import { buildCalendarTasks, type PickupReadiness } from '../lib/tasks/calendarTaskAssembly';
 
 export type { PickupReadiness };
-export { derivePickupReadiness, derivePickupBlockReason } from '../lib/calendarTaskAssembly';
+export { derivePickupReadiness, derivePickupBlockReason } from '../lib/tasks/calendarTaskAssembly';
 
 export interface Task {
   id: string;

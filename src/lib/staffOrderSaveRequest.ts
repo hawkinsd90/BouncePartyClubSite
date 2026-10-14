@@ -1,5 +1,5 @@
 import { showToast } from './toasts';
-import { notifyPortalRefresh } from './customerPortalRefreshSignal';
+import { notifyPortalRefresh } from './portal/customerPortalRefreshSignal';
 import { callStaffOrderSave, StaffOrderSaveError } from './staffOrderSaveApi';
 import type { OrderPricingState } from './orderPricingState';
 

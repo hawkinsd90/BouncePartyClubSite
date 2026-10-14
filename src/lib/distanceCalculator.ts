@@ -38,7 +38,7 @@ export async function calculateDrivingDistance(
     // console.log('[calculateDrivingDistance] Waiting for Google Maps to load...');
     await Promise.race([
       (async () => {
-        const { loadGoogleMapsAPI } = await import('./googleMapsLoader');
+        const { loadGoogleMapsAPI } = await import('./routing/googleMapsLoader');
         await loadGoogleMapsAPI();
       })(),
       new Promise((_, reject) => setTimeout(() => reject(new Error('Google Maps load timeout')), 5000))

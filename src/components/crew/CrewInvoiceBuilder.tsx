@@ -13,8 +13,8 @@ import { useInvoicePricing } from '../../hooks/useInvoicePricing';
 import { useInvoiceCart } from '../../hooks/useInvoiceCart';
 import { useCustomerManagement } from '../../hooks/useCustomerManagement';
 import { useInvoiceEventDetails } from '../../hooks/useInvoiceEventDetails';
-import { generateInvoice } from '../../lib/invoiceService';
-import { buildInvoiceSummary } from '../../lib/invoiceSummaryBuilder';
+import { generateInvoice } from '../../lib/payments/invoiceService';
+import { buildInvoiceSummary } from '../../lib/payments/invoiceSummaryBuilder';
 import { checkMultipleUnitsAvailability } from '../../lib/availability';
 
 export function CrewInvoiceBuilder() {

@@ -1,6 +1,6 @@
 import { X, ClipboardList, Package as PackageIcon, Anchor, Boxes } from 'lucide-react';
 import { Task } from '../../hooks/useCalendarTasks';
-import { aggregateEquipmentAcrossOrders, type OperationalEquipmentItem } from '../../lib/operationalEquipment';
+import { aggregateEquipmentAcrossOrders, type OperationalEquipmentItem } from '../../lib/tasks/operationalEquipment';
 
 interface EquipmentChecklistModalProps {
   isOpen: boolean;

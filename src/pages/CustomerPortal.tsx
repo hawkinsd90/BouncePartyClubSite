@@ -13,7 +13,7 @@ import { RegularPortalView } from '../components/customer-portal/RegularPortalVi
 import { LoadingSpinner } from '../components/common/LoadingSpinner';
 import { showToast } from '../lib/toasts';
 import { trackEvent } from '../lib/siteEvents';
-import { parsePortalToken } from '../lib/portalToken';
+import { parsePortalToken } from '../lib/portal/portalToken';
 import { SecureAccessRequired } from '../components/customer-portal/SecureAccessRequired';
 
 export function CustomerPortal() {

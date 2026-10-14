@@ -1,15 +1,15 @@
 import { supabase } from './supabase';
 import { ORDER_STATUS } from './constants/statuses';
-import { sendEmail } from './notificationService';
+import { sendEmail } from './notifications/notificationService';
 import {
   generateConfirmationReceiptEmail,
   generateConfirmationSmsMessage,
   generateRejectionSmsMessage,
-} from './orderEmailTemplates';
+} from './notifications/orderEmailTemplates';
 import { checkMultipleUnitsAvailability } from './availability';
 import { formatOrderId } from './utils';
-import { createShortPortalLink } from './portalShortLink';
-import { logGroupedTransactions } from './transactionReceiptService';
+import { createShortPortalLink } from './portal/portalShortLink';
+import { logGroupedTransactions } from './payments/transactionReceiptService';
 import { enterConfirmed } from './orderLifecycleApi';
 import { getAdminSetting, ADMIN_SETTING_KEYS } from './adminSettingsCache';
 import { calculateTotalFromOrder } from './orderSummaryLoader';

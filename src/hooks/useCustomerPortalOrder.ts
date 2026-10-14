@@ -1,7 +1,7 @@
 import { useState, useCallback, useRef } from 'react';
-import { loadPortalOrder, type OrderData } from '../lib/portalOrderLoader';
+import { loadPortalOrder, type OrderData } from '../lib/portal/portalOrderLoader';
 
-export type { OrderData } from '../lib/portalOrderLoader';
+export type { OrderData } from '../lib/portal/portalOrderLoader';
 
 // Customer Portal data comes from the customer-portal-data Edge Function: the server proves the visitor holds a valid
 // order-bound token or owns the order and returns a fixed projection. The browser never reads the order tables itself.

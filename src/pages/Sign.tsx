@@ -1,10 +1,10 @@
 import { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { FileCheck, AlertCircle, Loader2 } from 'lucide-react';
-import { fetchPortalData, PortalAccessError } from '../lib/customerPortalApi';
+import { fetchPortalData, PortalAccessError } from '../lib/portal/customerPortalApi';
 import { trackEvent } from '../lib/siteEvents';
-import { portalPathForCurrentVisitor, readPortalToken } from '../lib/portalToken';
-import { waiverFunctionHeaders } from '../lib/waiverAccess';
+import { portalPathForCurrentVisitor, readPortalToken } from '../lib/portal/portalToken';
+import { waiverFunctionHeaders } from '../lib/documents/waiverAccess';
 import SignaturePad from '../components/waiver/SignaturePad';
 import WaiverViewer, { sectionInitialId, WaiverViewerHandle } from '../components/waiver/WaiverViewer';
 import {
@@ -13,7 +13,7 @@ import {
   INITIALS_REQUIRED,
   ELECTRONIC_CONSENT_TEXT,
   generateWaiverTextWithParksAcknowledgment,
-} from '../lib/waiverContent';
+} from '../lib/documents/waiverContent';
 import { useBusinessSettings } from '../contexts/BusinessContext';
 
 interface OrderData {

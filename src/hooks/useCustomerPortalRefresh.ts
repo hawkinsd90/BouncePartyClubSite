@@ -1,5 +1,5 @@
 import { useEffect, useRef, useCallback } from 'react';
-import { browserRefreshEnv, createPortalRefreshController, PortalRefreshController } from '../lib/portalRefreshController';
+import { browserRefreshEnv, createPortalRefreshController, PortalRefreshController } from '../lib/portal/portalRefreshController';
 
 interface UseCustomerPortalRefreshOptions {
   orderId: string | undefined;

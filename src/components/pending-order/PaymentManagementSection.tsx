@@ -3,7 +3,7 @@ import { CreditCard } from 'lucide-react';
 import { formatCurrency } from '../../lib/pricing';
 import { storedOrderTotalCents } from '../../lib/orderMoney';
 import { RefundAllocationPanel } from '../admin/refunds/RefundAllocationPanel';
-import { REFUND_REASONS, componentSummary } from '../../lib/refundAllocationRequest';
+import { REFUND_REASONS, componentSummary } from '../../lib/payments/refundAllocationRequest';
 
 interface Payment {
   id: string;

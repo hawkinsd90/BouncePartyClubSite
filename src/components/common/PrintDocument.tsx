@@ -4,7 +4,7 @@ import {
   PrintSize,
   PrintDocumentType,
   PRINT_TEMPLATES,
-} from '../../lib/printableDocument';
+} from '../../lib/documents/printableDocument';
 
 interface PrintDocumentProps {
   children: ReactNode;

@@ -1,9 +1,9 @@
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Home, ArrowRight } from 'lucide-react';
 import { formatOrderId } from '../../lib/utils';
-import { createShortPortalLink } from '../../lib/portalShortLink';
+import { createShortPortalLink } from '../../lib/portal/portalShortLink';
 import { supabase } from '../../lib/supabase';
-import { portalPathForCurrentVisitor } from '../../lib/portalToken';
+import { portalPathForCurrentVisitor } from '../../lib/portal/portalToken';
 import { useState, useEffect } from 'react';
 import { getPublicBusinessSettings } from '../../lib/adminSettingsCache';
 

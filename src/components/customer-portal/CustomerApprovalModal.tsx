@@ -12,10 +12,10 @@ import { formatOrderId } from '../../lib/utils';
 import { format } from 'date-fns';
 import { formatCurrency } from '../../lib/pricing';
 import { storedOrderTotalCents } from '../../lib/orderMoney';
-import { portalAction, PortalActionError } from '../../lib/customerPortalApi';
+import { portalAction, PortalActionError } from '../../lib/portal/customerPortalApi';
 import { checkEventEssentialsAvailability } from '../../lib/queries/products';
 import { enterConfirmed } from '../../lib/orderLifecycleApi';
-import { COMPANY_PHONE } from '../../lib/emailTemplateBase';
+import { COMPANY_PHONE } from '../../lib/notifications/emailTemplateBase';
 
 interface ApprovalModalProps {
   isOpen: boolean;

@@ -2,8 +2,8 @@ import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { FileCheck, FileText, Download, AlertCircle, CheckCircle2, Upload, ExternalLink, Printer } from 'lucide-react';
 import { format } from 'date-fns';
-import { tokenFragment } from '../../lib/portalToken';
-import { waiverFunctionHeaders } from '../../lib/waiverAccess';
+import { tokenFragment } from '../../lib/portal/portalToken';
+import { waiverFunctionHeaders } from '../../lib/documents/waiverAccess';
 
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL as string;
 const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY as string;
