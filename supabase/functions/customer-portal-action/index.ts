@@ -14,7 +14,7 @@ import {
   PICTURE_KINDS,
   issuedPicturePath,
   type PictureKind,
-} from "../_shared/portal-actions.ts";
+} from "../_shared/portal/portal-actions.ts";
 
 // Customer Portal write boundary (Payment Safety A2.2).
 //
@@ -33,7 +33,7 @@ import {
 // portal token never authorizes them.
 //
 // Every call is { orderId, token?, action, payload }. The action is a name from a fixed list with an exact payload
-// shape (see _shared/portal-actions.ts); the caller cannot pick a table, column or filter. Proof of the exact order is
+// shape (see _shared/portal/portal-actions.ts); the caller cannot pick a table, column or filter. Proof of the exact order is
 // required: a valid portal/invoice token bound to the order, or the signed-in owner (or the backend). Anything else is a
 // uniform 403, so the endpoint cannot be used to probe for orders.
 const corsHeaders = {

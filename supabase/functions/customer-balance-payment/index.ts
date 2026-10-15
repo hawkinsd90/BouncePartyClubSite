@@ -21,13 +21,13 @@
 import "jsr:@supabase/functions-js@2/edge-runtime.d.ts";
 import Stripe from "npm:stripe@20.0.0";
 import { createClient } from "npm:@supabase/supabase-js@2.57.4";
-import { validatePaymentMethod } from "../_shared/payment-validation.ts";
+import { validatePaymentMethod } from "../_shared/payments/payment-validation.ts";
 import { formatOrderId } from "../_shared/format-order-id.ts";
 import { logTransaction } from "../_shared/transaction-logger.ts";
 import { formatCurrency, formatPaymentMethodLabel } from "../_shared/fmt.ts";
 import { resolveCaller, proveOrderAccess, authFailureResponse } from "../_shared/auth.ts";
 import { buildPortalUrl, portalTokenFragment } from "../_shared/portal-link.ts";
-import { receiptOrderFigures, receiptDiscountAmount, receiptExtraFeeRowsHtml } from "../_shared/receipt-order-totals.ts";
+import { receiptOrderFigures, receiptDiscountAmount, receiptExtraFeeRowsHtml } from "../_shared/payments/receipt-order-totals.ts";
 import {
   claimPaymentOperation,
   chargeSavedCard,
@@ -39,7 +39,7 @@ import {
   isCents,
   CHECKOUT_SESSION_SECONDS,
   type PaymentOperation,
-} from "../_shared/payment-operations.ts";
+} from "../_shared/payments/payment-operations.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",

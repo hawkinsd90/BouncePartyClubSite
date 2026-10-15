@@ -2,7 +2,7 @@
 // Run:  node scripts/dev/mutation-runner.cjs scripts/dev/payment-mutants.cjs      (ONLY=<text> to run a few while developing)
 const fs = require('fs');
 const SQL = 'supabase/migrations/20261019120000_add_payment_operations_and_single_financial_application.sql';
-const PO = 'supabase/functions/_shared/payment-operations.ts';
+const PO = 'supabase/functions/_shared/payments/payment-operations.ts';
 const CD = 'supabase/functions/charge-deposit/index.ts';
 const CB = 'supabase/functions/customer-balance-payment/index.ts';
 const WH = 'supabase/functions/stripe-webhook/handlers.ts';
@@ -13,7 +13,7 @@ const SG = 'supabase/functions/stripe-charge/index.ts';
 const MIG4 = 'supabase/migrations/20261022120000_refund_safety_and_financial_write_authority.sql';
 const MIG5 = 'supabase/migrations/20261023120000_refund_allocation_schema.sql';
 const MIG6 = 'supabase/migrations/20261024120000_refund_allocation_reservation.sql';
-const RO = 'supabase/functions/_shared/refund-operations.ts';
+const RO = 'supabase/functions/_shared/payments/refund-operations.ts';
 const SR = 'supabase/functions/stripe-refund/index.ts';
 const WHI = 'supabase/functions/stripe-webhook/index.ts';
 const OL = 'supabase/functions/order-lifecycle/index.ts';

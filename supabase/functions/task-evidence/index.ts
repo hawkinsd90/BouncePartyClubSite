@@ -11,8 +11,8 @@ import {
   isTaskEvidencePath,
   newEvidencePath,
   resolveEvidenceUrls,
-} from "../_shared/evidence-media.ts";
-import type { EvidenceKind } from "../_shared/evidence-media.ts";
+} from "../_shared/evidence/evidence-media.ts";
+import type { EvidenceKind } from "../_shared/evidence/evidence-media.ts";
 
 // Delivery / pickup / damage proof photos (task_status.delivery_images / damage_images).
 //

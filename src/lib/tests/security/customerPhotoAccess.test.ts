@@ -21,7 +21,7 @@ const { spawnSync } = require('child_process');
 
 import { addOrder, callFunction, loadFunction, makeHarness, tokenFor, USERS, SERVICE_KEY, ANON_KEY } from '../support/portalTestHarness';
 import type { Harness } from '../support/portalTestHarness';
-import { PICTURE_KINDS, PORTAL_ACTION_NAMES, validateAction, isIssuedPicturePath } from '../../../../supabase/functions/_shared/portal-actions';
+import { PICTURE_KINDS, PORTAL_ACTION_NAMES, validateAction, isIssuedPicturePath } from '../../../../supabase/functions/_shared/portal/portal-actions';
 import { buildPhotoScenarios, buildAloneScenarios, buildPhotoScript, ALONE_FIXTURE_SQL, PHOTO_BUCKETS } from '../support/customerPhotoAccessScenarios';
 
 let passed = 0;

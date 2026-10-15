@@ -1,7 +1,7 @@
 import "jsr:@supabase/functions-js@2/edge-runtime.d.ts";
 import { createClient } from "npm:@supabase/supabase-js@2.57.4";
 import { resolveCaller, requireRoles, authFailureResponse, isStaffAdmin, STAFF_ADMIN_ROLES, INVOICE_SENDER_ROLES } from "../_shared/auth.ts";
-import { saveStaffOrderChanges, createStaffInvoiceOrder } from "../_shared/staff-order-save.ts";
+import { saveStaffOrderChanges, createStaffInvoiceOrder } from "../_shared/orders/staff-order-save.ts";
 
 // STAFF ORDER SAVE - the only way a staff member's pricing change reaches an order.
 //
@@ -13,7 +13,7 @@ import { saveStaffOrderChanges, createStaffInvoiceOrder } from "../_shared/staff
 // The delivery distance is measured here (Google Distance Matrix, the same secret calculate-route-mileage uses); miles and
 // coordinates sent by a browser are not part of the contract.
 //
-// The browser sends what the staff member CHANGED. The server prices it (see _shared/staff-order-save.ts). A request that carries
+// The browser sends what the staff member CHANGED. The server prices it (see _shared/orders/staff-order-save.ts). A request that carries
 // a price is refused. There is no customer or anonymous access.
 
 const corsHeaders = {

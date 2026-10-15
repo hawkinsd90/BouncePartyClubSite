@@ -22,7 +22,7 @@ declare const process: { env: Record<string, string | undefined>; pid: number };
 declare const require: (id: string) => any;
 
 import * as authHelpers from '../../../../supabase/functions/_shared/auth';
-import * as refundOps from '../../../../supabase/functions/_shared/refund-operations';
+import * as refundOps from '../../../../supabase/functions/_shared/payments/refund-operations';
 import { PgPool, ensurePayDatabase, psqlArgs, makeWorld, makeClient, loadHandler, loadModule, callHandler, SERVICE_KEY, type World } from '../support/paymentHarness';
 import { classifyRefundResponse, refundAttemptFor } from '../../payments/refundOperationKey';
 import { RefundController, type RefundApi } from '../../payments/refundController';
@@ -993,14 +993,14 @@ const newKey = (label = 'op') => `${label}-${TAG}-${String(++keyCounter).padStar
       ok(`wiring: ${fn.split('(')[0]} is revoked from PUBLIC, anon and authenticated by the migration itself`, mig4.includes(`REVOKE ALL ON FUNCTION public.${fn} FROM PUBLIC, anon, authenticated;`));
     }
     ok('wiring: the shared refund screen takes over an unfinished refund found in the database (its stored key and allocation) instead of starting another refund', /overview\.operations\.filter\(\(o\) => o\.unfinished\)/.test(ctlSrc) && /reconstructStoredRequest\(op\)/.test(ctlSrc) && /recoveries\.length > 0 \? 'recovery'/.test(ctlSrc));
-    const opsSrc = read('supabase/functions/_shared/refund-operations.ts');
+    const opsSrc = read('supabase/functions/_shared/payments/refund-operations.ts');
     ok('wiring: a provider request needs the marker (or an earlier one on record), and only an explicit true counts as written', /marked = res\?\.data === true;/.test(opsSrc) && /if \(!\(marked \|\| \(markerFailed && alreadyMarked\)\)\) return/.test(opsSrc));
     ok('wiring: outside the replay window only a COMPLETE lookup allows a new request', /if \(!look\.complete && age > IDEMPOTENCY_SAFE_MS\) return/.test(opsSrc));
     ok('wiring: the lookup follows every page and needs an explicit has_more=false', /starting_after: startingAfter/.test(opsSrc) && /list\.has_more === false\) return \{ found: null, complete: true \}/.test(opsSrc));
     ok('wiring: the reservation blocks a new request while another is unsettled, and refuses an ambiguous history', /'outcome', 'unsettled_operation'/.test(reserveFn) && /'outcome', 'allocation_ambiguous'/.test(reserveFn));
     const refundFn = read('supabase/functions/stripe-refund/index.ts');
     ok('wiring: the refund function passes the operation key and writes nothing itself (the database functions do)', /operationKey: body\.operationKey/.test(refundFn) && !/\.insert\(|\.update\(|\.delete\(/.test(refundFn));
-    const ops = read('supabase/functions/_shared/refund-operations.ts');
+    const ops = read('supabase/functions/_shared/payments/refund-operations.ts');
     ok('wiring: every Stripe refund request carries the row\'s stable idempotency key', /\{ idempotencyKey: row\.provider_idempotency_key \}/.test(ops));
     ok('wiring: a refund names its row in its metadata', /bpc_refund_id: row\.id/.test(ops));
     const approval = read('src/lib/orders/orderApprovalService.ts').replace(/\/\/.*$/gm, '');

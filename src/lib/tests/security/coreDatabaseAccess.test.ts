@@ -132,7 +132,7 @@ const PRIVATE = OWNED.filter((t) => !PUBLIC_READ.includes(t));
   const pay = byTable('payments');
   eq('static: payments has exactly three policies (admin select / insert / update)', pay.map((p) => p.cmd).sort(), ['INSERT', 'SELECT', 'UPDATE']);
   ok('static: every payments policy is is_admin() only (no owner, no crew)', pay.every((p) => /is_admin\(\)/.test(text(p)) && !/current_customer_ids|is_crew_or_admin|auth\.uid/.test(text(p))));
-  const projection = read('supabase/functions/_shared/portal-projection.ts');
+  const projection = read('supabase/functions/_shared/portal/portal-projection.ts');
   const projectedPaymentKeys = [...(/export function projectPayment[\s\S]*?pick\(row, \[([\s\S]*?)\]\)/.exec(projection)?.[1] ?? '').matchAll(/"([a-z_0-9]+)"/g)].map((m) => m[1]).sort();
 
   // get_my_orders: the only way an ordinary signed-in customer reads their orders

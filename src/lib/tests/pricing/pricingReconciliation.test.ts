@@ -21,7 +21,7 @@ import { parseBookingDepositSettings } from '../../pricing/depositCalculation';
 import { calculateOrderPricing, shouldReuseSavedTravel, type CalculatePricingParams, type CalculatedPricing } from '../../pricing/orderPricingCalculation';
 import { planOrderChanges } from '../../orders/orderChangePlanning';
 import { storedOrderTotalCents } from '../../pricing/orderMoney';
-import { receiptOrderFigures, receiptExtraFeeRowsHtml } from '../../../../supabase/functions/_shared/receipt-order-totals';
+import { receiptOrderFigures, receiptExtraFeeRowsHtml } from '../../../../supabase/functions/_shared/payments/receipt-order-totals';
 import { storedFeeAmounts } from '../../pricing/orderFeeDisplay';
 import { orderPricingState, sameOrderPricingState } from '../../pricing/orderPricingState';
 import { buildOrderSummaryDisplay } from '../../orders/orderSummaryDisplay';
@@ -536,7 +536,7 @@ const moneyKeys = ['subtotal_cents', 'travel_fee_cents', 'surface_fee_cents', 's
   }
   ok('send-invoice takes the deposit from the stored order, not from the request', !/depositCents:\s*raw/.test(read('supabase/functions/send-invoice/index.ts')) && /order\.deposit_due_cents/.test(read('supabase/functions/send-invoice/index.ts')));
   ok('the staff-order-save function is staff-only (no customer, no anon, no service identity authors a save)', /requireRoles\(caller, action === "save_changes" \? STAFF_ADMIN_ROLES : INVOICE_SENDER_ROLES/.test(read('supabase/functions/staff-order-save/index.ts')));
-  ok('the server module refuses unknown request fields (a price is one)', /unknown field/.test(read('supabase/functions/_shared/staff-order-save.ts')));
+  ok('the server module refuses unknown request fields (a price is one)', /unknown field/.test(read('supabase/functions/_shared/orders/staff-order-save.ts')));
 }
 
 // =====================================================================================================================
@@ -558,7 +558,7 @@ const moneyKeys = ['subtotal_cents', 'travel_fee_cents', 'surface_fee_cents', 's
   ok('orderMoney is the one place that names the rate', /export const SALES_TAX_RATE = 0\.06/.test(moneyRead));
   const percentDiscountMath = files.filter((f) => /percentage\s*\/\s*100/.test(read(f)) && !/orderMoney|pricingRules|PricingRulesTab|AdminSettings|settings|\.test\./i.test(f));
   eq('no discount is computed outside orderMoney', percentDiscountMath.map((f) => f.replace(/\\/g, '/')), []);
-  ok('the receipts and Edge Functions use the generated orderMoney copy, not their own total arithmetic', ['supabase/functions/_shared/receipt-order-totals.ts', 'supabase/functions/_shared/portal-actions.ts', 'supabase/functions/order-lifecycle/index.ts', 'supabase/functions/send-invoice/index.ts'].every((f) => /orderMoney/.test(read(f))));
+  ok('the receipts and Edge Functions use the generated orderMoney copy, not their own total arithmetic', ['supabase/functions/_shared/payments/receipt-order-totals.ts', 'supabase/functions/_shared/portal/portal-actions.ts', 'supabase/functions/order-lifecycle/index.ts', 'supabase/functions/send-invoice/index.ts'].every((f) => /orderMoney/.test(read(f))));
   ok('a blank deposit-override field is not a zero deposit', !/onApply\(0\)/.test(read('src/components/order-detail/DepositOverride.tsx')) && !/customDepositInput \|\| '0'/.test(read('src/hooks/orders/useDepositOverride.ts')));
 }
 
@@ -632,7 +632,7 @@ const moneyKeys = ['subtotal_cents', 'travel_fee_cents', 'surface_fee_cents', 's
   ok('AUTHORITY SCAN: the order modal and the summary loader no longer persist computed miles', !/\.update\(\{ travel_total_miles/.test(fs.readFileSync('src/components/admin/orders/OrderDetailModal.tsx', 'utf8')) && !/\.update\(\{ travel_total_miles/.test(fs.readFileSync('src/lib/orders/orderSummaryLoader.ts', 'utf8')));
 
   // The browser does not send a distance or a capability, and the server never reads one
-  const server = fs.readFileSync('supabase/functions/_shared/staff-order-save.ts', 'utf8');
+  const server = fs.readFileSync('supabase/functions/_shared/orders/staff-order-save.ts', 'utf8');
   const indexFn = fs.readFileSync('supabase/functions/staff-order-save/index.ts', 'utf8');
   eq('DISTANCE AUTHORITY: no source (browser or server) mentions measuredDistanceMiles any more', [...browserFiles, ...walk('supabase/functions')].filter((f) => !/\.test\./.test(f) && /measuredDistanceMiles/.test(fs.readFileSync(f, 'utf8'))), []);
   ok('DISTANCE AUTHORITY: the server measures with the Google Distance Matrix and fails closed when it cannot', /distancematrix\/json/.test(server) && /DISTANCE_UNAVAILABLE/.test(server) && !/DISTANCE_REQUIRED/.test(server));

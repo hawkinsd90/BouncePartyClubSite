@@ -14,7 +14,7 @@
 declare const require: (id: string) => any;
 const fs = require('fs');
 
-import { storagePathFromReference, signStoredMedia } from '../../../../supabase/functions/_shared/media-paths';
+import { storagePathFromReference, signStoredMedia } from '../../../../supabase/functions/_shared/evidence/media-paths';
 import { addOrder, callFunction, loadFunction, makeHarness, tokenFor, USERS, SERVICE_KEY, ANON_KEY, FUTURE } from '../support/portalTestHarness';
 import type { Harness } from '../support/portalTestHarness';
 
@@ -306,7 +306,7 @@ const NONE = (h: Harness) => h.db.storageSigned.length === 0;
     eq('compat: another bucket\'s object URL is rejected', storagePathFromReference('https://qaagfafagdpgzcijnfbw.supabase.co/storage/v1/object/public/lot-pictures/x.jpg', 'signed-waivers'), null);
     eq('compat: a non-Supabase host with a copied Storage path is rejected', storagePathFromReference('https://evil.example.com/storage/v1/object/public/signed-waivers/x.pdf', 'signed-waivers'), null);
     eq('compat: a non-Supabase host with query/fragment tricks is rejected', storagePathFromReference('https://evil.example.com/a?x=https://qaagfafagdpgzcijnfbw.supabase.co/storage/v1/object/public/signed-waivers/x.pdf#/storage/v1/object/public/signed-waivers/y.pdf', 'signed-waivers'), null);
-    ok('compat: the parser and signer never fetch anything (no foreign host is contacted)', !/\bfetch\(/.test(read('supabase/functions/_shared/media-paths.ts')));
+    ok('compat: the parser and signer never fetch anything (no foreign host is contacted)', !/\bfetch\(/.test(read('supabase/functions/_shared/evidence/media-paths.ts')));
     ok('compat: generate-signed-waiver reads the signature with its own Storage client, not by fetching the stored URL', /supabaseClient\.storage\.from\("signatures"\)\.download\(sigPath\)/.test(genSrc) && !/fetch\(signature\.signature_image_url\)/.test(genSrc));
   }
 

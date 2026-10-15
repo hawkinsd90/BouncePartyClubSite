@@ -3,14 +3,14 @@ import Stripe from "npm:stripe@20.0.0";
 import { createClient } from "npm:@supabase/supabase-js@2.57.4";
 import { checkRateLimit, createRateLimitResponse, getIdentifier, buildRateLimitKey } from "../_shared/rate-limit.ts";
 import { resolveCaller, requireRoles, authFailureResponse, STAFF_ADMIN_ROLES } from "../_shared/auth.ts";
-import { runRefundOperation } from "../_shared/refund-operations.ts";
+import { runRefundOperation } from "../_shared/payments/refund-operations.ts";
 
 // STRIPE REFUND - the only way staff money goes back to a customer's card.
 //
 // A refund request carries an `operationKey` that the caller keeps when it retries (a double click, a timeout, a reload). The
 // request is reserved in the database under the order lock BEFORE Stripe is called, each Stripe request carries a stable
 // idempotency key, and a retry with the same key settles the same refund instead of creating another (see
-// _shared/refund-operations.ts). Admin / Master only; there is no customer or anonymous access.
+// _shared/payments/refund-operations.ts). Admin / Master only; there is no customer or anonymous access.
 //
 // Everything is written through the service role: the browser has no write access to the refund or payment tables.
 

@@ -4,7 +4,7 @@ import Stripe from "npm:stripe@20.0.0";
 import { checkRateLimit, createRateLimitResponse, getIdentifier, buildRateLimitKey } from "../_shared/rate-limit.ts";
 import { resolveCaller, proveOrderAccess, authFailureResponse, type AuthClient } from "../_shared/auth.ts";
 import { sendOrderCustomerNotice } from "../_shared/customer-notice.ts";
-import { validateCustomerNotice } from "../_shared/portal-actions.ts";
+import { validateCustomerNotice } from "../_shared/portal/portal-actions.ts";
 
 // Post-Stripe completion data for the public booking flow (Payment Safety A2.3).
 //

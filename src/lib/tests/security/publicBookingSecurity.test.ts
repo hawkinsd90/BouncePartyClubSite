@@ -34,7 +34,7 @@ import {
 import { resolveReturnOrigin } from '../../../../supabase/functions/_shared/booking/returnOrigin';
 import { validateOrderToken, proveOrderAccess } from '../../../../supabase/functions/_shared/auth';
 import { PROOF_LINK_TYPES } from '../../../../supabase/functions/_shared/portal-link';
-import { CUSTOMER_CONFIRM_SOURCES, evaluateCustomerConfirmation } from '../../../../supabase/functions/_shared/lifecycle-outcome';
+import { CUSTOMER_CONFIRM_SOURCES, evaluateCustomerConfirmation } from '../../../../supabase/functions/_shared/orders/lifecycle-outcome';
 import { SHARED_COPIES, renderSharedCopy } from '../../tooling/bookingSharedCopy';
 import { calculatePrice as clientCalculatePrice } from '../../pricing';
 import { composeUnifiedQuoteTotals as clientCompose } from '../../pricing/unifiedTotals';
@@ -681,7 +681,8 @@ const noRows = (w: World, snapshot: string) => JSON.stringify(w.db) === snapshot
   // 11. Static: the isFreshBookingDraft authorization is gone
   // =============================================================================================================
   {
-    const files = fs.readdirSync('supabase/functions/_shared').filter((f: string) => f.endsWith('.ts')).map((f: string) => `supabase/functions/_shared/${f}`).concat(fs.readdirSync('supabase/functions').filter((d: string) => fs.existsSync(`supabase/functions/${d}/index.ts`)).map((d: string) => `supabase/functions/${d}/index.ts`));
+    // _shared is now organised in domain folders: list it recursively (sorted), still excluding the generated booking/ copies, which this scan never covered.
+    const files = (fs.readdirSync('supabase/functions/_shared', { recursive: true }) as string[]).map((f: string) => f.replace(/\\/g, '/')).filter((f: string) => f.endsWith('.ts') && !f.startsWith('booking/')).sort().map((f: string) => `supabase/functions/_shared/${f}`).concat(fs.readdirSync('supabase/functions').filter((d: string) => fs.existsSync(`supabase/functions/${d}/index.ts`)).map((d: string) => `supabase/functions/${d}/index.ts`));
     ok('legacy auth: nothing under supabase/functions references isFreshBookingDraft or FRESH_BOOKING_DRAFT_WINDOW_MS', files.every((f: string) => !/isFreshBookingDraft|FRESH_BOOKING_DRAFT/.test(read(f))));
     const checkout = read('supabase/functions/stripe-checkout/index.ts');
     ok('legacy auth: stripe-checkout authorizes booking mode only by the booking proof (or staff)', /checkBookingProof\(/.test(checkout) && /claimBookingProof\(/.test(checkout) && /consumeBookingProof\(/.test(checkout) && /releaseBookingProof\(/.test(checkout) && !/accept:\s*\[[^\]]*\]\s*,?\s*\}\);\s*authorizedToCreate = !!proof;[\s\S]{0,40}bookingMode === true\)/.test(checkout));

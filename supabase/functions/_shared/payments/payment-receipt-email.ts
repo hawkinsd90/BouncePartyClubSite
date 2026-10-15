@@ -1,5 +1,5 @@
-import { formatCurrency, LOGO_URL } from "./fmt.ts";
-import { effectiveDiscountCents, storedOrderTotalCents } from "./booking/orderMoney.ts";
+import { formatCurrency, LOGO_URL } from "../fmt.ts";
+import { effectiveDiscountCents, storedOrderTotalCents } from "../booking/orderMoney.ts";
 
 const BORDER = "#10b981";
 const ACCENT = "#15803d";

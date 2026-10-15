@@ -27,12 +27,12 @@ import type { Harness } from '../support/portalTestHarness';
 import {
   EVIDENCE_BUCKET, EVIDENCE_MIME_TYPES, EVIDENCE_MAX_FILES_PER_REQUEST, newEvidencePath, isTaskEvidencePath, parseEvidenceReference,
   evidenceReferenceInScope, legacyEvidenceDestination, archivedLegacyDestination, isLegacyEvidenceObjectName, legacyEvidenceOrderId, LEGACY_TASK_LABELS, resolveEvidenceUrls,
-} from '../../../../supabase/functions/_shared/evidence-media';
+} from '../../../../supabase/functions/_shared/evidence/evidence-media';
 import {
   planEvidenceMigration, copyEvidence, rewriteEvidenceReferences, cleanupVerifiedSources, verifiedDestinations, migrationRunBlocker,
   CLEANUP_CONFIRMATION, PRODUCTION_PROJECT_REF,
-} from '../../../../supabase/functions/_shared/evidence-migration';
-import type { EvidenceMigrationDeps, EvidenceTaskRow } from '../../../../supabase/functions/_shared/evidence-migration';
+} from '../../../../supabase/functions/_shared/evidence/evidence-migration';
+import type { EvidenceMigrationDeps, EvidenceTaskRow } from '../../../../supabase/functions/_shared/evidence/evidence-migration';
 import { buildEvidenceScenarios, buildEvidenceAloneScenarios, EVIDENCE_ALONE_FIXTURE_SQL } from '../support/orderEvidenceAccessScenarios';
 import { buildPhotoScript } from '../support/customerPhotoAccessScenarios';
 
@@ -714,7 +714,7 @@ const privatePath = (order: string, task: string, kind: 'delivery' | 'damage', o
       ok('pick-up cleanup: every private copy is still there', [...w.objects.keys()].filter((k) => k.startsWith(`${EVIDENCE_BUCKET}:`)).length === 3);
     }
     {
-      const src = read('supabase/functions/_shared/evidence-migration.ts');
+      const src = read('supabase/functions/_shared/evidence/evidence-migration.ts');
       ok('migration source: it never fetches a stored URL (references are parsed to bucket and path only)', !/\bfetch\(/.test(src));
       ok('migration source: the delete is only reachable through the confirmed cleanup stage', (src.match(/deps\.remove\(/g) ?? []).length === 1 && /CLEANUP_CONFIRMATION\) throw/.test(src.replace(/ !== /g, ' ')) || /if \(confirmation !== CLEANUP_CONFIRMATION\) throw/.test(src));
       ok('migration source: cleanup deletes only after the copy is verified (same size) and no task references the source', /copy\.size !== source\.size/.test(src) && /stillReferenced\.has\(name\)/.test(src));
@@ -780,7 +780,7 @@ const privatePath = (order: string, task: string, kind: 'delivery' | 'damage', o
       const h = cli(['--project-ref', DEV, '--cleanup'], { SUPABASE_URL: `https://${DEV}.supabase.co`, SUPABASE_SERVICE_ROLE_KEY: 'x' });
       ok('cli: cleanup without the confirmation token never starts, even for Dev', h.status === 2 && /--cleanup needs --confirm/.test(h.text));
 
-      const tooling = ['scripts/migrate-order-evidence.mjs', 'supabase/functions/_shared/evidence-migration.ts', 'supabase/functions/_shared/evidence-media.ts'].map((f) => [f, read(f)] as [string, string]);
+      const tooling = ['scripts/migrate-order-evidence.mjs', 'supabase/functions/_shared/evidence/evidence-migration.ts', 'supabase/functions/_shared/evidence/evidence-media.ts'].map((f) => [f, read(f)] as [string, string]);
       ok('source: no Production override exists in the migration tooling (no allowProduction, no --allow-production, no variant)', tooling.every(([, s]) => !/allowProduction|allow-production|allow_production/i.test(s)));
       ok('source: the Production check is unconditional in the guard and the command line cannot bypass it', /if \(urlRef === PRODUCTION_PROJECT_REF\) return "refusing to run against Production";/.test(tooling[1][1]) && !/process\.env\.[A-Z_]*PROD/.test(tooling[0][1]) && /migrationRunBlocker\(\{ supabaseUrl: url, projectRef: args\.projectRef, stage: args\.stage \}\)/.test(tooling[0][1]));
       ok('source: the guard takes no option that could widen it', /input: \{ supabaseUrl: string \| undefined; projectRef: string \| undefined; stage: "plan" \| "copy" \| "rewrite" \| "cleanup" \}/.test(tooling[1][1]));
@@ -804,13 +804,13 @@ const privatePath = (order: string, task: string, kind: 'delivery' | 'damage', o
 
     eq('scan: no browser code uploads into or serves from public-assets', hits(/from\(['"]public-assets['"]\)/, 'src'), []);
     eq('scan: no code builds a public URL for public-assets', hits(/getPublicUrl\(\s*['"]public-assets['"]|from\(['"]public-assets['"]\)\s*\.getPublicUrl/), []);
-    eq('scan: the only code that names the public-assets bucket is the reference parser, the migration logic and the promotion function', files.filter((f) => /['"]public-assets['"]/.test(code(f))).sort(), ['scripts/migrate-order-evidence.mjs', 'supabase/functions/_shared/evidence-media.ts']);
+    eq('scan: the only code that names the public-assets bucket is the reference parser, the migration logic and the promotion function', files.filter((f) => /['"]public-assets['"]/.test(code(f))).sort(), ['scripts/migrate-order-evidence.mjs', 'supabase/functions/_shared/evidence/evidence-media.ts']);
     const upload = code('src/components/admin/tasks/detail/taskPhotoUpload.ts');
     ok('scan: the task photo pipeline uploads only through a server-issued signed upload', /uploadToSignedUrl\(target\.path, target\.token, uploadBlob/.test(upload) && !/\.upload\(/.test(upload) && !/getPublicUrl/.test(upload) && !/public-assets/.test(upload));
     ok('scan: the pipeline never writes task_status itself (the server records the paths)', !/from\('task_status'\)|\.update\(/.test(upload) && /action: 'register'/.test(upload));
     ok('scan: the pipeline sends only a task id, a kind and file metadata (never a bucket or a path to write)', /request_upload',\s*taskStatusId,\s*kind,\s*files: \[\{ name: uploadLabel, size: uploadBlob\.size, mimeType: uploadType \}\]/.test(upload));
     eq('scan: no browser code writes the evidence columns', hits(/update\(\{[^}]*(delivery_images|damage_images)|update\(\{ \[col\]/, 'src'), []);
-    ok('scan: the evidence columns are written only by the task-evidence function and the migration logic', hits(/update\(\{\s*\[EVIDENCE_COLUMNS|setColumn|\.update\(\{ \[column\]/).sort().join() === ['scripts/migrate-order-evidence.mjs', 'supabase/functions/_shared/evidence-migration.ts', 'supabase/functions/task-evidence/index.ts'].sort().join() || hits(/EVIDENCE_COLUMNS\[task\.kind\]\]: \[\.\.\.current/).join() === 'supabase/functions/task-evidence/index.ts');
+    ok('scan: the evidence columns are written only by the task-evidence function and the migration logic', hits(/update\(\{\s*\[EVIDENCE_COLUMNS|setColumn|\.update\(\{ \[column\]/).sort().join() === ['scripts/migrate-order-evidence.mjs', 'supabase/functions/_shared/evidence/evidence-migration.ts', 'supabase/functions/task-evidence/index.ts'].sort().join() || hits(/EVIDENCE_COLUMNS\[task\.kind\]\]: \[\.\.\.current/).join() === 'supabase/functions/task-evidence/index.ts');
     const grid = code('src/components/admin/tasks/detail/TaskDetailPhotosGrid.tsx');
     ok('scan: the task photo grid never uses a stored reference as an image source', /useTaskEvidenceUrls\(taskStatusId, deliveryImages, damageImages\)/.test(grid) && /tile\(urls\.delivery\[idx\]/.test(grid) && /tile\(urls\.damage\[idx\]/.test(grid) && !/src=\{(ref|_ref|deliveryImages|damageImages)/.test(grid));
     const admin = code('src/hooks/admin/useAdminPhotos.ts');

@@ -12,7 +12,7 @@ declare const require: (id: string) => any;
 const fs = require('fs');
 
 import { eventAddressLine2, normalizeUnit, addressWithOrderUnit, formatStreetWithUnit } from '../../booking/eventAddress';
-import { projectOrder } from '../../../../supabase/functions/_shared/portal-projection';
+import { projectOrder } from '../../../../supabase/functions/_shared/portal/portal-projection';
 import { buildInitialEditedOrder, hasOrderDetailChanges } from '../../../components/admin/orders/detail-modal/editedOrderModel';
 import { hasAddressChanged, planOrderChanges } from '../../orders/orderChangePlanning';
 
@@ -128,7 +128,7 @@ eq('helper: addressWithOrderUnit with no address is null', addressWithOrderUnit(
 // 4. Source wiring: admin invoice, address service, duplication, print, dashboard, admin card
 // ---------------------------------------------------------------------------------------------------------------
 {
-  const invoice = read('supabase/functions/_shared/staff-order-save.ts');
+  const invoice = read('supabase/functions/_shared/orders/staff-order-save.ts');
   ok('invoice: an admin-created order stores its own normalized unit (the server writes it)', /event_address_line2:\s*parsedEvent\.address_line2\.trim\(\)/.test(invoice));
   const addressService = read('src/lib/booking/addressService.ts');
   ok('address service: the shared row\'s line2 is first-writer and never rewritten by a later booking / edit', /const sharedLine2 = existingRow \? \(existingRow\.line2 \?\? null\) : \(line2 \?\? null\);/.test(addressService) && /line2: sharedLine2,/.test(addressService) && !/line2: line2 \?\? null,/.test(addressService));
@@ -137,7 +137,7 @@ eq('helper: addressWithOrderUnit with no address is null', addressWithOrderUnit(
   ok('customer dashboard: the order card uses the order unit', /eventAddressLine2\(order\)/.test(read('src/components/dashboard/OrderCard.tsx')) && !/order\.addresses\.line2/.test(read('src/components/dashboard/OrderCard.tsx')));
   ok('admin pending order: the info section uses the order unit', /eventAddressLine2\(order\)/.test(read('src/components/pending-order/OrderInfoSection.tsx')) && !/order\.addresses\?\.line2/.test(read('src/components/pending-order/OrderInfoSection.tsx')));
   ok('the planner and the edit model compare against the order unit, not the shared row', !/order\.addresses\?\.line2 \|\| ''/.test(read('src/lib/orders/orderChangePlanning.ts')) && !/order\.addresses\?\.line2 \|\| ''/.test(read('src/components/admin/orders/detail-modal/editedOrderModel.ts')));
-  ok('the server projection overrides line2 only when the order has its own string value', /typeof order\.event_address_line2 === "string"/.test(read('supabase/functions/_shared/portal-projection.ts')));
+  ok('the server projection overrides line2 only when the order has its own string value', /typeof order\.event_address_line2 === "string"/.test(read('supabase/functions/_shared/portal/portal-projection.ts')));
 }
 
 // ---------------------------------------------------------------------------------------------------------------
@@ -162,7 +162,7 @@ eq('helper: addressWithOrderUnit with no address is null', addressWithOrderUnit(
   ok('scan: the portal-fed components get their order from the customer-portal-data projection', /projectOrder\(/.test(read('supabase/functions/customer-portal-data/index.ts')));
   // Event-address inputs that carry the unit from the browser to a new order
   ok('scan: the public booking request carries the unit', /line2: quoteData\.address_line2 \|\| null/.test(read('src/lib/booking/bookingApi.ts')));
-  ok('scan: billing address columns are untouched (still separate order-level fields)', /billing_address_line2/.test(read('supabase/functions/_shared/portal-projection.ts')) && !/billing[^\n]*event_address_line2|event_address_line2[^\n]*billing/.test(read('supabase/migrations/20261011120000_order_event_address_line2.sql').replace(/\/\*[\s\S]*?\*\//, '')));
+  ok('scan: billing address columns are untouched (still separate order-level fields)', /billing_address_line2/.test(read('supabase/functions/_shared/portal/portal-projection.ts')) && !/billing[^\n]*event_address_line2|event_address_line2[^\n]*billing/.test(read('supabase/migrations/20261011120000_order_event_address_line2.sql').replace(/\/\*[\s\S]*?\*\//, '')));
 }
 
 // ---------------------------------------------------------------------------------------------------------------

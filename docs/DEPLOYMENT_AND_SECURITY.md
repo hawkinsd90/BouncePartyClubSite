@@ -239,7 +239,7 @@ All outbound SMS messages sent via `send-sms-notification` must pass `orderId` (
 ## Input Validation and Sanitization
 
 - Email addresses and phone numbers are validated client-side via `src/lib/validation.ts`. Phone validation requires exactly 10 digits after stripping non-digits (no international support).
-- Payment amounts are validated server-side in `_shared/payment-validation.ts`
+- Payment amounts are validated server-side in `_shared/payments/payment-validation.ts`
 - Order status transitions are validated by the `validate_order_status_transition` database function — invalid transitions are rejected with an error before any change is made
 - All RPC functions that require elevated privilege run with `SECURITY DEFINER` and explicit `search_path` set to prevent schema injection
 - The `check_date_blackout` function correctly handles wrap-aware annual recurrence patterns (date ranges that span year-end)

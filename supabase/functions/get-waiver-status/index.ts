@@ -1,7 +1,7 @@
 import "jsr:@supabase/functions-js@2/edge-runtime.d.ts";
 import { createClient } from "npm:@supabase/supabase-js@2.57.4";
 import { authorizePortalOrder, callerHasAnyRole, resolveCaller, userOwnsOrderCanonical } from "../_shared/auth.ts";
-import { signStoredMedia } from "../_shared/media-paths.ts";
+import { signStoredMedia } from "../_shared/evidence/media-paths.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",

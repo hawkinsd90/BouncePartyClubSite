@@ -20,7 +20,7 @@ import { createClient } from "npm:@supabase/supabase-js@2.57.4";
 import { formatOrderId } from "../_shared/format-order-id.ts";
 import { logTransaction } from "../_shared/transaction-logger.ts";
 import { formatCurrency, DEFAULT_PHONE } from "../_shared/fmt.ts";
-import { buildPaymentReceiptEmail } from "../_shared/payment-receipt-email.ts";
+import { buildPaymentReceiptEmail } from "../_shared/payments/payment-receipt-email.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",

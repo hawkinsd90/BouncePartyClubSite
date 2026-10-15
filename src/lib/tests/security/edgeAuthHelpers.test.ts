@@ -23,7 +23,7 @@ import {
   STAFF_ADMIN_ROLES,
   type Caller,
 } from '../../../../supabase/functions/_shared/auth';
-import { deriveCustomerOutcome, UNVERIFIED_CUSTOMER_OUTCOME } from '../../../../supabase/functions/_shared/lifecycle-outcome';
+import { deriveCustomerOutcome, UNVERIFIED_CUSTOMER_OUTCOME } from '../../../../supabase/functions/_shared/orders/lifecycle-outcome';
 
 let passed = 0;
 let failed = 0;

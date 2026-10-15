@@ -22,8 +22,8 @@ import "jsr:@supabase/functions-js@2/edge-runtime.d.ts";
 import Stripe from "npm:stripe@20.0.0";
 import { createClient } from "npm:@supabase/supabase-js@2.57.4";
 import { buildPortalUrl } from "../_shared/portal-link.ts";
-import { receiptOrderFigures, receiptDiscountAmount, receiptExtraFeeRowsHtml } from "../_shared/receipt-order-totals.ts";
-import { finalizeOperation } from "../_shared/payment-operations.ts";
+import { receiptOrderFigures, receiptDiscountAmount, receiptExtraFeeRowsHtml } from "../_shared/payments/receipt-order-totals.ts";
+import { finalizeOperation } from "../_shared/payments/payment-operations.ts";
 import { formatCurrency, formatPaymentMethodLabel } from "../_shared/fmt.ts";
 
 const corsHeaders = {

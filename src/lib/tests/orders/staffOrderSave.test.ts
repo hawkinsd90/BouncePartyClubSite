@@ -17,7 +17,7 @@
 declare const process: { env: Record<string, string | undefined> };
 
 import * as authHelpers from '../../../../supabase/functions/_shared/auth';
-import * as staffSave from '../../../../supabase/functions/_shared/staff-order-save';
+import * as staffSave from '../../../../supabase/functions/_shared/orders/staff-order-save';
 import { PgPool, PG_TABLES, ensurePayDatabase, makeWorld, loadHandler, callHandler, lit, SERVICE_KEY, type World } from '../support/paymentHarness';
 import { calculateOrderPricing } from '../../pricing/orderPricingCalculation';
 import { orderPricingState } from '../../pricing/orderPricingState';

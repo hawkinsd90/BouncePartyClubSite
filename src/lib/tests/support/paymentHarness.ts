@@ -752,7 +752,7 @@ function realMoneyScope(): Record<string, unknown> {
     return mod.exports;
   };
   const money = run('src/lib/pricing/orderMoney.ts', {});
-  const receipts = run('supabase/functions/_shared/receipt-order-totals.ts', money);
+  const receipts = run('supabase/functions/_shared/payments/receipt-order-totals.ts', money);
   realMoney = { ...money, ...receipts };
   return realMoney;
 }

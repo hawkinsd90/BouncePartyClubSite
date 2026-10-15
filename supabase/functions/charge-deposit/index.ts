@@ -7,10 +7,10 @@ import {
   getIdentifier,
   buildRateLimitKey,
 } from "../_shared/rate-limit.ts";
-import { validatePaymentMethod } from "../_shared/payment-validation.ts";
+import { validatePaymentMethod } from "../_shared/payments/payment-validation.ts";
 import { formatCurrency } from "../_shared/fmt.ts";
 import { buildPortalUrl } from "../_shared/portal-link.ts";
-import { receiptOrderFigures, receiptExtraFeeRowsHtml } from "../_shared/receipt-order-totals.ts";
+import { receiptOrderFigures, receiptExtraFeeRowsHtml } from "../_shared/payments/receipt-order-totals.ts";
 import {
   resolveCaller,
   isStaffAdmin,
@@ -25,7 +25,7 @@ import {
   releaseOperation,
   isCents,
   type PaymentOperation,
-} from "../_shared/payment-operations.ts";
+} from "../_shared/payments/payment-operations.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",

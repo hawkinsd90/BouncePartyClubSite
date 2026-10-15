@@ -3,7 +3,7 @@
 // themselves, each slightly differently (some missed the Setup Fee or the weekday delivery fee, some added fixed and percentage
 // discounts the wrong way round, and a stored tax was hidden when the tax toggle was "on"). Stored fees are already effective:
 // a waived fee is stored as 0 and the stored tax is the tax that applies.
-import { composeOrderTotal, effectiveDiscountCents, type DiscountLike } from "./booking/orderMoney.ts";
+import { composeOrderTotal, effectiveDiscountCents, type DiscountLike } from "../booking/orderMoney.ts";
 
 // deno-lint-ignore no-explicit-any
 type Any = any;

@@ -15,8 +15,8 @@ declare const require: (id: string) => any;
 declare const process: { env: Record<string, string | undefined> };
 
 import * as authHelpers from '../../../../supabase/functions/_shared/auth';
-import * as payOps from '../../../../supabase/functions/_shared/payment-operations';
-import * as outcomeHelpers from '../../../../supabase/functions/_shared/lifecycle-outcome';
+import * as payOps from '../../../../supabase/functions/_shared/payments/payment-operations';
+import * as outcomeHelpers from '../../../../supabase/functions/_shared/orders/lifecycle-outcome';
 import * as bookingProofHelpers from '../../../../supabase/functions/_shared/booking/bookingProof';
 import * as returnOriginHelpers from '../../../../supabase/functions/_shared/booking/returnOrigin';
 import { PgPool, ensurePayDatabase, makeWorld, loadHandler, loadModule, callHandler, lit, SERVICE_KEY, ANON_KEY, type World } from '../support/paymentHarness';
@@ -1073,14 +1073,14 @@ const shared = { ...authHelpers, ...outcomeHelpers, ...bookingProofHelpers, ...r
     const all = listTs(fnDir);
     const cd = readSrc(`${fnDir}/charge-deposit/index.ts`);
     const cb = readSrc(`${fnDir}/customer-balance-payment/index.ts`);
-    const ops = readSrc(`${fnDir}/_shared/payment-operations.ts`);
+    const ops = readSrc(`${fnDir}/_shared/payments/payment-operations.ts`);
     const wh = readSrc(`${fnDir}/stripe-webhook/handlers.ts`);
     ok('source: charge-deposit does not use the boolean payment lock any more', !/payment_lock/.test(cd));
     ok('source: charge-deposit never writes a payment row itself (the database operation does)', !/from\("payments"\)\s*\.insert/.test(cd) && !/from\("payments"\)\s*\.update/.test(cd));
     ok('source: charge-deposit never computes an amount from the request', !/requestPaymentAmountCents\s*[+\-*]/.test(cd) && /requestedPrincipalCents: isBalanceCharge/.test(cd));
     ok('source: charge-deposit only passes a browser amount to the claim for an admin balance charge', (cd.match(/requestedPrincipalCents:/g) ?? []).length === 2);
     ok('source: customer-balance-payment no longer rounds or clamps request values into shape', !/Math\.round\(Number\(/.test(cb) && !/Math\.max\(0, Math\.round/.test(cb));
-    ok('source: every PaymentIntent creation goes through chargeSavedCard (one place, one idempotency key)', all.filter((f: string) => /paymentIntents\.create\(/.test(readSrc(f))).join(',') === `${fnDir}/_shared/payment-operations.ts`);
+    ok('source: every PaymentIntent creation goes through chargeSavedCard (one place, one idempotency key)', all.filter((f: string) => /paymentIntents\.create\(/.test(readSrc(f))).join(',') === `${fnDir}/_shared/payments/payment-operations.ts`);
     ok('source: that creation passes an idempotency key built from the persisted operation key', /\{ idempotencyKey: operationIdempotencyKey\(op, "pi"\) \}/.test(ops));
     ok('source: the Checkout Session for a balance payment passes an idempotency key', /\{ idempotencyKey: operationIdempotencyKey\(op, "cs"\) \}/.test(cb));
     ok('source: the idempotency key is never random', !/idempotencyKey:\s*(crypto|Math|Date|`[^`]*\$\{(crypto|Math|Date))/.test(ops + cb + cd));

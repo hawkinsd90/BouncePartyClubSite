@@ -15,7 +15,7 @@ const fs = require('fs');
 const ts = require('typescript');
 
 import * as authHelpers from '../../../../supabase/functions/_shared/auth';
-import * as portalActions from '../../../../supabase/functions/_shared/portal-actions';
+import * as portalActions from '../../../../supabase/functions/_shared/portal/portal-actions';
 import * as customerNotice from '../../../../supabase/functions/_shared/customer-notice';
 import { confirmationSettled } from '../../booking/confirmationRetry';
 

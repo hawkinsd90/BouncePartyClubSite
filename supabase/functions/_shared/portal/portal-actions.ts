@@ -5,7 +5,7 @@
 // path: the caller can never choose a table, a column or a filter.
 // Its only import is the pure orderMoney module, which the Node test harness loads as well.
 
-import { storedOrderTotalCents } from "./booking/orderMoney.ts";
+import { storedOrderTotalCents } from "../booking/orderMoney.ts";
 
 export type PortalActionName =
   | "invoice_accept_details"

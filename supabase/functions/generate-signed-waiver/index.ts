@@ -1,6 +1,6 @@
 import "jsr:@supabase/functions-js@2/edge-runtime.d.ts";
 import { createClient } from "npm:@supabase/supabase-js@2.57.4";
-import { storagePathFromReference } from "../_shared/media-paths.ts";
+import { storagePathFromReference } from "../_shared/evidence/media-paths.ts";
 import { resolveCaller } from "../_shared/auth.ts";
 import { jsPDF } from "npm:jspdf@2.5.2";
 import {

@@ -12,7 +12,7 @@ import {
   authFailureResponse,
   type AuthClient,
 } from "../_shared/auth.ts";
-import { evaluateCustomerConfirmation } from "../_shared/lifecycle-outcome.ts";
+import { evaluateCustomerConfirmation } from "../_shared/orders/lifecycle-outcome.ts";
 import { storedOrderTotalCents } from "../_shared/booking/orderMoney.ts";
 import { getOrCreatePortalLink } from "../_shared/portal-link.ts";
 

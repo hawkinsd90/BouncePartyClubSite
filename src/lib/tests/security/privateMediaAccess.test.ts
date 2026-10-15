@@ -22,7 +22,7 @@ declare const process: { env: Record<string, string | undefined> };
 const fs = require('fs');
 const { spawnSync } = require('child_process');
 
-import { storagePathFromReference, signStoredMedia } from '../../../../supabase/functions/_shared/media-paths';
+import { storagePathFromReference, signStoredMedia } from '../../../../supabase/functions/_shared/evidence/media-paths';
 import {
   ALL_BUCKETS, EXPECTED_POLICIES, MARKETING_BUCKETS, PRIVATE_BUCKETS, buildMediaScenarios, buildMediaScript,
 } from '../support/privateMediaAccessScenarios';

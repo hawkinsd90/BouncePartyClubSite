@@ -11,13 +11,13 @@ const fs = require('fs');
 const ts = require('typescript');
 
 import * as authHelpers from '../../../../supabase/functions/_shared/auth';
-import * as projection from '../../../../supabase/functions/_shared/portal-projection';
-import * as actions from '../../../../supabase/functions/_shared/portal-actions';
+import * as projection from '../../../../supabase/functions/_shared/portal/portal-projection';
+import * as actions from '../../../../supabase/functions/_shared/portal/portal-actions';
 import * as portalLink from '../../../../supabase/functions/_shared/portal-link';
-import * as lifecycleOutcome from '../../../../supabase/functions/_shared/lifecycle-outcome';
+import * as lifecycleOutcome from '../../../../supabase/functions/_shared/orders/lifecycle-outcome';
 import * as orderMoney from '../../pricing/orderMoney';
-import * as mediaPaths from '../../../../supabase/functions/_shared/media-paths';
-import * as evidenceMedia from '../../../../supabase/functions/_shared/evidence-media';
+import * as mediaPaths from '../../../../supabase/functions/_shared/evidence/media-paths';
+import * as evidenceMedia from '../../../../supabase/functions/_shared/evidence/evidence-media';
 
 export type Row = Record<string, any>;
 

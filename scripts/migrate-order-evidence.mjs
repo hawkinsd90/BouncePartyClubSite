@@ -1,5 +1,5 @@
 // One-time, controlled migration of HISTORICAL delivery / damage evidence photos from the public "public-assets" bucket to the
-// private "order-evidence" bucket. The logic and its tests live in supabase/functions/_shared/evidence-migration.ts; this file
+// private "order-evidence" bucket. The logic and its tests live in supabase/functions/_shared/evidence/evidence-migration.ts; this file
 // only wires it to a Supabase project with the service-role key.
 //
 // Stages (each is explicit; each is safe to run again; only --cleanup deletes anything):
@@ -26,7 +26,7 @@ import {
   planEvidenceMigration,
   rewriteEvidenceReferences,
   verifiedDestinations,
-} from '../supabase/functions/_shared/evidence-migration.ts';
+} from '../supabase/functions/_shared/evidence/evidence-migration.ts';
 
 function parseArgs(argv) {
   const args = { stage: 'plan', projectRef: undefined, includeUnreferenced: false, confirm: undefined };

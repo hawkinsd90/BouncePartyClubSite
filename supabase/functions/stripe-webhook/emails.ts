@@ -1,6 +1,6 @@
 import { formatCurrency, DEFAULT_PHONE } from "../_shared/fmt.ts";
 import { buildPortalUrl } from "../_shared/portal-link.ts";
-import { receiptOrderFigures, receiptDiscountAmount, receiptExtraFeeRowsHtml } from "../_shared/receipt-order-totals.ts";
+import { receiptOrderFigures, receiptDiscountAmount, receiptExtraFeeRowsHtml } from "../_shared/payments/receipt-order-totals.ts";
 
 export async function sendCheckoutBalanceReceiptEmail(
   supabaseClient: any,

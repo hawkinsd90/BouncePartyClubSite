@@ -19,10 +19,10 @@ const nodeCrypto = require('crypto');
 
 import * as authHelpers from '../../../../supabase/functions/_shared/auth';
 import * as portalLinkHelpers from '../../../../supabase/functions/_shared/portal-link';
-import * as outcomeHelpers from '../../../../supabase/functions/_shared/lifecycle-outcome';
+import * as outcomeHelpers from '../../../../supabase/functions/_shared/orders/lifecycle-outcome';
 import * as bookingProofHelpers from '../../../../supabase/functions/_shared/booking/bookingProof';
 import * as returnOriginHelpers from '../../../../supabase/functions/_shared/booking/returnOrigin';
-import * as paymentOperationHelpers from '../../../../supabase/functions/_shared/payment-operations';
+import * as paymentOperationHelpers from '../../../../supabase/functions/_shared/payments/payment-operations';
 
 let passed = 0;
 let failed = 0;

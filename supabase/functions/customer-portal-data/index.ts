@@ -13,9 +13,9 @@ import {
   projectDelivery,
   projectPayment,
   projectPricing,
-} from "../_shared/portal-projection.ts";
-import { signStoredMedia } from "../_shared/media-paths.ts";
-import { resolveEvidenceUrls } from "../_shared/evidence-media.ts";
+} from "../_shared/portal/portal-projection.ts";
+import { signStoredMedia } from "../_shared/evidence/media-paths.ts";
+import { resolveEvidenceUrls } from "../_shared/evidence/evidence-media.ts";
 
 // Customer Portal read boundary (Payment Safety A2.2).
 //
@@ -26,7 +26,7 @@ import { resolveEvidenceUrls } from "../_shared/evidence-media.ts";
 // A raw order id, email, phone, name, the public anon key or a short code is never enough. Every failure (unknown order,
 // wrong token, expired, revoked, someone else's order) is the same 403 so the endpoint cannot be used to probe.
 //
-// The response is a fixed projection (see _shared/portal-projection.ts). It never contains Stripe identifiers, staff
+// The response is a fixed projection (see _shared/portal/portal-projection.ts). It never contains Stripe identifiers, staff
 // notes, other customers or orders, token lists, or raw processor data.
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",

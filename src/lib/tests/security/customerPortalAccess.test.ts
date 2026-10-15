@@ -26,9 +26,9 @@ import {
   type Db,
   type Harness,
 } from '../support/portalTestHarness';
-import * as projection from '../../../../supabase/functions/_shared/portal-projection';
-import * as actions from '../../../../supabase/functions/_shared/portal-actions';
-import * as lifecycleOutcome from '../../../../supabase/functions/_shared/lifecycle-outcome';
+import * as projection from '../../../../supabase/functions/_shared/portal/portal-projection';
+import * as actions from '../../../../supabase/functions/_shared/portal/portal-actions';
+import * as lifecycleOutcome from '../../../../supabase/functions/_shared/orders/lifecycle-outcome';
 import { loadPortalOrder } from '../../portal/portalOrderLoader';
 import { PortalAccessError, fetchPortalData, portalAction, PortalActionError } from '../../portal/customerPortalApi';
 import { createPortalRefreshController, type RefreshEnv } from '../../portal/portalRefreshController';
@@ -876,7 +876,7 @@ ok('approval: records the payment selection and tip but does NOT confirm the ord
     ok('boundary: the browser treats a lifecycle refusal as a failed approval', /confirmThroughLifecycle/.test(read('src/components/customer-portal/CustomerApprovalModal.tsx')) && /!result\.success/.test(read('src/components/customer-portal/CustomerApprovalModal.tsx')));
     ok('boundary: a no-card invoice is confirmed through the lifecycle call, whose failure aborts the acceptance', /invoice_confirm_no_card'\);\s*const confirmation = await enterConfirmed\(/.test(read('src/components/customer-portal/InvoiceAcceptanceView.tsx')) && /!confirmation\.success/.test(read('src/components/customer-portal/InvoiceAcceptanceView.tsx')));
     const direct: string[] = [];
-    for (const f of ['supabase/functions/customer-portal-action/index.ts', 'supabase/functions/customer-portal-data/index.ts', 'supabase/functions/_shared/portal-actions.ts', 'src/lib/portal/customerPortalApi.ts']) {
+    for (const f of ['supabase/functions/customer-portal-action/index.ts', 'supabase/functions/customer-portal-data/index.ts', 'supabase/functions/_shared/portal/portal-actions.ts', 'src/lib/portal/customerPortalApi.ts']) {
       for (const [i, l] of read(f).split(/\r?\n/).entries()) if (/status\s*:\s*["']confirmed["']|\.update\(\{\s*status\s*:\s*["']confirmed/.test(l) && !/^\s*\/\//.test(l)) direct.push(`${f}:${i + 1}`);
     }
     eq('boundary: no customer-facing action file contains a direct status = confirmed write', direct, []);

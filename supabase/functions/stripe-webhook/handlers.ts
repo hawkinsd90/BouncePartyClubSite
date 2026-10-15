@@ -1,7 +1,7 @@
 import Stripe from "npm:stripe@20.0.0";
 import { logTransaction } from "../_shared/transaction-logger.ts";
-import { collectPaymentDetails, finalizeOperation } from "../_shared/payment-operations.ts";
-import { applyProviderRefund } from "../_shared/refund-operations.ts";
+import { collectPaymentDetails, finalizeOperation } from "../_shared/payments/payment-operations.ts";
+import { applyProviderRefund } from "../_shared/payments/refund-operations.ts";
 import { sendCheckoutBalanceReceiptEmail, sendDepositReceiptEmail } from "./emails.ts";
 
 export async function invokeLifecycle(
