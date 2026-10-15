@@ -24,3 +24,8 @@ dist-ssr
 supabase/.temp/
 typecheck-errors.txt
 PR_NOTES_unpushed_commits.md
+
+# Local Netlify folder
+.netlify
+lint-warnings.txt
+docs/typecheck-lint-cleanup-plan.md

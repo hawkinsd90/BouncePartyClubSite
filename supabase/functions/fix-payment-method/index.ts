@@ -1,6 +1,7 @@
 import "jsr:@supabase/functions-js@2/edge-runtime.d.ts";
 import Stripe from "npm:stripe@20.0.0";
 import { createClient } from "npm:@supabase/supabase-js@2.57.4";
+import { resolveCaller, requireRoles, authFailureResponse, STAFF_ADMIN_ROLES } from "../_shared/auth.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -17,6 +18,21 @@ Deno.serve(async (req: Request) => {
   }
 
   try {
+    // Privileged repair tool (service-role database writes and Stripe reads): staff only. Authorization runs before the body is
+    // read, before the Stripe key is loaded and before any database or Stripe request. The public anon key, customers, crew
+    // and the service-role key are all rejected: no workflow in the application calls this function.
+    const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
+    const supabaseClient = createClient(Deno.env.get("SUPABASE_URL") ?? "", supabaseServiceKey);
+
+    const caller = await resolveCaller(supabaseClient, req.headers.get("Authorization"), supabaseServiceKey);
+    const gate = requireRoles(caller, STAFF_ADMIN_ROLES, {
+      unauthorized: "Authentication required",
+      forbidden: "Admin access required",
+    });
+    if (!gate.ok) {
+      return authFailureResponse(gate, corsHeaders, "error-only");
+    }
+
     const { orderId } = await req.json();
     // console.log("[fix-payment-method] Fixing payment method for order:", orderId);
 
@@ -29,11 +45,6 @@ Deno.serve(async (req: Request) => {
         }
       );
     }
-
-    const supabaseClient = createClient(
-      Deno.env.get("SUPABASE_URL") ?? "",
-      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "",
-    );
 
     const { data: stripeKeyData, error: keyError } = await supabaseClient
       .from("admin_settings")

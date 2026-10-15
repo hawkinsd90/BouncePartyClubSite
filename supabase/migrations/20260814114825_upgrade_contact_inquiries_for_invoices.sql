@@ -24,16 +24,28 @@
 - Grants INSERT, SELECT, UPDATE to service_role (already present, re-granted for idempotency).
 */
 
-ALTER TABLE public.contact_inquiries
-  ADD COLUMN IF NOT EXISTS first_name text,
-  ADD COLUMN IF NOT EXISTS last_name text,
-  ADD COLUMN IF NOT EXISTS event_address text,
-  ADD COLUMN IF NOT EXISTS event_city text,
-  ADD COLUMN IF NOT EXISTS event_state text,
-  ADD COLUMN IF NOT EXISTS event_zip text,
-  ADD COLUMN IF NOT EXISTS event_start_time text,
-  ADD COLUMN IF NOT EXISTS event_end_time text,
-  ADD COLUMN IF NOT EXISTS surface_type text,
-  ADD COLUMN IF NOT EXISTS referral_source text;
+/*
+  Ordering note: this migration is versioned before 20260814120000_create_contact_inquiries.sql, which creates the table.
+  On a database that already has the table (the hosted Development database) the columns and grant are applied here exactly as before.
+  On a clean replay the table does not exist yet, so this is skipped and 20260814120100_ensure_contact_inquiries_invoice_fields.sql
+  adds the same columns and grant after the table is created. Any other failure (permissions, syntax) still raises normally.
+*/
+DO $$
+BEGIN
+  IF to_regclass('public.contact_inquiries') IS NOT NULL THEN
+    ALTER TABLE public.contact_inquiries
+      ADD COLUMN IF NOT EXISTS first_name text,
+      ADD COLUMN IF NOT EXISTS last_name text,
+      ADD COLUMN IF NOT EXISTS event_address text,
+      ADD COLUMN IF NOT EXISTS event_city text,
+      ADD COLUMN IF NOT EXISTS event_state text,
+      ADD COLUMN IF NOT EXISTS event_zip text,
+      ADD COLUMN IF NOT EXISTS event_start_time text,
+      ADD COLUMN IF NOT EXISTS event_end_time text,
+      ADD COLUMN IF NOT EXISTS surface_type text,
+      ADD COLUMN IF NOT EXISTS referral_source text;
 
-GRANT INSERT, SELECT, UPDATE ON TABLE public.contact_inquiries TO service_role;
+    GRANT INSERT, SELECT, UPDATE ON TABLE public.contact_inquiries TO service_role;
+  END IF;
+END
+$$;
