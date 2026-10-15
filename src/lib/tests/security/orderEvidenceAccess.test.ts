@@ -104,8 +104,8 @@ const privatePath = (order: string, task: string, kind: 'delivery' | 'damage', o
     {
       const pickUp = `${ORDER_A}-pick-up-1760000000000-IMG_7.jpg`;
       const pickUpUrl = `https://qaagfafagdpgzcijnfbw.supabase.co/storage/v1/object/public/public-assets/${pickUp}`;
-      eq('pick-up: the vocabulary of task types in the app includes the hyphenated "pick-up" spelling', ['taskNotificationMessages.ts', 'useCalendarTasks.ts'].map((f) => /'drop-off'\s*\|\s*'pick-up'/.test(fs.readFileSync(f === 'useCalendarTasks.ts' ? `src/hooks/admin/${f}` : `src/components/admin/task-detail/${f}`, 'utf8'))), [true, true]);
-      ok('pick-up: the old proof-photo uploader named files with the task\'s own type, so a pick-up task produced "-pick-up-" names', fs.readFileSync('src/components/admin/task-detail/taskPhotoUpload.test.ts', 'utf8').includes('`${task.orderId}-${task.type}-${now()}-'));
+      eq('pick-up: the vocabulary of task types in the app includes the hyphenated "pick-up" spelling', ['taskNotificationMessages.ts', 'useCalendarTasks.ts'].map((f) => /'drop-off'\s*\|\s*'pick-up'/.test(fs.readFileSync(f === 'useCalendarTasks.ts' ? `src/hooks/admin/${f}` : `src/components/admin/tasks/detail/${f}`, 'utf8'))), [true, true]);
+      ok('pick-up: the old proof-photo uploader named files with the task\'s own type, so a pick-up task produced "-pick-up-" names', fs.readFileSync('src/components/admin/tasks/detail/taskPhotoUpload.test.ts', 'utf8').includes('`${task.orderId}-${task.type}-${now()}-'));
       ok('pick-up: every task type of the app is an accepted historical label', ['drop-off', 'pick-up'].every((label) => LEGACY_TASK_LABELS.includes(label) && isLegacyEvidenceObjectName(`${ORDER_A}-${label}-123-photo.jpg`)));
       eq('pick-up: the accepted labels are exactly these (nothing broader)', [...LEGACY_TASK_LABELS], ['drop-off', 'pick-up', 'pickup', 'damage']);
       for (const [what, name, expected] of [
@@ -805,13 +805,13 @@ const privatePath = (order: string, task: string, kind: 'delivery' | 'damage', o
     eq('scan: no browser code uploads into or serves from public-assets', hits(/from\(['"]public-assets['"]\)/, 'src'), []);
     eq('scan: no code builds a public URL for public-assets', hits(/getPublicUrl\(\s*['"]public-assets['"]|from\(['"]public-assets['"]\)\s*\.getPublicUrl/), []);
     eq('scan: the only code that names the public-assets bucket is the reference parser, the migration logic and the promotion function', files.filter((f) => /['"]public-assets['"]/.test(code(f))).sort(), ['scripts/migrate-order-evidence.mjs', 'supabase/functions/_shared/evidence-media.ts']);
-    const upload = code('src/components/admin/task-detail/taskPhotoUpload.ts');
+    const upload = code('src/components/admin/tasks/detail/taskPhotoUpload.ts');
     ok('scan: the task photo pipeline uploads only through a server-issued signed upload', /uploadToSignedUrl\(target\.path, target\.token, uploadBlob/.test(upload) && !/\.upload\(/.test(upload) && !/getPublicUrl/.test(upload) && !/public-assets/.test(upload));
     ok('scan: the pipeline never writes task_status itself (the server records the paths)', !/from\('task_status'\)|\.update\(/.test(upload) && /action: 'register'/.test(upload));
     ok('scan: the pipeline sends only a task id, a kind and file metadata (never a bucket or a path to write)', /request_upload',\s*taskStatusId,\s*kind,\s*files: \[\{ name: uploadLabel, size: uploadBlob\.size, mimeType: uploadType \}\]/.test(upload));
     eq('scan: no browser code writes the evidence columns', hits(/update\(\{[^}]*(delivery_images|damage_images)|update\(\{ \[col\]/, 'src'), []);
     ok('scan: the evidence columns are written only by the task-evidence function and the migration logic', hits(/update\(\{\s*\[EVIDENCE_COLUMNS|setColumn|\.update\(\{ \[column\]/).sort().join() === ['scripts/migrate-order-evidence.mjs', 'supabase/functions/_shared/evidence-migration.ts', 'supabase/functions/task-evidence/index.ts'].sort().join() || hits(/EVIDENCE_COLUMNS\[task\.kind\]\]: \[\.\.\.current/).join() === 'supabase/functions/task-evidence/index.ts');
-    const grid = code('src/components/admin/task-detail/TaskDetailPhotosGrid.tsx');
+    const grid = code('src/components/admin/tasks/detail/TaskDetailPhotosGrid.tsx');
     ok('scan: the task photo grid never uses a stored reference as an image source', /useTaskEvidenceUrls\(taskStatusId, deliveryImages, damageImages\)/.test(grid) && /tile\(urls\.delivery\[idx\]/.test(grid) && /tile\(urls\.damage\[idx\]/.test(grid) && !/src=\{(ref|_ref|deliveryImages|damageImages)/.test(grid));
     const admin = code('src/hooks/admin/useAdminPhotos.ts');
     ok('scan: the Admin photo library gets evidence URLs from the task-evidence function', /fetchTaskEvidenceViews\(/.test(admin) && /resolveEvidence:/.test(admin) && !/getPublicUrl/.test(admin));
@@ -825,12 +825,12 @@ const privatePath = (order: string, task: string, kind: 'delivery' | 'damage', o
     const pm = code('supabase/functions/promote-media/index.ts');
     ok('scan: promote-media reads the evidence source with the service-role client and resolves it through the shared parser', /parseEvidenceReference\(verifiedUrl\)/.test(pm) && /adminClient\.storage\s*\.from\(sourceBucket\)\s*\.download\(sourceStoragePath\)/.test(pm) && !/\/public\/public-assets\//.test(pm));
     ok('scan: damage photos stay ineligible for promotion', /const ELIGIBLE_SOURCE_TYPES = \["lot", "order", "delivery"\] as const;/.test(text.get('supabase/functions/promote-media/index.ts')!));
-    ok('scan: proof-photo requirement wording and confirmation are unchanged in the task modal', /No delivery photos have been taken yet/.test(text.get('src/components/admin/TaskDetailModal.tsx')!) && /Proceed without photos\?/.test(text.get('src/components/admin/TaskDetailModal.tsx')!));
+    ok('scan: proof-photo requirement wording and confirmation are unchanged in the task modal', /No delivery photos have been taken yet/.test(text.get('src/components/admin/tasks/TaskDetailModal.tsx')!) && /Proceed without photos\?/.test(text.get('src/components/admin/tasks/TaskDetailModal.tsx')!));
   }
 
   // ---- task photo flow: the pipeline against a fake server and Storage -----------------------------------------------------------------------------------------------
   {
-    const mod = await import('../../../components/admin/task-detail/taskPhotoUpload');
+    const mod = await import('../../../components/admin/tasks/detail/taskPhotoUpload');
     const mkFile = (name: string, type: string, size: number): File => ({ name, type, size } as unknown as File);
     const makeClient = (opts: { uploadError?: (path: string) => any; registerFails?: boolean; requestFails?: boolean } = {}) => {
       const calls: any[] = [];

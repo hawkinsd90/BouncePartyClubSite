@@ -99,7 +99,7 @@ ok('static: no real Production project reference is in the migration', !raw.incl
 // ---------------------------------------------------------------------------------------------------------------
 // SOURCE: the Permissions screen still fits the repaired function
 // ---------------------------------------------------------------------------------------------------------------
-const perm = read('src/components/admin/PermissionsTab.tsx');
+const perm = read('src/components/admin/settings/PermissionsTab.tsx');
 const auth = read('src/contexts/AuthContext.tsx');
 ok('source: the Permissions screen calls assign_role_by_email with user_email and user_role', /\.rpc\(\s*['"]assign_role_by_email['"][\s\S]{0,200}user_email[\s\S]{0,120}user_role/.test(perm) || /assign_role_by_email[\s\S]{0,300}p_email[\s\S]{0,120}p_role/.test(perm));
 ok('source: a false result is still handled as "user not found"', /=== false|!data|data === false|if \(!.*\)\s*\{[\s\S]{0,200}not found/i.test(perm));

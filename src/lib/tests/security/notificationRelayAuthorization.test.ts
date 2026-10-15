@@ -845,14 +845,14 @@ const NONE = { provider: 0, rpcs: 0, writes: 0, fetches: 0, settingsReads: 0 };
     'supabase/functions/_shared/customer-notice.ts': 'service-role key header (customer confirmation helper)',
   };
   const BROWSER_STAFF: Record<string, string> = {
-    'src/components/admin/PermissionsTab.tsx': 'signed-in Admin / Master session token (permission-change notice to the admin address)',
-    'src/components/admin/TaskDetailModal.tsx': 'signed-in Crew / Admin session token (task flow messages for the task\'s own order)',
-    'src/components/admin/task-detail/taskEdgeRequests.ts': 'signed-in Crew / Admin session token (task flow SMS to the order\'s customer)',
+    'src/components/admin/settings/PermissionsTab.tsx': 'signed-in Admin / Master session token (permission-change notice to the admin address)',
+    'src/components/admin/tasks/TaskDetailModal.tsx': 'signed-in Crew / Admin session token (task flow messages for the task\'s own order)',
+    'src/components/admin/tasks/detail/taskEdgeRequests.ts': 'signed-in Crew / Admin session token (task flow SMS to the order\'s customer)',
     'src/lib/notifications/notificationService.ts': 'signed-in Admin session token (approval, rejection, edit and admin notices)',
     'src/lib/payments/transactionReceiptService.ts': 'signed-in Admin session (functions.invoke attaches the session token)',
   };
   const CUSTOMER_SCREENS = ['src/components/customer-portal/CustomerApprovalModal.tsx', 'src/components/customer-portal/InvoiceAcceptanceView.tsx', 'src/hooks/booking/useBookingReturnConfirmation.ts', 'src/lib/notifications/orderNotificationService.ts'];
-  const FOUND_RELAYS_COMMENT_ONLY = ['src/components/admin/PendingOrderCard.tsx', 'src/lib/notifications/notificationFailures.ts', 'supabase/functions/auth-email-hook/index.ts'];
+  const FOUND_RELAYS_COMMENT_ONLY = ['src/components/admin/orders/PendingOrderCard.tsx', 'src/lib/notifications/notificationFailures.ts', 'supabase/functions/auth-email-hook/index.ts'];
 
   const accounted = new Set([...Object.keys(SERVER_CALLERS), ...Object.keys(BROWSER_STAFF)]);
   eq('callers: UNCLASSIFIED CALL SITES (relay call sites not in the server / staff tables)', callSites.filter((f) => !accounted.has(f)), []);
@@ -902,7 +902,7 @@ const NONE = { provider: 0, rpcs: 0, writes: 0, fetches: 0, settingsReads: 0 };
     return claim > 0 && claim < send && send < decide && blk.includes('p_claim_id: claimId') && !blk.includes('booking_confirmation_sent');
   })());
   ok('callers: the Crew template allowlists are exactly the two task-flow templates', JSON.stringify(authHelpers.CREW_SMS_TEMPLATES) === JSON.stringify(['pickup_thanks_sms']) && JSON.stringify(authHelpers.CREW_EMAIL_TEMPLATES) === JSON.stringify(['pickup_complete']));
-  ok('callers: the only direct Crew template callers are the two in TaskDetailModal (UNCLASSIFIED DIRECT CREW TEMPLATE CALLERS: 0)', (() => { const hits = [...text.entries()].filter(([f, s]) => f.startsWith('src/') && /templateKey|templateName/.test(s) && !/notificationRelay/.test(f)).map(([f]) => f); return JSON.stringify(hits) === JSON.stringify(['src/components/admin/TaskDetailModal.tsx']); })() && /templateKey: 'pickup_thanks_sms'/.test(text.get('src/components/admin/TaskDetailModal.tsx')!) && /templateName: 'pickup_complete'/.test(text.get('src/components/admin/TaskDetailModal.tsx')!));
+  ok('callers: the only direct Crew template callers are the two in TaskDetailModal (UNCLASSIFIED DIRECT CREW TEMPLATE CALLERS: 0)', (() => { const hits = [...text.entries()].filter(([f, s]) => f.startsWith('src/') && /templateKey|templateName/.test(s) && !/notificationRelay/.test(f)).map(([f]) => f); return JSON.stringify(hits) === JSON.stringify(['src/components/admin/tasks/TaskDetailModal.tsx']); })() && /templateKey: 'pickup_thanks_sms'/.test(text.get('src/components/admin/tasks/TaskDetailModal.tsx')!) && /templateName: 'pickup_complete'/.test(text.get('src/components/admin/tasks/TaskDetailModal.tsx')!));
   // ---- browser: a recoverable failure must stay retryable through the real customer flow ----
   {
     ok('browser: an unsent order with a failed email is NOT settled (the processed key must not be set)', confirmationSettled(false, { emailSent: false }) === false);

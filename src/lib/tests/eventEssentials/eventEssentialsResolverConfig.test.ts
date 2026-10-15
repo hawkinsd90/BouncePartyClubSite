@@ -36,7 +36,7 @@ import {
   buildCategoryMap,
   buildUnitMap,
 } from '../../eventEssentials/eventEssentialsCatalogResolver';
-import { buildGeneratorResolverCatalog } from '../../../components/admin/order-detail-modal/generatorResolverCatalog';
+import { buildGeneratorResolverCatalog } from '../../../components/admin/orders/detail-modal/generatorResolverCatalog';
 import { buildBundleSnapshot } from '../../eventEssentials/unifiedCart';
 import type { ResolverInput, ResolverInputLine } from '../../eventEssentials/eventEssentialsPricingTypes';
 

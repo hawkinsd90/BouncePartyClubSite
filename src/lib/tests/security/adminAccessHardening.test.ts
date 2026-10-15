@@ -309,7 +309,7 @@ function applyPrivileges(sql: string): Record<string, Set<string>> {
     [...policies.values()].every((p) => !(p.unconditional && (p.roles.includes('authenticated') || p.roles.includes('public') || p.roles.includes('anon')))));
 
   // Role administration used by the app is unchanged
-  const perms: string = fs.readFileSync('src/components/admin/PermissionsTab.tsx', 'utf8');
+  const perms: string = fs.readFileSync('src/components/admin/settings/PermissionsTab.tsx', 'utf8');
   ok('Admin/Master role management still uses the same RPCs and table paths', /assign_role_by_email/.test(perms) && /get_all_role_users/.test(perms) && /from\('user_roles'\)/.test(perms));
 
   // =============================================================================================================

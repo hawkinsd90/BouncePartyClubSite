@@ -804,7 +804,7 @@ async function call(handler: (r: Request) => Promise<Response>, bearer: string |
   ] as Array<[string, RegExp]>) {
     ok(`${file}: customer navigation keeps the order-bound proof`, pattern.test(read(file)));
   }
-  const pending = read('src/components/admin/PendingOrderCard.tsx');
+  const pending = read('src/components/admin/orders/PendingOrderCard.tsx');
   ok('admin "send payment link": uses the secure portal short link, not /checkout/<uuid>', /createShortPortalLink\(order\.id, supabase, order\.event_date\)/.test(pending) && !/\/checkout\/\$\{/.test(pending));
   ok('admin "send payment link": never sends an empty or unissued link', /secure payment link is not ready yet/.test(pending));
 

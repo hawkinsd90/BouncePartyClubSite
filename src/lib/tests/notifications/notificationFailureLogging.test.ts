@@ -345,7 +345,7 @@ function evalLiteral(literal: string, scope: Record<string, any>): any {
   for (const f of walk('src')) allSites.push(...findInserts(f.replace(/\\/g, '/'), fs.readFileSync(f, 'utf8').replace(/\r\n/g, '\n')));
   eq('repo has exactly 6 direct notification_failures inserts', allSites.length, 6);
   eq('inserts per file', Object.fromEntries(Object.entries(allSites.reduce((m: Record<string, number>, s) => { m[s.file] = (m[s.file] || 0) + 1; return m; }, {})).sort()), {
-    'src/components/admin/PendingOrderCard.tsx': 1, 'src/components/admin/TaskDetailModal.tsx': 2,
+    'src/components/admin/orders/PendingOrderCard.tsx': 1, 'src/components/admin/tasks/TaskDetailModal.tsx': 2,
     'src/lib/orders/orderApprovalService.ts': 2, 'src/lib/notifications/orderNotificationService.ts': 1,
   });
   ok('no insert casts the table name to any', allSites.every(s => !s.asAny));
@@ -356,7 +356,7 @@ function evalLiteral(literal: string, scope: Record<string, any>): any {
   // ---------------------------------------------------------------------------
   // TaskDetailModal (source characterization with stub values)
   // ---------------------------------------------------------------------------
-  const td = readSrc('components/admin/TaskDetailModal.tsx');
+  const td = readSrc('components/admin/tasks/TaskDetailModal.tsx');
   const tdSites = findInserts('TaskDetailModal.tsx', td);
   const task = { orderId: 'ord-7', customerPhone: '+15555550177' };
   eq('TaskDetailModal En Route row', evalLiteral(tdSites[0].argText, { task, enRouteDecision: { failureRecord: { error: 'link boom' } } }), {
@@ -378,7 +378,7 @@ function evalLiteral(literal: string, scope: Record<string, any>): any {
   // ---------------------------------------------------------------------------
   // PendingOrderCard
   // ---------------------------------------------------------------------------
-  const poc = readSrc('components/admin/PendingOrderCard.tsx');
+  const poc = readSrc('components/admin/orders/PendingOrderCard.tsx');
   const pocSite = findInserts('PendingOrderCard.tsx', poc)[0];
   eq('PendingOrderCard row', evalLiteral(pocSite.argText, { order: { id: 'ord-3', customers: { phone: '+15555550133' } }, decision: { failureRecord: { error: 'link boom' } } }), {
     notification_type: 'sms', intended_recipient: '+15555550133', subject: 'Lot pictures request not sent',
@@ -398,7 +398,7 @@ function evalLiteral(literal: string, scope: Record<string, any>): any {
   // ---------------------------------------------------------------------------
   // Reader compatibility and untouched writers
   // ---------------------------------------------------------------------------
-  const alertSrc = readSrc('components/admin/NotificationFailuresAlert.tsx');
+  const alertSrc = readSrc('components/admin/settings/NotificationFailuresAlert.tsx');
   for (const field of ['notification_type', 'intended_recipient', 'subject', 'message_preview', 'error_message', 'created_at']) {
     ok(`reader still reads ${field}`, alertSrc.includes(`failure.${field}`));
   }

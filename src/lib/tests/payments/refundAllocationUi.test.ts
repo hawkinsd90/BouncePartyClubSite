@@ -28,7 +28,7 @@ function loadTsx(file: string): any {
   new Function('require', 'module', 'exports', out)(req, mod, mod.exports);
   return mod.exports;
 }
-const { RefundAllocationView } = loadTsx('src/components/admin/refunds/RefundAllocationPanel.tsx');
+const { RefundAllocationView } = loadTsx('src/components/admin/orders/refunds/RefundAllocationPanel.tsx');
 const noop = () => {};
 const NO_HANDLERS = { onInput: noop, onMax: noop, onReason: noop, onReview: noop, onBack: noop, onConfirm: noop, onResume: noop, onRetryLoad: noop, onDismiss: noop };
 
@@ -508,7 +508,7 @@ const overviewOf = (payments: OverviewPayment[], extra: Partial<RefundOverview> 
     const screens: Array<[string, string]> = [
       ['Single Order -> Payments', 'src/components/order-detail/PaymentsTab.tsx'],
       ['Pending Order -> Payment Management', 'src/components/pending-order/PaymentManagementSection.tsx'],
-      ['Calendar -> Task Detail', 'src/components/admin/task-detail/TaskDetailCustomerInfo.tsx'],
+      ['Calendar -> Task Detail', 'src/components/admin/tasks/detail/TaskDetailCustomerInfo.tsx'],
     ];
     for (const [label, file] of screens) {
       const src = read(file).replace(/\/\/.*$/gm, '');
@@ -516,9 +516,9 @@ const overviewOf = (payments: OverviewPayment[], extra: Partial<RefundOverview> 
       ok(`wiring: ${label} has no refund arithmetic, request or key handling of its own`, !/parseFloat|stripe-refund|refundAttemptFor|classifyRefundResponse|operationKey|amountCents/.test(src));
       ok(`wiring: ${label} shows the panel only on an explicit action or a cancelled order, and passes its own refresh`, /onChanged=\{|onChanged=/.test(src));
     }
-    const modal = read('src/components/admin/TaskDetailModal.tsx').replace(/\/\/.*$/gm, '');
+    const modal = read('src/components/admin/tasks/TaskDetailModal.tsx').replace(/\/\/.*$/gm, '');
     ok('wiring: the calendar task modal no longer owns a refund handler; it only reloads the task', !/handleRefund|refundAttempt|stripe-refund|classifyRefundResponse/.test(modal) && /TaskDetailCustomerInfo task=\{task\} onRefundChanged=\{onUpdate\}/.test(modal));
-    const panel = read('src/components/admin/refunds/RefundAllocationPanel.tsx');
+    const panel = read('src/components/admin/orders/refunds/RefundAllocationPanel.tsx');
     ok('wiring: the shared panel never calls the browser client or sends from a load', !/from '.*lib\/supabase'/.test(panel) && /void c\.load\(\)/.test(panel) && !/useEffect\([^)]*confirm|useEffect\([^)]*resume/.test(panel));
     ok('wiring: payments are never marked or the refund function called from the three screens directly', !/from\('payments'\)\.(update|insert)|from\('order_refunds'\)\.(update|insert)/.test(read('src/components/order-detail/PaymentsTab.tsx') + read('src/components/pending-order/PaymentManagementSection.tsx')));
     const ctlSrc = read('src/lib/payments/refundController.ts');

@@ -6,9 +6,9 @@ import type {
   ResolverInput,
   ResolverInputLine,
 } from '../../lib/eventEssentials/eventEssentialsPricingTypes';
-import { buildGeneratorResolverCatalog } from '../admin/order-detail-modal/generatorResolverCatalog';
+import { buildGeneratorResolverCatalog } from '../admin/orders/detail-modal/generatorResolverCatalog';
 import { buildBundleSnapshot } from '../../lib/eventEssentials/unifiedCart';
-import type { BundleComponentSnapshot } from '../admin/OrderDetailModal';
+import type { BundleComponentSnapshot } from '../admin/orders/OrderDetailModal';
 import {
   loadAdminResolverCatalogRows,
   checkEventEssentialsAvailability,

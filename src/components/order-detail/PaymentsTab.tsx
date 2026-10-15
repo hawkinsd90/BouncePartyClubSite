@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { RotateCcw } from 'lucide-react';
 import { formatCurrency } from '../../lib/pricing';
 import { storedOrderTotalCents } from '../../lib/pricing/orderMoney';
-import { RefundAllocationPanel } from '../admin/refunds/RefundAllocationPanel';
+import { RefundAllocationPanel } from '../admin/orders/refunds/RefundAllocationPanel';
 
 interface PaymentsTabProps {
   orderId: string;

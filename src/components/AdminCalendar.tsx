@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { TaskDetailModal } from './admin/TaskDetailModal';
+import { TaskDetailModal } from './admin/tasks/TaskDetailModal';
 import { CalendarHeader } from './calendar/CalendarHeader';
 import { CalendarGrid } from './calendar/CalendarGrid';
 import { DayViewModal } from './calendar/DayViewModal';

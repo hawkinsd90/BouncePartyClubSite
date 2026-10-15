@@ -13,7 +13,7 @@ const fs = require('fs');
 
 import { eventAddressLine2, normalizeUnit, addressWithOrderUnit, formatStreetWithUnit } from '../../booking/eventAddress';
 import { projectOrder } from '../../../../supabase/functions/_shared/portal-projection';
-import { buildInitialEditedOrder, hasOrderDetailChanges } from '../../../components/admin/order-detail-modal/editedOrderModel';
+import { buildInitialEditedOrder, hasOrderDetailChanges } from '../../../components/admin/orders/detail-modal/editedOrderModel';
 import { hasAddressChanged, planOrderChanges } from '../../orders/orderChangePlanning';
 
 let passed = 0;
@@ -136,7 +136,7 @@ eq('helper: addressWithOrderUnit with no address is null', addressWithOrderUnit(
   ok('print: the printed address uses the order unit', /line2: eventAddressLine2\(order\)/.test(read('src/lib/documents/printableDocument.ts')));
   ok('customer dashboard: the order card uses the order unit', /eventAddressLine2\(order\)/.test(read('src/components/dashboard/OrderCard.tsx')) && !/order\.addresses\.line2/.test(read('src/components/dashboard/OrderCard.tsx')));
   ok('admin pending order: the info section uses the order unit', /eventAddressLine2\(order\)/.test(read('src/components/pending-order/OrderInfoSection.tsx')) && !/order\.addresses\?\.line2/.test(read('src/components/pending-order/OrderInfoSection.tsx')));
-  ok('the planner and the edit model compare against the order unit, not the shared row', !/order\.addresses\?\.line2 \|\| ''/.test(read('src/lib/orders/orderChangePlanning.ts')) && !/order\.addresses\?\.line2 \|\| ''/.test(read('src/components/admin/order-detail-modal/editedOrderModel.ts')));
+  ok('the planner and the edit model compare against the order unit, not the shared row', !/order\.addresses\?\.line2 \|\| ''/.test(read('src/lib/orders/orderChangePlanning.ts')) && !/order\.addresses\?\.line2 \|\| ''/.test(read('src/components/admin/orders/detail-modal/editedOrderModel.ts')));
   ok('the server projection overrides line2 only when the order has its own string value', /typeof order\.event_address_line2 === "string"/.test(read('supabase/functions/_shared/portal-projection.ts')));
 }
 

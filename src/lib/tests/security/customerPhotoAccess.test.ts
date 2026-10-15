@@ -474,7 +474,7 @@ const UUID_PATH = (order: string, ext = 'jpg') => new RegExp(`^${order}/[0-9a-f]
     ok('scan: the Admin photo library asks Storage for signed URLs for both buckets', /createSignedUrls\(paths, 3600\)/.test(admin) && /signPaths\('lot-pictures'/.test(admin) && /signPaths\('order-pictures'/.test(admin) && !/getPublicUrl/.test(admin));
     const lotDisplay = text.get('src/components/pending-order/LotPicturesDisplay.tsx')!;
     ok('scan: the Admin order lot-picture view (including saved address photos) uses signed URLs', /from\('lot-pictures'\)\.createSignedUrls\(wanted, 3600\)/.test(lotDisplay) && !/getPublicUrl/.test(lotDisplay));
-    ok('scan: delivery / damage evidence no longer targets public-assets (private evidence flow; see the order evidence suite)', !/public-assets/.test(text.get('src/components/admin/task-detail/taskPhotoUpload.ts')!));
+    ok('scan: delivery / damage evidence no longer targets public-assets (private evidence flow; see the order evidence suite)', !/public-assets/.test(text.get('src/components/admin/tasks/detail/taskPhotoUpload.ts')!));
   }
 
   // ---- the action list and payload validator ------------------------------------------------------------------------------------------------------------------------

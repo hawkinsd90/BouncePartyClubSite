@@ -28,7 +28,7 @@ const orderDetailsSource = readSource('src/components/order-detail/OrderDetailsT
 ok('OrderDetailsTab has no product_bundle_pricing', !orderDetailsSource.includes('product_bundle_pricing'));
 
 // 3. OrderDetailModal must not reference product_bundle_pricing
-const modalSource = readSource('src/components/admin/OrderDetailModal.tsx');
+const modalSource = readSource('src/components/admin/orders/OrderDetailModal.tsx');
 ok('OrderDetailModal has no product_bundle_pricing', !modalSource.includes('product_bundle_pricing'));
 
 // 4. No AddGeneratorSection reference remains

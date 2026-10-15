@@ -15,7 +15,7 @@ import {
   ChevronRight,
 } from 'lucide-react';
 import { AddressAutocomplete } from '../components/order/AddressAutocomplete';
-import { HeroCarousel } from '../components/admin/HeroCarousel';
+import { HeroCarousel } from '../components/admin/content/HeroCarousel';
 import { SafeStorage } from '../lib/core/safeStorage';
 import { useAuth } from '../contexts/AuthContext';
 import { useCustomerProfile } from '../contexts/CustomerProfileContext';

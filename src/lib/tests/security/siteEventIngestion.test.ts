@@ -458,7 +458,7 @@ const GOOD = { event_name: 'page_view', session_id: SESSION, page_path: '/' };
     ok('browser: the browser sends only the six known fields', ['event_name', 'session_id', 'unit_id', 'order_id', 'page_path', 'metadata'].every((k) => sent.includes(k)) && !/created_at|user_id|referrer|email|phone/.test(sent));
     ok('browser: Admin and Master sessions are still not tracked', /isAdminOrMaster\(\)/.test(browser) && /if \(adminOrMaster\) return;/.test(browser));
     ok('browser: failures never break the page', /Tracking failures must never break the user experience/.test(browser));
-    const analytics = read('src/components/admin/SiteAnalytics.tsx');
+    const analytics = read('src/components/admin/analytics/SiteAnalytics.tsx');
     ok('admin: the Site Analytics screen still only reads site_events', /from\('site_events'\)\.select/.test(analytics) && !/from\('site_events'\)\.insert/.test(analytics));
   }
 

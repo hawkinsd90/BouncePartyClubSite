@@ -980,7 +980,7 @@ const newKey = (label = 'op') => `${label}-${TAG}-${String(++keyCounter).padStar
     ok('wiring: the webhook never uses the cumulative charge.amount_refunded or the embedded charge.refunds list', !/amount_refunded|charge\.refunds/.test(handlersSrc.replace(/\/\/.*$/gm, '')));
     ok('wiring: the webhook no longer inserts refund or payment rows itself', !/from\("order_refunds"\)|from\("payments"\)\s*\.insert/.test(handlersSrc));
     ok('wiring: the webhook lists the refunds of a charge one by one', /stripe\.refunds\.list\(\{ charge: charge\.id/.test(handlersSrc));
-    for (const [file, label] of [['src/components/order-detail/PaymentsTab.tsx', 'Payments tab'], ['src/components/pending-order/PaymentManagementSection.tsx', 'pending-order payment section'], ['src/components/admin/task-detail/TaskDetailCustomerInfo.tsx', 'task modal']] as const) {
+    for (const [file, label] of [['src/components/order-detail/PaymentsTab.tsx', 'Payments tab'], ['src/components/pending-order/PaymentManagementSection.tsx', 'pending-order payment section'], ['src/components/admin/tasks/detail/TaskDetailCustomerInfo.tsx', 'task modal']] as const) {
       const src = read(file);
       ok(`wiring: the ${label} sends refunds only through the shared refund panel (no refund request, key or amount of its own)`, /<RefundAllocationPanel/.test(src) && !/stripe-refund|operationKey|refundAttemptFor|parseFloat/.test(src));
     }

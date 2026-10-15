@@ -20,11 +20,11 @@ const OL = 'supabase/functions/order-lifecycle/index.ts';
 const OAS = 'src/lib/orders/orderApprovalService.ts';
 const UI_PAYMENTS_TAB = 'src/components/order-detail/PaymentsTab.tsx';
 const UI_PAY_SECTION = 'src/components/pending-order/PaymentManagementSection.tsx';
-const UI_TASK_MODAL = 'src/components/admin/TaskDetailModal.tsx';
+const UI_TASK_MODAL = 'src/components/admin/tasks/TaskDetailModal.tsx';
 const KEYFILE = 'src/lib/payments/refundOperationKey.ts';
 const REQ = 'src/lib/payments/refundAllocationRequest.ts';
 const CTL = 'src/lib/payments/refundController.ts';
-const PAN = 'src/components/admin/refunds/RefundAllocationPanel.tsx';
+const PAN = 'src/components/admin/orders/refunds/RefundAllocationPanel.tsx';
 const MIG8 = 'supabase/migrations/20261025120000_refund_overview_for_admin.sql';
 
 // exact, unique anchor

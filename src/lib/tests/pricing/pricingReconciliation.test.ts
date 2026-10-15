@@ -527,7 +527,7 @@ const moneyKeys = ['subtotal_cents', 'travel_fee_cents', 'surface_fee_cents', 's
   eq('no browser code writes an order pricing column', leaking, []);
   ok('the editor save and the invoice creation go through the server function', /callStaffOrderSave(<[^>]*>)?\('save_changes'/.test(read('src/lib/orders/staffOrderSaveRequest.ts')) && /callStaffOrderSave<[^>]*>\('create_invoice'/.test(read('src/lib/payments/invoiceService.ts')));
   ok('the request builders never read a browser-calculated price', !/subtotal_cents|tax_cents|total_cents|deposit_due_cents|balance_due_cents/.test(read('src/lib/payments/invoiceService.ts').replace(/pricing_context[^\n]*/g, '')) && !/(subtotal|tax|total|deposit_due|balance_due)_cents\s*:/.test(read('src/lib/orders/staffOrderSaveRequest.ts')));
-  for (const f of ['src/components/admin/InvoiceBuilder.tsx', 'src/components/crew/CrewInvoiceBuilder.tsx']) {
+  for (const f of ['src/components/admin/invoices/InvoiceBuilder.tsx', 'src/components/crew/CrewInvoiceBuilder.tsx']) {
     const src = read(f);
     const start = src.indexOf('generateInvoice(');
     const end = src.slice(start).search(/\n\s+customer\n/);
@@ -629,7 +629,7 @@ const moneyKeys = ['subtotal_cents', 'travel_fee_cents', 'surface_fee_cents', 's
   eq('AUTHORITY SCAN: no browser UPDATE of orders names a pricing, travel, waiver or payment-ledger column', ops('update').filter((w) => w.keys.some((k) => MONEY_COLUMNS.includes(k) || k === '<spread>' || k === '<unanalysable>')), []);
   ok('AUTHORITY SCAN: the update scan found the known non-financial workflow writes (status / workflow / lot pictures / cancellation)', ops('update').length >= 6 && ops('update').every((w) => w.keys.length > 0));
   eq('AUTHORITY SCAN: no browser file calls the server-only save functions directly', browserFiles.filter((f) => /rpc\(\s*['"`](apply_staff_order_save|create_staff_invoice_order)/.test(fs.readFileSync(f, 'utf8'))), []);
-  ok('AUTHORITY SCAN: the order modal and the summary loader no longer persist computed miles', !/\.update\(\{ travel_total_miles/.test(fs.readFileSync('src/components/admin/OrderDetailModal.tsx', 'utf8')) && !/\.update\(\{ travel_total_miles/.test(fs.readFileSync('src/lib/orders/orderSummaryLoader.ts', 'utf8')));
+  ok('AUTHORITY SCAN: the order modal and the summary loader no longer persist computed miles', !/\.update\(\{ travel_total_miles/.test(fs.readFileSync('src/components/admin/orders/OrderDetailModal.tsx', 'utf8')) && !/\.update\(\{ travel_total_miles/.test(fs.readFileSync('src/lib/orders/orderSummaryLoader.ts', 'utf8')));
 
   // The browser does not send a distance or a capability, and the server never reads one
   const server = fs.readFileSync('supabase/functions/_shared/staff-order-save.ts', 'utf8');
