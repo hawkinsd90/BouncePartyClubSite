@@ -717,6 +717,8 @@ Assessment: an expired password cannot authenticate, so no live access remains; 
 
 ## V. Case 43 (`20260407211122`): exclusion that stays truthful
 
+> **Status (Stage C3): option E1 executed.** The file was withdrawn from the working tree (uncommitted). See section Z.
+
 Facts [V]: effect absent on Prod and Dev; no history row anywhere; Prod's existing anonymous INSERT policy on `order_changelog` allows only `customer_approval`/`status_change`; `20261012` drops every `order_changelog` policy and creates admin-only ones; customer cancellations go through the `customer-cancel-order` Edge Function.
 
 | Option | Mechanism | Truthfulness | Test | Rollback |
@@ -811,3 +813,31 @@ PostgREST exposure, Realtime delivery, Storage API behaviour and Auth hooks (stu
 - **Dev:** unchanged apart from the already-disclosed `cli_login_postgres` role (now expired, 0 sessions, 0 owned objects, still present). History 58 rows. Containment and the 14 stubs untouched; imported data untouched.
 - **Edge Functions:** read-only `list`/`get` through the scan subagent; no deployment.
 - **No Docker, no CLI command against either project, no password handling in this revision.**
+
+## Z. Stage C3 outcome: Case 43 withdrawn before application
+
+- **Decision:** E1, withdraw before application. File `supabase/migrations/20260407211122_add_anon_insert_policy_order_changelog_cancellation.sql` removed from the working tree (not committed). Original kept at `audit/evidence/withdrawn-migrations/` (SHA-256 `9e09c0a24aec4b6fa4e6403b64f8c89b4f2488af977c6055d3916ef16b7c0a85`, git blob `e2e898e3c7cd8f816fc805adfcf48ce76e52f4b8`, last touched by commit `f5204b7`).
+- **Counts:** repository migration files 387 -> 386 (`20260407203226` stays; `20260407211122` gone). Counts elsewhere in this document and the Stage B CSVs describe the 387-file state at HEAD `831ea94` and are a point-in-time record, not updated. Stage B classification `Prod pending 110` and `Dev pending 330` each lose this one version (109 and 329 after withdrawal).
+- **History:** no row for this version exists in Prod (277 rows) or Dev (58 rows), re-read from the Stage B captures. Nothing was repaired or recorded.
+- **Replay:** the pre-October replay shows the anon policy `Anon customers can insert cancellation changelog entries`; `20261012` drops it. After withdrawal it is never created; the final `order_changelog` policies are the two staff-only ones. Replay outcomes are otherwise unchanged (details in `audit/evidence/c3-report.md`).
+- **Still disclosed:** the Production customer-cancellation audit gap (0 of 18 customer-initiated cancellations have a changelog row) is unchanged and depends on deploying the replacement `customer-cancel-order` (service-role client, no caller header) with or before `20261012`.
+
+## AA. Stage C4 outcome: three October migration headers corrected (comments only)
+
+Executable-SQL fingerprint = SHA-256 of the file with comments removed by a SQL-aware scanner (`audit/evidence/tools/c4_sql_fingerprint.py`; string literals, quoted identifiers and dollar-quoted bodies are preserved, whitespace collapsed). Identical before and after for all three.
+
+| Version | Corrected statement | Recovered migration cited | Full SHA-256 before -> after | Executable-SQL SHA-256 (unchanged) |
+|---|---|---|---|---|
+| `20261010110000` | "no earlier migration creates it" (`orders.customer_approved_at`) | `20251126190624` | `18a609d5...3827` -> `b977c47f...` | `4708d96a...b1e5` |
+| `20261013120000` | "`billing_addresses` ... no tracked migration" | `20260501173826` | `b21804fa...09e5` -> `a68824b6...` | `cc3f40a3...f236` |
+| `20261016120000` | "columns the repository migrations never create" (`customer_profiles.first_name/last_name`), twice | `20251229223230` | `7ac0c75e...179f` -> `2ca02e10...` | `b75ce69b...3b7a` |
+
+Full values and the verification are in `audit/evidence/c4-report.md`. The C2 block order and the C3 withdrawal are intact.
+
+## AB. Stage C5 outcome: pending-set calculator
+
+`scripts/dev/migration-pending-set.cjs` computes `pending = local repository versions - recorded history versions` (exact match) from the repository filenames and the Stage B history captures, failing safely on malformed or duplicate versions. Current result (386 files): Production 277 recorded, **109 pending**; Development 58 recorded, **329 pending**; no findings. Cases 41, 42 and the Development alias `20260814002658` are annotations that keep their versions pending; Case 43 is absent everywhere. A missing history row is not proof that SQL effects are missing. Details and the exact lists: `audit/evidence/c5-report.md`, `audit/evidence/c5-pending-versions.md`.
+
+## AC. Stage D1 outcome: R-1 clean rebuild rehearsal (local stub)
+
+386 files (ordered-list SHA-256 `8ed051c6...640d6c`). R-1A unadjusted strict: fails at `20260324175546` (role CHECK), rolled back, expected. R-1B adjusted strict (S1 and S2 only): 385 executed with zero errors, 1 skipped (`pg_net`); 37 independent catalog assertions pass, 7 Supabase-specific behaviours unverifiable. Observation for D2: 24 public tables hold an inert anon SELECT grant. Not evidence for hosted Supabase. Details: `audit/evidence/d1-report.md`.
