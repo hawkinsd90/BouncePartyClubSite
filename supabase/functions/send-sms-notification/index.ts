@@ -2,6 +2,7 @@ import "jsr:@supabase/functions-js@2/edge-runtime.d.ts";
 import { createClient, SupabaseClient } from "npm:@supabase/supabase-js@2.57.4";
 import { formatOrderId } from "../_shared/format-order-id.ts";
 import { authorizeRelayCaller, checkSmsPayload, relayDenied } from "../_shared/auth.ts";
+import { decideOutbound, redirectedSmsBody } from "../_shared/notifications/outbound-guard.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -298,13 +299,25 @@ Deno.serve(async (req: Request) => {
       );
     }
 
+    // Environment guard (after authorization, validation and template resolution, immediately before the provider): Production
+    // texts the real recipient, Development only ever reaches the approved test phone, any other environment sends nothing.
+    // The conversation log below keeps the ORIGINAL recipient and message, so order threads and troubleshooting still read normally.
+    const delivery = decideOutbound("sms", supabaseUrl, toPhone);
+    if (delivery.action === "block") {
+      console.error("[send-sms-notification] SMS not sent:", delivery.reason);
+      return new Response(
+        JSON.stringify({ success: false, error: "SMS not sent: this environment is not approved to deliver text messages" }),
+        { status: 503, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
     const auth = btoa(`${twilioConfig.accountSid}:${twilioConfig.authToken}`);
     const twilioUrl = `https://api.twilio.com/2010-04-01/Accounts/${twilioConfig.accountSid}/Messages.json`;
 
     const formData = new URLSearchParams();
-    formData.append("To", toPhone);
+    formData.append("To", delivery.recipient);
     formData.append("From", twilioConfig.fromNumber);
-    formData.append("Body", messageBody);
+    formData.append("Body", redirectedSmsBody(delivery, messageBody));
 
     if (requestBody.mediaUrls && requestBody.mediaUrls.length > 0) {
       requestBody.mediaUrls.forEach((url) => {

@@ -17,6 +17,7 @@ const ts = require('typescript');
 import * as authHelpers from '../../../../supabase/functions/_shared/auth';
 import * as portalActions from '../../../../supabase/functions/_shared/portal/portal-actions';
 import * as customerNotice from '../../../../supabase/functions/_shared/customer-notice';
+import * as outboundGuard from '../../../../supabase/functions/_shared/notifications/outbound-guard';
 import { confirmationSettled } from '../../booking/confirmationRetry';
 
 let passed = 0;
@@ -200,7 +201,7 @@ function loadFn(fnDir: string, w: World, extra: Record<string, unknown> = {}): (
   const src: string = read(`supabase/functions/${fnDir}/index.ts`);
   const js: string = ts.transpileModule(src.replace(/^import[^;]*;/gm, ''), { compilerOptions: { target: ts.ScriptTarget.ES2020, module: ts.ModuleKind.CommonJS } }).outputText;
   let captured: any = null;
-  const env: Record<string, string> = { SUPABASE_URL: 'https://fake.supabase.co', SUPABASE_SERVICE_ROLE_KEY: SERVICE_KEY, SUPABASE_ANON_KEY: ANON_KEY };
+  const env: Record<string, string> = { SUPABASE_URL: `https://${outboundGuard.PRODUCTION_PROJECT_REF}.supabase.co`, SUPABASE_SERVICE_ROLE_KEY: SERVICE_KEY, SUPABASE_ANON_KEY: ANON_KEY };
   const quiet = { log: () => {}, info: () => {}, debug: () => {}, warn: () => {}, error: () => {} };
   const scope: Record<string, unknown> = {
     Deno: { env: { get: (k: string) => env[k] }, serve: (fn: any) => { captured = fn; } },
@@ -233,6 +234,7 @@ function loadFn(fnDir: string, w: World, extra: Record<string, unknown> = {}): (
     ...authHelpers,
     ...portalActions,
     ...customerNotice,
+    ...outboundGuard,
     ...extra,
   };
   const imported = new Set<string>();

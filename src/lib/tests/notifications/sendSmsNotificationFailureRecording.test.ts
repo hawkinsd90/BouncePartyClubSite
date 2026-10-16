@@ -16,6 +16,7 @@ const fs = require('fs');
 const ts = require('typescript');
 
 import { authorizeRelayCaller, checkSmsPayload, relayDenied } from '../../../../supabase/functions/_shared/auth';
+import { decideOutbound, redirectedSmsBody, PRODUCTION_PROJECT_REF } from '../../../../supabase/functions/_shared/notifications/outbound-guard';
 
 let passed = 0;
 let failed = 0;
@@ -52,7 +53,7 @@ function loadHandler(env: Record<string, string>, createClientFake: (url: string
   const js = ts.transpileModule(stripped, { compilerOptions: { target: ts.ScriptTarget.ES2020, module: ts.ModuleKind.ESNext } }).outputText;
   let handler: ((req: Request) => Promise<Response>) | null = null;
   const Deno = { serve: (fn: any) => { handler = fn; }, env: { get: (k: string) => env[k] } };
-  new Function('Deno', 'createClient', 'formatOrderId', 'authorizeRelayCaller', 'checkSmsPayload', 'relayDenied', 'fetch', js)(Deno, createClientFake, (id: string) => `#${String(id).slice(0, 8)}`, authorizeRelayCaller, checkSmsPayload, relayDenied, fetchFake);
+  new Function('Deno', 'createClient', 'formatOrderId', 'authorizeRelayCaller', 'checkSmsPayload', 'relayDenied', 'decideOutbound', 'redirectedSmsBody', 'fetch', js)(Deno, createClientFake, (id: string) => `#${String(id).slice(0, 8)}`, authorizeRelayCaller, checkSmsPayload, relayDenied, decideOutbound, redirectedSmsBody, fetchFake);
   if (!handler) throw new Error('handler not registered');
   return handler as (req: Request) => Promise<Response>;
 }
@@ -143,7 +144,7 @@ async function run(sc: Scenario) {
     if (sc.fallbackFetch === 'throws') throw new TypeError('fallback endpoint down');
     return { ok: true, status: 200, json: async () => ({}) };
   };
-  const handler = loadHandler({ SUPABASE_URL: 'https://x.supabase.test', SUPABASE_SERVICE_ROLE_KEY: 'svc' }, () => supabaseFake, fetchFake);
+  const handler = loadHandler({ SUPABASE_URL: `https://${PRODUCTION_PROJECT_REF}.supabase.co`, SUPABASE_SERVICE_ROLE_KEY: 'svc' }, () => supabaseFake, fetchFake);
   const realErr = console.error; const realWarn = console.warn; const realLog = console.log;
   const consoleErrors: any[][] = [];
   console.error = (...a: any[]) => { consoleErrors.push(a); }; console.warn = () => {}; console.log = () => {};
@@ -192,7 +193,7 @@ const templateData = { template: { message_template: 'Thanks {name}' }, order: {
     // and the outer catch each sent one).
     eq('non-OK: EXACTLY ONE admin fallback email for one failed SMS attempt', r.fallbackCalls.length, 1);
     eq('non-OK: failure RPC count stays one alongside the single fallback', [r.failureCalls.length, r.fallbackCalls.length], [1, 1]);
-    eq('non-OK: the fallback email request', [r.fallbackCalls[0].url, r.fallbackCalls[0].body.to, r.fallbackCalls[0].body.subject, r.fallbackCalls[0].body.skipFallback], ['https://x.supabase.test/functions/v1/send-email', 'admin@example.test', '[SMS SYSTEM FAILURE] Action Required', true]);
+    eq('non-OK: the fallback email request', [r.fallbackCalls[0].url, r.fallbackCalls[0].body.to, r.fallbackCalls[0].body.subject, r.fallbackCalls[0].body.skipFallback], [`https://${PRODUCTION_PROJECT_REF}.supabase.co/functions/v1/send-email`, 'admin@example.test', '[SMS SYSTEM FAILURE] Action Required', true]);
     eq('non-OK: the fallback names the normalized recipient and the Twilio error', [r.fallbackCalls[0].body.html.includes('+15555550123'), r.fallbackCalls[0].body.html.includes("Twilio API error (21211): Invalid 'To' Phone Number")], [true, true]);
   }
   {

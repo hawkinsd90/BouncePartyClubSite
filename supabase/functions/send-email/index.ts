@@ -1,5 +1,6 @@
 import { createClient, SupabaseClient } from 'npm:@supabase/supabase-js@2.57.4';
 import { authorizeRelayCaller, checkEmailPayload, relayDenied } from '../_shared/auth.ts';
+import { decideOutbound, redirectedEmailSubject, withEmailBanner } from '../_shared/notifications/outbound-guard.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -277,10 +278,27 @@ Deno.serve(async (req: Request) => {
       );
     }
 
+    // Environment guard (after authorization and validation, immediately before the provider): Production sends to the real
+    // recipient, Development only ever reaches the approved test inboxes, any other environment sends nothing.
+    const delivery = decideOutbound('email', supabaseUrl, emailTo);
+    if (delivery.action === 'block') {
+      console.error('[send-email] Email not sent:', delivery.reason);
+      return new Response(
+        JSON.stringify({ error: 'Email not sent: this environment is not approved to deliver email' }),
+        {
+          status: 503,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        }
+      );
+    }
+    const bannered = withEmailBanner(delivery, emailHtml, emailText);
+    emailHtml = bannered.html;
+    emailText = bannered.text;
+
     const emailPayload: Record<string, unknown> = {
       from: `${businessName} <${VERIFIED_SENDER}>`,
-      to: [emailTo],
-      subject: emailSubject,
+      to: [delivery.recipient],
+      subject: redirectedEmailSubject(delivery, emailSubject),
       ...((replyTo && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(replyTo)) ? { reply_to: replyTo } : (businessEmail ? { reply_to: businessEmail } : {})),
     };
 

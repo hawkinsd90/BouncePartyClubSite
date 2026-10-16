@@ -29,3 +29,7 @@ PR_NOTES_unpushed_commits.md
 .netlify
 lint-warnings.txt
 docs/typecheck-lint-cleanup-plan.md
+
+# Production -> Development order data refresh: run folders hold real customer data and local connection strings
+.dev-refresh/
+.env.dev-refresh
