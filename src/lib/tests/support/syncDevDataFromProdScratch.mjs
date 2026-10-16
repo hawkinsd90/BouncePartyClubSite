@@ -12,7 +12,7 @@ import crypto from 'node:crypto';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { targetFromUrl } from '../../../../scripts/dev-refresh/lib/psql.mjs';
+import { targetFromUrl } from '../../../../scripts/SyncDevDataFromProd/lib/psql.mjs';
 
 const HOST = process.env.CORE_DB_HOST || '127.0.0.1';
 const PORT = process.env.CORE_DB_PORT || '54329';

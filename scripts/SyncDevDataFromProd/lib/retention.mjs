@@ -15,7 +15,7 @@ import path from 'node:path';
 import { EXPORT_MAX_AGE_HOURS } from './config.mjs';
 
 export const RETENTION = { reportDays: 30, backupDays: 30, failedBackupDays: 7 };
-const RUNS_DIRNAME = path.join('.dev-refresh', 'runs');
+const RUNS_DIRNAME = path.join('.SyncDevDataFromProd', 'runs');
 const DAY = 86400000;
 
 function sizeOf(p) {

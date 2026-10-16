@@ -5,28 +5,34 @@ on a schedule, and nothing is deployed: it is a command-line tool that uses the 
 repository's database tests.
 
 ```
-npm run dev-refresh -- doctor                       check setup, identities, Stripe mode
-npm run dev-refresh -- preview                      DEFAULT. Reads Production, rehearses the whole replacement, changes nothing that lasts
-npm run dev-refresh -- apply   --run <id> --confirm "<phrase printed by preview>" --attest relays-guarded,auth-email-contained,stripe-edge-secrets-test
-npm run dev-refresh -- restore --run <id> --confirm "<phrase printed by apply>" [--accept-drift "<phrase>"]
-npm run dev-refresh -- verify  --run <id>           independent post-checks of an applied run
-npm run dev-refresh -- runs                         list runs
-npm run dev-refresh -- protect                      restrict .env.dev-refresh and the run folders to your account
-npm run dev-refresh -- cleanup [--include-backups] [--execute --confirm "<phrase>"]   list (default) or delete local run data
-npm run dev-refresh -- audit-functions --project dev --file functions.json   compare deployed Edge Functions with the reviewed ones
-npm run dev-refresh -- media-plan --run <id>        which waivers/photos of the imported orders are missing in Development (read-only)
-npm run dev-refresh -- media-copy --run <id> [--execute --confirm "<phrase>"]   additive copy of missing evidence files
+npm run syncDevDataFromProd -- doctor                       check setup, identities, Stripe mode
+npm run syncDevDataFromProd -- preview                      DEFAULT. Reads Production, rehearses the whole replacement, changes nothing that lasts
+npm run syncDevDataFromProd -- apply   --run <id> --confirm "<phrase printed by preview>" --attest relays-guarded,auth-email-contained,stripe-edge-secrets-test
+npm run syncDevDataFromProd -- restore --run <id> --confirm "<phrase printed by apply>" [--accept-drift "<phrase>"]
+npm run syncDevDataFromProd -- verify  --run <id>           independent post-checks of an applied run
+npm run syncDevDataFromProd -- runs                         list runs
+npm run syncDevDataFromProd -- protect                      restrict .env.SyncDevDataFromProd and the run folders to your account
+npm run syncDevDataFromProd -- cleanup [--include-backups] [--execute --confirm "<phrase>"]   list (default) or delete local run data
+npm run syncDevDataFromProd -- audit-functions --project dev --file functions.json   compare deployed Edge Functions with the reviewed ones
+npm run syncDevDataFromProd -- media-plan --run <id>        which waivers/photos of the imported orders are missing in Development (read-only)
+npm run syncDevDataFromProd -- media-copy --run <id> [--execute --confirm "<phrase>"]   additive copy of missing evidence files
 ```
 
-The same workflow is available as the `/refresh-dev-data` Claude Code skill (`.claude/skills/refresh-dev-data`).
+**Naming.** This utility was previously called `dev-refresh`. It is now `SyncDevDataFromProd` (folder `scripts/SyncDevDataFromProd/`, workspace
+`.SyncDevDataFromProd/`, credentials `.env.SyncDevDataFromProd`, npm command `syncDevDataFromProd`, test group `syncDevDataFromProd`). Two kinds of
+identifiers were intentionally NOT renamed: the credential variable names inside the credentials file (`DEV_REFRESH_PROD_DB_URL`,
+`DEV_REFRESH_DEV_DB_URL`, `DEV_REFRESH_*`), so an existing credentials file keeps working, and the local scratch-test names (`devrefresh_*` databases,
+`DEVREFRESH_*` switches). Synchronization is one-way only: Production is read, Development is written.
+
+The same workflow is available as the `/SyncDevDataFromProd` Claude Code skill (`.claude/skills/SyncDevDataFromProd`).
 
 ## One-time setup
 
 1. Install the PostgreSQL client tools (`psql`). On this machine they are in `C:\Program Files\PostgreSQL\18\bin`; set
    `DEV_REFRESH_PSQL` if yours lives elsewhere.
-2. Copy `.env.dev-refresh.example` to `.env.dev-refresh` (git-ignored) and fill in the two database connection strings
+2. Copy `.env.SyncDevDataFromProd.example` to `.env.SyncDevDataFromProd` (git-ignored) and fill in the two database connection strings
    (Supabase -> Project Settings -> Database). The tool refuses a string that does not name the project its slot says.
-3. `npm run dev-refresh -- protect` (restricts the credentials file and the run folders to your account), then `npm run dev-refresh -- doctor`.
+3. `npm run syncDevDataFromProd -- protect` (restricts the credentials file and the run folders to your account), then `npm run syncDevDataFromProd -- doctor`.
 
 ### Before the first hosted refresh
 
@@ -37,10 +43,17 @@ only for the local scratch databases of the tests) and three confirmations (`--a
 |---|---|
 | `relays-guarded` | The Development `send-email` and `send-sms-notification` functions are deployed from the version containing the outbound guard, and `audit-functions` (see below) reported no unreviewed function. |
 | `auth-email-contained` | Development Authentication -> SMTP Settings: no custom SMTP (the built-in sender only delivers to your organization's team members), or one that reaches only the test inboxes; Authentication -> Hooks: no Send Email hook. |
-| `stripe-edge-secrets-test` | Development Edge Function secret `STRIPE_SECRET_KEY` (read by `get-payment-method`, `get-session-metadata`, `stripe-webhook`) is a test key, and the Development Stripe webhook points only at Development. |
+| `stripe-edge-secrets-test` | Development Edge Function secret `STRIPE_SECRET_KEY` (read by `get-payment-method`, `get-session-metadata`, `stripe-webhook`) is a test key, and no Stripe webhook endpoint (in the Stripe test-mode account) delivers events to the Production project. A Development webhook is not required; if one exists it points only at Development. |
+
+**Waiving `relays-guarded` (this one only, per run).** If the guarded relays are deliberately not deployed yet, `apply` accepts
+`--waive "relays-guarded=<written reason>"` instead of `--attest relays-guarded`. The reason (at least 40 characters) must say what is not in
+place, what contains the risk, and what will not be used meanwhile. It is recorded in the run manifest and report under
+**WAIVED — NOT VERIFIED**, separately from the confirmations that were made. It exists only in that one command: the next `apply` needs its
+own waiver. `auth-email-contained` and `stripe-edge-secrets-test` can never be waived, and no database protection can be waived. `--waive` may be
+given once; confirming and waiving the same name is refused.
 
 `audit-functions`: `npx supabase functions list --project-ref srxunxiytojjsuhcmzjg -o json > functions.json`, then
-`npm run dev-refresh -- audit-functions --project dev --file functions.json`. Anything deployed that is neither in this repository nor a
+`npm run syncDevDataFromProd -- audit-functions --project dev --file functions.json`. Anything deployed that is neither in this repository nor a
 reviewed hosted-only function (today: `send-booking-confirmation`, which only calls the two relays) stops you until it has been read.
 
 ## What a refresh does
@@ -123,7 +136,13 @@ not be switched on in Production. It protects Development only once these relays
 The refresh replaces database rows only. `media-plan` lists, for the imported rows, which waiver/signature/photo objects already exist
 in Development, which are missing (and available in Production), which conflict (different content; never touched), and which Development
 objects are no longer referenced (reported, never deleted). `media-copy --execute` copies only the missing objects, never overwrites
-(`upsert: false`), never deletes, and verifies each copy byte for byte; it needs service keys in `.env.dev-refresh` and a separate approval.
+(`upsert: false`), never deletes, and verifies each copy byte for byte; it needs service keys in `.env.SyncDevDataFromProd` and a separate approval.
+
+**Privacy before copying.** The evidence buckets (`signed-waivers`, `signatures`, `public-assets` delivery/pickup photos, `lot-pictures`) hold private customer
+evidence. Make them private in Development (and make sure no Storage policy lets `anon`/`authenticated` read them) BEFORE running `media-copy`.
+Note that the imported rows keep their original **absolute Production Storage URLs** (`https://<production>.supabase.co/storage/v1/object/public/...`).
+Those URLs stay publicly reachable through Production's own public buckets regardless of any Development bucket setting; the refresh never rewrites them.
+Copying the objects makes them available under the same bucket and path in Development for code that resolves references against the current project.
 
 ## Restore and drift
 
@@ -136,8 +155,8 @@ restore never destroys data that has no copy. A run can be restored once.
 
 ## Sensitive local files and retention
 
-Everything under `.dev-refresh/` (Production exports, Development backups, Stripe-reference and customer-id reports, row hashes) and
-`.env.dev-refresh` (database passwords) is readable by your account only (Windows: inherited access removed, only you granted; other systems:
+Everything under `.SyncDevDataFromProd/` (Production exports, Development backups, Stripe-reference and customer-id reports, row hashes) and
+`.env.SyncDevDataFromProd` (database passwords) is readable by your account only (Windows: inherited access removed, only you granted; other systems:
 mode 700 / 600). The tool creates run folders private before writing into them and refuses to use a credentials file that other accounts
 can read (`protect` fixes it; `doctor` reports it). Passwords are passed to `psql` through its environment and are never written to a run
 folder, a manifest or a report.
@@ -151,12 +170,12 @@ Nothing is ever deleted automatically. `cleanup` lists what the retention policy
 
 ## Files
 
-Run folders (`.dev-refresh/runs/<id>/`, git-ignored, contain real customer data): `manifest.json`, `report.md`, `export/` (Production rows),
+Run folders (`.SyncDevDataFromProd/runs/<id>/`, git-ignored, contain real customer data): `manifest.json`, `report.md`, `export/` (Production rows),
 `backup/` (replaced Development rows), `dev-rows-to-replace/` (ids), `outputs/` (quarantine and ownership reports).
 
 ## Tests
 
-`src/lib/tests/devRefresh/*.test.ts`, run with `node scripts/dev/run-tests.cjs devRefresh`. The replacement scenarios use throw-away
+`src/lib/tests/syncDevDataFromProd/*.test.ts`, run with `node scripts/dev/run-tests.cjs syncDevDataFromProd`. The replacement scenarios use throw-away
 databases on the local test server (`devrefresh_<name>_prod` / `_dev`) and synthetic rows only.
 Creating a database is slow on some machines, so each test file keeps ONE pair (`devrefresh_rep1_*` ... `devrefresh_rep7_*`, `devrefresh_t_*`) between runs
 and empties and refills it for every scenario; a kept pair is reused only if its structure fingerprint matches a freshly built one, otherwise it is

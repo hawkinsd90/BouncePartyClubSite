@@ -6,11 +6,11 @@
 // October columns / tables / triggers absent) and devrefresh_<name>_dev (the repository's current schema), filled with SYNTHETIC rows.
 // Every scenario drives the real tool code (preview, apply, restore) and checks the RESULT with independent SQL.
 //
-// Part 6: the command line, end to end (scratch targets).
+// Part 3: schema incompatibilities and unreviewed dependencies stop the run before anything is read or changed.
 // (The scenarios are spread over several files only so that each stays well inside the test runner per-file time limit.)
 //
 // With no reachable database the scenarios are SKIPPED (an environment limit, not a pass); ROLE_DB_REQUIRE=1 makes that a failure.
-// Run: node node_modules/jiti/bin/jiti.js src/lib/tests/devRefresh/devRefreshReplacementCli.test.ts
+// Run: node node_modules/jiti/bin/jiti.js src/lib/tests/syncDevDataFromProd/syncDevDataFromProdReplacementSchema.test.ts
 
 declare const require: (id: string) => any;
 declare const process: { env: Record<string, string | undefined>; exit: (n: number) => void };
@@ -19,10 +19,10 @@ const os = require('os');
 const path = require('path');
 const { spawnSync } = require('child_process');
 
-import { classifyMedia, collectReferences, copyMissing, orphanedDevObjects, readStorageInventory } from '../../../../scripts/dev-refresh/lib/media.mjs';
-import { runScript } from '../../../../scripts/dev-refresh/lib/psql.mjs';
-import { apply, confirmationPhrase, preview, readManifest, restore, restorePhrase, verifyEnvironment } from '../../../../scripts/dev-refresh/lib/run.mjs';
-import { K, USERS, buildScratchPair, id, psqlOn, resetScratchPair, scalar, scratchAvailable } from '../support/devRefreshScratch.mjs';
+import { classifyMedia, collectReferences, copyMissing, orphanedDevObjects, readStorageInventory } from '../../../../scripts/SyncDevDataFromProd/lib/media.mjs';
+import { runScript } from '../../../../scripts/SyncDevDataFromProd/lib/psql.mjs';
+import { apply, confirmationPhrase, preview, readManifest, restore, restorePhrase, verifyEnvironment } from '../../../../scripts/SyncDevDataFromProd/lib/run.mjs';
+import { K, USERS, buildScratchPair, id, psqlOn, resetScratchPair, scalar, scratchAvailable } from '../support/syncDevDataFromProdScratch.mjs';
 
 let passed = 0;
 let failed = 0;
@@ -114,7 +114,7 @@ function scopeContentDifferences(p: any): string[] {
 
 async function main() {
   if (!scratchAvailable()) {
-    const msg = 'devRefreshReplacementCli: no scratch PostgreSQL reachable - executed scenarios SKIPPED';
+    const msg = 'syncDevDataFromProdReplacementSchema: no scratch PostgreSQL reachable - executed scenarios SKIPPED';
     if (process.env.ROLE_DB_REQUIRE === '1') throw new Error(`${msg} (ROLE_DB_REQUIRE=1)`);
     console.log(msg);
     return;
@@ -124,37 +124,44 @@ async function main() {
   let shared: any = null;
   const pair = (_scenario: string, o: any = {}) => {
     if (!shared) {
-      shared = buildScratchPair('rep6', { seed: false });
+      shared = buildScratchPair('rep3', { seed: false });
       made.push(shared);
     }
     return resetScratchPair(shared, o);
   };
   try {
     // =================================================================================================================
-    // 10. The command line, end to end (scratch targets)
+    // 5. Incompatible schemas and unreviewed dependencies stop the run before anything is read or changed
     // =================================================================================================================
     {
-      const p = pair('t_cli');
-      const run = (...args: string[]) => spawnSync('node', ['scripts/dev-refresh/cli.mjs', ...args, '--scratch', shared.devDb.slice('devrefresh_'.length, -'_dev'.length)], { encoding: 'utf8', env: process.env });
-      const doctor = run('doctor');
-      ok('doctor verifies identities and proves Production writes are refused', doctor.status === 0 && /session is read-only; a write was refused/.test(doctor.stdout));
-      const pv = run('preview');
-      const runId = (pv.stdout.match(/Run (\d{8}-\d{6})/) || [])[1];
-      ok('preview prints the table, the rehearsal result and the exact approval command', pv.status === 0 && !!runId && /Rehearsal: the complete replacement ran/.test(pv.stdout) && new RegExp(`--confirm "REPLACE DEV ORDERS ${p.devDb} WITH PRODUCTION [0-9a-f]{8}"`).test(pv.stdout));
-      ok('preview is the default and never prints a password', !/postgres:postgres|PGPASSWORD/.test(pv.stdout + pv.stderr));
-      const bad = run('apply', '--run', runId, '--confirm', 'go');
-      ok('apply without the phrase exits non-zero and says what to type', bad.status !== 0 && /Approval phrase does not match/.test(bad.stderr));
-      const phrase = (pv.stdout.match(/--confirm "([^"]+)"/) || [])[1];
-      const good = run('apply', '--run', runId, '--confirm', phrase);
-      ok('apply with the phrase succeeds and prints the verification and the undo command', good.status === 0 && /\[ok\] row count orders/.test(good.stdout) && /restore --run/.test(good.stdout));
-      ok('runs lists it', /applied/.test(spawnSync('node', ['scripts/dev-refresh/cli.mjs', 'runs'], { encoding: 'utf8' }).stdout));
-      ok('verify passes', run('verify', '--run', runId).status === 0);
-      const media = run('media-plan', '--run', runId);
-      ok('media-plan reports the evidence objects and changes nothing', media.status === 0 && /Evidence objects referenced/.test(media.stdout) && /never deleted/.test(media.stdout));
-      const undo = run('restore', '--run', runId, '--confirm', `RESTORE DEV ORDERS ${p.devDb} FROM BACKUP ${runId}`);
-      ok('restore through the command line works', undo.status === 0 && /verified identical/.test(undo.stdout));
-      ok('unknown commands fail', run('frobnicate').status !== 0);
-      fs.rmSync(path.join('.dev-refresh', 'runs', runId), { recursive: true, force: true });
+      const p = pair('t_schema', { seed: false });
+      const root = newRoot();
+      const mutate = (name: string, up: string, down: string, re: RegExp, extra: any = {}) => {
+        psqlOn(p.devDb, up);
+        const before = snapshot(p.devDb);
+        const pv = preview({ prod: p.prod, dev: p.dev, root, ...extra });
+        ok(`${name}: preview is blocked (${pv.manifest.problems[0]?.slice(0, 90)})`, pv.manifest.status === 'blocked' && re.test(pv.manifest.problems.join('\n')));
+        ok(`${name}: nothing was exported or changed`, !fs.existsSync(path.join(pv.runDir, 'export')) || fs.readdirSync(path.join(pv.runDir, 'export')).length === 0);
+        eq(`${name}: Development untouched`, diff(before, snapshot(p.devDb)), []);
+        psqlOn(p.devDb, down);
+      };
+      mutate('type difference', 'ALTER TABLE public.customers ALTER COLUMN phone TYPE varchar(40)', 'ALTER TABLE public.customers ALTER COLUMN phone TYPE text', /customers\.phone: type differs/);
+      mutate('required Development column Production lacks', "ALTER TABLE public.customers ADD COLUMN must_have text NOT NULL DEFAULT 'x'; ALTER TABLE public.customers ALTER COLUMN must_have DROP DEFAULT", 'ALTER TABLE public.customers DROP COLUMN must_have', /customers\.must_have: required/);
+      mutate('unreviewed trigger on a replaced table', 'CREATE FUNCTION public.zz_noop() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN RETURN NEW; END $$; CREATE TRIGGER zz_new_behaviour BEFORE INSERT ON public.payments FOR EACH ROW EXECUTE FUNCTION public.zz_noop()', 'DROP TRIGGER zz_new_behaviour ON public.payments; DROP FUNCTION public.zz_noop()', /payments\.zz_new_behaviour.*has not been reviewed/);
+      mutate('unscoped table that would lose rows through ON DELETE CASCADE', 'CREATE TABLE public.zz_audit (id uuid PRIMARY KEY, order_id uuid REFERENCES public.orders(id) ON DELETE CASCADE)', 'DROP TABLE public.zz_audit', /zz_audit.*would delete rows of an unscoped table/);
+      mutate('unscoped table whose reference would make the delete fail', 'CREATE TABLE public.zz_audit (id uuid PRIMARY KEY, order_id uuid REFERENCES public.orders(id))', 'DROP TABLE public.zz_audit', /zz_audit.*without ON DELETE SET NULL/);
+      mutate('unscoped SET NULL reference without a primary key', 'CREATE TABLE public.zz_audit (order_id uuid REFERENCES public.orders(id) ON DELETE SET NULL)', 'DROP TABLE public.zz_audit', /zz_audit.*no primary key/);
+      mutate('live Stripe key in Development', "INSERT INTO public.admin_settings (key, value) VALUES ('stripe_secret_key', 'sk_live_notreal') ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value", "INSERT INTO public.admin_settings (key, value) VALUES ('stripe_secret_key', 'sk_test_scratchonly') ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value", /LIVE Stripe key/);
+      mutate('unrecognizable Stripe key in Development', "INSERT INTO public.admin_settings (key, value) VALUES ('stripe_publishable_key', 'whsec_x') ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value", "INSERT INTO public.admin_settings (key, value) VALUES ('stripe_publishable_key', 'pk_test_scratchonly') ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value", /not a recognizable Stripe test key/);
+      // an unreviewed trigger can be acknowledged explicitly, by name
+      psqlOn(p.devDb, 'CREATE FUNCTION public.zz_noop() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN RETURN NEW; END $$; CREATE TRIGGER zz_new_behaviour BEFORE INSERT ON public.payments FOR EACH ROW EXECUTE FUNCTION public.zz_noop()');
+      const ack = preview({ prod: p.prod, dev: p.dev, root, acknowledgeTriggers: ['payments.zz_new_behaviour'] });
+      ok('naming the trigger on the command line lets the same preview through', ack.manifest.status === 'previewed');
+      psqlOn(p.devDb, 'DROP TRIGGER zz_new_behaviour ON public.payments; DROP FUNCTION public.zz_noop()');
+      // a live key appearing AFTER the preview is also caught at apply time
+      const pv = preview({ prod: p.prod, dev: p.dev, root });
+      psqlOn(p.devDb, "INSERT INTO public.admin_settings (key, value) VALUES ('stripe_secret_key', 'sk_live_notreal') ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value");
+      ok('a live Stripe key that appears after the preview stops the apply', throws(() => apply({ prod: p.prod, dev: p.dev, root, id: pv.manifest.id, confirm: confirmationPhrase(pv.manifest) }), /LIVE Stripe key/));
     }
   } finally {
     for (const p of made) {
@@ -165,8 +172,8 @@ async function main() {
       }
     }
   }
-  console.log(`dev refresh devRefreshReplacementCli tests: ${passed} passed, ${failed} failed`);
-  if (failed > 0) throw new Error(`${failed} devRefreshReplacementCli test(s) failed`);
+  console.log(`dev refresh syncDevDataFromProdReplacementSchema tests: ${passed} passed, ${failed} failed`);
+  if (failed > 0) throw new Error(`${failed} syncDevDataFromProdReplacementSchema test(s) failed`);
 }
 
 main().catch((e) => {

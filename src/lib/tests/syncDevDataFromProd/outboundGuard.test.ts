@@ -8,7 +8,7 @@
 //   HANDLER   the CURRENT relay source is loaded (imports stripped, TypeScript transpiled) and run with the REAL authorization
 //             helpers against recording fakes. Every provider call is a fake: LIVE EMAILS SENT = 0 and LIVE SMS SENT = 0.
 //   STATIC    scans the source for every provider call site and every notification pathway outside the two relays
-// Run: node node_modules/jiti/bin/jiti.js src/lib/tests/devRefresh/outboundGuard.test.ts
+// Run: node node_modules/jiti/bin/jiti.js src/lib/tests/syncDevDataFromProd/outboundGuard.test.ts
 
 declare const require: (id: string) => any;
 const fs = require('fs');

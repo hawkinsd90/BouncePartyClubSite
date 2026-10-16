@@ -3,7 +3,7 @@
 // Restore drift detection: a restore refuses a database that changed after the refresh unless explicitly approved, and always keeps a safety copy.
 // test-mode verification, notification pathway review, protection of the sensitive local files, and retention / cleanup.
 // Scenarios that need a database use throw-away scratch databases on the local test server (never a Supabase project) and synthetic rows.
-// Run: node node_modules/jiti/bin/jiti.js src/lib/tests/devRefresh/devRefreshRestoreDrift.test.ts
+// Run: node node_modules/jiti/bin/jiti.js src/lib/tests/syncDevDataFromProd/syncDevDataFromProdRestoreDrift.test.ts
 
 declare const require: (id: string) => any;
 declare const process: { env: Record<string, string | undefined>; exit: (n: number) => void; platform: string };
@@ -12,12 +12,12 @@ const os = require('os');
 const path = require('path');
 const { spawnSync } = require('child_process');
 
-import { resolveTargets } from '../../../../scripts/dev-refresh/cli.mjs';
-import { REVIEWED_FUNCTIONS, REVIEWED_HOSTED_ONLY, ATTESTATIONS, PATHWAY, auditDeployedFunctions, classifyFunctionFiles, classifyFunctionSource, relayCallingModules, usesUnreviewedProvider } from '../../../../scripts/dev-refresh/lib/pathways.mjs';
-import { accessList, currentPrincipal, ensureProtectedDir, isRestricted, protectPath } from '../../../../scripts/dev-refresh/lib/protect.mjs';
-import { RETENTION, cleanupPhrase, executeCleanup, planCleanup } from '../../../../scripts/dev-refresh/lib/retention.mjs';
-import { DriftError, apply, confirmationPhrase, driftPhrase, preview, readManifest, restore, restorePhrase, stripeProblems, writeManifest } from '../../../../scripts/dev-refresh/lib/run.mjs';
-import { K, buildScratchPair, id, psqlOn, scalar, scratchAvailable } from '../support/devRefreshScratch.mjs';
+import { resolveTargets } from '../../../../scripts/SyncDevDataFromProd/cli.mjs';
+import { REVIEWED_FUNCTIONS, REVIEWED_HOSTED_ONLY, ATTESTATIONS, PATHWAY, auditDeployedFunctions, classifyFunctionFiles, classifyFunctionSource, relayCallingModules, usesUnreviewedProvider } from '../../../../scripts/SyncDevDataFromProd/lib/pathways.mjs';
+import { accessList, currentPrincipal, ensureProtectedDir, isRestricted, protectPath } from '../../../../scripts/SyncDevDataFromProd/lib/protect.mjs';
+import { RETENTION, cleanupPhrase, executeCleanup, planCleanup } from '../../../../scripts/SyncDevDataFromProd/lib/retention.mjs';
+import { DriftError, apply, confirmationPhrase, driftPhrase, preview, readManifest, restore, restorePhrase, stripeProblems, writeManifest } from '../../../../scripts/SyncDevDataFromProd/lib/run.mjs';
+import { K, buildScratchPair, id, psqlOn, scalar, scratchAvailable } from '../support/syncDevDataFromProdScratch.mjs';
 
 let passed = 0;
 let failed = 0;
@@ -59,7 +59,7 @@ const DEV_REF = 'srxunxiytojjsuhcmzjg';
 
 async function main() {
   if (!scratchAvailable()) {
-    const msg = 'devRefreshRestoreDrift: no scratch PostgreSQL reachable - executed scenarios SKIPPED';
+    const msg = 'syncDevDataFromProdRestoreDrift: no scratch PostgreSQL reachable - executed scenarios SKIPPED';
     if (process.env.ROLE_DB_REQUIRE === '1') throw new Error(`${msg} (ROLE_DB_REQUIRE=1)`);
     console.log(msg);
     return;
@@ -144,8 +144,8 @@ async function main() {
       }
     }
   }
-  console.log(`dev refresh devRefreshRestoreDrift tests: ${passed} passed, ${failed} failed`);
-  if (failed > 0) throw new Error(`${failed} dev refresh safety devRefreshRestoreDrift test(s) failed`);
+  console.log(`dev refresh syncDevDataFromProdRestoreDrift tests: ${passed} passed, ${failed} failed`);
+  if (failed > 0) throw new Error(`${failed} dev refresh safety syncDevDataFromProdRestoreDrift test(s) failed`);
 }
 
 main().catch((e) => {

@@ -6,11 +6,11 @@
 // October columns / tables / triggers absent) and devrefresh_<name>_dev (the repository's current schema), filled with SYNTHETIC rows.
 // Every scenario drives the real tool code (preview, apply, restore) and checks the RESULT with independent SQL.
 //
-// Part 3: schema incompatibilities and unreviewed dependencies stop the run before anything is read or changed.
+// Part 4: reference data Development lacks, side effects outside the trigger switch-off, trigger states.
 // (The scenarios are spread over several files only so that each stays well inside the test runner per-file time limit.)
 //
 // With no reachable database the scenarios are SKIPPED (an environment limit, not a pass); ROLE_DB_REQUIRE=1 makes that a failure.
-// Run: node node_modules/jiti/bin/jiti.js src/lib/tests/devRefresh/devRefreshReplacementSchema.test.ts
+// Run: node node_modules/jiti/bin/jiti.js src/lib/tests/syncDevDataFromProd/syncDevDataFromProdReplacementSideEffects.test.ts
 
 declare const require: (id: string) => any;
 declare const process: { env: Record<string, string | undefined>; exit: (n: number) => void };
@@ -19,10 +19,10 @@ const os = require('os');
 const path = require('path');
 const { spawnSync } = require('child_process');
 
-import { classifyMedia, collectReferences, copyMissing, orphanedDevObjects, readStorageInventory } from '../../../../scripts/dev-refresh/lib/media.mjs';
-import { runScript } from '../../../../scripts/dev-refresh/lib/psql.mjs';
-import { apply, confirmationPhrase, preview, readManifest, restore, restorePhrase, verifyEnvironment } from '../../../../scripts/dev-refresh/lib/run.mjs';
-import { K, USERS, buildScratchPair, id, psqlOn, resetScratchPair, scalar, scratchAvailable } from '../support/devRefreshScratch.mjs';
+import { classifyMedia, collectReferences, copyMissing, orphanedDevObjects, readStorageInventory } from '../../../../scripts/SyncDevDataFromProd/lib/media.mjs';
+import { runScript } from '../../../../scripts/SyncDevDataFromProd/lib/psql.mjs';
+import { apply, confirmationPhrase, preview, readManifest, restore, restorePhrase, verifyEnvironment } from '../../../../scripts/SyncDevDataFromProd/lib/run.mjs';
+import { K, USERS, buildScratchPair, id, psqlOn, resetScratchPair, scalar, scratchAvailable } from '../support/syncDevDataFromProdScratch.mjs';
 
 let passed = 0;
 let failed = 0;
@@ -114,7 +114,7 @@ function scopeContentDifferences(p: any): string[] {
 
 async function main() {
   if (!scratchAvailable()) {
-    const msg = 'devRefreshReplacementSchema: no scratch PostgreSQL reachable - executed scenarios SKIPPED';
+    const msg = 'syncDevDataFromProdReplacementSideEffects: no scratch PostgreSQL reachable - executed scenarios SKIPPED';
     if (process.env.ROLE_DB_REQUIRE === '1') throw new Error(`${msg} (ROLE_DB_REQUIRE=1)`);
     console.log(msg);
     return;
@@ -124,45 +124,65 @@ async function main() {
   let shared: any = null;
   const pair = (_scenario: string, o: any = {}) => {
     if (!shared) {
-      shared = buildScratchPair('rep3', { seed: false });
+      shared = buildScratchPair('rep4', { seed: false });
       made.push(shared);
     }
     return resetScratchPair(shared, o);
   };
   try {
+
     // =================================================================================================================
-    // 5. Incompatible schemas and unreviewed dependencies stop the run before anything is read or changed
+    // 6. Reference data Development lacks
     // =================================================================================================================
     {
-      const p = pair('t_schema', { seed: false });
+      const missingUnit = id(K.unit, 77);
+      const p = pair('t_unit', { extraOrderItemUnit: missingUnit });
       const root = newRoot();
-      const mutate = (name: string, up: string, down: string, re: RegExp, extra: any = {}) => {
-        psqlOn(p.devDb, up);
-        const before = snapshot(p.devDb);
-        const pv = preview({ prod: p.prod, dev: p.dev, root, ...extra });
-        ok(`${name}: preview is blocked (${pv.manifest.problems[0]?.slice(0, 90)})`, pv.manifest.status === 'blocked' && re.test(pv.manifest.problems.join('\n')));
-        ok(`${name}: nothing was exported or changed`, !fs.existsSync(path.join(pv.runDir, 'export')) || fs.readdirSync(path.join(pv.runDir, 'export')).length === 0);
-        eq(`${name}: Development untouched`, diff(before, snapshot(p.devDb)), []);
-        psqlOn(p.devDb, down);
-      };
-      mutate('type difference', 'ALTER TABLE public.customers ALTER COLUMN phone TYPE varchar(40)', 'ALTER TABLE public.customers ALTER COLUMN phone TYPE text', /customers\.phone: type differs/);
-      mutate('required Development column Production lacks', "ALTER TABLE public.customers ADD COLUMN must_have text NOT NULL DEFAULT 'x'; ALTER TABLE public.customers ALTER COLUMN must_have DROP DEFAULT", 'ALTER TABLE public.customers DROP COLUMN must_have', /customers\.must_have: required/);
-      mutate('unreviewed trigger on a replaced table', 'CREATE FUNCTION public.zz_noop() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN RETURN NEW; END $$; CREATE TRIGGER zz_new_behaviour BEFORE INSERT ON public.payments FOR EACH ROW EXECUTE FUNCTION public.zz_noop()', 'DROP TRIGGER zz_new_behaviour ON public.payments; DROP FUNCTION public.zz_noop()', /payments\.zz_new_behaviour.*has not been reviewed/);
-      mutate('unscoped table that would lose rows through ON DELETE CASCADE', 'CREATE TABLE public.zz_audit (id uuid PRIMARY KEY, order_id uuid REFERENCES public.orders(id) ON DELETE CASCADE)', 'DROP TABLE public.zz_audit', /zz_audit.*would delete rows of an unscoped table/);
-      mutate('unscoped table whose reference would make the delete fail', 'CREATE TABLE public.zz_audit (id uuid PRIMARY KEY, order_id uuid REFERENCES public.orders(id))', 'DROP TABLE public.zz_audit', /zz_audit.*without ON DELETE SET NULL/);
-      mutate('unscoped SET NULL reference without a primary key', 'CREATE TABLE public.zz_audit (order_id uuid REFERENCES public.orders(id) ON DELETE SET NULL)', 'DROP TABLE public.zz_audit', /zz_audit.*no primary key/);
-      mutate('live Stripe key in Development', "INSERT INTO public.admin_settings (key, value) VALUES ('stripe_secret_key', 'sk_live_notreal') ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value", "INSERT INTO public.admin_settings (key, value) VALUES ('stripe_secret_key', 'sk_test_scratchonly') ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value", /LIVE Stripe key/);
-      mutate('unrecognizable Stripe key in Development', "INSERT INTO public.admin_settings (key, value) VALUES ('stripe_publishable_key', 'whsec_x') ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value", "INSERT INTO public.admin_settings (key, value) VALUES ('stripe_publishable_key', 'pk_test_scratchonly') ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value", /not a recognizable Stripe test key/);
-      // an unreviewed trigger can be acknowledged explicitly, by name
-      psqlOn(p.devDb, 'CREATE FUNCTION public.zz_noop() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN RETURN NEW; END $$; CREATE TRIGGER zz_new_behaviour BEFORE INSERT ON public.payments FOR EACH ROW EXECUTE FUNCTION public.zz_noop()');
-      const ack = preview({ prod: p.prod, dev: p.dev, root, acknowledgeTriggers: ['payments.zz_new_behaviour'] });
-      ok('naming the trigger on the command line lets the same preview through', ack.manifest.status === 'previewed');
-      psqlOn(p.devDb, 'DROP TRIGGER zz_new_behaviour ON public.payments; DROP FUNCTION public.zz_noop()');
-      // a live key appearing AFTER the preview is also caught at apply time
+      const before = snapshot(p.devDb);
       const pv = preview({ prod: p.prod, dev: p.dev, root });
-      psqlOn(p.devDb, "INSERT INTO public.admin_settings (key, value) VALUES ('stripe_secret_key', 'sk_live_notreal') ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value");
-      ok('a live Stripe key that appears after the preview stops the apply', throws(() => apply({ prod: p.prod, dev: p.dev, root, id: pv.manifest.id, confirm: confirmationPhrase(pv.manifest) }), /LIVE Stripe key/));
+      ok('an order item for an inventory unit Development does not have blocks the preview with a clear reason', pv.manifest.status === 'blocked' && /MISSING_REFERENCE/.test(pv.manifest.problems.join()) && /order_items\.unit_id -> units/.test(pv.manifest.rehearsal.failure.detail));
+      eq('and nothing changed (inventory is never edited by the refresh)', diff(before, snapshot(p.devDb)), []);
     }
+
+    // =================================================================================================================
+    // 6b. A side effect the trigger switch-off does not cover (a rewrite RULE) is caught by the "nothing else changed" check
+    // =================================================================================================================
+    {
+      const p = pair('t_rule');
+      const root = newRoot();
+      psqlOn(p.devDb, "CREATE RULE zz_sneaky AS ON INSERT TO public.payments DO ALSO INSERT INTO public.admin_settings (key, value) VALUES ('sneaky-' || NEW.id, 'x')");
+      const before = snapshot(p.devDb);
+      const pv = preview({ prod: p.prod, dev: p.dev, root });
+      ok('a rewrite rule that would write into a preserved table makes the rehearsal fail with UNTOUCHED_CHANGED', pv.manifest.status === 'blocked' && pv.manifest.rehearsal.failure.code === 'UNTOUCHED_CHANGED' && /admin_settings/.test(pv.manifest.rehearsal.failure.detail));
+      eq('and nothing changed', diff(before, snapshot(p.devDb)), []);
+      psqlOn(p.devDb, 'DROP RULE zz_sneaky ON public.payments');
+    }
+
+    // =================================================================================================================
+    // 7. Trigger states other than "enabled" survive
+    // =================================================================================================================
+    {
+      const p = pair('t_trig');
+      const root = newRoot();
+      psqlOn(p.devDb, `ALTER TABLE public.orders DISABLE TRIGGER trigger_update_contact_stats; ALTER TABLE public.payments ENABLE ALWAYS TRIGGER update_payments_updated_at; ALTER TABLE public.contacts ENABLE REPLICA TRIGGER update_contacts_updated_at;`);
+      const before = triggerStates(p.devDb);
+      ok('fixture: the triggers really are in three different states', before.some((l) => /trigger_update_contact_stats=D/.test(l)) && before.some((l) => /update_payments_updated_at=A/.test(l)) && before.some((l) => /update_contacts_updated_at=R/.test(l)));
+      const pv = preview({ prod: p.prod, dev: p.dev, root });
+      const a = apply({ prod: p.prod, dev: p.dev, root, id: pv.manifest.id, confirm: confirmationPhrase(pv.manifest) });
+      ok('apply succeeded with disabled / always / replica triggers present', a.ok);
+      eq('EVERY TRIGGER IS BACK IN ITS ORIGINAL STATE (disabled stays disabled, always stays always, replica stays replica)', triggerStates(p.devDb), before);
+      ok('the disabled trigger never ran during the import: contact statistics are exactly Production\'s', scalar(p.devDb, `SELECT total_spent_cents FROM contacts WHERE id = '${id(K.contact, 1)}'`) === '12345');
+      ok('no task was auto-created by the (suppressed) task trigger', count(p.devDb, 'task_status') === 2);
+      ok('no order note was written by the (suppressed) payment trigger', count(p.devDb, 'order_notes') === 10);
+      ok('status history was not re-validated: a "cancelled" order with no history was inserted as-is', scalar(p.devDb, `SELECT status FROM orders WHERE id = '${id(K.order, 4)}'`) === 'cancelled');
+      // After the refresh the SAME triggers are live again: the application invariants are enforced for new writes.
+      ok('after the refresh the status-transition trigger is active again (an illegal transition is rejected)', psqlOn(p.devDb, `UPDATE public.orders SET status = 'draft' WHERE id = '${id(K.order, 1)}'`, { allowFail: true }).status !== 0);
+      eq('after the refresh the payment guards are enabled again', triggerStates(p.devDb).filter((l) => /trg_guard_/.test(l)), ['orders.trg_guard_order_pricing_authority=O/false', 'orders.trg_guard_payment_authoritative_order_changes=O/false']);
+      ok('after the refresh foreign keys still reject orphans', psqlOn(p.devDb, `INSERT INTO public.order_items (id, order_id, unit_id, wet_or_dry, unit_price_cents) VALUES (gen_random_uuid(), gen_random_uuid(), '${id(K.unit, 1)}', 'dry', 1)`, { allowFail: true }).status !== 0);
+      // The pair is kept between runs and reused only while its structure is unchanged: give the triggers back their normal state.
+      psqlOn(p.devDb, `ALTER TABLE public.orders ENABLE TRIGGER trigger_update_contact_stats; ALTER TABLE public.payments ENABLE TRIGGER update_payments_updated_at; ALTER TABLE public.contacts ENABLE TRIGGER update_contacts_updated_at;`);
+    }
+
   } finally {
     for (const p of made) {
       try {
@@ -172,8 +192,8 @@ async function main() {
       }
     }
   }
-  console.log(`dev refresh devRefreshReplacementSchema tests: ${passed} passed, ${failed} failed`);
-  if (failed > 0) throw new Error(`${failed} devRefreshReplacementSchema test(s) failed`);
+  console.log(`dev refresh syncDevDataFromProdReplacementSideEffects tests: ${passed} passed, ${failed} failed`);
+  if (failed > 0) throw new Error(`${failed} syncDevDataFromProdReplacementSideEffects test(s) failed`);
 }
 
 main().catch((e) => {

@@ -9,7 +9,7 @@
     "lint": "eslint .",
     "preview": "vite preview",
     "typecheck": "tsc --noEmit -p tsconfig.app.json",
-    "dev-refresh": "node scripts/dev-refresh/cli.mjs"
+    "syncDevDataFromProd": "node scripts/SyncDevDataFromProd/cli.mjs"
   },
   "dependencies": {
     "@stripe/react-stripe-js": "^5.0.0",

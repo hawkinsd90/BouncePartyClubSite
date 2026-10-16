@@ -12,7 +12,7 @@ import { assertRestricted, ensureProtectedDir, hardenTree } from './protect.mjs'
 import { assertTargetIdentity, describeTarget, ensureDir, markers, mustRun, psqlPath, queryJson, redact, runScript, sqlIdent, sqlLit } from './psql.mjs';
 import { buildApplyScript, buildBackupScript, buildExportScript, buildRestoreScript, buildSequenceScript } from './sqlgen.mjs';
 
-export const RUNS_DIRNAME = path.join('.dev-refresh', 'runs');
+export const RUNS_DIRNAME = path.join('.SyncDevDataFromProd', 'runs');
 
 const sha256File = (p) => crypto.createHash('sha256').update(fs.readFileSync(p)).digest('hex');
 const sha256Text = (t) => crypto.createHash('sha256').update(t).digest('hex');
@@ -228,6 +228,58 @@ export function computePlanHash(manifest) {
   );
 }
 
+// ---------------------------------------------------------------------------------------------------------------------
+// Operator confirmations (--attest) and the single permitted waiver
+// ---------------------------------------------------------------------------------------------------------------------
+// The three confirmations are about things this tool can not read. Exactly ONE of them may be waived, explicitly, for ONE apply:
+// the notification-relay guard (messages are a precaution about what happens AFTER the import, not part of the database transfer).
+// The Auth-email and Stripe confirmations stay mandatory, and no database protection can be waived. A waiver is never a confirmation:
+// it is recorded separately and labelled WAIVED_LABEL in the manifest and the report. It exists only in the arguments of that one
+// apply (nothing stores it), so a later run needs its own explicit waiver.
+export const WAIVABLE_ATTESTATIONS = ['relays-guarded'];
+export const WAIVED_LABEL = 'WAIVED — NOT VERIFIED';
+export const WAIVER_MIN_REASON_CHARS = 40;
+
+// "--waive name=reason" -> { name: reason }. Throws on anything malformed.
+export function parseWaiveOption(value) {
+  if (value === undefined) return {};
+  if (typeof value !== 'string' || !value.includes('=')) throw new Error('--waive needs the form  --waive "relays-guarded=<written reason>"');
+  const i = value.indexOf('=');
+  return { [value.slice(0, i).trim()]: value.slice(i + 1).trim() };
+}
+
+// Pure. Decides which confirmations are still missing and which waivers are valid. Throws on an invalid waiver.
+export function resolveAttestations({ attest = [], waive = {}, required = true, runId, at }) {
+  const names = Object.keys(waive);
+  for (const name of names) {
+    if (!WAIVABLE_ATTESTATIONS.includes(name)) {
+      throw new Error(`"${name}" can not be waived. Only ${WAIVABLE_ATTESTATIONS.join(', ')} can be waived; every other confirmation must be made with --attest <name> after you have checked it.`);
+    }
+    if (attest.includes(name)) throw new Error(`"${name}" was both confirmed (--attest) and waived (--waive). Choose one: a waiver is not a confirmation.`);
+    const reason = String(waive[name] ?? '').trim();
+    if (reason.length < WAIVER_MIN_REASON_CHARS) {
+      throw new Error(`The waiver for "${name}" needs a written reason of at least ${WAIVER_MIN_REASON_CHARS} characters (what is not in place, what contains the risk, and what will not be used).`);
+    }
+  }
+  const missing = required ? Object.keys(ATTESTATIONS).filter((k) => !attest.includes(k) && !names.includes(k)) : [];
+  if (missing.length) {
+    throw new Error(`A hosted apply needs these confirmations about things this tool can not read (pass each as --attest <name>):\n${missing.map((k) => `  ${k}: ${ATTESTATIONS[k]}`).join('\n')}`);
+  }
+  const waivers = names.map((name) => ({ name, reason: String(waive[name]).trim(), run: runId, at, status: WAIVED_LABEL, unverified: ATTESTATIONS[name] }));
+  return { waivers };
+}
+
+// Report lines for the waivers (empty when there are none). Waivers are never listed among the operator confirmations.
+export function renderWaivers(m) {
+  if (!m.waivers?.length) return [];
+  return [
+    '',
+    `## ${WAIVED_LABEL}`,
+    `These confirmations were NOT made and NOT verified. They were waived for run ${m.id} only; a later run needs its own explicit waiver.`,
+    ...m.waivers.flatMap((w) => [`- ${w.name}: **${WAIVED_LABEL}** (${w.at})`, `  - Not verified: ${w.unverified}`, `  - Written reason: ${w.reason}`]),
+  ];
+}
+
 // A hosted apply requires a successful rehearsal of the exact preview; only scratch databases may skip it (local testing).
 // `enforceRehearsal` can be set explicitly so tests can exercise the hosted rule on scratch databases.
 const rehearsalRequired = (dev, enforceRehearsal) => (enforceRehearsal === undefined ? !dev.scratch : !!enforceRehearsal);
@@ -239,7 +291,7 @@ export function preview({ prod, dev, root, rehearse = true, enforceRehearsal, ac
   log(`Production: ${env.prodLabel}   Development: ${env.devLabel}`);
   const id = newRunId();
   // Everything below holds real customer data: the run folder is private to the current user before anything is written into it.
-  ensureProtectedDir(path.resolve(root, '.dev-refresh'));
+  ensureProtectedDir(path.resolve(root, '.SyncDevDataFromProd'));
   const runDir = ensureProtectedDir(runDirOf(root, id));
   const exportDir = ensureDir(path.join(runDir, 'export'));
   const outDir = ensureDir(path.join(runDir, 'outputs'));
@@ -333,7 +385,7 @@ export function preview({ prod, dev, root, rehearse = true, enforceRehearsal, ac
 // ---------------------------------------------------------------------------------------------------------------------
 // APPLY
 // ---------------------------------------------------------------------------------------------------------------------
-export function apply({ prod, dev, root, id, confirm, attest = [], enforceRehearsal, requireAttestations, now: clock = () => Date.now(), maxAgeHours = EXPORT_MAX_AGE_HOURS, log = () => {} }) {
+export function apply({ prod, dev, root, id, confirm, attest = [], waive = {}, enforceRehearsal, requireAttestations, now: clock = () => Date.now(), maxAgeHours = EXPORT_MAX_AGE_HOURS, log = () => {} }) {
   const manifest = readManifest(root, id);
   const runDir = runDirOf(root, id);
   assertRestricted(runDir, 'The run folder');
@@ -353,12 +405,8 @@ export function apply({ prod, dev, root, id, confirm, attest = [], enforceRehear
       if (rh.result?.staged?.[t.name] !== manifest.exportCounts[t.name] || rh.result?.imported?.[t.name] !== manifest.exportCounts[t.name]) throw new Error(`The rehearsal evidence for ${t.name} does not match the export. Run preview again.`);
     }
   }
-  if (requireAttestations === undefined ? !dev.scratch : requireAttestations) {
-    const missing = Object.keys(ATTESTATIONS).filter((k) => !attest.includes(k));
-    if (missing.length) {
-      throw new Error(`A hosted apply needs these confirmations about things this tool can not read (pass each as --attest <name>):\n${missing.map((k) => `  ${k}: ${ATTESTATIONS[k]}`).join('\n')}`);
-    }
-  }
+  const { waivers } = resolveAttestations({ attest, waive, required: requireAttestations === undefined ? !dev.scratch : requireAttestations, runId: id, at: now() });
+  for (const w of waivers) log(`${WAIVED_LABEL}: ${w.name} - ${w.reason}`);
 
   const env = verifyEnvironment({ prod, dev });
   if (env.devLabel !== manifest.devLabel || env.prodLabel !== manifest.prodLabel) throw new Error('The targets differ from the ones this preview was made for. Refusing.');
@@ -370,6 +418,7 @@ export function apply({ prod, dev, root, id, confirm, attest = [], enforceRehear
   const sp = stripeProblems(stripeModeOfDev(dev));
   if (sp.length) throw new Error(sp.join('\n'));
   manifest.attestations = attest.length ? { names: attest, at: now() } : undefined;
+  manifest.waivers = waivers.length ? waivers : undefined;
   for (const [t, expected] of Object.entries(manifest.exportChecksums)) {
     const f = path.join(runDir, 'export', `${t}.copy`);
     if (!fs.existsSync(f) || sha256File(f) !== expected) throw new Error(`The exported data for ${t} was altered or is missing. Run preview again.`);
@@ -634,6 +683,7 @@ export function renderReport(m) {
   if (m.failure) L.push('', '## Failure', `- ${m.failure.code}: ${redact(m.failure.detail)}`, `- ${m.failure.help}`, `- State of Development afterwards: ${m.stateAfterFailure}`);
   if (m.verification) L.push('', '## Verification', ...m.verification.checks.map((c) => `- [${c.ok ? 'x' : ' '}] ${c.name}${c.detail ? ` - ${c.detail}` : ''}`));
   if (m.attestations?.names) L.push('', '## Operator confirmations (things the tool can not read)', ...m.attestations.names.map((n) => `- ${n}: ${ATTESTATIONS[n] ?? ''}`));
+  L.push(...renderWaivers(m));
   if (m.restoreAttempt) {
     const ra = m.restoreAttempt;
     L.push('', '## Restore', `- ${ra.ok ? 'restored and verified identical to the backup' : 'FAILED'} (${ra.at})`, `- Safety copy of the state before the restore: ${ra.safetyBackup?.folder}`);

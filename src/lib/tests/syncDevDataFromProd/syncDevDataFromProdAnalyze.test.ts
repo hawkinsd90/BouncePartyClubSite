@@ -2,15 +2,15 @@
 // @ts-nocheck
 // Production -> Development order data refresh: scope, plan analysis and generated SQL. No database is used: the analysis and the
 // script builders are pure, so every rule is checked against synthetic schemas, and the generated SQL is inspected as text.
-// Run: node node_modules/jiti/bin/jiti.js src/lib/tests/devRefresh/devRefreshAnalyze.test.ts
+// Run: node node_modules/jiti/bin/jiti.js src/lib/tests/syncDevDataFromProd/syncDevDataFromProdAnalyze.test.ts
 
 declare const require: (id: string) => any;
 const fs = require('fs');
 
-import { analyze } from '../../../../scripts/dev-refresh/lib/analyze.mjs';
-import * as config from '../../../../scripts/dev-refresh/lib/config.mjs';
-import { assertTargetIdentity, redact, refOfTarget, targetFromUrl } from '../../../../scripts/dev-refresh/lib/psql.mjs';
-import { buildApplyScript, buildBackupScript, buildExportScript, buildRestoreScript, buildSequenceScript } from '../../../../scripts/dev-refresh/lib/sqlgen.mjs';
+import { analyze } from '../../../../scripts/SyncDevDataFromProd/lib/analyze.mjs';
+import * as config from '../../../../scripts/SyncDevDataFromProd/lib/config.mjs';
+import { assertTargetIdentity, redact, refOfTarget, targetFromUrl } from '../../../../scripts/SyncDevDataFromProd/lib/psql.mjs';
+import { buildApplyScript, buildBackupScript, buildExportScript, buildRestoreScript, buildSequenceScript } from '../../../../scripts/SyncDevDataFromProd/lib/sqlgen.mjs';
 import { hasSavedCard } from '../../../../supabase/functions/_shared/orders/lifecycle-outcome';
 
 let passed = 0;
@@ -260,7 +260,7 @@ function sources(): string[] {
 // ---------------------------------------------------------------------------------------------------------------------
 // The tool's own source: forbidden constructs
 // ---------------------------------------------------------------------------------------------------------------------
-const toolFiles = fs.readdirSync('scripts/dev-refresh/lib').map((f: string) => `scripts/dev-refresh/lib/${f}`).concat(['scripts/dev-refresh/cli.mjs']);
+const toolFiles = fs.readdirSync('scripts/SyncDevDataFromProd/lib').map((f: string) => `scripts/SyncDevDataFromProd/lib/${f}`).concat(['scripts/SyncDevDataFromProd/cli.mjs']);
 const code = (f: string) => read(f).replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
 for (const f of toolFiles) {
   const s = code(f);
@@ -268,10 +268,10 @@ for (const f of toolFiles) {
   ok(`${f}: no TRUNCATE / DROP TABLE / DISABLE TRIGGER ALL`, !/TRUNCATE|DROP\s+TABLE|DISABLE\s+TRIGGER\s+ALL/i.test(s));
   ok(`${f}: never prints a connection string`, !/console\.log\([^)]*(DB_URL|password)/i.test(s));
 }
-ok('media code has no removal or update of storage objects', !/\.from\([^)]*\)\s*\.(remove|update|move|copy)\(|upsert:\s*true|\.createBucket|\.updateBucket|\.deleteBucket|\.emptyBucket/.test(code('scripts/dev-refresh/lib/media.mjs')));
-ok('the only storage writes are upload with upsert disabled', (code('scripts/dev-refresh/lib/media.mjs').match(/\.upload\(/g) || []).length === 1 && /upsert: false/.test(code('scripts/dev-refresh/lib/media.mjs')));
-ok('the tool opens Production read-only at session level', /default_transaction_read_only=on/.test(code('scripts/dev-refresh/lib/psql.mjs')));
-ok('the tool proves a Production write is refused before using it', /DELETE FROM public\.orders WHERE false/.test(code('scripts/dev-refresh/lib/run.mjs')) && /read-only transaction/.test(code('scripts/dev-refresh/lib/run.mjs')));
+ok('media code has no removal or update of storage objects', !/\.from\([^)]*\)\s*\.(remove|update|move|copy)\(|upsert:\s*true|\.createBucket|\.updateBucket|\.deleteBucket|\.emptyBucket/.test(code('scripts/SyncDevDataFromProd/lib/media.mjs')));
+ok('the only storage writes are upload with upsert disabled', (code('scripts/SyncDevDataFromProd/lib/media.mjs').match(/\.upload\(/g) || []).length === 1 && /upsert: false/.test(code('scripts/SyncDevDataFromProd/lib/media.mjs')));
+ok('the tool opens Production read-only at session level', /default_transaction_read_only=on/.test(code('scripts/SyncDevDataFromProd/lib/psql.mjs')));
+ok('the tool proves a Production write is refused before using it', /DELETE FROM public\.orders WHERE false/.test(code('scripts/SyncDevDataFromProd/lib/run.mjs')) && /read-only transaction/.test(code('scripts/SyncDevDataFromProd/lib/run.mjs')));
 
 // ---------------------------------------------------------------------------------------------------------------------
 // Environment targeting (pure part)

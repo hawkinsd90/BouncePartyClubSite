@@ -6,11 +6,11 @@
 // October columns / tables / triggers absent) and devrefresh_<name>_dev (the repository's current schema), filled with SYNTHETIC rows.
 // Every scenario drives the real tool code (preview, apply, restore) and checks the RESULT with independent SQL.
 //
-// Part 3: a failing apply rolls back and leaves Development in a known state; stale, tampered, expired and drifted inputs are refused.
+// Part 6: the command line, end to end (scratch targets).
 // (The scenarios are spread over several files only so that each stays well inside the test runner per-file time limit.)
 //
 // With no reachable database the scenarios are SKIPPED (an environment limit, not a pass); ROLE_DB_REQUIRE=1 makes that a failure.
-// Run: node node_modules/jiti/bin/jiti.js src/lib/tests/devRefresh/devRefreshReplacementFailure.test.ts
+// Run: node node_modules/jiti/bin/jiti.js src/lib/tests/syncDevDataFromProd/syncDevDataFromProdReplacementCli.test.ts
 
 declare const require: (id: string) => any;
 declare const process: { env: Record<string, string | undefined>; exit: (n: number) => void };
@@ -19,10 +19,10 @@ const os = require('os');
 const path = require('path');
 const { spawnSync } = require('child_process');
 
-import { classifyMedia, collectReferences, copyMissing, orphanedDevObjects, readStorageInventory } from '../../../../scripts/dev-refresh/lib/media.mjs';
-import { runScript } from '../../../../scripts/dev-refresh/lib/psql.mjs';
-import { apply, confirmationPhrase, preview, readManifest, restore, restorePhrase, verifyEnvironment } from '../../../../scripts/dev-refresh/lib/run.mjs';
-import { K, USERS, buildScratchPair, id, psqlOn, resetScratchPair, scalar, scratchAvailable } from '../support/devRefreshScratch.mjs';
+import { classifyMedia, collectReferences, copyMissing, orphanedDevObjects, readStorageInventory } from '../../../../scripts/SyncDevDataFromProd/lib/media.mjs';
+import { runScript } from '../../../../scripts/SyncDevDataFromProd/lib/psql.mjs';
+import { apply, confirmationPhrase, preview, readManifest, restore, restorePhrase, verifyEnvironment } from '../../../../scripts/SyncDevDataFromProd/lib/run.mjs';
+import { K, USERS, buildScratchPair, id, psqlOn, resetScratchPair, scalar, scratchAvailable } from '../support/syncDevDataFromProdScratch.mjs';
 
 let passed = 0;
 let failed = 0;
@@ -114,87 +114,47 @@ function scopeContentDifferences(p: any): string[] {
 
 async function main() {
   if (!scratchAvailable()) {
-    const msg = 'devRefreshReplacementFailure: no scratch PostgreSQL reachable - executed scenarios SKIPPED';
+    const msg = 'syncDevDataFromProdReplacementCli: no scratch PostgreSQL reachable - executed scenarios SKIPPED';
     if (process.env.ROLE_DB_REQUIRE === '1') throw new Error(`${msg} (ROLE_DB_REQUIRE=1)`);
     console.log(msg);
     return;
   }
   const made: any[] = [];
-  let statusCheckDefinition = '';
   // One pair of scratch databases per file, reset between scenarios (creating databases is the slow part).
   let shared: any = null;
   const pair = (_scenario: string, o: any = {}) => {
     if (!shared) {
-      shared = buildScratchPair('rep7', { seed: false });
+      shared = buildScratchPair('rep6', { seed: false });
       made.push(shared);
     }
     return resetScratchPair(shared, o);
   };
   try {
-
     // =================================================================================================================
-    // 3. Failure handling: the transaction rolls back and Development stays in a known state
-    // =================================================================================================================
-    {
-      const p = pair('t_fail');
-      const root = newRoot();
-      statusCheckDefinition = scalar(p.prodDb, "SELECT pg_get_constraintdef(oid) FROM pg_constraint WHERE conname = 'orders_status_check'");
-      psqlOn(p.prodDb, `SET session_replication_role = replica; ALTER TABLE orders DROP CONSTRAINT orders_status_check; UPDATE orders SET status = 'bogus' WHERE id = '${id(K.order, 5)}';`);
-      const before = snapshot(p.devDb);
-      const statesBefore = triggerStates(p.devDb);
-      const blocked = preview({ prod: p.prod, dev: p.dev, root });
-      ok('the rehearsal finds Production data Development would reject and BLOCKS the preview', blocked.manifest.status === 'blocked' && /Rehearsal failed/.test(blocked.manifest.problems.join()) && /orders_status_check/.test(blocked.manifest.rehearsal.failure.detail));
-      ok('a blocked preview cannot be applied', throws(() => apply({ prod: p.prod, dev: p.dev, root, id: blocked.manifest.id, confirm: 'x' }), /not "previewed"/));
-      eq('and Development is exactly as before', diff(before, snapshot(p.devDb)), []);
-
-      const noRehearsal = preview({ prod: p.prod, dev: p.dev, root, rehearse: false });
-      ok('without the rehearsal the same preview passes (that is what the rehearsal is for)', noRehearsal.manifest.status === 'previewed' && noRehearsal.manifest.rehearsal.skipped);
-      const a = apply({ prod: p.prod, dev: p.dev, root, id: noRehearsal.manifest.id, confirm: confirmationPhrase(noRehearsal.manifest) });
-      ok('apply FAILS part-way (after the deletes) and says why', a.ok === false && a.manifest.status === 'failed' && /orders_status_check/.test(a.manifest.failure.detail));
-      eq('THE FAILED APPLY LEFT DEVELOPMENT EXACTLY AS IT WAS (whole transaction rolled back, all tables, auth, storage)', diff(before, snapshot(p.devDb)), []);
-      eq('trigger states are untouched after the failure', triggerStates(p.devDb), statesBefore);
-      ok('the tool itself proved the state afterwards', /unchanged/.test(a.manifest.stateAfterFailure));
-      ok('a verified backup exists even for the failed attempt', fs.existsSync(path.join(a.runDir, 'backup', 'orders.copy')));
-      ok('a failed run cannot be applied again', throws(() => apply({ prod: p.prod, dev: p.dev, root, id: a.manifest.id, confirm: confirmationPhrase(a.manifest) }), /not "previewed"/));
-      // undo the scenario's change to Production's schema (after emptying the tables that held the invalid row)
-      resetScratchPair(p, { seed: false });
-      psqlOn(p.prodDb, 'ALTER TABLE public.orders ADD CONSTRAINT orders_status_check ' + statusCheckDefinition);
-    }
-
-
-    // =================================================================================================================
-    // 4. Stale, tampered, expired and drifted inputs are refused
+    // 10. The command line, end to end (scratch targets)
     // =================================================================================================================
     {
-      const p = pair('t_stale');
-      const root = newRoot();
-      const pv = preview({ prod: p.prod, dev: p.dev, root });
-      const m = pv.manifest;
-      const phrase = confirmationPhrase(m);
-      // Development changes after the preview
-      psqlOn(p.devDb, `UPDATE customers SET phone = '+15559990000' WHERE id = '${id(K.customer, 901)}'`);
-      const before = snapshot(p.devDb);
-      ok('Development changed after the preview: apply refuses and modifies nothing', throws(() => apply({ prod: p.prod, dev: p.dev, root, id: m.id, confirm: phrase }), /changed between the preview and the backup/) && diff(before, snapshot(p.devDb)).length === 0);
-      ok('the run is back to "previewed" (nothing was applied)', readManifest(root, m.id).status === 'previewed');
-
-      const pv2 = preview({ prod: p.prod, dev: p.dev, root });
-      const exportFile = path.join(pv2.runDir, 'export', 'orders.copy');
-      fs.appendFileSync(exportFile, '\n');
-      fs.writeFileSync(exportFile, fs.readFileSync(exportFile, 'utf8').replace('Synthetic order 1', 'Tampered order 1'));
-      ok('an altered export file is detected before anything is touched', throws(() => apply({ prod: p.prod, dev: p.dev, root, id: pv2.manifest.id, confirm: confirmationPhrase(pv2.manifest) }), /altered or is missing/));
-
-      const pv3 = preview({ prod: p.prod, dev: p.dev, root });
-      ok('a preview older than the limit is refused', throws(() => apply({ prod: p.prod, dev: p.dev, root, id: pv3.manifest.id, confirm: confirmationPhrase(pv3.manifest), now: () => Date.now() + 25 * 3600 * 1000 }), /hours old/));
-      psqlOn(p.devDb, 'ALTER TABLE public.orders ADD COLUMN drifted text');
-      ok('a Development schema change after the preview is refused', throws(() => apply({ prod: p.prod, dev: p.dev, root, id: pv3.manifest.id, confirm: confirmationPhrase(pv3.manifest) }), /schema changed since the preview/));
-      psqlOn(p.devDb, 'ALTER TABLE public.orders DROP COLUMN drifted');
-
-      const pv4 = preview({ prod: p.prod, dev: p.dev, root });
-      const a = apply({ prod: p.prod, dev: p.dev, root, id: pv4.manifest.id, confirm: confirmationPhrase(pv4.manifest) });
-      ok('a clean preview applies', a.ok);
-      fs.writeFileSync(path.join(a.runDir, 'backup', 'orders.copy'), fs.readFileSync(path.join(a.runDir, 'backup', 'orders.copy'), 'utf8').replace('DEV ONLY', 'ALTERED'));
-      ok('an altered backup is refused by restore', throws(() => restore({ dev: p.dev, root, id: pv4.manifest.id, confirm: restorePhrase(a.manifest) }), /missing or altered/));
-      ok('a backup cannot be restored onto another database', throws(() => restore({ dev: { ...p.dev, database: 'devrefresh_nonexistent_dev' }, root, id: pv4.manifest.id, confirm: restorePhrase(a.manifest) }), /different Development database|Refusing/));
+      const p = pair('t_cli');
+      const run = (...args: string[]) => spawnSync('node', ['scripts/SyncDevDataFromProd/cli.mjs', ...args, '--scratch', shared.devDb.slice('devrefresh_'.length, -'_dev'.length)], { encoding: 'utf8', env: process.env });
+      const doctor = run('doctor');
+      ok('doctor verifies identities and proves Production writes are refused', doctor.status === 0 && /session is read-only; a write was refused/.test(doctor.stdout));
+      const pv = run('preview');
+      const runId = (pv.stdout.match(/Run (\d{8}-\d{6})/) || [])[1];
+      ok('preview prints the table, the rehearsal result and the exact approval command', pv.status === 0 && !!runId && /Rehearsal: the complete replacement ran/.test(pv.stdout) && new RegExp(`--confirm "REPLACE DEV ORDERS ${p.devDb} WITH PRODUCTION [0-9a-f]{8}"`).test(pv.stdout));
+      ok('preview is the default and never prints a password', !/postgres:postgres|PGPASSWORD/.test(pv.stdout + pv.stderr));
+      const bad = run('apply', '--run', runId, '--confirm', 'go');
+      ok('apply without the phrase exits non-zero and says what to type', bad.status !== 0 && /Approval phrase does not match/.test(bad.stderr));
+      const phrase = (pv.stdout.match(/--confirm "([^"]+)"/) || [])[1];
+      const good = run('apply', '--run', runId, '--confirm', phrase);
+      ok('apply with the phrase succeeds and prints the verification and the undo command', good.status === 0 && /\[ok\] row count orders/.test(good.stdout) && /restore --run/.test(good.stdout));
+      ok('runs lists it', /applied/.test(spawnSync('node', ['scripts/SyncDevDataFromProd/cli.mjs', 'runs'], { encoding: 'utf8' }).stdout));
+      ok('verify passes', run('verify', '--run', runId).status === 0);
+      const media = run('media-plan', '--run', runId);
+      ok('media-plan reports the evidence objects and changes nothing', media.status === 0 && /Evidence objects referenced/.test(media.stdout) && /never deleted/.test(media.stdout));
+      const undo = run('restore', '--run', runId, '--confirm', `RESTORE DEV ORDERS ${p.devDb} FROM BACKUP ${runId}`);
+      ok('restore through the command line works', undo.status === 0 && /verified identical/.test(undo.stdout));
+      ok('unknown commands fail', run('frobnicate').status !== 0);
+      fs.rmSync(path.join('.SyncDevDataFromProd', 'runs', runId), { recursive: true, force: true });
     }
   } finally {
     for (const p of made) {
@@ -205,8 +165,8 @@ async function main() {
       }
     }
   }
-  console.log(`dev refresh devRefreshReplacementFailure tests: ${passed} passed, ${failed} failed`);
-  if (failed > 0) throw new Error(`${failed} devRefreshReplacementFailure test(s) failed`);
+  console.log(`dev refresh syncDevDataFromProdReplacementCli tests: ${passed} passed, ${failed} failed`);
+  if (failed > 0) throw new Error(`${failed} syncDevDataFromProdReplacementCli test(s) failed`);
 }
 
 main().catch((e) => {

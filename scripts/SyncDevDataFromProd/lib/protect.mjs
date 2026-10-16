@@ -113,5 +113,5 @@ export function ensureProtectedDir(dir, deps = {}) {
 }
 
 export function assertRestricted(p, what) {
-  if (!isRestricted(p)) throw new Error(`${what} (${p}) is readable by other accounts on this machine. Run: npm run dev-refresh -- protect`);
+  if (!isRestricted(p)) throw new Error(`${what} (${p}) is readable by other accounts on this machine. Run: npm run syncDevDataFromProd -- protect`);
 }

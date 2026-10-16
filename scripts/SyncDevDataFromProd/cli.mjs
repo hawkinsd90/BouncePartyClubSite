@@ -1,17 +1,18 @@
 #!/usr/bin/env node
-// Production -> Development order data refresh.  See scripts/dev-refresh/README.md.
+// Production -> Development order data refresh.  See scripts/SyncDevDataFromProd/README.md.
 //
-//   node scripts/dev-refresh/cli.mjs doctor
-//   node scripts/dev-refresh/cli.mjs preview            (default; changes nothing that lasts)
-//   node scripts/dev-refresh/cli.mjs apply   --run <id> --confirm "<phrase printed by preview>" [--attest relays-guarded,auth-email-contained,stripe-edge-secrets-test]
-//   node scripts/dev-refresh/cli.mjs restore --run <id> --confirm "<phrase>" [--accept-drift "<phrase>"]
-//   node scripts/dev-refresh/cli.mjs verify  --run <id>
-//   node scripts/dev-refresh/cli.mjs runs
-//   node scripts/dev-refresh/cli.mjs protect                       restrict the credentials file and run folders to this user
-//   node scripts/dev-refresh/cli.mjs cleanup [--include-backups] [--execute --confirm "<phrase>"]   list (default) or delete local run data
-//   node scripts/dev-refresh/cli.mjs audit-functions --project dev|prod --file <list>   compare deployed functions with the reviewed ones
-//   node scripts/dev-refresh/cli.mjs media-plan --run <id>
-//   node scripts/dev-refresh/cli.mjs media-copy --run <id> [--execute --confirm "<phrase>"]
+//   node scripts/SyncDevDataFromProd/cli.mjs doctor
+//   node scripts/SyncDevDataFromProd/cli.mjs preview            (default; changes nothing that lasts)
+//   node scripts/SyncDevDataFromProd/cli.mjs apply   --run <id> --confirm "<phrase printed by preview>" [--attest relays-guarded,auth-email-contained,stripe-edge-secrets-test]
+//                                            [--waive "relays-guarded=<written reason>"]   (only relays-guarded can be waived, for this one apply)
+//   node scripts/SyncDevDataFromProd/cli.mjs restore --run <id> --confirm "<phrase>" [--accept-drift "<phrase>"]
+//   node scripts/SyncDevDataFromProd/cli.mjs verify  --run <id>
+//   node scripts/SyncDevDataFromProd/cli.mjs runs
+//   node scripts/SyncDevDataFromProd/cli.mjs protect                       restrict the credentials file and run folders to this user
+//   node scripts/SyncDevDataFromProd/cli.mjs cleanup [--include-backups] [--execute --confirm "<phrase>"]   list (default) or delete local run data
+//   node scripts/SyncDevDataFromProd/cli.mjs audit-functions --project dev|prod --file <list>   compare deployed functions with the reviewed ones
+//   node scripts/SyncDevDataFromProd/cli.mjs media-plan --run <id>
+//   node scripts/SyncDevDataFromProd/cli.mjs media-copy --run <id> [--execute --confirm "<phrase>"]
 
 import fs from 'node:fs';
 import path from 'node:path';
@@ -22,10 +23,10 @@ import { ATTESTATIONS, REVIEWED_FUNCTIONS, auditDeployedFunctions } from './lib/
 import { accessList, assertRestricted, ensureProtectedDir, isRestricted, protectPath } from './lib/protect.mjs';
 import { assertTargetIdentity, describeTarget, redact, targetFromUrl } from './lib/psql.mjs';
 import { cleanupPhrase, executeCleanup, planCleanup } from './lib/retention.mjs';
-import { apply, confirmationPhrase, listRuns, preview, readManifest, restore, restorePhrase, runDirOf, stripeModeOfDev, stripeProblems, verifyApplied, verifyEnvironment, writeManifest } from './lib/run.mjs';
+import { apply, confirmationPhrase, listRuns, parseWaiveOption, preview, readManifest, restore, restorePhrase, runDirOf, stripeModeOfDev, stripeProblems, verifyApplied, verifyEnvironment, writeManifest } from './lib/run.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
-const ENV_FILE = process.env.DEV_REFRESH_ENV_FILE || path.join(ROOT, '.env.dev-refresh');
+const ENV_FILE = process.env.DEV_REFRESH_ENV_FILE || path.join(ROOT, '.env.SyncDevDataFromProd');
 
 function loadEnvFile() {
   const out = {};
@@ -66,11 +67,11 @@ export function resolveTargets(args, env = { ...loadEnvFile(), ...process.env })
       dev: targetFromUrl('dev', url(`devrefresh_${args.scratch}_dev`), { scratch: true }),
     };
   }
-  if (fs.existsSync(ENV_FILE)) assertRestricted(ENV_FILE, 'The credentials file .env.dev-refresh');
+  if (fs.existsSync(ENV_FILE)) assertRestricted(ENV_FILE, 'The credentials file .env.SyncDevDataFromProd');
   const prodUrl = env.DEV_REFRESH_PROD_DB_URL;
   const devUrl = env.DEV_REFRESH_DEV_DB_URL;
   if (!prodUrl || !devUrl) {
-    throw new Error(`Missing connection settings. Copy .env.dev-refresh.example to .env.dev-refresh and fill in DEV_REFRESH_PROD_DB_URL and DEV_REFRESH_DEV_DB_URL (the file is git-ignored).`);
+    throw new Error(`Missing connection settings. Copy .env.SyncDevDataFromProd.example to .env.SyncDevDataFromProd and fill in DEV_REFRESH_PROD_DB_URL and DEV_REFRESH_DEV_DB_URL (the file is git-ignored).`);
   }
   return { prod: targetFromUrl('prod', prodUrl), dev: targetFromUrl('dev', devUrl) };
 }
@@ -104,7 +105,7 @@ function printPreview(m, runDir) {
   if (own) out(`\nCustomer login ownership: ${Object.entries(own).map(([k, v]) => `${k} ${v}`).join(', ')}`);
   out(`\nFull report: ${path.relative(ROOT, path.join(runDir, 'report.md'))}`);
   out('\nTo replace Development with exactly this preview, run:');
-  out(`  npm run dev-refresh -- apply --run ${m.id} --confirm "${confirmationPhrase(m)}"${m.scratch ? '' : ' --attest relays-guarded,auth-email-contained,stripe-edge-secrets-test'}`);
+  out(`  npm run syncDevDataFromProd -- apply --run ${m.id} --confirm "${confirmationPhrase(m)}"${m.scratch ? '' : ' --attest relays-guarded,auth-email-contained,stripe-edge-secrets-test'}`);
   if (!m.scratch) out('(--attest: you confirm the three things this tool can not read; see README, "Before the first hosted refresh".)');
 }
 
@@ -125,14 +126,14 @@ async function main() {
   }
 
   if (cmd === 'protect') {
-    const base = ensureProtectedDir(path.join(ROOT, '.dev-refresh'));
+    const base = ensureProtectedDir(path.join(ROOT, '.SyncDevDataFromProd'));
     out(`Run folder root protected: ${base} (${accessList(base).join(', ')})`);
     if (fs.existsSync(ENV_FILE)) {
       const r = protectPath(ENV_FILE);
-      out(`.env.dev-refresh: ${r.ok ? 'restricted to ' + accessList(ENV_FILE).join(', ') : 'FAILED ' + r.detail}`);
+      out(`.env.SyncDevDataFromProd: ${r.ok ? 'restricted to ' + accessList(ENV_FILE).join(', ') : 'FAILED ' + r.detail}`);
       return r.ok ? 0 : 2;
     }
-    out('.env.dev-refresh does not exist yet. Create it from .env.dev-refresh.example, then run this again.');
+    out('.env.SyncDevDataFromProd does not exist yet. Create it from .env.SyncDevDataFromProd.example, then run this again.');
     return 0;
   }
 
@@ -144,7 +145,7 @@ async function main() {
     out(`Kept (${plan.kept.length}):`);
     for (const k of plan.kept) out(`  ${k.id}  ${k.category.padEnd(22)} ${mb(k.bytes).padStart(9)}  ${k.reason}`);
     if (!args.execute) {
-      if (plan.items.length) out(`\nNothing was deleted. To delete exactly the list above:\n  npm run dev-refresh -- cleanup${args['include-backups'] ? ' --include-backups' : ''} --execute --confirm "${cleanupPhrase(plan)}"`);
+      if (plan.items.length) out(`\nNothing was deleted. To delete exactly the list above:\n  npm run syncDevDataFromProd -- cleanup${args['include-backups'] ? ' --include-backups' : ''} --execute --confirm "${cleanupPhrase(plan)}"`);
       return 0;
     }
     const removed = executeCleanup(ROOT, plan, args.confirm);
@@ -181,7 +182,7 @@ async function main() {
     const stripe = stripeModeOfDev(targets.dev);
     for (const s of stripe) out(`Development ${s.key}: ${s.mode}`);
     const problems = stripeProblems(stripe);
-    if (fs.existsSync(ENV_FILE) && !isRestricted(ENV_FILE)) problems.push(`.env.dev-refresh is readable by other accounts (${accessList(ENV_FILE).join(', ')}). Run: npm run dev-refresh -- protect`);
+    if (fs.existsSync(ENV_FILE) && !isRestricted(ENV_FILE)) problems.push(`.env.SyncDevDataFromProd is readable by other accounts (${accessList(ENV_FILE).join(', ')}). Run: npm run syncDevDataFromProd -- protect`);
     for (const p of problems) out(`PROBLEM: ${p}`);
     out('A hosted apply also asks you to confirm (--attest): ' + Object.keys(ATTESTATIONS).join(', '));
     return problems.length ? 2 : 0;
@@ -196,19 +197,22 @@ async function main() {
   if (cmd === 'apply') {
     if (!args.run || !args.confirm || args.confirm === true) throw new Error('apply needs --run <id> and --confirm "<phrase printed by preview>".');
     const attest = typeof args.attest === 'string' ? args.attest.split(',').map((x) => x.trim()).filter(Boolean) : [];
-    const r = apply({ ...targets, root: ROOT, id: args.run, confirm: args.confirm, attest, log });
+    // One explicit waiver at most (only relays-guarded can be waived; see resolveAttestations). The argument parser keeps only the last value of a repeated flag, so a repeat is refused.
+    if (rest.filter((a) => a === '--waive').length > 1) throw new Error('--waive may be given once only.');
+    const waive = parseWaiveOption(args.waive);
+    const r = apply({ ...targets, root: ROOT, id: args.run, confirm: args.confirm, attest, waive, log });
     const m = r.manifest;
     out(`\nRun ${m.id}: ${m.status}`);
     if (!r.ok && m.failure) {
       out(`FAILED: ${m.failure.code} - ${redact(m.failure.detail)}`);
       out(m.failure.help);
       out(`Development afterwards: ${m.stateAfterFailure}`);
-      out(`If it says anything but "unchanged", restore:  npm run dev-refresh -- restore --run ${m.id} --confirm "${restorePhrase(m)}"`);
+      out(`If it says anything but "unchanged", restore:  npm run syncDevDataFromProd -- restore --run ${m.id} --confirm "${restorePhrase(m)}"`);
       return 2;
     }
     for (const c of m.verification?.checks || []) out(`  [${c.ok ? 'ok' : 'FAIL'}] ${c.name}${c.detail ? ` - ${c.detail}` : ''}`);
     out(`\nReport: ${path.relative(ROOT, path.join(runDirOf(ROOT, m.id), 'report.md'))}`);
-    out(`To undo:  npm run dev-refresh -- restore --run ${m.id} --confirm "${restorePhrase(m)}"`);
+    out(`To undo:  npm run syncDevDataFromProd -- restore --run ${m.id} --confirm "${restorePhrase(m)}"`);
     return r.ok ? 0 : 2;
   }
 
@@ -250,14 +254,14 @@ async function main() {
 
     const phrase = `COPY MISSING EVIDENCE INTO ${m.devLabel} RUN ${m.id}`;
     if (!args.execute) {
-      out(`\nDry run: ${plan.toCopy.length} object(s) would be copied. To copy them (additive, never overwrites):\n  npm run dev-refresh -- media-copy --run ${m.id} --execute --confirm "${phrase}"`);
+      out(`\nDry run: ${plan.toCopy.length} object(s) would be copied. To copy them (additive, never overwrites):\n  npm run syncDevDataFromProd -- media-copy --run ${m.id} --execute --confirm "${phrase}"`);
       return 0;
     }
     if (args.confirm !== phrase) throw new Error(`Approval phrase does not match. Type:\n  ${phrase}`);
     const env = { ...loadEnvFile(), ...process.env };
     const need = ['DEV_REFRESH_PROD_API_URL', 'DEV_REFRESH_PROD_SERVICE_KEY', 'DEV_REFRESH_DEV_API_URL', 'DEV_REFRESH_DEV_SERVICE_KEY'];
     const missing = need.filter((k) => !env[k]);
-    if (missing.length) throw new Error(`Copying needs ${missing.join(', ')} in .env.dev-refresh.`);
+    if (missing.length) throw new Error(`Copying needs ${missing.join(', ')} in .env.SyncDevDataFromProd.`);
     const refOf = (u) => (String(u).match(/^https:\/\/([a-z]{20})\.supabase\.co/) || [])[1];
     if (!targets.dev.scratch) {
       if (refOf(env.DEV_REFRESH_PROD_API_URL) !== PROJECTS.prod.ref) throw new Error('DEV_REFRESH_PROD_API_URL is not the Production project.');

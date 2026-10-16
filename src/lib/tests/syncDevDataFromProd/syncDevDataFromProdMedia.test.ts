@@ -2,9 +2,9 @@
 // @ts-nocheck
 // Evidence media planning for the order data refresh: how stored references become bucket + path, how objects are classified, and the
 // additive-only copy. Pure (no database, no network): inventories are synthetic and the storage clients are recording fakes.
-// Run: node node_modules/jiti/bin/jiti.js src/lib/tests/devRefresh/devRefreshMedia.test.ts
+// Run: node node_modules/jiti/bin/jiti.js src/lib/tests/syncDevDataFromProd/syncDevDataFromProdMedia.test.ts
 
-import { MEDIA_COLUMNS, classifyMedia, copyMissing, orphanedDevObjects, referencesOf } from '../../../../scripts/dev-refresh/lib/media.mjs';
+import { MEDIA_COLUMNS, classifyMedia, copyMissing, orphanedDevObjects, referencesOf } from '../../../../scripts/SyncDevDataFromProd/lib/media.mjs';
 
 let passed = 0;
 let failed = 0;

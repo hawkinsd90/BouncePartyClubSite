@@ -143,5 +143,5 @@ export function auditDeployedFunctions(deployed, repoSlugs, project) {
 export const ATTESTATIONS = {
   'relays-guarded': 'The Development send-email and send-sms-notification functions are deployed from the version that contains the outbound guard, and the Development function list was audited with "audit-functions" (no unreviewed function).',
   'auth-email-contained': 'Development Authentication sends no email to real addresses: no custom SMTP server (or one that only reaches the test inboxes), and no Send Email hook enabled.',
-  'stripe-edge-secrets-test': 'The STRIPE_SECRET_KEY Edge Function secret of the Development project (read by get-payment-method, get-session-metadata and stripe-webhook) is a test-mode key, and the Development Stripe webhook points only at Development.',
+  'stripe-edge-secrets-test': 'The STRIPE_SECRET_KEY Edge Function secret of the Development project (read by get-payment-method, get-session-metadata and stripe-webhook) is a test-mode key, and no Stripe webhook endpoint delivers events to the Production project (a Development webhook is not required; if one is configured it points only at Development).',
 };

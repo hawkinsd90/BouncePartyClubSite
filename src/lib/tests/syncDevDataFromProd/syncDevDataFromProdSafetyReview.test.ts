@@ -3,7 +3,7 @@
 // Final safety review of the Production -> Development order data refresh: rehearsal enforcement, restore drift detection, strict Stripe
 // test-mode verification, notification pathway review, protection of the sensitive local files, and retention / cleanup.
 // Scenarios that need a database use throw-away scratch databases on the local test server (never a Supabase project) and synthetic rows.
-// Run: node node_modules/jiti/bin/jiti.js src/lib/tests/devRefresh/devRefreshSafetyReview.test.ts
+// Run: node node_modules/jiti/bin/jiti.js src/lib/tests/syncDevDataFromProd/syncDevDataFromProdSafetyReview.test.ts
 
 declare const require: (id: string) => any;
 declare const process: { env: Record<string, string | undefined>; exit: (n: number) => void; platform: string };
@@ -12,12 +12,12 @@ const os = require('os');
 const path = require('path');
 const { spawnSync } = require('child_process');
 
-import { resolveTargets } from '../../../../scripts/dev-refresh/cli.mjs';
-import { REVIEWED_FUNCTIONS, REVIEWED_HOSTED_ONLY, ATTESTATIONS, PATHWAY, auditDeployedFunctions, classifyFunctionFiles, classifyFunctionSource, relayCallingModules, usesUnreviewedProvider } from '../../../../scripts/dev-refresh/lib/pathways.mjs';
-import { accessList, assertOwnFolder, currentPrincipal, ensureProtectedDir, isRestricted, protectPath } from '../../../../scripts/dev-refresh/lib/protect.mjs';
-import { RETENTION, cleanupPhrase, executeCleanup, planCleanup } from '../../../../scripts/dev-refresh/lib/retention.mjs';
-import { DriftError, apply, confirmationPhrase, driftPhrase, preview, readManifest, restore, restorePhrase, stripeProblems, writeManifest } from '../../../../scripts/dev-refresh/lib/run.mjs';
-import { K, buildScratchPair, id, psqlOn, scalar, scratchAvailable } from '../support/devRefreshScratch.mjs';
+import { resolveTargets } from '../../../../scripts/SyncDevDataFromProd/cli.mjs';
+import { REVIEWED_FUNCTIONS, REVIEWED_HOSTED_ONLY, ATTESTATIONS, PATHWAY, auditDeployedFunctions, classifyFunctionFiles, classifyFunctionSource, relayCallingModules, usesUnreviewedProvider } from '../../../../scripts/SyncDevDataFromProd/lib/pathways.mjs';
+import { accessList, assertOwnFolder, currentPrincipal, ensureProtectedDir, isRestricted, protectPath } from '../../../../scripts/SyncDevDataFromProd/lib/protect.mjs';
+import { RETENTION, cleanupPhrase, executeCleanup, planCleanup } from '../../../../scripts/SyncDevDataFromProd/lib/retention.mjs';
+import { DriftError, apply, confirmationPhrase, driftPhrase, preview, readManifest, restore, restorePhrase, stripeProblems, writeManifest } from '../../../../scripts/SyncDevDataFromProd/lib/run.mjs';
+import { K, buildScratchPair, id, psqlOn, scalar, scratchAvailable } from '../support/syncDevDataFromProdScratch.mjs';
 
 let passed = 0;
 let failed = 0;
@@ -101,10 +101,10 @@ eq('the three operator confirmations are defined', Object.keys(ATTESTATIONS).sor
 
 const auditFile = path.join(os.tmpdir(), `devrefresh-audit-${process.pid}.json`);
 fs.writeFileSync(auditFile, JSON.stringify([{ slug: 'send-email' }, { slug: 'stranger' }]));
-const aud = spawnSync('node', ['scripts/dev-refresh/cli.mjs', 'audit-functions', '--project', 'dev', '--file', auditFile], { encoding: 'utf8' });
+const aud = spawnSync('node', ['scripts/SyncDevDataFromProd/cli.mjs', 'audit-functions', '--project', 'dev', '--file', auditFile], { encoding: 'utf8' });
 ok('the audit-functions command exits non-zero and names the unreviewed function', aud.status === 2 && /UNREVIEWED: stranger/.test(aud.stdout));
 fs.writeFileSync(auditFile, 'send-email\nsend-sms-notification\nsend-booking-confirmation\n');
-ok('and exits zero for a reviewed list (plain text list accepted)', spawnSync('node', ['scripts/dev-refresh/cli.mjs', 'audit-functions', '--project', 'dev', '--file', auditFile], { encoding: 'utf8' }).status === 0);
+ok('and exits zero for a reviewed list (plain text list accepted)', spawnSync('node', ['scripts/SyncDevDataFromProd/cli.mjs', 'audit-functions', '--project', 'dev', '--file', auditFile], { encoding: 'utf8' }).status === 0);
 fs.rmSync(auditFile, { force: true });
 
 // =====================================================================================================================
@@ -122,11 +122,11 @@ fs.rmSync(auditFile, { force: true });
   if (process.platform === 'win32') spawnSync('icacls', [envFile, '/grant', '*S-1-5-32-545:R'], { encoding: 'utf8' });
   else fs.chmodSync(envFile, 0o644);
   const env = { ...process.env, DEV_REFRESH_ENV_FILE: envFile };
-  const doctor = spawnSync('node', ['scripts/dev-refresh/cli.mjs', 'doctor'], { encoding: 'utf8', env });
+  const doctor = spawnSync('node', ['scripts/SyncDevDataFromProd/cli.mjs', 'doctor'], { encoding: 'utf8', env });
   ok('hosted commands refuse to read connection settings from a file that other accounts can read, and say how to fix it', doctor.status !== 0 && /readable by other accounts/.test(doctor.stderr) && /protect/.test(doctor.stderr));
-  const prot = spawnSync('node', ['scripts/dev-refresh/cli.mjs', 'protect'], { encoding: 'utf8', env });
+  const prot = spawnSync('node', ['scripts/SyncDevDataFromProd/cli.mjs', 'protect'], { encoding: 'utf8', env });
   ok('the protect command restricts the file to the current user', prot.status === 0 && isRestricted(envFile) && accessList(envFile).every((p: string) => p === currentPrincipal() || p === os.userInfo().username));
-  const after = spawnSync('node', ['scripts/dev-refresh/cli.mjs', 'doctor'], { encoding: 'utf8', env });
+  const after = spawnSync('node', ['scripts/SyncDevDataFromProd/cli.mjs', 'doctor'], { encoding: 'utf8', env });
   ok('after protecting it the permission error is gone (the next error is the missing connection settings)', /Missing connection settings/.test(after.stderr) && !/readable by other accounts/.test(after.stderr));
   ok('the same loader refuses on a scratch run without needing the file at all', resolveTargets({ scratch: 'x' }, {}).dev.scratch === true);
   // These calls name REAL system folders. They are made with a recording stand-in for the commands that change permissions (and for mkdir /
@@ -146,7 +146,7 @@ fs.rmSync(auditFile, { force: true });
   ok('a link that really points at a system folder is refused as well (the folder is judged by where it really is)', throws(() => protectPath(ownChild, { ...spy, realpath: () => os.tmpdir() }), /not a folder this tool created/) && throws(() => ensureProtectedDir(ownChild, { ...spy, realpath: () => os.homedir() }), /not a folder this tool created/));
   ok('NOT ONE permission, mkdir or chmod command was attempted for any of them', attempted.length === 0);
   ok('a child of the temporary folder (what every test uses) is allowed by the same guard', (() => { try { return assertOwnFolder(ownChild) === path.resolve(ownChild); } catch { return false; } })());
-  ok('every folder these tests (and the tool) change is under a folder created for the test, or the repository .dev-refresh folder', path.resolve(root).startsWith(path.resolve(os.tmpdir()) + path.sep) && path.resolve(root) !== path.resolve(os.tmpdir()));
+  ok('every folder these tests (and the tool) change is under a folder created for the test, or the repository .SyncDevDataFromProd folder', path.resolve(root).startsWith(path.resolve(os.tmpdir()) + path.sep) && path.resolve(root) !== path.resolve(os.tmpdir()));
   const dir = ensureProtectedDir(path.join(root, 'private'));
   fs.writeFileSync(path.join(dir, 'a.txt'), 'x');
   ok('a protected folder and a file created in it are restricted to the current user', isRestricted(dir) && isRestricted(path.join(dir, 'a.txt')) && protectPath(dir).ok);
@@ -155,7 +155,7 @@ fs.rmSync(auditFile, { force: true });
 {
   // retention: fake run folders with known ages and states
   const root = newRoot();
-  const runs = path.join(root, '.dev-refresh', 'runs');
+  const runs = path.join(root, '.SyncDevDataFromProd', 'runs');
   const DAY = 86400000;
   const now = Date.now();
   const mk = (idv: string, status: string, ageDays: number, folders: string[]) => {
@@ -205,11 +205,11 @@ fs.rmSync(auditFile, { force: true });
   fs.rmSync(root, { recursive: true, force: true });
 }
 {
-  const toolFiles = fs.readdirSync('scripts/dev-refresh/lib').map((f: string) => `scripts/dev-refresh/lib/${f}`).concat(['scripts/dev-refresh/cli.mjs']);
+  const toolFiles = fs.readdirSync('scripts/SyncDevDataFromProd/lib').map((f: string) => `scripts/SyncDevDataFromProd/lib/${f}`).concat(['scripts/SyncDevDataFromProd/cli.mjs']);
   const code = (f: string) => read(f).replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
   const removers = toolFiles.filter((f: string) => /\b(rmSync|unlinkSync|rmdirSync|rm\()|fs\.promises\.rm|\.unlink\(/.test(code(f)));
-  eq('the only code that deletes files is retention.mjs (and only from executeCleanup)', removers, ['scripts/dev-refresh/lib/retention.mjs']);
-  ok('retention deletes in exactly one place', (code('scripts/dev-refresh/lib/retention.mjs').match(/rmSync\(/g) || []).length === 1);
+  eq('the only code that deletes files is retention.mjs (and only from executeCleanup)', removers, ['scripts/SyncDevDataFromProd/lib/retention.mjs']);
+  ok('retention deletes in exactly one place', (code('scripts/SyncDevDataFromProd/lib/retention.mjs').match(/rmSync\(/g) || []).length === 1);
   ok('nothing in the tool schedules or repeats itself', !toolFiles.some((f: string) => /setInterval|setTimeout|node-cron|CronCreate|schedule\(/.test(code(f))));
 }
 
@@ -218,7 +218,7 @@ fs.rmSync(auditFile, { force: true });
 // =====================================================================================================================
 async function main() {
   if (!scratchAvailable()) {
-    const msg = 'devRefreshSafetyReview: no scratch PostgreSQL reachable - executed scenarios SKIPPED';
+    const msg = 'syncDevDataFromProdSafetyReview: no scratch PostgreSQL reachable - executed scenarios SKIPPED';
     if (process.env.ROLE_DB_REQUIRE === '1') throw new Error(`${msg} (ROLE_DB_REQUIRE=1)`);
     console.log(msg);
     // The checks that need no database (pathway review, file protection, retention) have already run: their result must still count.
@@ -244,10 +244,10 @@ async function main() {
     // ---------------------------------------------------------------------------------------------------------------
     ok('a hosted preview can not skip the rehearsal (refused before any connection is made)', throws(() => preview({ prod: hostedLike, dev: hostedLike, root, rehearse: false }), /rehearsal can not be skipped for a hosted refresh/));
     ok('the same rule can be switched on for scratch databases (so it is testable)', throws(() => preview({ prod: p.prod, dev: p.dev, root, rehearse: false, enforceRehearsal: true }), /can not be skipped/));
-    const cliNo = spawnSync('node', ['scripts/dev-refresh/cli.mjs', 'preview', '--no-rehearsal', '--scratch', 't_review'], { encoding: 'utf8' });
+    const cliNo = spawnSync('node', ['scripts/SyncDevDataFromProd/cli.mjs', 'preview', '--no-rehearsal', '--scratch', 't_review'], { encoding: 'utf8' });
     ok('local scratch testing may still skip it (--no-rehearsal on a scratch pair works)', cliNo.status === 0 && /scratch databases only/.test(cliNo.stdout));
     const runIdNo = (cliNo.stdout.match(/Run (\d{8}-\d{6})/) || [])[1];
-    fs.rmSync(path.join('.dev-refresh', 'runs', runIdNo || 'none'), { recursive: true, force: true });
+    fs.rmSync(path.join('.SyncDevDataFromProd', 'runs', runIdNo || 'none'), { recursive: true, force: true });
 
     const unrehearsed = preview({ prod: p.prod, dev: p.dev, root, rehearse: false });
     ok('an un-rehearsed local preview exists with no rehearsal evidence', unrehearsed.manifest.status === 'previewed' && unrehearsed.manifest.rehearsal.skipped === true);
@@ -288,7 +288,7 @@ async function main() {
     // ---------------------------------------------------------------------------------------------------------------
     {
       const sample = ['export/orders.copy', 'backup/orders.copy', 'outputs/stripe-quarantine-orders.stripe_customer_id.copy', 'outputs/auth-unlinked-customers.copy', 'dev-rows-to-replace/orders.ids', 'after-apply/orders.hash', 'manifest.json', 'report.md'].map((f) => path.join(a.runDir, f));
-      ok('the run folder and its parent are restricted to the current user', isRestricted(a.runDir) && isRestricted(path.join(root, '.dev-refresh')));
+      ok('the run folder and its parent are restricted to the current user', isRestricted(a.runDir) && isRestricted(path.join(root, '.SyncDevDataFromProd')));
       ok('every sensitive file is restricted (export, backup, Stripe quarantine, customer ids, row hashes)', sample.every((f) => fs.existsSync(f) && isRestricted(f)));
       ok('on this machine only the current user has access (no Everyone / Users / Authenticated Users)', accessList(a.runDir).every((x: string) => x === currentPrincipal() || x === os.userInfo().username));
       ok('the files really hold customer data (this is why they are protected)', /Synthetic order 1/.test(read(path.join(a.runDir, 'export', 'orders.copy'))) && /cus_prod_1/.test(read(path.join(a.runDir, 'outputs', 'stripe-quarantine-orders.stripe_customer_id.copy'))));

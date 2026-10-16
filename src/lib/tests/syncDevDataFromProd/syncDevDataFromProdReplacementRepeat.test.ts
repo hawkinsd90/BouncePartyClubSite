@@ -10,7 +10,7 @@
 // (The scenarios are spread over several files only so that each stays well inside the test runner per-file time limit.)
 //
 // With no reachable database the scenarios are SKIPPED (an environment limit, not a pass); ROLE_DB_REQUIRE=1 makes that a failure.
-// Run: node node_modules/jiti/bin/jiti.js src/lib/tests/devRefresh/devRefreshReplacementRepeat.test.ts
+// Run: node node_modules/jiti/bin/jiti.js src/lib/tests/syncDevDataFromProd/syncDevDataFromProdReplacementRepeat.test.ts
 
 declare const require: (id: string) => any;
 declare const process: { env: Record<string, string | undefined>; exit: (n: number) => void };
@@ -19,10 +19,10 @@ const os = require('os');
 const path = require('path');
 const { spawnSync } = require('child_process');
 
-import { classifyMedia, collectReferences, copyMissing, orphanedDevObjects, readStorageInventory } from '../../../../scripts/dev-refresh/lib/media.mjs';
-import { runScript } from '../../../../scripts/dev-refresh/lib/psql.mjs';
-import { apply, confirmationPhrase, preview, readManifest, restore, restorePhrase, verifyEnvironment } from '../../../../scripts/dev-refresh/lib/run.mjs';
-import { K, USERS, buildScratchPair, id, psqlOn, resetScratchPair, scalar, scratchAvailable } from '../support/devRefreshScratch.mjs';
+import { classifyMedia, collectReferences, copyMissing, orphanedDevObjects, readStorageInventory } from '../../../../scripts/SyncDevDataFromProd/lib/media.mjs';
+import { runScript } from '../../../../scripts/SyncDevDataFromProd/lib/psql.mjs';
+import { apply, confirmationPhrase, preview, readManifest, restore, restorePhrase, verifyEnvironment } from '../../../../scripts/SyncDevDataFromProd/lib/run.mjs';
+import { K, USERS, buildScratchPair, id, psqlOn, resetScratchPair, scalar, scratchAvailable } from '../support/syncDevDataFromProdScratch.mjs';
 
 let passed = 0;
 let failed = 0;
@@ -114,7 +114,7 @@ function scopeContentDifferences(p: any): string[] {
 
 async function main() {
   if (!scratchAvailable()) {
-    const msg = 'devRefreshReplacementRepeat: no scratch PostgreSQL reachable - executed scenarios SKIPPED';
+    const msg = 'syncDevDataFromProdReplacementRepeat: no scratch PostgreSQL reachable - executed scenarios SKIPPED';
     if (process.env.ROLE_DB_REQUIRE === '1') throw new Error(`${msg} (ROLE_DB_REQUIRE=1)`);
     console.log(msg);
     return;
@@ -168,8 +168,8 @@ async function main() {
       }
     }
   }
-  console.log(`dev refresh devRefreshReplacementRepeat tests: ${passed} passed, ${failed} failed`);
-  if (failed > 0) throw new Error(`${failed} devRefreshReplacementRepeat test(s) failed`);
+  console.log(`dev refresh syncDevDataFromProdReplacementRepeat tests: ${passed} passed, ${failed} failed`);
+  if (failed > 0) throw new Error(`${failed} syncDevDataFromProdReplacementRepeat test(s) failed`);
 }
 
 main().catch((e) => {

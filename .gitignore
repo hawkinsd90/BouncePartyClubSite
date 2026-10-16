@@ -31,5 +31,8 @@ lint-warnings.txt
 docs/typecheck-lint-cleanup-plan.md
 
 # Production -> Development order data refresh: run folders hold real customer data and local connection strings
+.SyncDevDataFromProd/
+.env.SyncDevDataFromProd
+# legacy names of the same utility (renamed to SyncDevDataFromProd); kept so nothing sensitive can ever be committed under the old names
 .dev-refresh/
 .env.dev-refresh
