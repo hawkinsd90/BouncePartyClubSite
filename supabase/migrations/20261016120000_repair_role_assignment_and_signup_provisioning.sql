@@ -13,8 +13,9 @@
      policies, user_permissions_changelog and the Edge Functions all use lowercase (master, admin, crew, customer). A fresh
      replay rejected the application's own writes. Dev has neither that CHECK nor the original foreign key to auth.users.
   5. The auth.users trigger that runs the signup function is absent on Dev.
-  6. The signup function writes customer_profiles.first_name / last_name, columns the repository migrations never create (the
-     table was built with display_name). Dev already has them; a fresh replay does not, so signup failed at that step too.
+  6. The signup function writes customer_profiles.first_name / last_name. Migration 20251229223230
+     (update_customer_profiles_names) already adds them (the table was built with display_name), so they exist on Production,
+     on Dev and in a replay; the ADD COLUMN IF NOT EXISTS below only keeps this migration self-contained.
 
   ## What this migration does
   - Canonical role vocabulary, stored in ONE form: master, admin, crew, customer (lowercase).
@@ -41,6 +42,23 @@
 -- ---------------------------------------------------------------------------------------------------------------------
 -- 1. Existing data: one canonical lowercase form, no stale rows
 -- ---------------------------------------------------------------------------------------------------------------------
+-- Drop every CHECK that constrains the role column (whatever it was called) BEFORE normalizing: a legacy CHECK that accepts only
+-- UPPERCASE roles would reject the lowercase values written below. The lowercase CHECK is added after the vocabulary guard.
+DO $$
+DECLARE
+  c record;
+BEGIN
+  FOR c IN
+    SELECT conname
+    FROM pg_constraint
+    WHERE conrelid = 'public.user_roles'::regclass
+      AND contype = 'c'
+      AND pg_get_constraintdef(oid) ~* '\mrole\M'
+  LOOP
+    EXECUTE format('ALTER TABLE public.user_roles DROP CONSTRAINT %I', c.conname);
+  END LOOP;
+END $$;
+
 DO $$
 BEGIN
   -- Rows that would become duplicates of another row of the same user once normalized: keep the earliest.
@@ -58,22 +76,7 @@ BEGIN
   END IF;
 END $$;
 
--- Replace every CHECK that constrains the role column (whatever it was called) with the lowercase vocabulary.
-DO $$
-DECLARE
-  c record;
-BEGIN
-  FOR c IN
-    SELECT conname
-    FROM pg_constraint
-    WHERE conrelid = 'public.user_roles'::regclass
-      AND contype = 'c'
-      AND pg_get_constraintdef(oid) ~* '\mrole\M'
-  LOOP
-    EXECUTE format('ALTER TABLE public.user_roles DROP CONSTRAINT %I', c.conname);
-  END LOOP;
-END $$;
-
+-- Canonical CHECK, added only after every row has been normalized and validated above.
 ALTER TABLE public.user_roles
   ADD CONSTRAINT user_roles_role_check CHECK (role IN ('master', 'admin', 'crew', 'customer'));
 
@@ -195,8 +198,8 @@ GRANT EXECUTE ON FUNCTION public.assign_role_by_email(text, text) TO authenticat
 -- 3. auto_assign_customer_role (signup provisioning): only the role step changes
 -- ---------------------------------------------------------------------------------------------------------------------
 
--- The signup function stores the customer's name in customer_profiles.first_name / last_name. Dev has these columns; the
--- repository migrations never created them.
+-- The signup function stores the customer's name in customer_profiles.first_name / last_name. Migration 20251229223230
+-- (update_customer_profiles_names) already adds them, so this is a no-op wherever that migration was applied.
 ALTER TABLE public.customer_profiles
   ADD COLUMN IF NOT EXISTS first_name text,
   ADD COLUMN IF NOT EXISTS last_name text;

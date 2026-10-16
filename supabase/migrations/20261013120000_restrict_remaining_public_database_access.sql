@@ -13,8 +13,8 @@
          row already says "succeeded" or "processing", an anonymous caller who could insert a row for a real event id could
          suppress that Stripe event. Anonymous and signed-in write access is removed; the service role (which bypasses RLS)
          and the Admin read policy are unchanged.
-       - public.billing_addresses exists only on the live database (no tracked migration, no application code reads or writes
-         it). It had anonymous and authenticated INSERT policies with `true`. Those are removed and the Admin read policy is
+       - public.billing_addresses is created by migration 20260501173826 (add_billing_addresses_table); no application code reads
+         or writes it. It had anonymous and authenticated INSERT policies with `true`. Those are removed and the Admin read policy is
          kept. The block is skipped when the table does not exist, so a clean replay is unaffected.
 
     2. Functions. The privilege model describes both the EXECUTE grant and the authorization inside the function:
