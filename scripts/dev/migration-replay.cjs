@@ -15,6 +15,15 @@
 //   node scripts/dev/migration-replay.cjs --db bpc_replay_check --mode strict --stub-skips   skip the documented stub-limited file(s)
 //   add --report <file> to also write the result to a file
 //
+// Replay-only compatibility adjustments (OFF unless requested with --adjust; never enabled by a mode):
+//   --adjust s1,s2   s1  after 20251207163822: drop the legacy uppercase-only user_roles_role_check (Production and Development no longer
+//                        have it; every later role-lowercasing statement conflicts with it). Constraint only; no row is touched.
+//                    s2  before 20260615175816: remove `orders` from supabase_realtime IF it is a member, because 20260324051459 already
+//                        added it and the unguarded second ADD aborts. The migration then re-adds it, so the final membership is unchanged
+//                        and is verified to contain `orders` exactly once.
+//   An adjusted run is labelled ADJUSTED in the verdict, lists what each adjustment actually did (including "no-op"), and states that it is
+//   NOT evidence that the unmodified migration chain passes. S3/S4/S5 are deliberately not available (documented Production drift).
+//
 // Safety rules (each is enforced before anything is dropped or created):
 //   - the database name must match ^bpc_replay_[a-z0-9_]{1,32}$ and must not contain a hosted project reference or a production-like word;
 //   - the server must be on a loopback address, you must confirm it with BPC_REPLAY_CONFIRM_LOCAL=yes, and it must NOT look like a
@@ -99,7 +108,33 @@ function parseArgs(argv) {
     report: get('--report', ''),
     upto: get('--upto', ''),
     stubSkips: argv.includes('--stub-skips'),
+    adjust: get('--adjust', ''),
   };
+}
+
+// ---- replay-only compatibility adjustments (explicit opt-in; see the header) ----------------------------------------------------
+const ADJUSTMENTS = {
+  s1: {
+    label: 'S1 drop legacy uppercase user_roles_role_check',
+    after: '20251207163822',
+    probe: "select count(*) from pg_constraint where conrelid = to_regclass('public.user_roles') and conname = 'user_roles_role_check' and contype = 'c' and pg_get_constraintdef(oid) like '%MASTER%'",
+    apply: 'alter table public.user_roles drop constraint user_roles_role_check',
+  },
+  s2: {
+    label: 'S2 remove already-published orders before the duplicate ADD',
+    before: '20260615175816',
+    probe: "select count(*) from pg_publication_tables where pubname = 'supabase_realtime' and schemaname = 'public' and tablename = 'orders'",
+    apply: 'alter publication supabase_realtime drop table public.orders',
+    verifyAfter: "select count(*) from pg_publication_tables where pubname = 'supabase_realtime' and schemaname = 'public' and tablename = 'orders'",
+  },
+};
+
+function parseAdjustments(value) {
+  if (value === '' || value === undefined) return { ok: true, names: [] };
+  const names = String(value).split(',').map((s) => s.trim().toLowerCase()).filter(Boolean);
+  const bad = names.filter((n) => !Object.prototype.hasOwnProperty.call(ADJUSTMENTS, n));
+  if (bad.length || names.length === 0) return { ok: false, reason: `--adjust accepts only: ${Object.keys(ADJUSTMENTS).join(', ')} (got "${value}"); S3, S4 and S5 are intentionally not available` };
+  return { ok: true, names: [...new Set(names)] };
 }
 
 function refuse(message) {
@@ -150,6 +185,8 @@ function main(argv, env) {
   if (args.mode !== 'diagnostic' && args.mode !== 'strict') return refuse(`--mode must be "diagnostic" or "strict" (got "${args.mode}")`);
   if (args.upto && !/^\d{14}$/.test(args.upto)) return refuse('--upto must be a 14-digit migration version');
 
+  const adj = parseAdjustments(args.adjust);
+  if (!adj.ok) return refuse(adj.reason);
   const name = validateDbName(args.db);
   if (!name.ok) return refuse(name.reason);
   const envCheck = validateEnvironment(env);
@@ -207,6 +244,28 @@ function main(argv, env) {
   const skipped = [];
   let failing = 0;
   let replayed = 0;
+  const adjLog = [];
+  const strict = args.mode === 'strict';
+  const adjusted = adj.names.length > 0;
+  // Runs one single-value probe; returns the number, or null when the probe itself failed.
+  const probe = (sql) => {
+    const p = psql(args.db, ['-At', '-v', 'ON_ERROR_STOP=1', '-c', sql]);
+    if (p.status !== 0 || p.error) return null;
+    const n = Number(p.stdout.trim());
+    return Number.isFinite(n) ? n : null;
+  };
+  // An adjustment that cannot be applied or verified is a replay failure (never silently ignored).
+  const runAdjustment = (key, when) => {
+    const a = ADJUSTMENTS[key];
+    const before = probe(a.probe);
+    if (before === null) { adjLog.push(`${key.toUpperCase()} ${when}: FAILED (probe error)`); return false; }
+    if (before === 0) { adjLog.push(`${key.toUpperCase()} ${when}: no-op (target not present at this point)`); return true; }
+    const x = psql(args.db, ['-v', 'ON_ERROR_STOP=1', '-c', a.apply]);
+    if (x.status !== 0 || x.error) { adjLog.push(`${key.toUpperCase()} ${when}: FAILED (${String(x.stderr || '').trim().split('\n')[0].slice(0, 120)})`); return false; }
+    const afterN = probe(a.probe);
+    adjLog.push(`${key.toUpperCase()} ${when}: applied (${a.label}); present before=${before}, after=${afterN}`);
+    return afterN === 0;
+  };
   for (const f of files) {
     const version = f.slice(0, 14);
     if (args.upto && version > args.upto) break;
@@ -214,24 +273,66 @@ function main(argv, env) {
       skipped.push(`${version} (${STUB_LIMITED[version]})`);
       continue;
     }
-    const strict = args.mode === 'strict';
+    let stop = false;
+    for (const key of adj.names) {
+      if (ADJUSTMENTS[key].before === version && !runAdjustment(key, `before ${version}`)) {
+        failing++;
+        lines.push(`${version} ADJUSTMENT ${key.toUpperCase()} could not be applied before this file`);
+        stop = true;
+      }
+    }
+    if (stop) { if (strict) break; }
     r = psql(args.db, strict ? ['-v', 'ON_ERROR_STOP=1', '-1', '-f', path.join(DIR, f)] : ['-v', 'ON_ERROR_STOP=0', '-f', path.join(DIR, f)]);
     if (isInfrastructureFailure(r)) return infra(`replaying ${f}`, r);
     replayed++;
     const errs = (r.stderr || '').split('\n').filter((l) => /ERROR:/.test(l)).map((l) => l.replace(/^psql:.*?:(\d+): /, 'line $1: ').slice(0, 170));
-    if (errs.length || (strict && r.status !== 0)) {
+    if (errs.length || r.status !== 0) {
       failing++;
       lines.push(`${version} ${f.slice(15)} :: ${errs.length} error(s) :: ${errs[0] || 'psql exited with status ' + r.status}`);
       if (strict) break;
     }
+    for (const key of adj.names) {
+      const a = ADJUSTMENTS[key];
+      if (a.after === version && !runAdjustment(key, `after ${version}`)) {
+        failing++;
+        lines.push(`${version} ADJUSTMENT ${key.toUpperCase()} could not be applied after this file`);
+        if (strict) { stop = true; break; }
+      }
+      if (a.before === version && a.verifyAfter) {
+        const n = probe(a.verifyAfter);
+        adjLog.push(`${key.toUpperCase()} verify after ${version}: orders listed in supabase_realtime ${n} time(s)`);
+        if (n !== 1) {
+          failing++;
+          lines.push(`${version} ADJUSTMENT ${key.toUpperCase()} verification failed: orders must be in supabase_realtime exactly once (found ${n})`);
+          if (strict) { stop = true; break; }
+        }
+      }
+    }
+    if (stop && strict) break;
   }
 
-  const modeLine = args.mode === 'strict' ? 'MODE: strict (one transaction per file, stop at the first failure)' : 'MODE: diagnostic (continues past failures; collects every failing file)';
+  // Final state of the two objects the adjustments concern (read-only; reflects the point where the run ended).
+  const stateRows = (sql) => {
+    const p = psql(args.db, ['-At', '-c', sql]);
+    return p.status === 0 ? p.stdout.trim() || 'none' : 'unavailable';
+  };
+  const finalRoleCheck = stateRows("select string_agg(conname || ': ' || pg_get_constraintdef(oid), ' | ') from pg_constraint where conrelid = to_regclass('public.user_roles') and contype = 'c'");
+  const finalPublication = stateRows("select 'supabase_realtime members: ' || count(*) || ', orders listed ' || count(*) filter (where tablename = 'orders' and schemaname = 'public') || ' time(s)' from pg_publication_tables where pubname = 'supabase_realtime'");
+
+  const modeLine = strict ? 'MODE: strict (one transaction per file, stop at the first failure)' : 'MODE: diagnostic (continues past failures; collects every failing file)';
+  const adjLine = adjusted ? `ADJUSTMENTS REQUESTED: ${adj.names.map((n) => n.toUpperCase()).join(', ')} (replay-only; historical SQL unchanged)` : 'ADJUSTMENTS: none (unadjusted historical SQL)';
   let verdict;
-  if (failing) verdict = args.mode === 'strict' ? `STRICT REPLAY FAILED at ${lines[0].split(' ')[0]}` : `DIAGNOSTIC: ${failing} file(s) raised SQL errors (this is not a migration pass)`;
-  else if (args.mode === 'strict') verdict = skipped.length ? `STRICT REPLAY COMPLETED with ${skipped.length} stub-limited file(s) SKIPPED (a skipped file is not a pass)` : 'STRICT REPLAY COMPLETED';
+  if (adjusted) {
+    if (failing) verdict = strict ? `ADJUSTED REPLAY FAILED at ${lines[0].split(' ')[0]}` : `ADJUSTED DIAGNOSTIC: ${failing} failure(s) remain (this is not a migration pass)`;
+    else if (strict) verdict = `ADJUSTED REPLAY COMPLETED${skipped.length ? ` with ${skipped.length} stub-limited file(s) SKIPPED (a skipped file is not a pass)` : ''}`;
+    else verdict = 'ADJUSTED DIAGNOSTIC completed with no SQL errors; this is NOT a strict rehearsal and proves nothing about transactional behaviour';
+  } else if (failing) verdict = strict ? `STRICT REPLAY FAILED at ${lines[0].split(' ')[0]}` : `DIAGNOSTIC: ${failing} file(s) raised SQL errors (this is not a migration pass)`;
+  else if (strict) verdict = skipped.length ? `STRICT REPLAY COMPLETED with ${skipped.length} stub-limited file(s) SKIPPED (a skipped file is not a pass)` : 'STRICT REPLAY COMPLETED';
   else verdict = 'DIAGNOSTIC completed with no SQL errors; this is NOT a strict rehearsal and proves nothing about transactional behaviour';
-  const out = [modeLine, `files replayed: ${replayed}${args.upto ? ` (up to ${args.upto})` : ''}`, ...(skipped.length ? [`skipped (stub-limited): ${skipped.join('; ')}`] : []), verdict, 'ENVIRONMENT: local plain-PostgreSQL stub of Supabase; not a Supabase project or a full Supabase rehearsal', ...lines.map((l) => '  ' + l)].join('\n');
+  const proves = adjusted
+    ? 'WHAT THIS PROVES: only that the migration chain replays when the listed compatibility adjustments are applied. It is NOT evidence that the unmodified chain passes.'
+    : failing && !strict ? 'WHAT THIS SHOWS: the failing files above. A file that failed was only partly applied, and later errors can be cascades of an earlier failure.' : '';
+  const out = [modeLine, adjLine, ...adjLog.map((l) => '  adjustment ' + l), `files replayed: ${replayed}${args.upto ? ` (up to ${args.upto})` : ''}`, ...(skipped.length ? [`skipped (stub-limited): ${skipped.join('; ')}`] : []), verdict, ...(proves ? [proves] : []), 'ENVIRONMENT: local plain-PostgreSQL stub of Supabase; not a Supabase project or a full Supabase rehearsal', `FINAL user_roles CHECK constraints: ${finalRoleCheck}`, `FINAL ${finalPublication}`, ...lines.map((l) => '  ' + l)].join('\n');
   console.log(out);
   if (args.report) fs.writeFileSync(args.report, out + '\n');
   return failing ? 1 : 0;
@@ -240,4 +341,4 @@ function main(argv, env) {
 if (require.main === module) {
   process.exit(main(process.argv.slice(2), process.env));
 }
-module.exports = { validateDbName, validateHost, validatePort, validateUser, validateEnvironment, quoteIdent, quoteLiteral, isInfrastructureFailure, parseArgs, NAME_RE, MARKER, STUB_LIMITED, main };
+module.exports = { validateDbName, validateHost, validatePort, validateUser, validateEnvironment, quoteIdent, quoteLiteral, isInfrastructureFailure, parseArgs, parseAdjustments, ADJUSTMENTS, NAME_RE, MARKER, STUB_LIMITED, main };

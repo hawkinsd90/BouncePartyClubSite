@@ -194,5 +194,29 @@ ok('static: diagnostic mode never prints a pass verdict', /this is not a migrati
 ok('static: the output always says the environment is not Supabase', /not a Supabase project or a full Supabase rehearsal/.test(src));
 ok('static: a skipped stub-limited file is labelled as not a pass', /a skipped file is not a pass/.test(src));
 
+// ---------------------------------------------------------------------------------------------------------------
+// Adjustments (S1/S2): explicit opt-in only, labelled, and nothing beyond S1/S2 exists
+// ---------------------------------------------------------------------------------------------------------------
+ok('adjust: default is none (strict and diagnostic never enable adjustments by themselves)', replay.parseArgs(['--mode', 'strict']).adjust === '' && replay.parseAdjustments('').names.length === 0);
+ok('adjust: s1,s2 accepted', JSON.stringify(replay.parseAdjustments('s1,s2').names) === '["s1","s2"]');
+ok('adjust: case and duplicates normalised', JSON.stringify(replay.parseAdjustments('S2, s2').names) === '["s2"]');
+for (const bad of ['s3', 's4', 's5', 's1,s5', 'all', 'drop', ',']) ok(`adjust: ${JSON.stringify(bad)} rejected`, replay.parseAdjustments(bad).ok === false);
+ok('adjust: only S1 and S2 exist', JSON.stringify(Object.keys(replay.ADJUSTMENTS)) === '["s1","s2"]');
+ok('adjust: S1 runs after 20251207163822 and S2 before 20260615175816', replay.ADJUSTMENTS.s1.after === '20251207163822' && replay.ADJUSTMENTS.s2.before === '20260615175816');
+ok('adjust: S1 only drops a constraint (no row is updated or deleted)', /^alter table public\.user_roles drop constraint user_roles_role_check$/.test(replay.ADJUSTMENTS.s1.apply) && !/update|delete|truncate/i.test(replay.ADJUSTMENTS.s1.apply));
+ok('adjust: S1 only targets the legacy uppercase definition', /like '%MASTER%'/.test(replay.ADJUSTMENTS.s1.probe));
+ok('adjust: S2 only removes orders from supabase_realtime', replay.ADJUSTMENTS.s2.apply === 'alter publication supabase_realtime drop table public.orders');
+for (const bad of ['s5', 's3', 's4']) {
+  c = runCli(['--db', 'bpc_replay_x', '--adjust', bad], CONFIRM);
+  ok(`CLI: --adjust ${bad} is refused before any connection`, c.status === 2 && /REFUSED/.test(c.out) && !/INFRASTRUCTURE/.test(c.out));
+}
+c = runCli(['--db', 'bpc_replay_x', '--mode', 'strict', '--adjust', 's1,s2'], CONFIRM);
+ok('CLI: an adjusted request with a failed connection prints no success wording', c.status === 2 && /INFRASTRUCTURE ERROR/.test(c.out) && !/COMPLETED|files replayed/.test(c.out));
+ok('static: an adjusted verdict never uses the unadjusted success wording', /ADJUSTED REPLAY COMPLETED/.test(src) && /NOT evidence that the unmodified chain passes/.test(src));
+ok('static: adjustments are applied only from the explicit list (adj.names)', /for \(const key of adj\.names\)/.test(src) && !/adj\.names\s*=\s*\[/.test(src));
+ok('static: the foreign key and S3/S4 objects are never touched by the tool', !/user_roles_user_id_fkey|carousel-media|admin_notes|crew_notes/.test(src.replace(/^\/\/.*$/gm, '')));
+ok('static: any non-zero psql status is a failing file in both modes', /if \(errs\.length \|\| r\.status !== 0\)/.test(src));
+ok('static: the final role CHECK and publication state are printed', /FINAL user_roles CHECK constraints/.test(src) && /FINAL \$\{finalPublication\}/.test(src));
+
 console.log(`migration replay safety: ${passed} passed, ${failed} failed`);
 if (failed) process.exit(1);
