@@ -1,0 +1,321 @@
+{
+ "method": "Same synthetic dataset and the same exact integer-cent comparison as D4, run on the 58-version sequence; compared with the D4 result for the 67-version sequence",
+ "result_58": null,
+ "preflight": {
+  "head": "efda4177433258c4b2c469e5aa381bc2545f36ba",
+  "58_versions_first_last": [
+   "20260715214053",
+   "20261025120000"
+  ],
+  "e2c_omissions": [
+   "20260715221828",
+   "20260716104333",
+   "20260716151530",
+   "20260716152823",
+   "20260716173644",
+   "20260717111737",
+   "20260717113131",
+   "20260814114825",
+   "20261010110000"
+  ],
+  "omissions_equal_hardcoded_list": true,
+  "58_equals_e2c_execute_list": true,
+  "all_67_file_hashes_match_manifest": true,
+  "d2_317_historical_files_checked": 317,
+  "d2_317_historical_files_hash_mismatches": []
+ },
+ "seed_counts": null,
+ "rows_compared_per_table": null,
+ "unexplained_changes_58": null,
+ "unexpected_row_additions_or_removals_58": null,
+ "per_order_58": {
+  "O01_draft": {
+   "before_equals_after": true,
+   "mismatch": {},
+   "values_cents": {
+    "subtotal_cents": 25000,
+    "travel_fee_cents": 0,
+    "surface_fee_cents": 0,
+    "same_day_pickup_fee_cents": 0,
+    "generator_fee_cents": 0,
+    "same_day_weekday_delivery_fee_cents": 0,
+    "tax_cents": 0,
+    "deposit_due_cents": 0,
+    "deposit_paid_cents": 0,
+    "balance_due_cents": 25000,
+    "balance_paid_cents": 0,
+    "tip_cents": 0,
+    "total_refunded_cents": 0
+   },
+   "status": "draft",
+   "workflow_status": "pending"
+  },
+  "O02_pending_review": {
+   "before_equals_after": true,
+   "mismatch": {},
+   "values_cents": {
+    "subtotal_cents": 30000,
+    "travel_fee_cents": 1500,
+    "surface_fee_cents": 2000,
+    "same_day_pickup_fee_cents": 0,
+    "generator_fee_cents": 0,
+    "same_day_weekday_delivery_fee_cents": 0,
+    "tax_cents": 2640,
+    "deposit_due_cents": 10000,
+    "deposit_paid_cents": 0,
+    "balance_due_cents": 36140,
+    "balance_paid_cents": 0,
+    "tip_cents": 0,
+    "total_refunded_cents": 0
+   },
+   "status": "pending_review",
+   "workflow_status": "pending"
+  },
+  "O03_awaiting_approval": {
+   "before_equals_after": true,
+   "mismatch": {},
+   "values_cents": {
+    "subtotal_cents": 42000,
+    "travel_fee_cents": 2500,
+    "surface_fee_cents": 0,
+    "same_day_pickup_fee_cents": 3500,
+    "generator_fee_cents": 0,
+    "same_day_weekday_delivery_fee_cents": 0,
+    "tax_cents": 3500,
+    "deposit_due_cents": 15000,
+    "deposit_paid_cents": 0,
+    "balance_due_cents": 51500,
+    "balance_paid_cents": 0,
+    "tip_cents": 0,
+    "total_refunded_cents": 0
+   },
+   "status": "awaiting_customer_approval",
+   "workflow_status": "pending"
+  },
+  "O04_confirmed_deposit_paid": {
+   "before_equals_after": true,
+   "mismatch": {},
+   "values_cents": {
+    "subtotal_cents": 36000,
+    "travel_fee_cents": 1800,
+    "surface_fee_cents": 2000,
+    "same_day_pickup_fee_cents": 0,
+    "generator_fee_cents": 7500,
+    "same_day_weekday_delivery_fee_cents": 0,
+    "tax_cents": 3275,
+    "deposit_due_cents": 12000,
+    "deposit_paid_cents": 12000,
+    "balance_due_cents": 38575,
+    "balance_paid_cents": 0,
+    "tip_cents": 0,
+    "total_refunded_cents": 0
+   },
+   "status": "confirmed",
+   "workflow_status": "pending"
+  },
+  "O05_confirmed_paid_in_full": {
+   "before_equals_after": true,
+   "mismatch": {},
+   "values_cents": {
+    "subtotal_cents": 28000,
+    "travel_fee_cents": 1000,
+    "surface_fee_cents": 0,
+    "same_day_pickup_fee_cents": 0,
+    "generator_fee_cents": 0,
+    "same_day_weekday_delivery_fee_cents": 0,
+    "tax_cents": 2350,
+    "deposit_due_cents": 10000,
+    "deposit_paid_cents": 10000,
+    "balance_due_cents": 21350,
+    "balance_paid_cents": 21350,
+    "tip_cents": 2000,
+    "total_refunded_cents": 0
+   },
+   "status": "confirmed",
+   "workflow_status": "pending"
+  },
+  "O06_confirmed_check": {
+   "before_equals_after": true,
+   "mismatch": {},
+   "values_cents": {
+    "subtotal_cents": 50000,
+    "travel_fee_cents": 3000,
+    "surface_fee_cents": 2000,
+    "same_day_pickup_fee_cents": 3500,
+    "generator_fee_cents": 0,
+    "same_day_weekday_delivery_fee_cents": 4500,
+    "tax_cents": 5200,
+    "deposit_due_cents": 20000,
+    "deposit_paid_cents": 20000,
+    "balance_due_cents": 48200,
+    "balance_paid_cents": 0,
+    "tip_cents": 0,
+    "total_refunded_cents": 0
+   },
+   "status": "confirmed",
+   "workflow_status": "pending"
+  },
+  "O07_cancelled_full_refund": {
+   "before_equals_after": true,
+   "mismatch": {},
+   "values_cents": {
+    "subtotal_cents": 32000,
+    "travel_fee_cents": 1500,
+    "surface_fee_cents": 0,
+    "same_day_pickup_fee_cents": 0,
+    "generator_fee_cents": 0,
+    "same_day_weekday_delivery_fee_cents": 0,
+    "tax_cents": 2700,
+    "deposit_due_cents": 10000,
+    "deposit_paid_cents": 10000,
+    "balance_due_cents": 26200,
+    "balance_paid_cents": 0,
+    "tip_cents": 0,
+    "total_refunded_cents": 10000
+   },
+   "status": "cancelled",
+   "workflow_status": "pending"
+  },
+  "O08_confirmed_partial_refund": {
+   "before_equals_after": true,
+   "mismatch": {},
+   "values_cents": {
+    "subtotal_cents": 45000,
+    "travel_fee_cents": 2000,
+    "surface_fee_cents": 2000,
+    "same_day_pickup_fee_cents": 0,
+    "generator_fee_cents": 0,
+    "same_day_weekday_delivery_fee_cents": 0,
+    "tax_cents": 4000,
+    "deposit_due_cents": 15000,
+    "deposit_paid_cents": 15000,
+    "balance_due_cents": 38000,
+    "balance_paid_cents": 38000,
+    "tip_cents": 0,
+    "total_refunded_cents": 5000
+   },
+   "status": "confirmed",
+   "workflow_status": "pending"
+  },
+  "O09_discounts_and_custom_fees": {
+   "before_equals_after": true,
+   "mismatch": {},
+   "values_cents": {
+    "subtotal_cents": 60000,
+    "travel_fee_cents": 2000,
+    "surface_fee_cents": 2000,
+    "same_day_pickup_fee_cents": 0,
+    "generator_fee_cents": 0,
+    "same_day_weekday_delivery_fee_cents": 0,
+    "tax_cents": 5800,
+    "deposit_due_cents": 20000,
+    "deposit_paid_cents": 20000,
+    "balance_due_cents": 52100,
+    "balance_paid_cents": 0,
+    "tip_cents": 0,
+    "total_refunded_cents": 0
+   },
+   "status": "confirmed",
+   "workflow_status": "pending"
+  },
+  "O10_tax_and_fee_waivers": {
+   "before_equals_after": true,
+   "mismatch": {},
+   "values_cents": {
+    "subtotal_cents": 24000,
+    "travel_fee_cents": 1500,
+    "surface_fee_cents": 0,
+    "same_day_pickup_fee_cents": 3500,
+    "generator_fee_cents": 0,
+    "same_day_weekday_delivery_fee_cents": 0,
+    "tax_cents": 0,
+    "deposit_due_cents": 8000,
+    "deposit_paid_cents": 8000,
+    "balance_due_cents": 19000,
+    "balance_paid_cents": 0,
+    "tip_cents": 0,
+    "total_refunded_cents": 0
+   },
+   "status": "confirmed",
+   "workflow_status": "pending"
+  },
+  "O11_same_day_weekday_generator": {
+   "before_equals_after": true,
+   "mismatch": {},
+   "values_cents": {
+    "subtotal_cents": 38000,
+    "travel_fee_cents": 2200,
+    "surface_fee_cents": 2000,
+    "same_day_pickup_fee_cents": 3500,
+    "generator_fee_cents": 7500,
+    "same_day_weekday_delivery_fee_cents": 4500,
+    "tax_cents": 4800,
+    "deposit_due_cents": 14000,
+    "deposit_paid_cents": 0,
+    "balance_due_cents": 62500,
+    "balance_paid_cents": 0,
+    "tip_cents": 0,
+    "total_refunded_cents": 0
+   },
+   "status": "pending_review",
+   "workflow_status": "pending"
+  },
+  "O12_failed_then_retry": {
+   "before_equals_after": true,
+   "mismatch": {},
+   "values_cents": {
+    "subtotal_cents": 33000,
+    "travel_fee_cents": 1800,
+    "surface_fee_cents": 0,
+    "same_day_pickup_fee_cents": 0,
+    "generator_fee_cents": 0,
+    "same_day_weekday_delivery_fee_cents": 0,
+    "tax_cents": 2900,
+    "deposit_due_cents": 11000,
+    "deposit_paid_cents": 11000,
+    "balance_due_cents": 26700,
+    "balance_paid_cents": 0,
+    "tip_cents": 0,
+    "total_refunded_cents": 0
+   },
+   "status": "confirmed",
+   "workflow_status": "pending"
+  }
+ },
+ "payments_survived_58": null,
+ "legacy_refunds_survived_58": null,
+ "net_financial_semantics_58": null,
+ "sections_identical_to_d4_67": {
+  "seed_counts": true,
+  "rows_compared_per_table": true,
+  "unexplained_changes": true,
+  "unexpected_row_additions_or_removals": true,
+  "per_order": true,
+  "payments_survived": true,
+  "legacy_refunds_survived": true,
+  "new_columns_on_existing_rows (values seen)": true
+ },
+ "financial_functions_actually_invoked": {
+  "d4_original": [
+   "order_net_financials (3 orders with expected cents)",
+   "assign_role_by_email"
+  ],
+  "e2d_differential_47_calls_on_both_final_databases": [
+   "claim_payment_operation",
+   "increment_order_refunded_cents",
+   "order_net_financials",
+   "order_refund_overview",
+   "payment_deposit_principal_state",
+   "record_cash_payment",
+   "record_check_payment",
+   "record_offline_payment",
+   "reserve_refund_operation"
+  ],
+  "calls": 47,
+  "succeeded_67": 46,
+  "succeeded_58": 46,
+  "identical_outcomes": 47,
+  "differences": [],
+  "not_invoked": "functions not listed here (for example finalize_payment_operation, apply_provider_refund_event, reserve_refund_allocation, apply_balance_payment_financials) were NOT invoked"
+ }
+}

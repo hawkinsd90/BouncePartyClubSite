@@ -1,0 +1,40 @@
+# E2H ledger and audit-store semantics of the local executor
+
+Scope: the LOCAL scratch executor (`scripts/dev/local-executor/`). Nothing here describes or authorizes a hosted ledger write. Evidence for each statement is a test id from `e2h-failure-test-results.json` (H-A, H-R, H-S, H-U series) or the E2G results (`e2g-executor-test-results.json`).
+
+## 1. The ledger structure the executor must live with
+`supabase_migrations.schema_migrations` has exactly three columns in both captured environments and in the scratch databases: `version text` (primary key), `statements text[]`, `name text`. There is **no timestamp, operator, hash or kind column**. The executor writes only these three columns (H-A02) and adds no table, column, trigger or index to the hosted-compatible schema. The primary key makes a second row for the same version impossible (H-R06: two simultaneous executors produced no duplicate version).
+Consequence: everything that distinguishes "SQL ran" from "recorded without running" has to be carried either in the `statements` array (readable by anyone who reads the ledger) or in the external audit store (authoritative). Neither the CLI nor the calculator can be assumed to read either.
+
+## 2. What the executor writes, per event
+| Event | Ledger row | Audit store (external, hash-chained) |
+|---|---|---|
+| SQL executed successfully | `statements = [ '-- BPC-LOCAL-EXECUTOR executed run=<id> sha256_lf=<hash>', <the exact LF SQL that ran> ]`, written in the **same transaction** as the SQL (the ledger row exists if and only if the file committed) | `item_start` (hash), then `item_end` (hash) |
+| History-only reconciliation | `statements = [ '-- BPC-LOCAL-EXECUTOR history-only NOT EXECUTED run=<id> basis=<text>' ]` (a single SQL comment, no executable SQL), own transaction | `history_only` with basis, `record_after` list and whether a predicate held |
+| Qualified owner attestation | `statements = [ '-- BPC-LOCAL-EXECUTOR attestation NOT EXECUTED run=<id> attested_by=... attested_at=... scope=... not_proven=...' ]` | `attestation` with the same fields |
+| Failed attempt | **no row** (the file's transaction rolled back) | `item_start`, `item_failed` with the PostgreSQL error; a repeat attempt adds another pair (H-A17) |
+| Interrupted run (process kill, connection loss, server crash) | no row for the interrupted file; rows of committed files stay | `run_start` without `run_end`; the next run adds `prior_run_incomplete` (and `stale_lock_cleared`) (H-R05, H-S04) |
+| Successful resume | rows for the remaining items | a new `run_start` ... `run_end`; items already done are not repeated (H-R01, H-R02) |
+| Crash gap (row committed, `item_end` lost) | row exists | the next run writes a flagged `item_end` (`reconciled_after_crash`) from the `item_start`; if the `item_start` is also missing the run is refused (E2G T06, L06) |
+| Refusal (guard, hash, ledger, audit, order) | none | `refused` with code and reason, when an audit store exists |
+
+## 3. Could a marker mislead a later migration tool into assuming SQL ran when it did not?
+- **A tool that reads only `version`** (the documented basis of the CLI's pending list, not tested here) will treat history-only and attestation rows exactly like executed ones. That is the *meaning* of reconciliation, but it cannot tell the difference. This is unavoidable with a three-column ledger. Mitigation: the marker and the external audit store are the only distinction; reports must use them and never present the calculator's "recorded" count as "executed". A history-only version whose effect is not actually present would be hidden from every version-based tool; hence the predicate and the truthful-timing rules (E2D/E2G) are safety-critical, not cosmetic.
+- **A tool that replays or fetches `statements`** (documented CLI behaviors such as fetching remote history; not tested): executed rows now contain the real SQL (a leading comment plus the file text), so a replay reproduces what ran; history-only and attestation rows contain **only a comment**, so a replay runs nothing, which is the truthful outcome for "not executed" (H-A05: 9 of 9 history-only rows reduce to an empty statement after removing the comment). A tool that merely counts non-empty arrays would still count them as applied.
+- **Before E2H** executed rows held only the marker; a fetch would have produced near-empty files for SQL that did run. E2H fixed that and made the ledger self-verifying: the SHA-256 of `statements[2]` must equal the allowlisted hash or the run is refused (H-A03, H-A04, H-A06: an edited stored text is detected).
+- **Forgery:** anyone with write access to the ledger can write any marker. The ledger alone is therefore never proof; the executor requires that every executed, history-only and attestation row is backed by the audit store (E2G L06; H-A16) and that the stored text matches the allowlist.
+- **`name`:** history-only rows carry the file stem as `name`, so they look like normal migrations in a listing; only `statements[1]` and the audit store show otherwise.
+Residual risk (cannot be closed in the three-column design): any version-only consumer treats the three kinds alike. This must be stated in every report and handed to the owner as a known property, not hidden.
+
+## 4. Audit-store integrity model
+- **Format:** one JSON record per line; each record includes `prev` (the hash of the previous record) and its own SHA-256 over the canonical record. Written by append only.
+- **Detected (fail closed):** an edited record, a reordered or inserted record, a non-JSON line (H-A07, H-A08, H-A09, E2G L09), a deleted store while the ledger holds rows that need evidence (E2G T09), a store from another database or older state when executed rows lack evidence (H-A12).
+- **Not detected by the chain alone:** truncation of the tail and replacement of the whole file by an internally consistent forged chain (no keys or signatures). Mitigation implemented: every command returns `audit_head` and `audit_records`; `--expect-audit-head <hash>` makes the executor refuse unless that head is **in** the store (an ancestor is accepted, so a normal growth is fine) (H-A10, H-A11). Operators must pin the head off the machine after each run. Not implemented, needed before hosted use: signing or external anchoring, and an access-controlled/write-once location.
+- **Consequences of losing the evidence:** with the store lost or truncated, the executor refuses to run as soon as any executed, history-only or attestation row has no evidence (E2G T09, H-A11, H-A12). It never regenerates evidence, because that would *manufacture* proof of historical execution. Recovery options (all outside the executor): restore the store from the pinned copy; or, by explicit owner decision, treat the existing rows as a new base history through a fresh allowlist (new expected base history) with the loss recorded as an owner attestation; or restore the database from backup.
+- **Backup requirements (hosted use):** copy `audit.jsonl` and the head hash off the machine at the end of every phase and every run; keep the allowlist, the bound commit hash, the approval artifact and the run output together; two independent copies; retain for the life of the release evidence; test a restore (read-only `verify` against the copy).
+
+## 5. Facts that are externally auditable, and what is still missing
+Auditable now: which file hash ran when (item_start/item_end), by which run id, with what error on failure, which versions were recorded without execution and why, who attested what. Not recorded yet and recommended for hosted use: the predicate SQL text (or its hash) and the values it returned, the operator identity, the database role, the host/project identifier of the target, and the approval artifact hash. The executor deliberately records nothing about secrets.
+
+## 6. Limits
+Local scratch databases only; the hosted `supabase_migrations` schema's ownership and the privileges needed to INSERT/SELECT in it were not examined; clock accuracy of `ts` is the local machine's; the audit store is a plain file.

@@ -1,0 +1,810 @@
+{
+ "stage": "E2G",
+ "executor": "scripts/dev/local-executor/local-migration-executor.cjs",
+ "scope": "local disposable PostgreSQL only; synthetic data; no hosted system",
+ "summary": {
+  "total": 103,
+  "passed": 103,
+  "failed": []
+ },
+ "window_measurements": {
+  "W1": {
+   "scenario": "dup_link",
+   "failed_at": "20261009120000",
+   "surface": {
+    "anon_functions": 69,
+    "anon_write_tables": 65,
+    "no_rls_anon_tables": []
+   },
+   "wider_than_start": true,
+   "anon_invoice_link_insert": "REJECTED",
+   "history_only_recorded": [
+    "20260715221828",
+    "20260716104333",
+    "20260716151530",
+    "20260716152823",
+    "20260716173644",
+    "20260717111737",
+    "20260717113131",
+    "20260814114825",
+    "20261010110000"
+   ],
+   "after_containment_resume": {
+    "differing_categories": [
+     "functions"
+    ],
+    "final_surface": {
+     "anon_functions": 6,
+     "anon_write_tables": 1,
+     "no_rls_anon_tables": []
+    },
+    "functions_with_different_privileges_vs_uncontained_run": 2,
+    "examples": [
+     "check_product_availability(jsonb,date,date,uuid)",
+     "get_public_nav_menu_groups()"
+    ]
+   }
+  },
+  "W2": {
+   "scenario": "bad_role",
+   "failed_at": "20261016120000",
+   "surface": {
+    "anon_functions": 6,
+    "anon_write_tables": 2,
+    "no_rls_anon_tables": []
+   },
+   "wider_than_start": false,
+   "anon_invoice_link_insert": "REJECTED",
+   "history_only_recorded": [
+    "20260715221828",
+    "20260716104333",
+    "20260716151530",
+    "20260716152823",
+    "20260716173644",
+    "20260717111737",
+    "20260717113131",
+    "20260814114825",
+    "20261010110000"
+   ]
+  },
+  "W3": {
+   "scenario": "bad_item",
+   "failed_at": "20260716151458",
+   "surface": {
+    "anon_functions": 68,
+    "anon_write_tables": 55,
+    "no_rls_anon_tables": []
+   },
+   "wider_than_start": false,
+   "anon_invoice_link_insert": "REJECTED",
+   "history_only_recorded": [
+    "20260715221828",
+    "20260716104333",
+    "20261010110000"
+   ]
+  }
+ },
+ "tests": [
+  {
+   "id": "S01",
+   "name": "allowlist built from the E2C manifest bound to HEAD: 58 execute + 9 history-only",
+   "expected": "58/9",
+   "actual": "58/9",
+   "result": "PASS"
+  },
+  {
+   "id": "S02",
+   "name": "allowlist build is deterministic (same document hash on rebuild)",
+   "expected": "4835290fe10ca87cb1b305e7d0ffd9c72fc9e8a114a591a9de156e692366905d",
+   "actual": "4835290fe10ca87cb1b305e7d0ffd9c72fc9e8a114a591a9de156e692366905d",
+   "result": "PASS"
+  },
+  {
+   "id": "S03",
+   "name": "ledger of the scratch template equals the expected base history (277 captured Production rows, no simulated rows)",
+   "expected": "277",
+   "actual": "277",
+   "result": "PASS"
+  },
+  {
+   "id": "S04",
+   "name": "allowlist contains none of the nine omitted versions as 'execute', nor Cases 41/42/43",
+   "expected": "none",
+   "actual": "[]",
+   "result": "PASS"
+  },
+  {
+   "id": "G01",
+   "name": "hosted-looking host refused",
+   "expected": "refused (hosted-guard) before any connection or audit write",
+   "actual": "rc=2 code=hosted-guard host must be exactly 127.0.0.1 (got a different value); hosted targets are never",
+   "result": "PASS"
+  },
+  {
+   "id": "G02",
+   "name": "Development project host refused",
+   "expected": "refused (hosted-guard) before any connection or audit write",
+   "actual": "rc=2 code=hosted-guard host must be exactly 127.0.0.1 (got a different value); hosted targets are never",
+   "result": "PASS"
+  },
+  {
+   "id": "G03",
+   "name": "any non-loopback host refused",
+   "expected": "refused (hosted-guard) before any connection or audit write",
+   "actual": "rc=2 code=hosted-guard host must be exactly 127.0.0.1 (got a different value); hosted targets are never",
+   "result": "PASS"
+  },
+  {
+   "id": "G04",
+   "name": "database name outside bpc_exec_ refused",
+   "expected": "refused (hosted-guard) before any connection or audit write",
+   "actual": "rc=2 code=hosted-guard database name must match ^bpc_exec_[a-z0-9_]{1,40}$ (disposable scratch database",
+   "result": "PASS"
+  },
+  {
+   "id": "G05",
+   "name": "project reference inside a path option refused",
+   "expected": "refused (hosted-guard) before any connection or audit write",
+   "actual": "rc=2 code=hosted-guard option --repo-root contains a hosted connection detail or project reference",
+   "result": "PASS"
+  },
+  {
+   "id": "G05PAS",
+   "name": "option --password not accepted",
+   "expected": "refused",
+   "actual": "rc=2 option not accepted: --password (this executor accepts no credentials,",
+   "result": "PASS"
+  },
+  {
+   "id": "G05CON",
+   "name": "option --conninfo not accepted",
+   "expected": "refused",
+   "actual": "rc=2 option not accepted: --conninfo (this executor accepts no credentials,",
+   "result": "PASS"
+  },
+  {
+   "id": "G05URL",
+   "name": "option --url not accepted",
+   "expected": "refused",
+   "actual": "rc=2 option not accepted: --url (this executor accepts no credentials, conn",
+   "result": "PASS"
+  },
+  {
+   "id": "G05DBN",
+   "name": "option --dbname not accepted",
+   "expected": "refused",
+   "actual": "rc=2 option not accepted: --dbname (this executor accepts no credentials, c",
+   "result": "PASS"
+  },
+  {
+   "id": "G06",
+   "name": "DATABASE_URL in the environment refused",
+   "expected": "refused (hosted-guard) before any connection or audit write",
+   "actual": "rc=2 code=hosted-guard environment variable DATABASE_URL is set; this executor accepts no credentials o",
+   "result": "PASS"
+  },
+  {
+   "id": "G07",
+   "name": "PGPASSWORD in the environment refused",
+   "expected": "refused (hosted-guard) before any connection or audit write",
+   "actual": "rc=2 code=hosted-guard environment variable PGPASSWORD is set; this executor accepts no credentials or ",
+   "result": "PASS"
+  },
+  {
+   "id": "G08",
+   "name": "SUPABASE_ variable in the environment refused",
+   "expected": "refused (hosted-guard) before any connection or audit write",
+   "actual": "rc=2 code=hosted-guard environment variable SUPABASE_ACCESS_TOKEN is set; this executor accepts no cred",
+   "result": "PASS"
+  },
+  {
+   "id": "G09",
+   "name": "PGHOST non-loopback refused",
+   "expected": "refused (hosted-guard) before any connection or audit write",
+   "actual": "rc=2 code=hosted-guard PGHOST is set to a non-loopback value",
+   "result": "PASS"
+  },
+  {
+   "id": "G10",
+   "name": "allowlist environment other than local-scratch refused",
+   "expected": "refused (hosted-guard) before any connection or audit write",
+   "actual": "rc=2 code=hosted-guard allowlist environment must be exactly 'local-scratch'",
+   "result": "PASS"
+  },
+  {
+   "id": "G11",
+   "name": "allowlist text containing a project reference refused",
+   "expected": "refused (hosted-guard) before any connection or audit write",
+   "actual": "rc=2 code=hosted-guard the allowlist document contains a hosted connection detail or project reference",
+   "result": "PASS"
+  },
+  {
+   "id": "G12",
+   "name": "approval hash must equal the allowlist document hash",
+   "expected": "refused code approval",
+   "actual": "rc=2 approval",
+   "result": "PASS"
+  },
+  {
+   "id": "G13",
+   "name": "database without the scratch ownership marker refused by the server-side check; nothing written",
+   "expected": "refused hosted-guard, ledger unchanged (277)",
+   "actual": "rc=2 hosted-guard ledger=277",
+   "result": "PASS"
+  },
+  {
+   "id": "G14",
+   "name": "server-side check: non-loopback server address, TLS connection and missing marker refused; loopback scratch accepted; empty (unix socket) address refused",
+   "expected": "['hosted-guard','hosted-guard','hosted-guard','accepted','hosted-guard']",
+   "actual": "['hosted-guard', 'hosted-guard', 'hosted-guard', 'accepted', 'hosted-guard']",
+   "result": "PASS"
+  },
+  {
+   "id": "G15",
+   "name": "the scratch connection really is loopback without TLS",
+   "expected": "127.0.0.1/32|f",
+   "actual": "127.0.0.1/32|f",
+   "result": "PASS"
+  },
+  {
+   "id": "I01",
+   "name": "LF working tree accepted; the recorded hash is the LF-normalized hash of the committed text",
+   "expected": "executed 2, sha_lf in ledger",
+   "actual": "rc=0 executed=['20300101000001', '20300101000002'] sha_ok=True",
+   "result": "PASS"
+  },
+  {
+   "id": "I02",
+   "name": "CRLF working tree accepted; the recorded hash is the LF-normalized hash of the committed text",
+   "expected": "executed 2, sha_lf in ledger",
+   "actual": "rc=0 executed=['20300101000001', '20300101000002'] sha_ok=True",
+   "result": "PASS"
+  },
+  {
+   "id": "I03",
+   "name": "a modified working-tree file is refused; nothing executed",
+   "expected": "refused hash, ledger empty",
+   "actual": "rc=2 hash ledger=0",
+   "result": "PASS"
+  },
+  {
+   "id": "I04",
+   "name": "allowlist hash differing from the bound commit's file (document re-hashed) is refused",
+   "expected": "refused hash",
+   "actual": "rc=2 hash",
+   "result": "PASS"
+  },
+  {
+   "id": "I05",
+   "name": "allowlist edited without updating its document hash is refused",
+   "expected": "refused (modified allowlist)",
+   "actual": "rc=2 allowlist document hash does not match its content (modified allowlist",
+   "result": "PASS"
+  },
+  {
+   "id": "I06",
+   "name": "a commit that is not in the repository is refused",
+   "expected": "refused",
+   "actual": "rc=2 commit aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa is not in th",
+   "result": "PASS"
+  },
+  {
+   "id": "I07",
+   "name": "an allowlisted version whose file is not in the bound commit (unknown file) is refused",
+   "expected": "refused",
+   "actual": "rc=2 file 20300101000009_ghost.sql is not in commit 8eb18255be",
+   "result": "PASS"
+  },
+  {
+   "id": "I08",
+   "name": "Case 41 on the allowlist is refused",
+   "expected": "refused withdrawn",
+   "actual": "rc=2 withdrawn",
+   "result": "PASS"
+  },
+  {
+   "id": "I09",
+   "name": "Case 42 on the allowlist is refused",
+   "expected": "refused withdrawn",
+   "actual": "rc=2 withdrawn",
+   "result": "PASS"
+  },
+  {
+   "id": "I10",
+   "name": "Case 43 on the allowlist is refused",
+   "expected": "refused withdrawn",
+   "actual": "rc=2 withdrawn",
+   "result": "PASS"
+  },
+  {
+   "id": "I11a",
+   "name": "omitted version 20260715221828 as an 'execute' item is refused",
+   "expected": "refused never-execute",
+   "actual": "rc=2 never-execute",
+   "result": "PASS"
+  },
+  {
+   "id": "I11b",
+   "name": "omitted version 20260716104333 as an 'execute' item is refused",
+   "expected": "refused never-execute",
+   "actual": "rc=2 never-execute",
+   "result": "PASS"
+  },
+  {
+   "id": "I11c",
+   "name": "omitted version 20261010110000 as an 'execute' item is refused",
+   "expected": "refused never-execute",
+   "actual": "rc=2 never-execute",
+   "result": "PASS"
+  },
+  {
+   "id": "I11d",
+   "name": "omitted version 20260716151530 as an 'execute' item is refused",
+   "expected": "refused never-execute",
+   "actual": "rc=2 never-execute",
+   "result": "PASS"
+  },
+  {
+   "id": "I12",
+   "name": "a withdrawn file present in the active migration directory is refused",
+   "expected": "refused withdrawn",
+   "actual": "rc=2 withdrawn ledger=0",
+   "result": "PASS"
+  },
+  {
+   "id": "I13",
+   "name": "real repository: 384 active files, Cases 41/42/43 absent from active discovery, alias file present",
+   "expected": "384 / absent",
+   "actual": "384 / []",
+   "result": "PASS"
+  },
+  {
+   "id": "L00",
+   "name": "control: plan on the untouched scratch database succeeds and lists 58 + 9",
+   "expected": "ok",
+   "actual": "rc=0 58/9 remaining 58",
+   "result": "PASS"
+  },
+  {
+   "id": "L01",
+   "name": "unknown extra ledger row refused",
+   "expected": "refused (ledger), nothing executed by the executor",
+   "actual": "rc=2 ledger ledger rows outside the allowlist (278) do not match the expected base executed_by_executor=0",
+   "result": "PASS"
+  },
+  {
+   "id": "L02",
+   "name": "a missing base-history row refused",
+   "expected": "refused (ledger), nothing executed by the executor",
+   "actual": "rc=2 ledger ledger rows outside the allowlist (276) do not match the expected base executed_by_executor=0",
+   "result": "PASS"
+  },
+  {
+   "id": "L03",
+   "name": "a ledger row for withdrawn Case 41 refused",
+   "expected": "refused (ledger), nothing executed by the executor",
+   "actual": "rc=2 ledger ledger rows outside the allowlist (278) do not match the expected base executed_by_executor=0",
+   "result": "PASS"
+  },
+  {
+   "id": "L04",
+   "name": "history-only row for an executable item refused",
+   "expected": "refused (ledger), nothing executed by the executor",
+   "actual": "rc=2 ledger ledger marks execute item 20260722172048 as history-only executed_by_executor=0",
+   "result": "PASS"
+  },
+  {
+   "id": "L05",
+   "name": "executed row for an omitted (history-only) version refused",
+   "expected": "refused (ledger), nothing executed by the executor",
+   "actual": "rc=2 ledger ledger marks history-only item 20260716152823 as executed executed_by_executor=0",
+   "result": "PASS"
+  },
+  {
+   "id": "L06",
+   "name": "executed row without audit evidence refused",
+   "expected": "refused (audit), nothing executed by the executor",
+   "actual": "rc=2 audit ledger row 20260715214053 is not backed by audit evidence executed_by_executor=0",
+   "result": "PASS"
+  },
+  {
+   "id": "L07",
+   "name": "executed row carrying a different file hash refused",
+   "expected": "refused (ledger), nothing executed by the executor",
+   "actual": "rc=2 ledger ledger row 20260715214053 carries a different file hash than the allow executed_by_executor=0",
+   "result": "PASS"
+  },
+  {
+   "id": "L08",
+   "name": "row without an executor marker for an allowlisted version refused",
+   "expected": "refused (ledger), nothing executed by the executor",
+   "actual": "rc=2 ledger ledger row 20260715214053 has no executor marker executed_by_executor=0",
+   "result": "PASS"
+  },
+  {
+   "id": "L09",
+   "name": "a tampered audit store (broken hash chain) refused",
+   "expected": "refused audit",
+   "actual": "rc=2 audit",
+   "result": "PASS"
+  },
+  {
+   "id": "R01",
+   "name": "run without acknowledging the older-than-latest versions is refused",
+   "expected": "refused older",
+   "actual": "rc=2 older 31 allowlisted versions are older than the latest recorded v",
+   "result": "PASS"
+  },
+  {
+   "id": "R02",
+   "name": "acknowledging the wrong count is refused",
+   "expected": "refused older",
+   "actual": "rc=2 older",
+   "result": "PASS"
+  },
+  {
+   "id": "R03",
+   "name": "approved run: 58 executed, 9 history-only, 277 base rows untouched",
+   "expected": "58/9/277",
+   "actual": "58/9/277 rc=0 fail=None",
+   "result": "PASS"
+  },
+  {
+   "id": "R04",
+   "name": "none of the nine omitted versions, nor Cases 41/42/43, was executed",
+   "expected": "no executed rows",
+   "actual": "[]",
+   "result": "PASS"
+  },
+  {
+   "id": "R05",
+   "name": "final catalog fingerprint equals the LF-normalized reference run of the same 58 files (all 10 categories)",
+   "expected": "equal",
+   "actual": "[]",
+   "result": "PASS"
+  },
+  {
+   "id": "R05b",
+   "name": "with carriage returns removed from function bodies, the final catalog equals the earlier CRLF working-copy rehearsal of the same 58 files",
+   "expected": "equal",
+   "actual": "[]",
+   "result": "PASS"
+  },
+  {
+   "id": "R05c",
+   "name": "the only raw difference between the executor's LF run and the CRLF rehearsal is function-body carriage returns",
+   "expected": "['functions']",
+   "actual": "['functions']",
+   "result": "PASS"
+  },
+  {
+   "id": "R06",
+   "name": "execution followed the allowlist order exactly (audit item_end sequence)",
+   "expected": "58 in allowlist order",
+   "actual": "58 in order=True",
+   "result": "PASS"
+  },
+  {
+   "id": "R07",
+   "name": "superseded history-only records written only after their superseders succeeded; the pair and 20261010110000 before the first execution",
+   "expected": "9 of 9 correct",
+   "actual": "9 of 9",
+   "result": "PASS"
+  },
+  {
+   "id": "R08",
+   "name": "audit evidence separates real execution (item_start/item_end) from history-only records (history_only events with basis)",
+   "expected": "both present, disjoint versions",
+   "actual": "[('history_only', None), ('item_end', 'executed')]",
+   "result": "PASS"
+  },
+  {
+   "id": "R09",
+   "name": "verify command: ledger equals the allowlist (58 executed, 9 history-only), audit chain valid",
+   "expected": "ok",
+   "actual": "{'ok': True, 'command': 'verify', 'missing': [], 'executed': 58, 'history_only': 9, 'audit_records': 130}",
+   "result": "PASS"
+  },
+  {
+   "id": "R10",
+   "name": "repeated execution after completion changes nothing",
+   "expected": "0 executed, 0 history-only, ledger identical",
+   "actual": "rc=0 0/0 same=True",
+   "result": "PASS"
+  },
+  {
+   "id": "R11",
+   "name": "elapsed time of the full local run (informational)",
+   "expected": "n/a",
+   "actual": "22s",
+   "result": "PASS"
+  },
+  {
+   "id": "T01",
+   "name": "stopping inside the critical window without the explicit flag is refused",
+   "expected": "refused critical-window",
+   "actual": "rc=2 critical-window",
+   "result": "PASS"
+  },
+  {
+   "id": "T02",
+   "name": "stop before the critical window: pair and 20261010110000 recorded history-only up front, nothing else",
+   "expected": "3 history-only, 1 executed",
+   "actual": "['20260715221828', '20260716104333', '20261010110000'] executed=['20260715214053']",
+   "result": "PASS"
+  },
+  {
+   "id": "T03",
+   "name": "interrupted after 20260716151549: 20260716151530 NOT yet recorded (its superseder has not run)",
+   "expected": "151530 absent from ledger",
+   "actual": "None",
+   "result": "PASS"
+  },
+  {
+   "id": "T04",
+   "name": "interrupted after 20260716152447: 20260716151530 now recorded history-only",
+   "expected": "history-only",
+   "actual": "history-only",
+   "result": "PASS"
+  },
+  {
+   "id": "T05",
+   "name": "20260716152823 recorded only after BOTH of its superseders (20260717012112 and 20260717110808)",
+   "expected": "history-only",
+   "actual": "history-only",
+   "result": "PASS"
+  },
+  {
+   "id": "T06",
+   "name": "crash gap (ledger row committed, audit end record lost): reconciled from the audit start record, then run completes",
+   "expected": "reconciled 1, complete",
+   "actual": "rc=0 reconciled=['20260717111014'] executed_total=58",
+   "result": "PASS"
+  },
+  {
+   "id": "T07",
+   "name": "after interruption, resumption and crash-gap recovery the final catalog equals the reference",
+   "expected": "equal",
+   "actual": "[]",
+   "result": "PASS"
+  },
+  {
+   "id": "T08",
+   "name": "omitted versions never executed across the whole interrupted history",
+   "expected": "none",
+   "actual": "[]",
+   "result": "PASS"
+  },
+  {
+   "id": "T09",
+   "name": "audit store deleted while the ledger holds executed rows: refused, nothing run",
+   "expected": "refused audit",
+   "actual": "rc=2 audit",
+   "result": "PASS"
+  },
+  {
+   "id": "T10",
+   "name": "a live lock on the audit store refuses a second executor",
+   "expected": "refused lock",
+   "actual": "rc=2 lock",
+   "result": "PASS"
+  },
+  {
+   "id": "F01",
+   "name": "a failing migration is rolled back completely (no partial table, no ledger row), later migrations are not run",
+   "expected": "t_ok only; failed at 20300102000002",
+   "actual": "rc=3 tables=t_ok failed=20300102000002 ledger=['20300102000001']",
+   "result": "PASS"
+  },
+  {
+   "id": "F02",
+   "name": "the failure is in the audit store (item_failed) and a repeat attempt fails the same way without side effects",
+   "expected": "item_failed recorded",
+   "actual": "['item_failed']",
+   "result": "PASS"
+  },
+  {
+   "id": "F03",
+   "name": "executor killed mid-transaction: the half-applied migration leaves no table and no ledger row",
+   "expected": "k_a only; ledger has only 20300103000001",
+   "actual": "tables=k_a ledger=['20300103000001']",
+   "result": "PASS"
+  },
+  {
+   "id": "F04",
+   "name": "recovery after the kill: stale lock cleared, run completes all three",
+   "expected": "executed 2 more; stale lock note in audit",
+   "actual": "rc=0 lock_was_left=True executed=['20300103000002', '20300103000003'] stale=['stale_lock_cleared']",
+   "result": "PASS"
+  },
+  {
+   "id": "F05b",
+   "name": "real allowlist: declared dependencies are incomplete (the seed migration 20260716151549 declares none on 20260716151458); the missing object is caught by the SQL failure and rollback instead (see F06)",
+   "expected": "informational",
+   "actual": "20 declared edges; dependents of 20260716151458 declared: 4",
+   "result": "PASS"
+  },
+  {
+   "id": "F05",
+   "name": "a declared dependency that is not executed: refused before the dependent migration runs, nothing written",
+   "expected": "refused dependency",
+   "actual": "rc=2 dependency required version 20300104000001 for 20300104000002 is not executed ledger=0",
+   "result": "PASS"
+  },
+  {
+   "id": "F06",
+   "name": "dependency not declared and the SQL needs the missing object: the migration fails, rolls back, execution stops",
+   "expected": "failed, not recorded",
+   "actual": "rc=3 failed={'version': '20260716151549', 'error': 'relation \"inventory_products\" does not exist'} executed_total=1",
+   "result": "PASS"
+  },
+  {
+   "id": "F07",
+   "name": "omitted versions are not executed in either failure case",
+   "expected": "none",
+   "actual": "[]",
+   "result": "PASS"
+  },
+  {
+   "id": "W00",
+   "name": "starting anonymous surface of the restored Production state",
+   "expected": "68 functions / 55 tables",
+   "actual": "68 / 55",
+   "result": "PASS"
+  },
+  {
+   "id": "W1a",
+   "name": "dup_link: executor stops at the failing migration 20261009120000 (inside the critical window); failed version not recorded",
+   "expected": "20261009120000",
+   "actual": "rc=3 failed=20261009120000 recorded=False",
+   "result": "PASS"
+  },
+  {
+   "id": "W1b",
+   "name": "dup_link: anonymous surface at the failure point (start 68 functions / 55 tables)",
+   "expected": "measured",
+   "actual": "69 / 65 wider_than_start=True no_rls=[] anon_invoice_link_insert=REJECTED",
+   "result": "PASS"
+  },
+  {
+   "id": "W1c",
+   "name": "dup_link: no omitted version executed; history-only records limited to those whose basis is already true",
+   "expected": "omitted never executed",
+   "actual": "history-only=['20260715221828', '20260716104333', '20260716151530', '20260716152823', '20260716173644', '20260717111737', '20260717113131', '20260814114825', '20261010110000']",
+   "result": "PASS"
+  },
+  {
+   "id": "W1d",
+   "name": "candidate containment SQL (revoke anon on everything not anon-accessible at the start) brings the surface to the start level",
+   "expected": "<= 68 / <= 55",
+   "actual": "54 / 54",
+   "result": "PASS"
+  },
+  {
+   "id": "W1e",
+   "name": "dup_link: after fixing the data cause, resumption completes (58 executed, 9 history-only)",
+   "expected": "complete",
+   "actual": "rc=0 58/9",
+   "result": "PASS"
+  },
+  {
+   "id": "W1f",
+   "name": "after containment + resume: catalog differs from the reference only where containment revoked privileges the later migrations had already granted (not re-granted by a resume)",
+   "expected": "documented",
+   "actual": "differing categories=['functions']; final anon functions=6",
+   "result": "PASS"
+  },
+  {
+   "id": "W1g",
+   "name": "containment that revokes from PUBLIC also removes other roles' access: functions whose privileges differ from an uncontained run after resume",
+   "expected": "documented",
+   "actual": "2 functions, e.g. ['check_product_availability(jsonb,date,date,uuid)', 'get_public_nav_menu_groups()']",
+   "result": "PASS"
+  },
+  {
+   "id": "W2a",
+   "name": "bad_role: executor stops at the failing migration 20261016120000 (after the lockdown migrations); failed version not recorded",
+   "expected": "20261016120000",
+   "actual": "rc=3 failed=20261016120000 recorded=False",
+   "result": "PASS"
+  },
+  {
+   "id": "W2b",
+   "name": "bad_role: anonymous surface at the failure point (start 68 functions / 55 tables)",
+   "expected": "measured",
+   "actual": "6 / 2 wider_than_start=False no_rls=[] anon_invoice_link_insert=REJECTED",
+   "result": "PASS"
+  },
+  {
+   "id": "W2c",
+   "name": "bad_role: no omitted version executed; history-only records limited to those whose basis is already true",
+   "expected": "omitted never executed",
+   "actual": "history-only=['20260715221828', '20260716104333', '20260716151530', '20260716152823', '20260716173644', '20260717111737', '20260717113131', '20260814114825', '20261010110000']",
+   "result": "PASS"
+  },
+  {
+   "id": "W2e",
+   "name": "bad_role: after fixing the data cause, resumption completes (58 executed, 9 history-only)",
+   "expected": "complete",
+   "actual": "rc=0 58/9",
+   "result": "PASS"
+  },
+  {
+   "id": "W2f",
+   "name": "bad_role: after resumption the final catalog equals the reference and the anonymous surface is the intended final one (6 functions, 1 table)",
+   "expected": "equal; 6 / 1",
+   "actual": "differs=[] 6 / 1",
+   "result": "PASS"
+  },
+  {
+   "id": "W3a",
+   "name": "bad_item: executor stops at the failing migration 20260716151458 (first migration of the window (rolls back to the start state)); failed version not recorded",
+   "expected": "20260716151458",
+   "actual": "rc=3 failed=20260716151458 recorded=False",
+   "result": "PASS"
+  },
+  {
+   "id": "W3b",
+   "name": "bad_item: anonymous surface at the failure point (start 68 functions / 55 tables)",
+   "expected": "measured",
+   "actual": "68 / 55 wider_than_start=False no_rls=[] anon_invoice_link_insert=REJECTED",
+   "result": "PASS"
+  },
+  {
+   "id": "W3c",
+   "name": "bad_item: no omitted version executed; history-only records limited to those whose basis is already true",
+   "expected": "omitted never executed",
+   "actual": "history-only=['20260715221828', '20260716104333', '20261010110000']",
+   "result": "PASS"
+  },
+  {
+   "id": "W3e",
+   "name": "bad_item: after fixing the data cause, resumption completes (58 executed, 9 history-only)",
+   "expected": "complete",
+   "actual": "rc=0 58/9",
+   "result": "PASS"
+  },
+  {
+   "id": "W3f",
+   "name": "bad_item: after resumption the final catalog equals the reference and the anonymous surface is the intended final one (6 functions, 1 table)",
+   "expected": "equal; 6 / 1",
+   "actual": "differs=[] 6 / 1",
+   "result": "PASS"
+  },
+  {
+   "id": "W4a",
+   "name": "lock timeout inside the window: the migration fails fast on a held ACCESS EXCLUSIVE lock, is not recorded, execution stops",
+   "expected": "failed at 20260925151621 with lock timeout",
+   "actual": "rc=3 failed={'version': '20260925151621', 'error': 'canceling statement due to lock timeout'}",
+   "result": "PASS"
+  },
+  {
+   "id": "W4b",
+   "name": "after the lock holder is gone, resumption completes",
+   "expected": "complete",
+   "actual": "rc=0 58/9",
+   "result": "PASS"
+  },
+  {
+   "id": "D01",
+   "name": "the builder does not turn the Development manifest into an allowlist (it only understands the Production E2C manifest format)",
+   "expected": "build fails",
+   "actual": "rc=1 ync (node:diagnostics_channel:328:14)\n    at wrapModuleLoad (node:internal/modules/cjs/loader:237:24)\n\nNode.js v22.21.0",
+   "result": "PASS"
+  },
+  {
+   "id": "D02",
+   "name": "a Development-shaped ledger (exactly the 58 captured Development history versions) is refused by the Production allowlist's expected base history",
+   "expected": "refused ledger",
+   "actual": "ledger rows=58 rc=2 ledger ledger rows outside the allowlist (16) do not match the expected base history (2",
+   "result": "PASS"
+  },
+  {
+   "id": "D03",
+   "name": "the executor hard-codes the Production-specific never-execute list (Cases 41-43 and the nine omitted versions); a Development plan needs its own rules and predicates (213 history-only candidates, 80 needing evidence, 33 withheld)",
+   "expected": "informational",
+   "actual": "see e2g-hosted-prerequisites.md",
+   "result": "PASS"
+  }
+ ]
+}

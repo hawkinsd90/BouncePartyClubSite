@@ -1,0 +1,671 @@
+{
+ "stage": "E2H",
+ "scope": "local disposable PostgreSQL only (127.0.0.1:54329, bpc_exec_*), synthetic data, no hosted system; the local executor was driven as a separate process",
+ "summary": {
+  "e2h_tests": 65,
+  "passed": 65,
+  "failed": [],
+  "by_series": {
+   "D": 9,
+   "A": 18,
+   "I": 4,
+   "N": 2,
+   "U": 4,
+   "O": 1,
+   "R": 7,
+   "X": 13,
+   "L": 3,
+   "S": 4
+  },
+  "e2g_regression_on_the_e2h_executor": {
+   "total": 103,
+   "passed": 103,
+   "failed": []
+  }
+ },
+ "dependency_audit": {
+  "rows": 183,
+  "by_certainty": {
+   "hard": 40,
+   "runtime": 131,
+   "probable": 2,
+   "uncertain": 10
+  },
+  "files_with_dynamic_sql_uncertain": [
+   "20261007120000",
+   "20261012120000",
+   "20261013120000",
+   "20261014120000",
+   "20261015120000",
+   "20261015123000",
+   "20261016120000",
+   "20261018120000",
+   "20261018120100",
+   "20261018120200"
+  ]
+ },
+ "leave_one_out": {
+  "sql_failures": 12,
+  "completed": 46,
+  "semantic_only": 38,
+  "no_effect": 8,
+  "undeclared_before_conservative_edges": [
+   "20260925151621",
+   "20261011120000",
+   "20261019120000",
+   "20261022120000",
+   "20261023120000"
+  ]
+ },
+ "security_states": {
+  "start": {
+   "anon_functions": 68,
+   "anon_write_privilege_tables": 55,
+   "effectively_writable_tables": 26,
+   "no_rls_tables": []
+  },
+  "final": {
+   "anon_functions": 6,
+   "anon_write_privilege_tables": 1,
+   "effectively_writable_tables": 1,
+   "no_rls_tables": []
+  },
+  "changed_steps": 19,
+  "stops_wider_by_functions_or_effective_tables": 38,
+  "stops_wider_by_functions_or_privilege_tables": 40,
+  "first_wider": "20260716152447",
+  "last_wider": "20261011120000",
+  "peak_functions": 83,
+  "peak_effective_tables": 26
+ },
+ "anonymous_probe": {
+  "start": {
+   "functions": 68,
+   "callable (empty/void result)": 4,
+   "callable (returned rows)": 26,
+   "error (inconclusive)": 32,
+   "guarded (authorization error)": 6
+  },
+  "after_20260820165646": {
+   "functions": 79,
+   "callable (empty/void result)": 4,
+   "callable (returned rows)": 29,
+   "error (inconclusive)": 34,
+   "guarded (authorization error)": 12
+  },
+  "after_20261008120000": {
+   "functions": 69,
+   "callable (empty/void result)": 3,
+   "callable (returned rows)": 20,
+   "error (inconclusive)": 32,
+   "guarded (authorization error)": 14
+  },
+  "final": {
+   "functions": 6,
+   "callable (empty/void result)": 1,
+   "callable (returned rows)": 3,
+   "error (inconclusive)": 2
+  }
+ },
+ "reference_sets": {
+  "start_functions": 68,
+  "final_functions": [
+   "check_date_blackout(date,date)",
+   "check_product_availability(jsonb,date,date,uuid)",
+   "check_unit_availability(uuid,date,date,uuid)",
+   "check_unit_availability(uuid[],date,date)",
+   "get_public_business_settings()",
+   "get_public_nav_menu_groups()"
+  ],
+  "start_effective_tables": 26,
+  "final_effective_tables": [
+   "pending_signups_consent"
+  ]
+ },
+ "containment_experiments": {
+  "C1": {
+   "description": "failure at 20261009120000 (duplicate active portal link)",
+   "start": [
+    68,
+    26
+   ],
+   "at_state": [
+    69,
+    26
+   ],
+   "after_containment": [
+    66,
+    26
+   ],
+   "function_targets": [
+    "create_order_short_link(uuid)",
+    "create_portal_short_link(text)",
+    "resolve_portal_short_link(text)"
+   ],
+   "table_targets": [],
+   "kept_because_intended_at_the_end": [
+    "check_product_availability(jsonb,date,date,uuid)",
+    "get_public_nav_menu_groups()"
+   ],
+   "contain_sql_file": "containment-C1.sql (scratch folder; excerpts in e2h-security-recovery-plan.md)"
+  },
+  "C2": {
+   "description": "interrupted after 20260820165646 (widest-by-functions stop; also the state of a lock-timeout failure at 20260925151621)",
+   "start": [
+    68,
+    26
+   ],
+   "at_state": [
+    79,
+    26
+   ],
+   "after_containment": [
+    76,
+    26
+   ],
+   "function_targets": [
+    "create_order_short_link(uuid)",
+    "create_portal_short_link(text)",
+    "resolve_portal_short_link(text)"
+   ],
+   "table_targets": [],
+   "kept_because_intended_at_the_end": [
+    "check_product_availability(jsonb,date,date,uuid)"
+   ],
+   "contain_sql_file": "containment-C2.sql (scratch folder; excerpts in e2h-security-recovery-plan.md)"
+  }
+ },
+ "containment_probe": {
+  "C1": {
+   "create_order_short_link": "callable (returned rows)",
+   "create_portal_short_link": "callable (returned rows)",
+   "reorder_menu_group": "guarded (authorization error)",
+   "reorder_product_categories": "guarded (authorization error)",
+   "resolve_portal_short_link": "callable (returned rows)",
+   "save_inventory_product": "guarded (authorization error)",
+   "save_inventory_product_v2": "guarded (authorization error)",
+   "save_menu_group": "guarded (authorization error)",
+   "save_product_bundle": "guarded (authorization error)",
+   "save_product_bundle_v2": "guarded (authorization error)",
+   "save_product_category": "guarded (authorization error)",
+   "update_order_portal_links_updated_at": "error (inconclusive)",
+   "update_public_menu_groups_updated_at": "error (inconclusive)"
+  },
+  "C2": {
+   "create_order_short_link": "callable (returned rows)",
+   "create_portal_short_link": "callable (returned rows)",
+   "reorder_product_categories": "guarded (authorization error)",
+   "resolve_portal_short_link": "callable (returned rows)",
+   "save_inventory_product": "guarded (authorization error)",
+   "save_inventory_product_v2": "guarded (authorization error)",
+   "save_product_bundle": "guarded (authorization error)",
+   "save_product_bundle_v2": "guarded (authorization error)",
+   "save_product_category": "guarded (authorization error)",
+   "update_order_portal_links_updated_at": "error (inconclusive)"
+  }
+ },
+ "not_run_or_limited": [
+  "a real hardware or operating-system crash / power loss (a PostgreSQL immediate shutdown was used instead; fsync behavior is not tested)",
+  "concurrent application traffic against the database during a run",
+  "network failure between executor and database (loopback only; server-side backend termination and process kill were used)",
+  "hosted Supabase platform behavior (TLS, pooler, platform-owned schemas, hosted role privileges)",
+  "the Development executor (does not exist; the Production-58 executor refuses Development inputs)"
+ ],
+ "tests": [
+  {
+   "id": "H-D01",
+   "name": "corrected allowlist metadata: the seed migration 20260716151549 declares 20260716151458; every prerequisite is an earlier executable item",
+   "expected": "declared and ordered",
+   "actual": "seed_requires=['20260716151458'] edges=59 items_with_requires=32",
+   "result": "PASS"
+  },
+  {
+   "id": "H-D02",
+   "name": "plan with the corrected metadata loads, verifies and reports the declared prerequisite count",
+   "expected": "ok",
+   "actual": "rc=0 declared_prerequisites=59",
+   "result": "PASS"
+  },
+  {
+   "id": "H-D03",
+   "name": "invalid manifest order (a dependent placed before its prerequisite, document re-hashed) is rejected before any connection or execution",
+   "expected": "refused dependency-order, no audit, ledger unchanged",
+   "actual": "rc=2 dependency-order 20260716151549 is ordered before its prerequisite 20260716151458 (invalid manife audit_written=False ledger=277",
+   "result": "PASS"
+  },
+  {
+   "id": "H-D04",
+   "name": "missing prerequisite (removed from the manifest, dependents still declare it) is rejected before any connection or execution",
+   "expected": "refused dependency-missing",
+   "actual": "rc=2 dependency-missing audit_written=False ledger=277",
+   "result": "PASS"
+  },
+  {
+   "id": "H-D05",
+   "name": "a history-only record that must follow a version which is not an executable item of the allowlist is rejected at load",
+   "expected": "refused dependency-missing",
+   "actual": "rc=2 dependency-missing",
+   "result": "PASS"
+  },
+  {
+   "id": "H-D05b",
+   "name": "record_after on an executable item is rejected at load",
+   "expected": "refused",
+   "actual": "rc=2 dependency-order",
+   "result": "PASS"
+  },
+  {
+   "id": "H-D06",
+   "name": "a self-dependency (cycle) is rejected at load",
+   "expected": "refused dependency-order",
+   "actual": "rc=2 dependency-order",
+   "result": "PASS"
+  },
+  {
+   "id": "H-D07",
+   "name": "LIMIT: an order violation with NO declared dependency is not caught by the executor; PostgreSQL fails the migration, it rolls back and execution stops",
+   "expected": "failed, rolled back, not recorded",
+   "actual": "rc=3 failed={'version': '20300201000002', 'error': 'relation \"public.u_a\" does not exist'} ledger=[]",
+   "result": "PASS"
+  },
+  {
+   "id": "H-D08",
+   "name": "file name must belong to the version: a changed manifest version (re-hashed) is rejected",
+   "expected": "refused version-file",
+   "actual": "see H-I01",
+   "result": "PASS"
+  },
+  {
+   "id": "H-A01",
+   "name": "full run returns the audit head hash and record count for off-line pinning",
+   "expected": "head present",
+   "actual": "rc=0 head=102054cf11632a66 records=127",
+   "result": "PASS"
+  },
+  {
+   "id": "H-A02",
+   "name": "ledger structure is exactly the three captured columns (name, statements, version) and the executor writes only those",
+   "expected": "name:text,statements:ARRAY,version:text",
+   "actual": "name:text,statements:ARRAY,version:text",
+   "result": "PASS"
+  },
+  {
+   "id": "H-A03",
+   "name": "every executed row stores the exact LF SQL that ran as statements[2] (58 rows with two elements)",
+   "expected": "58",
+   "actual": "58",
+   "result": "PASS"
+  },
+  {
+   "id": "H-A04",
+   "name": "the stored SQL text hashes to the hash in the marker for all 58 executed rows",
+   "expected": "58",
+   "actual": "58",
+   "result": "PASS"
+  },
+  {
+   "id": "H-A05",
+   "name": "the 9 history-only rows hold a single SQL COMMENT and no executable SQL (a tool that replays the statements would run nothing, and the marker says NOT EXECUTED)",
+   "expected": "9 / 9",
+   "actual": "9 / 9",
+   "result": "PASS"
+  },
+  {
+   "id": "H-A06",
+   "name": "SQL text altered in a ledger row after the fact is detected (verify refuses)",
+   "expected": "refused ledger",
+   "actual": "rc=2 ledger ledger row 20260715214053: the SQL text stored in the ledger does not ",
+   "result": "PASS"
+  },
+  {
+   "id": "H-A07",
+   "name": "a non-JSON line in the audit store is rejected (fail closed), nothing executed",
+   "expected": "refused audit",
+   "actual": "rc=2 audit audit store contains a line that is not valid JSON",
+   "result": "PASS"
+  },
+  {
+   "id": "H-A08",
+   "name": "an edited audit record is rejected (fail closed), nothing executed",
+   "expected": "refused audit",
+   "actual": "rc=2 audit ledger row 20260715214053 is not backed by audit evidence",
+   "result": "PASS"
+  },
+  {
+   "id": "H-A09",
+   "name": "reordered audit records is rejected (fail closed), nothing executed",
+   "expected": "refused audit",
+   "actual": "rc=2 audit audit store chain broken at seq 2",
+   "result": "PASS"
+  },
+  {
+   "id": "H-A10",
+   "name": "a pinned head from an earlier run is accepted after the store has grown (it is an ancestor)",
+   "expected": "accepted (not refused); the run is simply incomplete, so verify reports missing items",
+   "actual": "rc=3 code=None ok=False missing=59",
+   "result": "PASS"
+  },
+  {
+   "id": "H-A11",
+   "name": "a store rolled back past the pinned head is refused; without the pin the missing evidence is still refused because ledger rows lack audit backing",
+   "expected": "refused audit (both)",
+   "actual": "pinned: rc=2 audit",
+   "result": "PASS"
+  },
+  {
+   "id": "H-A12",
+   "name": "same rolled-back store without a pin: refused (executed ledger rows have no audit evidence)",
+   "expected": "refused audit",
+   "actual": "rc=2 audit",
+   "result": "PASS"
+  },
+  {
+   "id": "H-A13",
+   "name": "qualified owner attestation is a third, distinct kind: own ledger marker (NOT EXECUTED, attested_by, scope, not_proven), own audit event, never counted as executed",
+   "expected": "attestation",
+   "actual": "{'20300301000001': 'executed', '20300301000002': 'other'} marker=-- BPC-LOCAL-EXECUTOR attestation NOT EXECUTED run=b62f04652655 attested_by=Owner (test) attested_at=2026-10-1",
+   "result": "PASS"
+  },
+  {
+   "id": "H-A14",
+   "name": "verify reports executed / history-only / attestations separately",
+   "expected": "1 / 0 / 1",
+   "actual": "1 / 0 / 1",
+   "result": "PASS"
+  },
+  {
+   "id": "H-A15",
+   "name": "an attestation lacking attested_by / scope / not_proven is refused",
+   "expected": "refused attestation",
+   "actual": "rc=2 attestation",
+   "result": "PASS"
+  },
+  {
+   "id": "H-A16",
+   "name": "an attestation ledger row without audit evidence is refused (evidence is never manufactured)",
+   "expected": "refused audit",
+   "actual": "rc=2 audit",
+   "result": "PASS"
+  },
+  {
+   "id": "H-A17",
+   "name": "audit store records failed attempts (item_failed, twice), the end of each run, and the successful resume",
+   "expected": "2 x item_failed; 3 run_start / 3 run_end; final ok",
+   "actual": "rcs=3,3,0 item_failed=2 run_start=3 run_end=3",
+   "result": "PASS"
+  },
+  {
+   "id": "H-A18",
+   "name": "after two failed attempts and a resume the ledger is clean: 58 executed, 9 history-only, failed version recorded exactly once",
+   "expected": "58 / 9",
+   "actual": "58 / 9",
+   "result": "PASS"
+  },
+  {
+   "id": "H-I01",
+   "name": "a changed manifest version (file no longer belongs to it; document re-hashed) is rejected before any connection",
+   "expected": "refused version-file",
+   "actual": "rc=2 version-file file 20300401000001_a.sql does not belong to version 20300401000009 (v",
+   "result": "PASS"
+  },
+  {
+   "id": "H-I02",
+   "name": "a changed content hash in the manifest (re-hashed) is rejected against the bound commit",
+   "expected": "refused hash",
+   "actual": "rc=2 hash",
+   "result": "PASS"
+  },
+  {
+   "id": "H-I03",
+   "name": "Git content changed after the allowlist was bound (new commit edits an allowlisted file): the working tree no longer matches the bound commit and the run is refused",
+   "expected": "refused hash",
+   "actual": "rc=2 hash file 20300401000002_b.sql: working tree differs from the bound commit  ledger=0",
+   "result": "PASS"
+  },
+  {
+   "id": "H-I04",
+   "name": "a withdrawn file restored into the active directory AFTER binding (untracked) is refused",
+   "expected": "refused withdrawn",
+   "actual": "rc=2 withdrawn",
+   "result": "PASS"
+  },
+  {
+   "id": "H-N01",
+   "name": "all 12 withdrawn or omitted versions, offered as executable items, are refused (none reaches a connection)",
+   "expected": "12 of 12 refused",
+   "actual": "unrefused=[]",
+   "result": "PASS"
+  },
+  {
+   "id": "H-N02",
+   "name": "--stop-after naming an omitted (history-only) version is refused",
+   "expected": "refused",
+   "actual": "rc=2 --stop-after must name an executable allowlisted version",
+   "result": "PASS"
+  },
+  {
+   "id": "H-U01",
+   "name": "a future-dated unknown ledger row is refused",
+   "expected": "refused (ledger), nothing executed",
+   "actual": "rc=2 ledger executed=0",
+   "result": "PASS"
+  },
+  {
+   "id": "H-U02",
+   "name": "a base-history row replaced by an unknown one (same row count) is refused",
+   "expected": "refused (ledger), nothing executed",
+   "actual": "rc=2 ledger executed=0",
+   "result": "PASS"
+  },
+  {
+   "id": "H-U03",
+   "name": "a pre-existing row for an omitted version without the executor marker is refused",
+   "expected": "refused (ledger), nothing executed",
+   "actual": "rc=2 ledger executed=0",
+   "result": "PASS"
+  },
+  {
+   "id": "H-U04",
+   "name": "a pre-existing row for Case 42 is refused",
+   "expected": "refused (ledger), nothing executed",
+   "actual": "rc=2 ledger executed=0",
+   "result": "PASS"
+  },
+  {
+   "id": "H-O01",
+   "name": "database client unavailable: the executor fails closed (error exit, nothing written, no item started)",
+   "expected": "rc=4, ledger 277, no item_start",
+   "actual": "rc=4 psql could not be started: spawnSync C:\\no\\such\\psql.exe ENOENT ledger=277 item_start=0",
+   "result": "PASS"
+  },
+  {
+   "id": "H-R01",
+   "name": "repeated resume attempts: the first completes, the next two change nothing",
+   "expected": "58/9; later runs 0/0",
+   "actual": "[(0, 57, 6), (0, 0, 0), (0, 0, 0)] ledger 58/9",
+   "result": "PASS"
+  },
+  {
+   "id": "H-R02",
+   "name": "no duplicate execution records: 58 item_end events for 58 versions",
+   "expected": "58",
+   "actual": "58",
+   "result": "PASS"
+  },
+  {
+   "id": "H-R03",
+   "name": "connection terminated by the server mid-transaction: the executor reports the failure, the half-applied file leaves no table and no ledger row, the run stops",
+   "expected": "rc=3; c_a only; one ledger row",
+   "actual": "rc=3 failed={'version': '20300501000002', 'error': 'psql:<stdin>:7: FATAL:  terminating connection due to administrator command\\r\\npsql:<stdin>:7: server closed the connection unexpectedly\\r\\n\\tThis probably means the server terminated abnormally\\r\\n\\tbefore or while processing the request.\\r\\npsql:<stdin>:7: error: connection to server was lost'} tables=c_a ledger=['20300501000001']",
+   "result": "PASS"
+  },
+  {
+   "id": "H-R04",
+   "name": "resume after the connection loss completes all three files; the audit store shows the failed attempt",
+   "expected": "3 ledger rows; item_failed once",
+   "actual": "rc=0 ledger=3 item_failed=1",
+   "result": "PASS"
+  },
+  {
+   "id": "H-R05",
+   "name": "executor process killed mid-run: the next run records prior_run_incomplete (and the stale lock) in the audit store and completes",
+   "expected": "prior_run_incomplete present; 3 rows",
+   "actual": "rc=0 ['stale_lock_cleared', 'prior_run_incomplete'] ledger=3",
+   "result": "PASS"
+  },
+  {
+   "id": "H-R06",
+   "name": "two executors at once on one database with separate audit stores: no version is applied twice (primary key + advisory lock) and nothing is corrupted; the interleaving is reported",
+   "expected": "no duplicates; ledger consistent",
+   "actual": "rc=0,4 codes=None,error executed_rows=58 duplicates=0",
+   "result": "PASS"
+  },
+  {
+   "id": "H-R07",
+   "name": "after interleaved executors each audit store lacks evidence for the other's rows, so verification refuses unless one store holds all evidence (the executor never fabricates evidence; a human must reconcile the stores)",
+   "expected": "documented outcome",
+   "actual": "store1: rc=0 True; store2: rc=2 audit",
+   "result": "PASS"
+  },
+  {
+   "id": "H-X01",
+   "name": "per-step anonymous surface captured through the executor for all 58 stops (functions, privilege tables, effectively writable tables = RLS disabled or an anon/public write policy exists)",
+   "expected": "58 stops",
+   "actual": "58",
+   "result": "PASS"
+  },
+  {
+   "id": "H-X02",
+   "name": "no table with anonymous write privilege had row-level security disabled at any stop",
+   "expected": "none",
+   "actual": "[]",
+   "result": "PASS"
+  },
+  {
+   "id": "H-X03",
+   "name": "anonymous-role probe with synthetic arguments run at 4 states (start, widest-by-functions, the W1 failure state, final); every anonymous-callable function classified (rolled back)",
+   "expected": "classified",
+   "actual": "{'start': 68, 'after_20260820165646': 79, 'after_20261008120000': 69, 'final': 6}",
+   "result": "PASS"
+  },
+  {
+   "id": "H-L01",
+   "name": "leave-one-out (58 removals with all prerequisites stripped, run on scratch): every removal that makes PostgreSQL fail is at a migration whose declared prerequisites (transitively) include the removed one",
+   "expected": "no undeclared dependency",
+   "actual": "12 removals fail in SQL, 46 complete; undeclared=[]",
+   "result": "PASS"
+  },
+  {
+   "id": "H-L02",
+   "name": "removals that complete without a SQL error but change the final catalog (semantic redefinitions: PostgreSQL cannot enforce them; only the allowlist order and the final-state comparison protect them)",
+   "expected": "informational",
+   "actual": "38 of 46 change the final state; 8 change nothing",
+   "result": "PASS"
+  },
+  {
+   "id": "H-S01",
+   "name": "simulated server crash (immediate shutdown) while a migration is mid-transaction: the executor exits with an error and does not report success",
+   "expected": "rc != 0",
+   "actual": "executor rc=3; pg_ctl rc=0",
+   "result": "PASS"
+  },
+  {
+   "id": "H-S02",
+   "name": "the scratch cluster restarts after the immediate shutdown (crash recovery)",
+   "expected": "accepting connections",
+   "actual": "True",
+   "result": "PASS"
+  },
+  {
+   "id": "H-S03",
+   "name": "after crash recovery the half-applied migration left no table and no ledger row; the committed first file is intact",
+   "expected": "s_a only; one ledger row",
+   "actual": "tables=s_a ledger=['20300601000001']",
+   "result": "PASS"
+  },
+  {
+   "id": "H-S04",
+   "name": "the server crash was recorded as a failed attempt (item_failed, normal run_end); the resume then completes all three files",
+   "expected": "3 ledger rows; item_failed once",
+   "actual": "rc=0 ledger=3 item_failed=1",
+   "result": "PASS"
+  },
+  {
+   "id": "H-L03",
+   "name": "removing any single item from the real allowlist is rejected at load (dependency-missing) exactly when another item declares it as a prerequisite or a record_after; otherwise the plan loads",
+   "expected": "58 of 58 consistent",
+   "actual": "inconsistent=[]; items that are prerequisites of others: 23",
+   "result": "PASS"
+  },
+  {
+   "id": "H-X04C1",
+   "name": "C1 failure at 20261009120000 (duplicate active portal link): state reached as expected",
+   "expected": "reached",
+   "actual": "rc=3 failed=20261009120000",
+   "result": "PASS"
+  },
+  {
+   "id": "H-X05C1",
+   "name": "C1: anonymous-CALLABLE functions (probe) at the state / after targeted containment; start was 30; effectively writable tables start 26",
+   "expected": "after <= start",
+   "actual": "state 23 -> after containment 20; effectively writable tables 26 -> 26; targets ['create_order_short_link', 'create_portal_short_link', 'resolve_portal_short_link']; kept (intended at the end) ['check_product_availability(jsonb,date,date,uuid)', 'get_public_nav_menu_groups()']",
+   "result": "PASS"
+  },
+  {
+   "id": "H-X06C1",
+   "name": "C1: containment changed privileges only on the targeted objects (not a blanket revoke)",
+   "expected": "changed set == targets",
+   "actual": "3 functions, 0 tables changed; targets 3 / 0",
+   "result": "PASS"
+  },
+  {
+   "id": "H-X07C1",
+   "name": "C1: running the generated RESTORE script returns the targeted objects' privileges exactly to the pre-containment state",
+   "expected": "identical ACL snapshot",
+   "actual": "function ACLs equal=True table ACLs equal=True",
+   "result": "PASS"
+  },
+  {
+   "id": "H-X08C1",
+   "name": "C1: contain, fix the cause, resume: the run completes and the final catalog / function and table ACLs equal an uncontained run",
+   "expected": "equal",
+   "actual": "rc=0 fingerprint_differs=[] function_acl_diffs=[] table_acl_diffs=[]",
+   "result": "PASS"
+  },
+  {
+   "id": "H-X04C2",
+   "name": "C2 interrupted after 20260820165646 (widest-by-functions stop; also the state of a lock-timeout failure at 20260925151621): state reached as expected",
+   "expected": "reached",
+   "actual": "rc=0 failed=None",
+   "result": "PASS"
+  },
+  {
+   "id": "H-X05C2",
+   "name": "C2: anonymous-CALLABLE functions (probe) at the state / after targeted containment; start was 30; effectively writable tables start 26",
+   "expected": "after <= start",
+   "actual": "state 33 -> after containment 30; effectively writable tables 26 -> 26; targets ['create_order_short_link', 'create_portal_short_link', 'resolve_portal_short_link']; kept (intended at the end) ['check_product_availability(jsonb,date,date,uuid)']",
+   "result": "PASS"
+  },
+  {
+   "id": "H-X06C2",
+   "name": "C2: containment changed privileges only on the targeted objects (not a blanket revoke)",
+   "expected": "changed set == targets",
+   "actual": "3 functions, 0 tables changed; targets 3 / 0",
+   "result": "PASS"
+  },
+  {
+   "id": "H-X07C2",
+   "name": "C2: running the generated RESTORE script returns the targeted objects' privileges exactly to the pre-containment state",
+   "expected": "identical ACL snapshot",
+   "actual": "function ACLs equal=True table ACLs equal=True",
+   "result": "PASS"
+  },
+  {
+   "id": "H-X08C2",
+   "name": "C2: contain, fix the cause, resume: the run completes and the final catalog / function and table ACLs equal an uncontained run",
+   "expected": "equal",
+   "actual": "rc=0 fingerprint_differs=[] function_acl_diffs=[] table_acl_diffs=[]",
+   "result": "PASS"
+  }
+ ]
+}

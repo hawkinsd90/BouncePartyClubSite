@@ -1,0 +1,1326 @@
+{
+ "items": {
+  "20260715214053": {
+   "run_ok": true,
+   "candidates": 1,
+   "validated": 1,
+   "rejected": 0,
+   "valid_atoms": [
+    "EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema='public' AND table_name='orders' AND column_name='customer_view_updated_at')"
+   ]
+  },
+  "20260716151458": {
+   "run_ok": true,
+   "candidates": 94,
+   "validated": 94,
+   "rejected": 0,
+   "valid_atoms": [
+    "to_regclass('public.inventory_products') IS NOT NULL",
+    "EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema='public' AND table_name='inventory_products' AND column_name='id')",
+    "EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema='public' AND table_name='inventory_products' AND column_name='slug')",
+    "EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema='public' AND table_name='inventory_products' AND column_name='name')",
+    "EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema='public' AND table_name='inventory_products' AND column_name='description')",
+    "EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema='public' AND table_name='inventory_products' AND column_name='image_url')",
+    "EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema='public' AND table_name='inventory_products' AND column_name='total_quantity')",
+    "EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema='public' AND table_name='inventory_products' AND column_name='temp_unavailable_qty')",
+    "EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema='public' AND table_name='inventory_products' AND column_name='active')",
+    "EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema='public' AND table_name='inventory_products' AND column_name='public_visible')",
+    "EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema='public' AND table_name='inventory_products' AND column_name='sort_order')",
+    "EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema='public' AND table_name='inventory_products' AND column_name='created_at')",
+    "EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema='public' AND table_name='inventory_products' AND column_name='updated_at')",
+    "EXISTS (SELECT 1 FROM pg_constraint WHERE conrelid = to_regclass('public.inventory_products') AND conname='inventory_products_slug_unique')",
+    "EXISTS (SELECT 1 FROM pg_constraint WHERE conrelid = to_regclass('public.inventory_products') AND conname='inventory_products_total_qty_nonneg')",
+    "EXISTS (SELECT 1 FROM pg_constraint WHERE conrelid = to_regclass('public.inventory_products') AND conname='inventory_products_temp_unavail_nonneg')",
+    "EXISTS (SELECT 1 FROM pg_constraint WHERE conrelid = to_regclass('public.inventory_products') AND conname='inventory_products_temp_le_total')",
+    "to_regclass('public.product_bundles') IS NOT NULL",
+    "EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema='public' AND table_name='product_bundles' AND column_name='id')",
+    "EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema='public' AND table_name='product_bundles' AND column_name='slug')",
+    "EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema='public' AND table_name='product_bundles' AND column_name='name')",
+    "EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema='public' AND table_name='product_bundles' AND column_name='description')",
+    "EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema='public' AND table_name='product_bundles' AND column_name='image_url')",
+    "EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema='public' AND table_name='product_bundles' AND column_name='standalone_price_cents')",
+    "EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema='public' AND table_name='product_bundles' AND column_name='addon_price_cents')",
+    "EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema='public' AND table_name='product_bundles' AND column_name='standalone_enabled')",
+    "EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema='public' AND table_name='product_bundles' AND column_name='addon_enabled')",
+    "EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema='public' AND table_name='product_bundles' AND column_name='active')",
+    "EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema='public' AND table_name='product_bundles' AND column_name='public_visible')",
+    "EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema='public' AND table_name='product_bundles' AND column_name='menu_visible')",
+    "EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema='public' AND table_name='product_bundles' AND column_name='featured')",
+    "EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema='public' AND table_name='product_bundles' AND column_name='sort_order')",
+    "EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema='public' AND table_name='product_bundles' AND column_name='created_at')",
+    "EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema='public' AND table_name='product_bundles' AND column_name='updated_at')",
+    "EXISTS (SELECT 1 FROM pg_constraint WHERE conrelid = to_regclass('public.product_bundles') AND conname='product_bundles_slug_unique')",
+    "EXISTS (SELECT 1 FROM pg_constraint WHERE conrelid = to_regclass('public.product_bundles') AND conname='product_bundles_standalone_price_nonneg')",
+    "EXISTS (SELECT 1 FROM pg_constraint WHERE conrelid = to_regclass('public.product_bundles') AND conname='product_bundles_addon_price_nonneg')",
+    "EXISTS (SELECT 1 FROM pg_constraint WHERE conrelid = to_regclass('public.product_bundles') AND conname='product_bundles_standalone_requires_price')",
+    "EXISTS (SELECT 1 FROM pg_constraint WHERE conrelid = to_regclass('public.product_bundles') AND conname='product_bundles_addon_requires_price')",
+    "to_regclass('public.product_bundle_components') IS NOT NULL",
+    "EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema='public' AND table_name='product_bundle_components' AND column_name='id')",
+    "EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema='public' AND table_name='product_bundle_components' AND column_name='bundle_id')",
+    "EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema='public' AND table_name='product_bundle_components' AND column_name='product_id')",
+    "EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema='public' AND table_name='product_bundle_components' AND column_name='quantity_per_bundle')",
+    "EXISTS (SELECT 1 FROM pg_constraint WHERE conrelid = to_regclass('public.product_bundle_components') AND conname='product_bundle_components_bundle_product_unique')",
+    "EXISTS (SELECT 1 FROM pg_constraint WHERE conrelid = to_regclass('public.product_bundle_components') AND conname='product_bundle_components_qty_positive')",
+    "to_regclass('public.product_pricing') IS NOT NULL",
+    "EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema='public' AND table_name='product_pricing' AND column_name='id')",
+    "EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema='public' AND table_name='product_pricing' AND column_name='product_id')",
+    "EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema='public' AND table_name='product_pricing' AND column_name='standalone_price_cents')",
+    "EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema='public' AND table_name='product_pricing' AND column_name='addon_price_cents')",
+    "EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema='public' AND table_name='product_pricing' AND column_name='standalone_enabled')",
+    "EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema='public' AND table_name='product_pricing' AND column_name='addon_enabled')",
+    "EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema='public' AND table_name='product_pricing' AND column_name='sort_order')",
+    "EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema='public' AND table_name='product_pricing' AND column_name='created_at')",
+    "EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema='public' AND table_name='product_pricing' AND column_name='updated_at')",
+    "EXISTS (SELECT 1 FROM pg_constraint WHERE conrelid = to_regclass('public.product_pricing') AND conname='product_pricing_product_unique')",
+    "EXISTS (SELECT 1 FROM pg_constraint WHERE conrelid = to_regclass('public.product_pricing') AND conname='product_pricing_standalone_price_nonneg')",
+    "EXISTS (SELECT 1 FROM pg_constraint WHERE conrelid = to_regclass('public.product_pricing') AND conname='product_pricing_addon_price_nonneg')",
+    "EXISTS (SELECT 1 FROM pg_constraint WHERE conrelid = to_regclass('public.product_pricing') AND conname='product_pricing_standalone_requires_price')",
+    "EXISTS (SELECT 1 FROM pg_constraint WHERE conrelid = to_regclass('public.product_pricing') AND conname='product_pricing_addon_requires_price')",
+    "EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema='public' AND table_name='order_items' AND column_name='product_id')",
+    "EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema='public' AND table_name='order_items' AND column_name='bundle_id')",
+    "EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema='public' AND table_name='order_items' AND column_name='item_name')",
+    "EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema='public' AND table_name='order_items' AND column_name='component_snapshot')",
+    "EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema='public' AND table_name='order_items' AND column_name='pricing_context')",
+    "EXISTS (SELECT 1 FROM pg_constraint WHERE conrelid = to_regclass('public.order_items') AND conname='order_items_single_reference')",
+    "EXISTS (SELECT 1 FROM pg_constraint WHERE conrelid = to_regclass('public.order_items') AND conname='order_items_pricing_context_valid')",
+    "EXISTS (SELECT 1 FROM pg_indexes WHERE schemaname='public' AND indexname='idx_order_items_product_id')",
+    "EXISTS (SELECT 1 FROM pg_indexes WHERE schemaname='public' AND indexname='idx_order_items_bundle_id')",
+    "EXISTS (SELECT 1 FROM pg_indexes WHERE schemaname='public' AND indexname='idx_inventory_products_active_visible')",
+    "EXISTS (SELECT 1 FROM pg_indexes WHERE schemaname='public' AND indexname='idx_product_bundles_active_visible')",
+    "COALESCE((SELECT relrowsecurity FROM pg_class WHERE oid = to_regclass('public.inventory_products')), false)",
+    "EXISTS (SELECT 1 FROM pg_policies WHERE schemaname='public' AND tablename='inventory_products' AND policyname='Admins can select all products')",
+    "EXISTS (SELECT 1 FROM pg_policies WHERE schemaname='public' AND tablename='inventory_products' AND policyname='Admins can insert products')",
+    "EXISTS (SELECT 1 FROM pg_policies WHERE schemaname='public' AND tablename='inventory_products' AND policyname='Admins can update products')",
+    "EXISTS (SELECT 1 FROM pg_policies WHERE schemaname='public' AND tablename='inventory_products' AND policyname='Admins can delete products')",
+    "COALESCE((SELECT relrowsecurity FROM pg_class WHERE oid = to_regclass('public.product_bundles')), false)",
+    "EXISTS (SELECT 1 FROM pg_policies WHERE schemaname='public' AND tablename='product_bundles' AND policyname='Public can view active visible bundles')",
+    "EXISTS (SELECT 1 FROM pg_policies WHERE schemaname='public' AND tablename='product_bundles' AND policyname='Admins can select all bundles')",
+    "EXISTS (SELECT 1 FROM pg_policies WHERE schemaname='public' AND tablename='product_bundles' AND policyname='Admins can insert bundles')",
+    "EXISTS (SELECT 1 FROM pg_policies WHERE schemaname='public' AND tablename='product_bundles' AND policyname='Admins can update bundles')",
+    "EXISTS (SELECT 1 FROM pg_policies WHERE schemaname='public' AND tablename='product_bundles' AND policyname='Admins can delete bundles')",
+    "COALESCE((SELECT relrowsecurity FROM pg_class WHERE oid = to_regclass('public.product_bundle_components')), false)",
+    "EXISTS (SELECT 1 FROM pg_policies WHERE schemaname='public' AND tablename='product_bundle_components' AND policyname='Public can view components of active visible bundles')",
+    "EXISTS (SELECT 1 FROM pg_policies WHERE schemaname='public' AND tablename='product_bundle_components' AND policyname='Admins can select all bundle components')",
+    "EXISTS (SELECT 1 FROM pg_policies WHERE schemaname='public' AND tablename='product_bundle_components' AND policyname='Admins can insert bundle components')",
+    "EXISTS (SELECT 1 FROM pg_policies WHERE schemaname='public' AND tablename='product_bundle_components' AND policyname='Admins can update bundle components')",
+    "EXISTS (SELECT 1 FROM pg_policies WHERE schemaname='public' AND tablename='product_bundle_components' AND policyname='Admins can delete bundle components')",
+    "COALESCE((SELECT relrowsecurity FROM pg_class WHERE oid = to_regclass('public.product_pricing')), false)",
+    "EXISTS (SELECT 1 FROM pg_policies WHERE schemaname='public' AND tablename='product_pricing' AND policyname='Admins can select all product pricing')",
+    "EXISTS (SELECT 1 FROM pg_policies WHERE schemaname='public' AND tablename='product_pricing' AND policyname='Admins can insert pricing')",
+    "EXISTS (SELECT 1 FROM pg_policies WHERE schemaname='public' AND tablename='product_pricing' AND policyname='Admins can update pricing')",
+    "EXISTS (SELECT 1 FROM pg_policies WHERE schemaname='public' AND tablename='product_pricing' AND policyname='Admins can delete pricing')"
+   ]
+  },
+  "20260716151549": {
+   "run_ok": true,
+   "candidates": 0,
+   "validated": 0,
+   "rejected": 0,
+   "valid_atoms": []
+  },
+  "20260716152447": {
+   "run_ok": true,
+   "candidates": 4,
+   "validated": 4,
+   "rejected": 0,
+   "valid_atoms": [
+    "EXISTS (SELECT 1 FROM pg_proc WHERE pronamespace='public'::regnamespace AND proname='check_product_availability')",
+    "EXISTS (SELECT 1 FROM pg_proc p WHERE p.pronamespace='public'::regnamespace AND p.proname='check_product_availability' AND has_function_privilege('anon', p.oid, 'EXECUTE'))",
+    "EXISTS (SELECT 1 FROM pg_proc p WHERE p.pronamespace='public'::regnamespace AND p.proname='check_product_availability' AND has_function_privilege('authenticated', p.oid, 'EXECUTE'))",
+    "EXISTS (SELECT 1 FROM pg_proc p WHERE p.pronamespace='public'::regnamespace AND p.proname='check_product_availability' AND has_function_privilege('service_role', p.oid, 'EXECUTE'))"
+   ]
+  },
+  "20260716173638": {
+   "run_ok": true,
+   "candidates": 0,
+   "validated": 0,
+   "rejected": 0,
+   "valid_atoms": []
+  },
+  "20260716231809": {
+   "run_ok": true,
+   "candidates": 11,
+   "validated": 11,
+   "rejected": 0,
+   "valid_atoms": [
+    "to_regclass('public.product_categories') IS NOT NULL",
+    "EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema='public' AND table_name='product_categories' AND column_name='id')",
+    "EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema='public' AND table_name='product_categories' AND column_name='slug')",
+    "EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema='public' AND table_name='product_categories' AND column_name='name')",
+    "EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema='public' AND table_name='product_categories' AND column_name='sort_order')",
+    "EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema='public' AND table_name='product_categories' AND column_name='active')",
+    "EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema='public' AND table_name='product_categories' AND column_name='public_visible')",
+    "EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema='public' AND table_name='product_categories' AND column_name='created_at')",
+    "EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema='public' AND table_name='product_categories' AND column_name='updated_at')",
+    "EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema='public' AND table_name='inventory_products' AND column_name='category_id')",
+    "COALESCE((SELECT relrowsecurity FROM pg_class WHERE oid = to_regclass('public.product_categories')), false)"
+   ]
+  },
+  "20260716231832": {
+   "run_ok": true,
+   "candidates": 1,
+   "validated": 0,
+   "rejected": 1,
+   "valid_atoms": []
+  },
+  "20260717012112": {
+   "run_ok": true,
+   "candidates": 10,
+   "validated": 0,
+   "rejected": 10,
+   "valid_atoms": []
+  },
+  "20260717110808": {
+   "run_ok": true,
+   "candidates": 15,
+   "validated": 0,
+   "rejected": 15,
+   "valid_atoms": []
+  },
+  "20260717110829": {
+   "run_ok": true,
+   "candidates": 1,
+   "validated": 1,
+   "rejected": 0,
+   "valid_atoms": [
+    "EXISTS (SELECT 1 FROM storage.buckets WHERE id='event-essentials-media')"
+   ]
+  },
+  "20260717111014": {
+   "run_ok": true,
+   "candidates": 8,
+   "validated": 8,
+   "rejected": 0,
+   "valid_atoms": [
+    "EXISTS (SELECT 1 FROM pg_proc WHERE pronamespace='public'::regnamespace AND proname='save_inventory_product')",
+    "EXISTS (SELECT 1 FROM pg_proc WHERE pronamespace='public'::regnamespace AND proname='save_product_bundle')",
+    "EXISTS (SELECT 1 FROM pg_proc WHERE pronamespace='public'::regnamespace AND proname='save_product_category')",
+    "EXISTS (SELECT 1 FROM pg_proc WHERE pronamespace='public'::regnamespace AND proname='reorder_product_categories')",
+    "EXISTS (SELECT 1 FROM pg_proc p WHERE p.pronamespace='public'::regnamespace AND p.proname='save_inventory_product' AND has_function_privilege('authenticated', p.oid, 'EXECUTE'))",
+    "EXISTS (SELECT 1 FROM pg_proc p WHERE p.pronamespace='public'::regnamespace AND p.proname='save_product_bundle' AND has_function_privilege('authenticated', p.oid, 'EXECUTE'))",
+    "EXISTS (SELECT 1 FROM pg_proc p WHERE p.pronamespace='public'::regnamespace AND p.proname='save_product_category' AND has_function_privilege('authenticated', p.oid, 'EXECUTE'))",
+    "EXISTS (SELECT 1 FROM pg_proc p WHERE p.pronamespace='public'::regnamespace AND p.proname='reorder_product_categories' AND has_function_privilege('authenticated', p.oid, 'EXECUTE'))"
+   ]
+  },
+  "20260717111803": {
+   "run_ok": true,
+   "candidates": 2,
+   "validated": 0,
+   "rejected": 2,
+   "valid_atoms": []
+  },
+  "20260717115647": {
+   "run_ok": true,
+   "candidates": 2,
+   "validated": 0,
+   "rejected": 2,
+   "valid_atoms": []
+  },
+  "20260718000744": {
+   "run_ok": true,
+   "candidates": 45,
+   "validated": 45,
+   "rejected": 0,
+   "valid_atoms": [
+    "EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema='public' AND table_name='product_pricing' AND column_name='addon_qualifying_threshold_cents')",
+    "EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema='public' AND table_name='product_bundles' AND column_name='addon_qualifying_threshold_cents')",
+    "EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema='public' AND table_name='product_bundles' AND column_name='inflatable_eligibility_mode')",
+    "to_regclass('public.product_bundle_excluded_categories') IS NOT NULL",
+    "EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema='public' AND table_name='product_bundle_excluded_categories' AND column_name='bundle_id')",
+    "EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema='public' AND table_name='product_bundle_excluded_categories' AND column_name='category_id')",
+    "EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema='public' AND table_name='product_bundle_excluded_categories' AND column_name='created_at')",
+    "COALESCE((SELECT relrowsecurity FROM pg_class WHERE oid = to_regclass('public.product_bundle_excluded_categories')), false)",
+    "EXISTS (SELECT 1 FROM pg_indexes WHERE schemaname='public' AND indexname='idx_pbec_bundle_id')",
+    "EXISTS (SELECT 1 FROM pg_indexes WHERE schemaname='public' AND indexname='idx_pbec_category_id')",
+    "to_regclass('public.package_inflatable_eligibility') IS NOT NULL",
+    "EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema='public' AND table_name='package_inflatable_eligibility' AND column_name='bundle_id')",
+    "EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema='public' AND table_name='package_inflatable_eligibility' AND column_name='unit_id')",
+    "EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema='public' AND table_name='package_inflatable_eligibility' AND column_name='created_at')",
+    "COALESCE((SELECT relrowsecurity FROM pg_class WHERE oid = to_regclass('public.package_inflatable_eligibility')), false)",
+    "EXISTS (SELECT 1 FROM pg_indexes WHERE schemaname='public' AND indexname='idx_pie_bundle_id')",
+    "EXISTS (SELECT 1 FROM pg_indexes WHERE schemaname='public' AND indexname='idx_pie_unit_id')",
+    "to_regclass('public.package_inflatable_components') IS NOT NULL",
+    "EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema='public' AND table_name='package_inflatable_components' AND column_name='id')",
+    "EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema='public' AND table_name='package_inflatable_components' AND column_name='bundle_id')",
+    "EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema='public' AND table_name='package_inflatable_components' AND column_name='unit_id')",
+    "EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema='public' AND table_name='package_inflatable_components' AND column_name='quantity_per_bundle')",
+    "EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema='public' AND table_name='package_inflatable_components' AND column_name='selection_mode')",
+    "EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema='public' AND table_name='package_inflatable_components' AND column_name='created_at')",
+    "COALESCE((SELECT relrowsecurity FROM pg_class WHERE oid = to_regclass('public.package_inflatable_components')), false)",
+    "EXISTS (SELECT 1 FROM pg_indexes WHERE schemaname='public' AND indexname='idx_pic_bundle_id')",
+    "EXISTS (SELECT 1 FROM pg_indexes WHERE schemaname='public' AND indexname='idx_pic_unit_id')",
+    "COALESCE(has_table_privilege('anon', to_regclass('public.product_bundle_excluded_categories'), 'SELECT'), false)",
+    "COALESCE(has_table_privilege('authenticated', to_regclass('public.product_bundle_excluded_categories'), 'SELECT'), false)",
+    "COALESCE(has_table_privilege('authenticated', to_regclass('public.product_bundle_excluded_categories'), 'SELECT'), false)",
+    "COALESCE(has_table_privilege('authenticated', to_regclass('public.product_bundle_excluded_categories'), 'INSERT'), false)",
+    "COALESCE(has_table_privilege('authenticated', to_regclass('public.product_bundle_excluded_categories'), 'UPDATE'), false)",
+    "COALESCE(has_table_privilege('authenticated', to_regclass('public.product_bundle_excluded_categories'), 'DELETE'), false)",
+    "COALESCE(has_table_privilege('anon', to_regclass('public.package_inflatable_eligibility'), 'SELECT'), false)",
+    "COALESCE(has_table_privilege('authenticated', to_regclass('public.package_inflatable_eligibility'), 'SELECT'), false)",
+    "COALESCE(has_table_privilege('authenticated', to_regclass('public.package_inflatable_eligibility'), 'SELECT'), false)",
+    "COALESCE(has_table_privilege('authenticated', to_regclass('public.package_inflatable_eligibility'), 'INSERT'), false)",
+    "COALESCE(has_table_privilege('authenticated', to_regclass('public.package_inflatable_eligibility'), 'UPDATE'), false)",
+    "COALESCE(has_table_privilege('authenticated', to_regclass('public.package_inflatable_eligibility'), 'DELETE'), false)",
+    "COALESCE(has_table_privilege('anon', to_regclass('public.package_inflatable_components'), 'SELECT'), false)",
+    "COALESCE(has_table_privilege('authenticated', to_regclass('public.package_inflatable_components'), 'SELECT'), false)",
+    "COALESCE(has_table_privilege('authenticated', to_regclass('public.package_inflatable_components'), 'SELECT'), false)",
+    "COALESCE(has_table_privilege('authenticated', to_regclass('public.package_inflatable_components'), 'INSERT'), false)",
+    "COALESCE(has_table_privilege('authenticated', to_regclass('public.package_inflatable_components'), 'UPDATE'), false)",
+    "COALESCE(has_table_privilege('authenticated', to_regclass('public.package_inflatable_components'), 'DELETE'), false)"
+   ]
+  },
+  "20260718000923": {
+   "run_ok": true,
+   "candidates": 4,
+   "validated": 4,
+   "rejected": 0,
+   "valid_atoms": [
+    "EXISTS (SELECT 1 FROM pg_proc WHERE pronamespace='public'::regnamespace AND proname='save_inventory_product_v2')",
+    "EXISTS (SELECT 1 FROM pg_proc WHERE pronamespace='public'::regnamespace AND proname='save_product_bundle_v2')",
+    "EXISTS (SELECT 1 FROM pg_proc p WHERE p.pronamespace='public'::regnamespace AND p.proname='save_inventory_product_v2' AND has_function_privilege('authenticated', p.oid, 'EXECUTE'))",
+    "EXISTS (SELECT 1 FROM pg_proc p WHERE p.pronamespace='public'::regnamespace AND p.proname='save_product_bundle_v2' AND has_function_privilege('authenticated', p.oid, 'EXECUTE'))"
+   ]
+  },
+  "20260721164853": {
+   "run_ok": true,
+   "candidates": 1,
+   "validated": 1,
+   "rejected": 0,
+   "valid_atoms": [
+    "EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema='public' AND table_name='orders' AND column_name='event_essentials_subtotal_cents')"
+   ]
+  },
+  "20260722102129": {
+   "run_ok": true,
+   "candidates": 4,
+   "validated": 4,
+   "rejected": 0,
+   "valid_atoms": [
+    "EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema='public' AND table_name='pricing_rules' AND column_name='ee_only_deposit_base_threshold_cents')",
+    "EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema='public' AND table_name='pricing_rules' AND column_name='ee_only_deposit_base_cents')",
+    "EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema='public' AND table_name='pricing_rules' AND column_name='ee_only_deposit_subtotal_step_cents')",
+    "EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema='public' AND table_name='pricing_rules' AND column_name='ee_only_deposit_step_cents')"
+   ]
+  },
+  "20260722172048": {
+   "run_ok": true,
+   "candidates": 1,
+   "validated": 0,
+   "rejected": 1,
+   "valid_atoms": []
+  },
+  "20260722211023": {
+   "run_ok": true,
+   "candidates": 3,
+   "validated": 3,
+   "rejected": 0,
+   "valid_atoms": [
+    "EXISTS (SELECT 1 FROM pg_proc WHERE pronamespace='public'::regnamespace AND proname='create_portal_short_link')",
+    "EXISTS (SELECT 1 FROM pg_proc p WHERE p.pronamespace='public'::regnamespace AND p.proname='create_portal_short_link' AND has_function_privilege('anon', p.oid, 'EXECUTE'))",
+    "EXISTS (SELECT 1 FROM pg_proc p WHERE p.pronamespace='public'::regnamespace AND p.proname='create_portal_short_link' AND has_function_privilege('authenticated', p.oid, 'EXECUTE'))"
+   ]
+  },
+  "20260722212750": {
+   "run_ok": true,
+   "candidates": 11,
+   "validated": 11,
+   "rejected": 0,
+   "valid_atoms": [
+    "to_regclass('public.order_portal_links') IS NOT NULL",
+    "EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema='public' AND table_name='order_portal_links' AND column_name='id')",
+    "EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema='public' AND table_name='order_portal_links' AND column_name='order_id')",
+    "EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema='public' AND table_name='order_portal_links' AND column_name='short_code')",
+    "EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema='public' AND table_name='order_portal_links' AND column_name='expires_at')",
+    "EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema='public' AND table_name='order_portal_links' AND column_name='created_at')",
+    "EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema='public' AND table_name='order_portal_links' AND column_name='updated_at')",
+    "EXISTS (SELECT 1 FROM pg_indexes WHERE schemaname='public' AND indexname='idx_order_portal_links_order_id')",
+    "COALESCE((SELECT relrowsecurity FROM pg_class WHERE oid = to_regclass('public.order_portal_links')), false)",
+    "EXISTS (SELECT 1 FROM pg_proc WHERE pronamespace='public'::regnamespace AND proname='update_order_portal_links_updated_at')",
+    "EXISTS (SELECT 1 FROM pg_proc p WHERE p.pronamespace='public'::regnamespace AND p.proname='create_order_short_link' AND has_function_privilege('authenticated', p.oid, 'EXECUTE'))"
+   ]
+  },
+  "20260722215732": {
+   "run_ok": true,
+   "candidates": 5,
+   "validated": 4,
+   "rejected": 1,
+   "valid_atoms": [
+    "EXISTS (SELECT 1 FROM pg_indexes WHERE schemaname='public' AND indexname='idx_order_portal_links_order_id_unique')",
+    "EXISTS (SELECT 1 FROM pg_proc WHERE pronamespace='public'::regnamespace AND proname='resolve_portal_short_link')",
+    "EXISTS (SELECT 1 FROM pg_proc p WHERE p.pronamespace='public'::regnamespace AND p.proname='resolve_portal_short_link' AND has_function_privilege('anon', p.oid, 'EXECUTE'))",
+    "EXISTS (SELECT 1 FROM pg_proc p WHERE p.pronamespace='public'::regnamespace AND p.proname='resolve_portal_short_link' AND has_function_privilege('authenticated', p.oid, 'EXECUTE'))"
+   ]
+  },
+  "20260722230121": {
+   "run_ok": true,
+   "candidates": 1,
+   "validated": 0,
+   "rejected": 1,
+   "valid_atoms": []
+  },
+  "20260723174017": {
+   "run_ok": true,
+   "candidates": 0,
+   "validated": 0,
+   "rejected": 0,
+   "valid_atoms": []
+  },
+  "20260723210301": {
+   "run_ok": true,
+   "candidates": 5,
+   "validated": 5,
+   "rejected": 0,
+   "valid_atoms": [
+    "EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema='public' AND table_name='notification_failures' AND column_name='channel')",
+    "EXISTS (SELECT 1 FROM pg_policies WHERE schemaname='public' AND tablename='order_portal_links' AND policyname='Staff can read order portal links')",
+    "EXISTS (SELECT 1 FROM pg_policies WHERE schemaname='public' AND tablename='order_portal_links' AND policyname='Staff can insert order portal links')",
+    "EXISTS (SELECT 1 FROM pg_policies WHERE schemaname='public' AND tablename='order_portal_links' AND policyname='Staff can update order portal links')",
+    "EXISTS (SELECT 1 FROM pg_policies WHERE schemaname='public' AND tablename='order_portal_links' AND policyname='Staff can delete order portal links')"
+   ]
+  },
+  "20260723210953": {
+   "run_ok": true,
+   "candidates": 1,
+   "validated": 1,
+   "rejected": 0,
+   "valid_atoms": [
+    "EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema='public' AND table_name='notification_failures' AND column_name='message_type')"
+   ]
+  },
+  "20260814113146": {
+   "run_ok": true,
+   "candidates": 0,
+   "validated": 0,
+   "rejected": 0,
+   "valid_atoms": []
+  },
+  "20260814120000": {
+   "run_ok": true,
+   "candidates": 12,
+   "validated": 12,
+   "rejected": 0,
+   "valid_atoms": [
+    "to_regclass('public.contact_inquiries') IS NOT NULL",
+    "EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema='public' AND table_name='contact_inquiries' AND column_name='id')",
+    "EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema='public' AND table_name='contact_inquiries' AND column_name='name')",
+    "EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema='public' AND table_name='contact_inquiries' AND column_name='email')",
+    "EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema='public' AND table_name='contact_inquiries' AND column_name='phone')",
+    "EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema='public' AND table_name='contact_inquiries' AND column_name='event_date')",
+    "EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema='public' AND table_name='contact_inquiries' AND column_name='guest_count')",
+    "EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema='public' AND table_name='contact_inquiries' AND column_name='message')",
+    "EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema='public' AND table_name='contact_inquiries' AND column_name='email_sent')",
+    "EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema='public' AND table_name='contact_inquiries' AND column_name='created_at')",
+    "EXISTS (SELECT 1 FROM pg_indexes WHERE schemaname='public' AND indexname='idx_contact_inquiries_created')",
+    "COALESCE((SELECT relrowsecurity FROM pg_class WHERE oid = to_regclass('public.contact_inquiries')), false)"
+   ]
+  },
+  "20260814120100": {
+   "run_ok": true,
+   "candidates": 3,
+   "validated": 0,
+   "rejected": 3,
+   "valid_atoms": []
+  },
+  "20260820165646": {
+   "run_ok": true,
+   "candidates": 0,
+   "validated": 0,
+   "rejected": 0,
+   "valid_atoms": []
+  },
+  "20260925151621": {
+   "run_ok": true,
+   "candidates": 2,
+   "validated": 2,
+   "rejected": 0,
+   "valid_atoms": [
+    "EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema='public' AND table_name='orders' AND column_name='setup_fee_cents')",
+    "EXISTS (SELECT 1 FROM pg_constraint WHERE conrelid = to_regclass('public.orders') AND conname='orders_setup_fee_cents_non_negative')"
+   ]
+  },
+  "20260925171210": {
+   "run_ok": true,
+   "candidates": 1,
+   "validated": 1,
+   "rejected": 0,
+   "valid_atoms": [
+    "EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema='public' AND table_name='pricing_rules' AND column_name='event_essentials_setup_minimum_cents')"
+   ]
+  },
+  "20260929145842": {
+   "run_ok": true,
+   "candidates": 17,
+   "validated": 17,
+   "rejected": 0,
+   "valid_atoms": [
+    "to_regclass('public.public_menu_groups') IS NOT NULL",
+    "EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema='public' AND table_name='public_menu_groups' AND column_name='id')",
+    "EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema='public' AND table_name='public_menu_groups' AND column_name='title')",
+    "EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema='public' AND table_name='public_menu_groups' AND column_name='is_enabled')",
+    "EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema='public' AND table_name='public_menu_groups' AND column_name='display_order')",
+    "EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema='public' AND table_name='public_menu_groups' AND column_name='created_at')",
+    "EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema='public' AND table_name='public_menu_groups' AND column_name='updated_at')",
+    "to_regclass('public.public_menu_group_categories') IS NOT NULL",
+    "EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema='public' AND table_name='public_menu_group_categories' AND column_name='menu_group_id')",
+    "EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema='public' AND table_name='public_menu_group_categories' AND column_name='category_id')",
+    "COALESCE((SELECT relrowsecurity FROM pg_class WHERE oid = to_regclass('public.public_menu_groups')), false)",
+    "COALESCE((SELECT relrowsecurity FROM pg_class WHERE oid = to_regclass('public.public_menu_group_categories')), false)",
+    "EXISTS (SELECT 1 FROM pg_proc WHERE pronamespace='public'::regnamespace AND proname='update_public_menu_groups_updated_at')",
+    "EXISTS (SELECT 1 FROM pg_indexes WHERE schemaname='public' AND indexname='idx_public_menu_groups_display_order')",
+    "EXISTS (SELECT 1 FROM pg_proc WHERE pronamespace='public'::regnamespace AND proname='get_public_nav_menu_groups')",
+    "EXISTS (SELECT 1 FROM pg_proc p WHERE p.pronamespace='public'::regnamespace AND p.proname='get_public_nav_menu_groups' AND has_function_privilege('anon', p.oid, 'EXECUTE'))",
+    "EXISTS (SELECT 1 FROM pg_proc p WHERE p.pronamespace='public'::regnamespace AND p.proname='get_public_nav_menu_groups' AND has_function_privilege('authenticated', p.oid, 'EXECUTE'))"
+   ]
+  },
+  "20260929151836": {
+   "run_ok": true,
+   "candidates": 4,
+   "validated": 4,
+   "rejected": 0,
+   "valid_atoms": [
+    "EXISTS (SELECT 1 FROM pg_proc WHERE pronamespace='public'::regnamespace AND proname='save_menu_group')",
+    "EXISTS (SELECT 1 FROM pg_proc WHERE pronamespace='public'::regnamespace AND proname='reorder_menu_group')",
+    "EXISTS (SELECT 1 FROM pg_proc p WHERE p.pronamespace='public'::regnamespace AND p.proname='save_menu_group' AND has_function_privilege('authenticated', p.oid, 'EXECUTE'))",
+    "EXISTS (SELECT 1 FROM pg_proc p WHERE p.pronamespace='public'::regnamespace AND p.proname='reorder_menu_group' AND has_function_privilege('authenticated', p.oid, 'EXECUTE'))"
+   ]
+  },
+  "20260929152006": {
+   "run_ok": true,
+   "candidates": 2,
+   "validated": 0,
+   "rejected": 2,
+   "valid_atoms": []
+  },
+  "20260929161218": {
+   "run_ok": true,
+   "candidates": 8,
+   "validated": 0,
+   "rejected": 8,
+   "valid_atoms": []
+  },
+  "20260929161925": {
+   "run_ok": true,
+   "candidates": 0,
+   "validated": 0,
+   "rejected": 0,
+   "valid_atoms": []
+  },
+  "20261007120000": {
+   "run_ok": true,
+   "candidates": 0,
+   "validated": 0,
+   "rejected": 0,
+   "valid_atoms": []
+  },
+  "20261008120000": {
+   "run_ok": true,
+   "candidates": 1,
+   "validated": 1,
+   "rejected": 0,
+   "valid_atoms": [
+    "EXISTS (SELECT 1 FROM pg_proc p WHERE p.pronamespace='public'::regnamespace AND p.proname='get_admin_analytics_impl' AND has_function_privilege('service_role', p.oid, 'EXECUTE'))"
+   ]
+  },
+  "20261009120000": {
+   "run_ok": true,
+   "candidates": 5,
+   "validated": 5,
+   "rejected": 0,
+   "valid_atoms": [
+    "EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema='public' AND table_name='invoice_links' AND column_name='revoked_at')",
+    "EXISTS (SELECT 1 FROM pg_indexes WHERE schemaname='public' AND indexname='invoice_links_one_active_portal_per_order')",
+    "EXISTS (SELECT 1 FROM pg_proc WHERE pronamespace='public'::regnamespace AND proname='portal_link_expires_at')",
+    "EXISTS (SELECT 1 FROM pg_proc p WHERE p.pronamespace='public'::regnamespace AND p.proname='portal_link_expires_at' AND has_function_privilege('service_role', p.oid, 'EXECUTE'))",
+    "EXISTS (SELECT 1 FROM pg_proc WHERE pronamespace='public'::regnamespace AND proname='invoice_links_enforce_revocation')"
+   ]
+  },
+  "20261010120000": {
+   "run_ok": true,
+   "candidates": 14,
+   "validated": 14,
+   "rejected": 0,
+   "valid_atoms": [
+    "to_regclass('public.booking_setup_proofs') IS NOT NULL",
+    "EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema='public' AND table_name='booking_setup_proofs' AND column_name='id')",
+    "EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema='public' AND table_name='booking_setup_proofs' AND column_name='order_id')",
+    "EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema='public' AND table_name='booking_setup_proofs' AND column_name='token_hash')",
+    "EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema='public' AND table_name='booking_setup_proofs' AND column_name='expires_at')",
+    "EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema='public' AND table_name='booking_setup_proofs' AND column_name='claim_id')",
+    "EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema='public' AND table_name='booking_setup_proofs' AND column_name='claimed_at')",
+    "EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema='public' AND table_name='booking_setup_proofs' AND column_name='consumed_at')",
+    "EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema='public' AND table_name='booking_setup_proofs' AND column_name='created_at')",
+    "EXISTS (SELECT 1 FROM pg_constraint WHERE conrelid = to_regclass('public.booking_setup_proofs') AND conname='booking_setup_proofs_order_unique')",
+    "EXISTS (SELECT 1 FROM pg_constraint WHERE conrelid = to_regclass('public.booking_setup_proofs') AND conname='booking_setup_proofs_hash_unique')",
+    "COALESCE((SELECT relrowsecurity FROM pg_class WHERE oid = to_regclass('public.booking_setup_proofs')), false)",
+    "EXISTS (SELECT 1 FROM pg_proc WHERE pronamespace='public'::regnamespace AND proname='create_booking_request')",
+    "EXISTS (SELECT 1 FROM pg_proc p WHERE p.pronamespace='public'::regnamespace AND p.proname='create_booking_request' AND has_function_privilege('service_role', p.oid, 'EXECUTE'))"
+   ]
+  },
+  "20261011120000": {
+   "run_ok": true,
+   "candidates": 3,
+   "validated": 1,
+   "rejected": 2,
+   "valid_atoms": [
+    "EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema='public' AND table_name='orders' AND column_name='event_address_line2')"
+   ]
+  },
+  "20261012120000": {
+   "run_ok": true,
+   "candidates": 156,
+   "validated": 156,
+   "rejected": 0,
+   "valid_atoms": [
+    "EXISTS (SELECT 1 FROM pg_proc WHERE pronamespace='public'::regnamespace AND proname='is_crew_or_admin')",
+    "EXISTS (SELECT 1 FROM pg_proc WHERE pronamespace='public'::regnamespace AND proname='current_customer_ids')",
+    "EXISTS (SELECT 1 FROM pg_proc WHERE pronamespace='public'::regnamespace AND proname='get_my_orders')",
+    "EXISTS (SELECT 1 FROM pg_proc WHERE pronamespace='public'::regnamespace AND proname='get_my_last_order_address')",
+    "EXISTS (SELECT 1 FROM pg_proc p WHERE p.pronamespace='public'::regnamespace AND p.proname='is_crew_or_admin' AND has_function_privilege('authenticated', p.oid, 'EXECUTE'))",
+    "EXISTS (SELECT 1 FROM pg_proc p WHERE p.pronamespace='public'::regnamespace AND p.proname='is_crew_or_admin' AND has_function_privilege('service_role', p.oid, 'EXECUTE'))",
+    "EXISTS (SELECT 1 FROM pg_proc p WHERE p.pronamespace='public'::regnamespace AND p.proname='current_customer_ids' AND has_function_privilege('authenticated', p.oid, 'EXECUTE'))",
+    "EXISTS (SELECT 1 FROM pg_proc p WHERE p.pronamespace='public'::regnamespace AND p.proname='current_customer_ids' AND has_function_privilege('service_role', p.oid, 'EXECUTE'))",
+    "EXISTS (SELECT 1 FROM pg_proc p WHERE p.pronamespace='public'::regnamespace AND p.proname='get_my_orders' AND has_function_privilege('authenticated', p.oid, 'EXECUTE'))",
+    "EXISTS (SELECT 1 FROM pg_proc p WHERE p.pronamespace='public'::regnamespace AND p.proname='get_my_orders' AND has_function_privilege('service_role', p.oid, 'EXECUTE'))",
+    "EXISTS (SELECT 1 FROM pg_proc p WHERE p.pronamespace='public'::regnamespace AND p.proname='get_my_last_order_address' AND has_function_privilege('authenticated', p.oid, 'EXECUTE'))",
+    "EXISTS (SELECT 1 FROM pg_proc p WHERE p.pronamespace='public'::regnamespace AND p.proname='get_my_last_order_address' AND has_function_privilege('service_role', p.oid, 'EXECUTE'))",
+    "EXISTS (SELECT 1 FROM pg_policies WHERE schemaname='public' AND tablename='customers' AND policyname='Admin and master manage customers')",
+    "EXISTS (SELECT 1 FROM pg_policies WHERE schemaname='public' AND tablename='customers' AND policyname='Crew read customers')",
+    "EXISTS (SELECT 1 FROM pg_policies WHERE schemaname='public' AND tablename='customers' AND policyname='Crew create customers')",
+    "EXISTS (SELECT 1 FROM pg_policies WHERE schemaname='public' AND tablename='customers' AND policyname='Customers read their own customer record')",
+    "EXISTS (SELECT 1 FROM pg_policies WHERE schemaname='public' AND tablename='addresses' AND policyname='Admin and master manage addresses')",
+    "EXISTS (SELECT 1 FROM pg_policies WHERE schemaname='public' AND tablename='addresses' AND policyname='Crew read addresses')",
+    "EXISTS (SELECT 1 FROM pg_policies WHERE schemaname='public' AND tablename='addresses' AND policyname='Crew create addresses')",
+    "EXISTS (SELECT 1 FROM pg_policies WHERE schemaname='public' AND tablename='addresses' AND policyname='Crew update addresses')",
+    "EXISTS (SELECT 1 FROM pg_policies WHERE schemaname='public' AND tablename='addresses' AND policyname='Customers read their own addresses')",
+    "EXISTS (SELECT 1 FROM pg_policies WHERE schemaname='public' AND tablename='orders' AND policyname='Admin and master manage orders')",
+    "EXISTS (SELECT 1 FROM pg_policies WHERE schemaname='public' AND tablename='orders' AND policyname='Crew read orders')",
+    "EXISTS (SELECT 1 FROM pg_policies WHERE schemaname='public' AND tablename='orders' AND policyname='Crew update orders')",
+    "EXISTS (SELECT 1 FROM pg_policies WHERE schemaname='public' AND tablename='order_items' AND policyname='Crew read order items')",
+    "EXISTS (SELECT 1 FROM pg_policies WHERE schemaname='public' AND tablename='order_discounts' AND policyname='Crew read order discounts')",
+    "EXISTS (SELECT 1 FROM pg_policies WHERE schemaname='public' AND tablename='order_custom_fees' AND policyname='Crew read order custom fees')",
+    "EXISTS (SELECT 1 FROM pg_policies WHERE schemaname='public' AND tablename='invoice_links' AND policyname='Admin and master manage invoice links')",
+    "EXISTS (SELECT 1 FROM pg_policies WHERE schemaname='public' AND tablename='consent_records' AND policyname='Admin and master read consent records')",
+    "EXISTS (SELECT 1 FROM pg_policies WHERE schemaname='public' AND tablename='contacts' AND policyname='Admin and master manage contacts')",
+    "EXISTS (SELECT 1 FROM pg_policies WHERE schemaname='public' AND tablename='order_changelog' AND policyname='Admin and master read order changelog')",
+    "EXISTS (SELECT 1 FROM pg_policies WHERE schemaname='public' AND tablename='order_changelog' AND policyname='Admin and master append order changelog')",
+    "EXISTS (SELECT 1 FROM pg_policies WHERE schemaname='public' AND tablename='order_lot_pictures' AND policyname='Admin and master manage lot pictures')",
+    "EXISTS (SELECT 1 FROM pg_policies WHERE schemaname='public' AND tablename='order_pictures' AND policyname='Admin and master manage order pictures')",
+    "EXISTS (SELECT 1 FROM pg_policies WHERE schemaname='public' AND tablename='order_pictures' AND policyname='Crew read order pictures')",
+    "EXISTS (SELECT 1 FROM pg_policies WHERE schemaname='public' AND tablename='documents' AND policyname='Admin and master manage documents')",
+    "EXISTS (SELECT 1 FROM pg_policies WHERE schemaname='public' AND tablename='messages' AND policyname='Admin and master manage messages')",
+    "EXISTS (SELECT 1 FROM pg_policies WHERE schemaname='public' AND tablename='route_stops' AND policyname='Admin and master manage route stops')",
+    "EXISTS (SELECT 1 FROM pg_policies WHERE schemaname='public' AND tablename='task_status' AND policyname='Admin and master manage task status')",
+    "EXISTS (SELECT 1 FROM pg_policies WHERE schemaname='public' AND tablename='task_status' AND policyname='Crew read task status')",
+    "EXISTS (SELECT 1 FROM pg_policies WHERE schemaname='public' AND tablename='task_status' AND policyname='Crew update task status')",
+    "EXISTS (SELECT 1 FROM pg_policies WHERE schemaname='public' AND tablename='order_signatures' AND policyname='Admin and master read signatures')",
+    "EXISTS (SELECT 1 FROM pg_policies WHERE schemaname='public' AND tablename='order_signatures' AND policyname='Admin and master update signatures')",
+    "EXISTS (SELECT 1 FROM pg_policies WHERE schemaname='public' AND tablename='transaction_receipts' AND policyname='Admin and master read transaction receipts')",
+    "EXISTS (SELECT 1 FROM pg_policies WHERE schemaname='public' AND tablename='transaction_receipts' AND policyname='Admin and master insert transaction receipts')",
+    "EXISTS (SELECT 1 FROM pg_policies WHERE schemaname='public' AND tablename='order_portal_links' AND policyname='Admin and master manage legacy portal links')",
+    "EXISTS (SELECT 1 FROM pg_policies WHERE schemaname='public' AND tablename='crew_location_history' AND policyname='Crew and admin log location')",
+    "EXISTS (SELECT 1 FROM pg_policies WHERE schemaname='public' AND tablename='crew_location_history' AND policyname='Admin and master read location history')",
+    "EXISTS (SELECT 1 FROM pg_policies WHERE schemaname='public' AND tablename='notification_failures' AND policyname='Admin and master read notification failures')",
+    "EXISTS (SELECT 1 FROM pg_policies WHERE schemaname='public' AND tablename='notification_failures' AND policyname='Admin and master update notification failures')",
+    "EXISTS (SELECT 1 FROM pg_policies WHERE schemaname='public' AND tablename='notification_failures' AND policyname='Crew and admin log notification failures')",
+    "EXISTS (SELECT 1 FROM pg_policies WHERE schemaname='public' AND tablename='notification_system_status' AND policyname='Admin and master read notification system status')",
+    "EXISTS (SELECT 1 FROM pg_policies WHERE schemaname='public' AND tablename='sms_message_templates' AND policyname='Admin and master manage SMS templates')",
+    "EXISTS (SELECT 1 FROM pg_policies WHERE schemaname='public' AND tablename='pricing_rules' AND policyname='Public read pricing rules')",
+    "EXISTS (SELECT 1 FROM pg_policies WHERE schemaname='public' AND tablename='pricing_rules' AND policyname='Admin and master manage pricing rules')",
+    "EXISTS (SELECT 1 FROM pg_policies WHERE schemaname='public' AND tablename='units' AND policyname='Public read active units')",
+    "EXISTS (SELECT 1 FROM pg_policies WHERE schemaname='public' AND tablename='units' AND policyname='Admin and master manage units')",
+    "EXISTS (SELECT 1 FROM pg_policies WHERE schemaname='public' AND tablename='units' AND policyname='Crew read all units')",
+    "EXISTS (SELECT 1 FROM pg_policies WHERE schemaname='public' AND tablename='unit_media' AND policyname='Public read unit media')",
+    "EXISTS (SELECT 1 FROM pg_policies WHERE schemaname='public' AND tablename='unit_media' AND policyname='Admin and master manage unit media')",
+    "COALESCE(has_table_privilege('anon', to_regclass('public.pricing_rules'), 'INSERT'), false)",
+    "COALESCE(has_table_privilege('anon', to_regclass('public.pricing_rules'), 'UPDATE'), false)",
+    "COALESCE(has_table_privilege('anon', to_regclass('public.pricing_rules'), 'DELETE'), false)",
+    "COALESCE(has_table_privilege('anon', to_regclass('public.pricing_rules'), 'TRUNCATE'), false)",
+    "COALESCE(has_table_privilege('anon', to_regclass('public.pricing_rules'), 'REFERENCES'), false)",
+    "COALESCE(has_table_privilege('anon', to_regclass('public.pricing_rules'), 'TRIGGER'), false)",
+    "COALESCE(has_table_privilege('anon', to_regclass('public.units'), 'INSERT'), false)",
+    "COALESCE(has_table_privilege('anon', to_regclass('public.units'), 'UPDATE'), false)",
+    "COALESCE(has_table_privilege('anon', to_regclass('public.units'), 'DELETE'), false)",
+    "COALESCE(has_table_privilege('anon', to_regclass('public.units'), 'TRUNCATE'), false)",
+    "COALESCE(has_table_privilege('anon', to_regclass('public.units'), 'REFERENCES'), false)",
+    "COALESCE(has_table_privilege('anon', to_regclass('public.units'), 'TRIGGER'), false)",
+    "COALESCE(has_table_privilege('anon', to_regclass('public.unit_media'), 'INSERT'), false)",
+    "COALESCE(has_table_privilege('anon', to_regclass('public.unit_media'), 'UPDATE'), false)",
+    "COALESCE(has_table_privilege('anon', to_regclass('public.unit_media'), 'DELETE'), false)",
+    "COALESCE(has_table_privilege('anon', to_regclass('public.unit_media'), 'TRUNCATE'), false)",
+    "COALESCE(has_table_privilege('anon', to_regclass('public.unit_media'), 'REFERENCES'), false)",
+    "COALESCE(has_table_privilege('anon', to_regclass('public.unit_media'), 'TRIGGER'), false)",
+    "COALESCE(has_table_privilege('authenticated', to_regclass('public.customers'), 'TRUNCATE'), false)",
+    "COALESCE(has_table_privilege('authenticated', to_regclass('public.customers'), 'TRIGGER'), false)",
+    "COALESCE(has_table_privilege('authenticated', to_regclass('public.customers'), 'REFERENCES'), false)",
+    "COALESCE(has_table_privilege('authenticated', to_regclass('public.addresses'), 'TRUNCATE'), false)",
+    "COALESCE(has_table_privilege('authenticated', to_regclass('public.addresses'), 'TRIGGER'), false)",
+    "COALESCE(has_table_privilege('authenticated', to_regclass('public.addresses'), 'REFERENCES'), false)",
+    "COALESCE(has_table_privilege('authenticated', to_regclass('public.orders'), 'TRUNCATE'), false)",
+    "COALESCE(has_table_privilege('authenticated', to_regclass('public.orders'), 'TRIGGER'), false)",
+    "COALESCE(has_table_privilege('authenticated', to_regclass('public.orders'), 'REFERENCES'), false)",
+    "COALESCE(has_table_privilege('authenticated', to_regclass('public.order_items'), 'TRUNCATE'), false)",
+    "COALESCE(has_table_privilege('authenticated', to_regclass('public.order_items'), 'TRIGGER'), false)",
+    "COALESCE(has_table_privilege('authenticated', to_regclass('public.order_items'), 'REFERENCES'), false)",
+    "COALESCE(has_table_privilege('authenticated', to_regclass('public.order_discounts'), 'TRUNCATE'), false)",
+    "COALESCE(has_table_privilege('authenticated', to_regclass('public.order_discounts'), 'TRIGGER'), false)",
+    "COALESCE(has_table_privilege('authenticated', to_regclass('public.order_discounts'), 'REFERENCES'), false)",
+    "COALESCE(has_table_privilege('authenticated', to_regclass('public.order_custom_fees'), 'TRUNCATE'), false)",
+    "COALESCE(has_table_privilege('authenticated', to_regclass('public.order_custom_fees'), 'TRIGGER'), false)",
+    "COALESCE(has_table_privilege('authenticated', to_regclass('public.order_custom_fees'), 'REFERENCES'), false)",
+    "COALESCE(has_table_privilege('authenticated', to_regclass('public.payments'), 'TRUNCATE'), false)",
+    "COALESCE(has_table_privilege('authenticated', to_regclass('public.payments'), 'TRIGGER'), false)",
+    "COALESCE(has_table_privilege('authenticated', to_regclass('public.payments'), 'REFERENCES'), false)",
+    "COALESCE(has_table_privilege('authenticated', to_regclass('public.invoice_links'), 'TRUNCATE'), false)",
+    "COALESCE(has_table_privilege('authenticated', to_regclass('public.invoice_links'), 'TRIGGER'), false)",
+    "COALESCE(has_table_privilege('authenticated', to_regclass('public.invoice_links'), 'REFERENCES'), false)",
+    "COALESCE(has_table_privilege('authenticated', to_regclass('public.consent_records'), 'TRUNCATE'), false)",
+    "COALESCE(has_table_privilege('authenticated', to_regclass('public.consent_records'), 'TRIGGER'), false)",
+    "COALESCE(has_table_privilege('authenticated', to_regclass('public.consent_records'), 'REFERENCES'), false)",
+    "COALESCE(has_table_privilege('authenticated', to_regclass('public.contacts'), 'TRUNCATE'), false)",
+    "COALESCE(has_table_privilege('authenticated', to_regclass('public.contacts'), 'TRIGGER'), false)",
+    "COALESCE(has_table_privilege('authenticated', to_regclass('public.contacts'), 'REFERENCES'), false)",
+    "COALESCE(has_table_privilege('authenticated', to_regclass('public.order_changelog'), 'TRUNCATE'), false)",
+    "COALESCE(has_table_privilege('authenticated', to_regclass('public.order_changelog'), 'TRIGGER'), false)",
+    "COALESCE(has_table_privilege('authenticated', to_regclass('public.order_changelog'), 'REFERENCES'), false)",
+    "COALESCE(has_table_privilege('authenticated', to_regclass('public.order_lot_pictures'), 'TRUNCATE'), false)",
+    "COALESCE(has_table_privilege('authenticated', to_regclass('public.order_lot_pictures'), 'TRIGGER'), false)",
+    "COALESCE(has_table_privilege('authenticated', to_regclass('public.order_lot_pictures'), 'REFERENCES'), false)",
+    "COALESCE(has_table_privilege('authenticated', to_regclass('public.order_pictures'), 'TRUNCATE'), false)",
+    "COALESCE(has_table_privilege('authenticated', to_regclass('public.order_pictures'), 'TRIGGER'), false)",
+    "COALESCE(has_table_privilege('authenticated', to_regclass('public.order_pictures'), 'REFERENCES'), false)",
+    "COALESCE(has_table_privilege('authenticated', to_regclass('public.task_status'), 'TRUNCATE'), false)",
+    "COALESCE(has_table_privilege('authenticated', to_regclass('public.task_status'), 'TRIGGER'), false)",
+    "COALESCE(has_table_privilege('authenticated', to_regclass('public.task_status'), 'REFERENCES'), false)",
+    "COALESCE(has_table_privilege('authenticated', to_regclass('public.documents'), 'TRUNCATE'), false)",
+    "COALESCE(has_table_privilege('authenticated', to_regclass('public.documents'), 'TRIGGER'), false)",
+    "COALESCE(has_table_privilege('authenticated', to_regclass('public.documents'), 'REFERENCES'), false)",
+    "COALESCE(has_table_privilege('authenticated', to_regclass('public.messages'), 'TRUNCATE'), false)",
+    "COALESCE(has_table_privilege('authenticated', to_regclass('public.messages'), 'TRIGGER'), false)",
+    "COALESCE(has_table_privilege('authenticated', to_regclass('public.messages'), 'REFERENCES'), false)",
+    "COALESCE(has_table_privilege('authenticated', to_regclass('public.route_stops'), 'TRUNCATE'), false)",
+    "COALESCE(has_table_privilege('authenticated', to_regclass('public.route_stops'), 'TRIGGER'), false)",
+    "COALESCE(has_table_privilege('authenticated', to_regclass('public.route_stops'), 'REFERENCES'), false)",
+    "COALESCE(has_table_privilege('authenticated', to_regclass('public.order_signatures'), 'TRUNCATE'), false)",
+    "COALESCE(has_table_privilege('authenticated', to_regclass('public.order_signatures'), 'TRIGGER'), false)",
+    "COALESCE(has_table_privilege('authenticated', to_regclass('public.order_signatures'), 'REFERENCES'), false)",
+    "COALESCE(has_table_privilege('authenticated', to_regclass('public.transaction_receipts'), 'TRUNCATE'), false)",
+    "COALESCE(has_table_privilege('authenticated', to_regclass('public.transaction_receipts'), 'TRIGGER'), false)",
+    "COALESCE(has_table_privilege('authenticated', to_regclass('public.transaction_receipts'), 'REFERENCES'), false)",
+    "COALESCE(has_table_privilege('authenticated', to_regclass('public.crew_location_history'), 'TRUNCATE'), false)",
+    "COALESCE(has_table_privilege('authenticated', to_regclass('public.crew_location_history'), 'TRIGGER'), false)",
+    "COALESCE(has_table_privilege('authenticated', to_regclass('public.crew_location_history'), 'REFERENCES'), false)",
+    "COALESCE(has_table_privilege('authenticated', to_regclass('public.notification_failures'), 'TRUNCATE'), false)",
+    "COALESCE(has_table_privilege('authenticated', to_regclass('public.notification_failures'), 'TRIGGER'), false)",
+    "COALESCE(has_table_privilege('authenticated', to_regclass('public.notification_failures'), 'REFERENCES'), false)",
+    "COALESCE(has_table_privilege('authenticated', to_regclass('public.notification_system_status'), 'TRUNCATE'), false)",
+    "COALESCE(has_table_privilege('authenticated', to_regclass('public.notification_system_status'), 'TRIGGER'), false)",
+    "COALESCE(has_table_privilege('authenticated', to_regclass('public.notification_system_status'), 'REFERENCES'), false)",
+    "COALESCE(has_table_privilege('authenticated', to_regclass('public.sms_message_templates'), 'TRUNCATE'), false)",
+    "COALESCE(has_table_privilege('authenticated', to_regclass('public.sms_message_templates'), 'TRIGGER'), false)",
+    "COALESCE(has_table_privilege('authenticated', to_regclass('public.sms_message_templates'), 'REFERENCES'), false)",
+    "COALESCE(has_table_privilege('authenticated', to_regclass('public.pricing_rules'), 'TRUNCATE'), false)",
+    "COALESCE(has_table_privilege('authenticated', to_regclass('public.pricing_rules'), 'TRIGGER'), false)",
+    "COALESCE(has_table_privilege('authenticated', to_regclass('public.pricing_rules'), 'REFERENCES'), false)",
+    "COALESCE(has_table_privilege('authenticated', to_regclass('public.units'), 'TRUNCATE'), false)",
+    "COALESCE(has_table_privilege('authenticated', to_regclass('public.units'), 'TRIGGER'), false)",
+    "COALESCE(has_table_privilege('authenticated', to_regclass('public.units'), 'REFERENCES'), false)",
+    "COALESCE(has_table_privilege('authenticated', to_regclass('public.unit_media'), 'TRUNCATE'), false)",
+    "COALESCE(has_table_privilege('authenticated', to_regclass('public.unit_media'), 'TRIGGER'), false)",
+    "COALESCE(has_table_privilege('authenticated', to_regclass('public.unit_media'), 'REFERENCES'), false)"
+   ]
+  },
+  "20261013120000": {
+   "run_ok": true,
+   "candidates": 0,
+   "validated": 0,
+   "rejected": 0,
+   "valid_atoms": []
+  },
+  "20261014120000": {
+   "run_ok": true,
+   "candidates": 12,
+   "validated": 12,
+   "rejected": 0,
+   "valid_atoms": [
+    "EXISTS (SELECT 1 FROM pg_policies WHERE schemaname='storage' AND tablename='objects' AND policyname='Public read marketing media')",
+    "EXISTS (SELECT 1 FROM pg_policies WHERE schemaname='storage' AND tablename='objects' AND policyname='Admin and master manage marketing media')",
+    "EXISTS (SELECT 1 FROM pg_policies WHERE schemaname='storage' AND tablename='objects' AND policyname='Admin and master read public assets')",
+    "EXISTS (SELECT 1 FROM pg_policies WHERE schemaname='storage' AND tablename='objects' AND policyname='Admin and master replace public assets')",
+    "EXISTS (SELECT 1 FROM pg_policies WHERE schemaname='storage' AND tablename='objects' AND policyname='Admin and master delete public assets')",
+    "EXISTS (SELECT 1 FROM pg_policies WHERE schemaname='storage' AND tablename='objects' AND policyname='Upload lot pictures into an order folder')",
+    "EXISTS (SELECT 1 FROM pg_policies WHERE schemaname='storage' AND tablename='objects' AND policyname='Admin and master read lot pictures')",
+    "EXISTS (SELECT 1 FROM pg_policies WHERE schemaname='storage' AND tablename='objects' AND policyname='Admin and master delete lot pictures')",
+    "EXISTS (SELECT 1 FROM pg_policies WHERE schemaname='storage' AND tablename='objects' AND policyname='Upload order pictures into an order folder')",
+    "EXISTS (SELECT 1 FROM pg_policies WHERE schemaname='storage' AND tablename='objects' AND policyname='Staff read order pictures')",
+    "EXISTS (SELECT 1 FROM pg_policies WHERE schemaname='storage' AND tablename='objects' AND policyname='Admin and master replace order pictures')",
+    "EXISTS (SELECT 1 FROM pg_policies WHERE schemaname='storage' AND tablename='objects' AND policyname='Admin and master delete order pictures')"
+   ]
+  },
+  "20261015120000": {
+   "run_ok": true,
+   "candidates": 5,
+   "validated": 0,
+   "rejected": 5,
+   "valid_atoms": []
+  },
+  "20261015123000": {
+   "run_ok": true,
+   "candidates": 1,
+   "validated": 1,
+   "rejected": 0,
+   "valid_atoms": [
+    "EXISTS (SELECT 1 FROM storage.buckets WHERE id='order-evidence')"
+   ]
+  },
+  "20261016120000": {
+   "run_ok": true,
+   "candidates": 0,
+   "validated": 0,
+   "rejected": 0,
+   "valid_atoms": []
+  },
+  "20261017120000": {
+   "run_ok": true,
+   "candidates": 8,
+   "validated": 8,
+   "rejected": 0,
+   "valid_atoms": [
+    "EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema='public' AND table_name='orders' AND column_name='booking_confirmation_claim_id')",
+    "EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema='public' AND table_name='orders' AND column_name='booking_confirmation_claimed_at')",
+    "EXISTS (SELECT 1 FROM pg_proc WHERE pronamespace='public'::regnamespace AND proname='claim_booking_confirmation')",
+    "EXISTS (SELECT 1 FROM pg_proc WHERE pronamespace='public'::regnamespace AND proname='finalize_booking_confirmation')",
+    "EXISTS (SELECT 1 FROM pg_proc WHERE pronamespace='public'::regnamespace AND proname='release_booking_confirmation')",
+    "EXISTS (SELECT 1 FROM pg_proc p WHERE p.pronamespace='public'::regnamespace AND p.proname='claim_booking_confirmation' AND has_function_privilege('service_role', p.oid, 'EXECUTE'))",
+    "EXISTS (SELECT 1 FROM pg_proc p WHERE p.pronamespace='public'::regnamespace AND p.proname='finalize_booking_confirmation' AND has_function_privilege('service_role', p.oid, 'EXECUTE'))",
+    "EXISTS (SELECT 1 FROM pg_proc p WHERE p.pronamespace='public'::regnamespace AND p.proname='release_booking_confirmation' AND has_function_privilege('service_role', p.oid, 'EXECUTE'))"
+   ]
+  },
+  "20261018120000": {
+   "run_ok": true,
+   "candidates": 0,
+   "validated": 0,
+   "rejected": 0,
+   "valid_atoms": []
+  },
+  "20261018120100": {
+   "run_ok": true,
+   "candidates": 6,
+   "validated": 3,
+   "rejected": 3,
+   "valid_atoms": [
+    "COALESCE(has_table_privilege('authenticated', to_regclass('public.site_events'), 'INSERT'), false)",
+    "COALESCE(has_table_privilege('authenticated', to_regclass('public.site_events'), 'UPDATE'), false)",
+    "COALESCE(has_table_privilege('authenticated', to_regclass('public.site_events'), 'DELETE'), false)"
+   ]
+  },
+  "20261018120200": {
+   "run_ok": true,
+   "candidates": 6,
+   "validated": 2,
+   "rejected": 4,
+   "valid_atoms": [
+    "COALESCE(has_table_privilege('authenticated', to_regclass('public.customer_profiles'), 'INSERT'), false)",
+    "COALESCE(has_table_privilege('authenticated', to_regclass('public.customer_profiles'), 'DELETE'), false)"
+   ]
+  },
+  "20261019120000": {
+   "run_ok": true,
+   "candidates": 26,
+   "validated": 26,
+   "rejected": 0,
+   "valid_atoms": [
+    "EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema='public' AND table_name='payments' AND column_name='operation_key')",
+    "EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema='public' AND table_name='payments' AND column_name='principal_amount_cents')",
+    "EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema='public' AND table_name='payments' AND column_name='tip_amount_cents')",
+    "EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema='public' AND table_name='payments' AND column_name='deposit_principal_cents')",
+    "EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema='public' AND table_name='payments' AND column_name='balance_principal_cents')",
+    "EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema='public' AND table_name='payments' AND column_name='claim_id')",
+    "EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema='public' AND table_name='payments' AND column_name='claimed_at')",
+    "EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema='public' AND table_name='payments' AND column_name='provider_attempted_at')",
+    "EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema='public' AND table_name='payments' AND column_name='stripe_checkout_session_id')",
+    "EXISTS (SELECT 1 FROM pg_constraint WHERE conrelid = to_regclass('public.payments') AND conname='payments_component_amounts_check')",
+    "EXISTS (SELECT 1 FROM pg_constraint WHERE conrelid = to_regclass('public.payments') AND conname='payments_operation_requires_components_check')",
+    "EXISTS (SELECT 1 FROM pg_indexes WHERE schemaname='public' AND indexname='payments_operation_key_unique')",
+    "EXISTS (SELECT 1 FROM pg_indexes WHERE schemaname='public' AND indexname='payments_one_open_operation_per_order')",
+    "EXISTS (SELECT 1 FROM pg_indexes WHERE schemaname='public' AND indexname='payments_original_payment_intent_unique')",
+    "EXISTS (SELECT 1 FROM pg_indexes WHERE schemaname='public' AND indexname='payments_checkout_session_unique')",
+    "EXISTS (SELECT 1 FROM pg_proc WHERE pronamespace='public'::regnamespace AND proname='claim_payment_operation')",
+    "EXISTS (SELECT 1 FROM pg_proc WHERE pronamespace='public'::regnamespace AND proname='record_payment_operation_provider')",
+    "EXISTS (SELECT 1 FROM pg_proc WHERE pronamespace='public'::regnamespace AND proname='mark_payment_operation_provider_attempt')",
+    "EXISTS (SELECT 1 FROM pg_proc WHERE pronamespace='public'::regnamespace AND proname='release_payment_operation')",
+    "EXISTS (SELECT 1 FROM pg_proc WHERE pronamespace='public'::regnamespace AND proname='finalize_payment_operation')",
+    "EXISTS (SELECT 1 FROM pg_proc WHERE pronamespace='public'::regnamespace AND proname='guard_payment_authoritative_order_changes')",
+    "EXISTS (SELECT 1 FROM pg_proc p WHERE p.pronamespace='public'::regnamespace AND p.proname='claim_payment_operation' AND has_function_privilege('service_role', p.oid, 'EXECUTE'))",
+    "EXISTS (SELECT 1 FROM pg_proc p WHERE p.pronamespace='public'::regnamespace AND p.proname='record_payment_operation_provider' AND has_function_privilege('service_role', p.oid, 'EXECUTE'))",
+    "EXISTS (SELECT 1 FROM pg_proc p WHERE p.pronamespace='public'::regnamespace AND p.proname='mark_payment_operation_provider_attempt' AND has_function_privilege('service_role', p.oid, 'EXECUTE'))",
+    "EXISTS (SELECT 1 FROM pg_proc p WHERE p.pronamespace='public'::regnamespace AND p.proname='release_payment_operation' AND has_function_privilege('service_role', p.oid, 'EXECUTE'))",
+    "EXISTS (SELECT 1 FROM pg_proc p WHERE p.pronamespace='public'::regnamespace AND p.proname='finalize_payment_operation' AND has_function_privilege('service_role', p.oid, 'EXECUTE'))"
+   ]
+  },
+  "20261020120000": {
+   "run_ok": true,
+   "candidates": 8,
+   "validated": 6,
+   "rejected": 2,
+   "valid_atoms": [
+    "EXISTS (SELECT 1 FROM pg_proc WHERE pronamespace='public'::regnamespace AND proname='payment_deposit_principal_state')",
+    "EXISTS (SELECT 1 FROM pg_proc WHERE pronamespace='public'::regnamespace AND proname='record_offline_payment')",
+    "EXISTS (SELECT 1 FROM pg_constraint WHERE conrelid = to_regclass('public.order_custom_fees') AND conname='order_custom_fees_amount_non_negative')",
+    "EXISTS (SELECT 1 FROM pg_constraint WHERE conrelid = to_regclass('public.order_discounts') AND conname='order_discounts_amounts_valid')",
+    "EXISTS (SELECT 1 FROM pg_proc p WHERE p.pronamespace='public'::regnamespace AND p.proname='payment_deposit_principal_state' AND has_function_privilege('service_role', p.oid, 'EXECUTE'))",
+    "EXISTS (SELECT 1 FROM pg_proc p WHERE p.pronamespace='public'::regnamespace AND p.proname='record_offline_payment' AND has_function_privilege('service_role', p.oid, 'EXECUTE'))"
+   ]
+  },
+  "20261021120000": {
+   "run_ok": true,
+   "candidates": 29,
+   "validated": 18,
+   "rejected": 11,
+   "valid_atoms": [
+    "EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema='public' AND table_name='orders' AND column_name='waived_fee_amounts_cents')",
+    "EXISTS (SELECT 1 FROM pg_constraint WHERE conrelid = to_regclass('public.orders') AND conname='orders_waived_fee_amounts_object')",
+    "EXISTS (SELECT 1 FROM pg_proc WHERE pronamespace='public'::regnamespace AND proname='guard_order_pricing_authority')",
+    "EXISTS (SELECT 1 FROM pg_proc WHERE pronamespace='public'::regnamespace AND proname='apply_staff_order_save')",
+    "EXISTS (SELECT 1 FROM pg_proc WHERE pronamespace='public'::regnamespace AND proname='create_staff_invoice_order')",
+    "COALESCE(has_table_privilege('authenticated', to_regclass('public.order_items'), 'INSERT'), false)",
+    "COALESCE(has_table_privilege('authenticated', to_regclass('public.order_items'), 'UPDATE'), false)",
+    "COALESCE(has_table_privilege('authenticated', to_regclass('public.order_items'), 'DELETE'), false)",
+    "COALESCE(has_table_privilege('authenticated', to_regclass('public.order_discounts'), 'INSERT'), false)",
+    "COALESCE(has_table_privilege('authenticated', to_regclass('public.order_discounts'), 'UPDATE'), false)",
+    "COALESCE(has_table_privilege('authenticated', to_regclass('public.order_discounts'), 'DELETE'), false)",
+    "COALESCE(has_table_privilege('authenticated', to_regclass('public.order_custom_fees'), 'INSERT'), false)",
+    "COALESCE(has_table_privilege('authenticated', to_regclass('public.order_custom_fees'), 'UPDATE'), false)",
+    "COALESCE(has_table_privilege('authenticated', to_regclass('public.order_custom_fees'), 'DELETE'), false)",
+    "COALESCE(has_table_privilege('authenticated', to_regclass('public.orders'), 'INSERT'), false)",
+    "COALESCE(has_table_privilege('authenticated', to_regclass('public.orders'), 'DELETE'), false)",
+    "EXISTS (SELECT 1 FROM pg_proc p WHERE p.pronamespace='public'::regnamespace AND p.proname='apply_staff_order_save' AND has_function_privilege('service_role', p.oid, 'EXECUTE'))",
+    "EXISTS (SELECT 1 FROM pg_proc p WHERE p.pronamespace='public'::regnamespace AND p.proname='create_staff_invoice_order' AND has_function_privilege('service_role', p.oid, 'EXECUTE'))"
+   ]
+  },
+  "20261022120000": {
+   "run_ok": true,
+   "candidates": 43,
+   "validated": 39,
+   "rejected": 4,
+   "valid_atoms": [
+    "EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema='public' AND table_name='order_refunds' AND column_name='operation_key')",
+    "EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema='public' AND table_name='order_refunds' AND column_name='operation_index')",
+    "EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema='public' AND table_name='order_refunds' AND column_name='request_amount_cents')",
+    "EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema='public' AND table_name='order_refunds' AND column_name='payment_id')",
+    "EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema='public' AND table_name='order_refunds' AND column_name='stripe_payment_intent_id')",
+    "EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema='public' AND table_name='order_refunds' AND column_name='provider_idempotency_key')",
+    "EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema='public' AND table_name='order_refunds' AND column_name='provider_attempted_at')",
+    "EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema='public' AND table_name='order_refunds' AND column_name='failure_reason')",
+    "EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema='public' AND table_name='order_refunds' AND column_name='source')",
+    "EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema='public' AND table_name='order_refunds' AND column_name='total_applied')",
+    "EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema='public' AND table_name='order_refunds' AND column_name='updated_at')",
+    "EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema='public' AND table_name='order_refunds' AND column_name='ledger_version')",
+    "EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema='public' AND table_name='order_refunds' AND column_name='ledger_version')",
+    "EXISTS (SELECT 1 FROM pg_constraint WHERE conrelid = to_regclass('public.order_refunds') AND conname='order_refunds_amount_positive')",
+    "EXISTS (SELECT 1 FROM pg_constraint WHERE conrelid = to_regclass('public.order_refunds') AND conname='order_refunds_operation_shape')",
+    "EXISTS (SELECT 1 FROM pg_indexes WHERE schemaname='public' AND indexname='order_refunds_operation_unique')",
+    "EXISTS (SELECT 1 FROM pg_indexes WHERE schemaname='public' AND indexname='order_refunds_provider_refund_unique')",
+    "EXISTS (SELECT 1 FROM pg_indexes WHERE schemaname='public' AND indexname='idx_order_refunds_payment_id')",
+    "EXISTS (SELECT 1 FROM pg_indexes WHERE schemaname='public' AND indexname='idx_order_refunds_stripe_refund_id')",
+    "EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema='public' AND table_name='payments' AND column_name='stripe_refund_id')",
+    "EXISTS (SELECT 1 FROM pg_indexes WHERE schemaname='public' AND indexname='payments_refund_event_unique')",
+    "EXISTS (SELECT 1 FROM pg_proc WHERE pronamespace='public'::regnamespace AND proname='_refund_status_from_provider')",
+    "EXISTS (SELECT 1 FROM pg_proc WHERE pronamespace='public'::regnamespace AND proname='_apply_refund_transition')",
+    "EXISTS (SELECT 1 FROM pg_proc WHERE pronamespace='public'::regnamespace AND proname='reserve_refund_operation')",
+    "EXISTS (SELECT 1 FROM pg_proc WHERE pronamespace='public'::regnamespace AND proname='mark_refund_provider_attempt')",
+    "EXISTS (SELECT 1 FROM pg_proc WHERE pronamespace='public'::regnamespace AND proname='record_refund_provider_result')",
+    "EXISTS (SELECT 1 FROM pg_proc WHERE pronamespace='public'::regnamespace AND proname='apply_provider_refund_event')",
+    "EXISTS (SELECT 1 FROM pg_proc WHERE pronamespace='public'::regnamespace AND proname='cancel_unattempted_payments_on_order_close')",
+    "EXISTS (SELECT 1 FROM pg_proc WHERE pronamespace='public'::regnamespace AND proname='note_payment_applied_to_closed_order')",
+    "COALESCE(has_table_privilege('authenticated', to_regclass('public.payments'), 'INSERT'), false)",
+    "COALESCE(has_table_privilege('authenticated', to_regclass('public.payments'), 'UPDATE'), false)",
+    "COALESCE(has_table_privilege('authenticated', to_regclass('public.payments'), 'DELETE'), false)",
+    "COALESCE(has_table_privilege('authenticated', to_regclass('public.order_refunds'), 'INSERT'), false)",
+    "COALESCE(has_table_privilege('authenticated', to_regclass('public.order_refunds'), 'UPDATE'), false)",
+    "COALESCE(has_table_privilege('authenticated', to_regclass('public.order_refunds'), 'DELETE'), false)",
+    "EXISTS (SELECT 1 FROM pg_proc p WHERE p.pronamespace='public'::regnamespace AND p.proname='reserve_refund_operation' AND has_function_privilege('service_role', p.oid, 'EXECUTE'))",
+    "EXISTS (SELECT 1 FROM pg_proc p WHERE p.pronamespace='public'::regnamespace AND p.proname='mark_refund_provider_attempt' AND has_function_privilege('service_role', p.oid, 'EXECUTE'))",
+    "EXISTS (SELECT 1 FROM pg_proc p WHERE p.pronamespace='public'::regnamespace AND p.proname='record_refund_provider_result' AND has_function_privilege('service_role', p.oid, 'EXECUTE'))",
+    "EXISTS (SELECT 1 FROM pg_proc p WHERE p.pronamespace='public'::regnamespace AND p.proname='apply_provider_refund_event' AND has_function_privilege('service_role', p.oid, 'EXECUTE'))"
+   ]
+  },
+  "20261023120000": {
+   "run_ok": true,
+   "candidates": 10,
+   "validated": 10,
+   "rejected": 0,
+   "valid_atoms": [
+    "EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema='public' AND table_name='order_refunds' AND column_name='allocation_version')",
+    "EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema='public' AND table_name='order_refunds' AND column_name='deposit_principal_refunded_cents')",
+    "EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema='public' AND table_name='order_refunds' AND column_name='balance_principal_refunded_cents')",
+    "EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema='public' AND table_name='order_refunds' AND column_name='tip_refunded_cents')",
+    "EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema='public' AND table_name='order_refunds' AND column_name='unclassified_refunded_cents')",
+    "EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema='public' AND table_name='order_refunds' AND column_name='request_allocation')",
+    "EXISTS (SELECT 1 FROM pg_constraint WHERE conrelid = to_regclass('public.order_refunds') AND conname='order_refunds_allocation_shape')",
+    "EXISTS (SELECT 1 FROM pg_proc WHERE pronamespace='public'::regnamespace AND proname='order_net_financials')",
+    "EXISTS (SELECT 1 FROM pg_proc p WHERE p.pronamespace='public'::regnamespace AND p.proname='order_net_financials' AND has_function_privilege('authenticated', p.oid, 'EXECUTE'))",
+    "EXISTS (SELECT 1 FROM pg_proc p WHERE p.pronamespace='public'::regnamespace AND p.proname='order_net_financials' AND has_function_privilege('service_role', p.oid, 'EXECUTE'))"
+   ]
+  },
+  "20261024120000": {
+   "run_ok": true,
+   "candidates": 2,
+   "validated": 2,
+   "rejected": 0,
+   "valid_atoms": [
+    "EXISTS (SELECT 1 FROM pg_proc WHERE pronamespace='public'::regnamespace AND proname='reserve_refund_allocation')",
+    "EXISTS (SELECT 1 FROM pg_proc p WHERE p.pronamespace='public'::regnamespace AND p.proname='reserve_refund_allocation' AND has_function_privilege('service_role', p.oid, 'EXECUTE'))"
+   ]
+  },
+  "20261025120000": {
+   "run_ok": true,
+   "candidates": 3,
+   "validated": 3,
+   "rejected": 0,
+   "valid_atoms": [
+    "EXISTS (SELECT 1 FROM pg_proc WHERE pronamespace='public'::regnamespace AND proname='order_refund_overview')",
+    "EXISTS (SELECT 1 FROM pg_proc p WHERE p.pronamespace='public'::regnamespace AND p.proname='order_refund_overview' AND has_function_privilege('authenticated', p.oid, 'EXECUTE'))",
+    "EXISTS (SELECT 1 FROM pg_proc p WHERE p.pronamespace='public'::regnamespace AND p.proname='order_refund_overview' AND has_function_privilege('service_role', p.oid, 'EXECUTE'))"
+   ]
+  }
+ },
+ "financial_changes": {},
+ "anon_increases": {
+  "20260716151458": {
+   "anon_write_tables": [
+    55,
+    59
+   ],
+   "anon_policies": [
+    38,
+    42
+   ]
+  },
+  "20260716152447": {
+   "anon_exec_functions": [
+    68,
+    69
+   ],
+   "security_definer_anon": [
+    55,
+    56
+   ]
+  },
+  "20260716231809": {
+   "anon_write_tables": [
+    59,
+    60
+   ],
+   "anon_policies": [
+    42,
+    43
+   ]
+  },
+  "20260717111014": {
+   "anon_exec_functions": [
+    69,
+    73
+   ],
+   "security_definer_anon": [
+    56,
+    60
+   ]
+  },
+  "20260718000744": {
+   "anon_write_tables": [
+    60,
+    63
+   ],
+   "anon_policies": [
+    43,
+    46
+   ]
+  },
+  "20260718000923": {
+   "anon_exec_functions": [
+    73,
+    75
+   ],
+   "security_definer_anon": [
+    60,
+    62
+   ]
+  },
+  "20260722211023": {
+   "anon_exec_functions": [
+    75,
+    76
+   ],
+   "security_definer_anon": [
+    62,
+    63
+   ]
+  },
+  "20260722212750": {
+   "anon_exec_functions": [
+    76,
+    78
+   ],
+   "anon_write_tables": [
+    63,
+    64
+   ],
+   "anon_policies": [
+    46,
+    47
+   ],
+   "security_definer_anon": [
+    63,
+    65
+   ]
+  },
+  "20260722215732": {
+   "anon_exec_functions": [
+    78,
+    79
+   ],
+   "security_definer_anon": [
+    65,
+    66
+   ]
+  },
+  "20260814120000": {
+   "anon_write_tables": [
+    63,
+    64
+   ]
+  },
+  "20260929145842": {
+   "anon_exec_functions": [
+    79,
+    81
+   ],
+   "anon_write_tables": [
+    64,
+    66
+   ],
+   "anon_policies": [
+    46,
+    48
+   ],
+   "security_definer_anon": [
+    66,
+    67
+   ]
+  },
+  "20260929151836": {
+   "anon_exec_functions": [
+    81,
+    83
+   ],
+   "security_definer_anon": [
+    67,
+    69
+   ]
+  },
+  "20261009120000": {
+   "anon_exec_functions": [
+    69,
+    70
+   ]
+  }
+ },
+ "start_probe": {
+  "anon_exec_functions": 68,
+  "anon_write_tables": 55,
+  "anon_policies": 38,
+  "security_definer_anon": 55
+ },
+ "final": {
+  "run_rc": 0,
+  "verify_ok": true,
+  "ledger": {
+   "executed": 58,
+   "history-only": 9,
+   "other": 277
+  },
+  "catalog_equals_reference": true,
+  "catalog_differs_in": [],
+  "anon_probe_start": {
+   "anon_exec_functions": 68,
+   "anon_write_tables": 55,
+   "anon_policies": 38,
+   "security_definer_anon": 55
+  },
+  "anon_probe_end": {
+   "anon_exec_functions": 6,
+   "anon_write_tables": 1,
+   "anon_policies": 15,
+   "security_definer_anon": 6
+  }
+ },
+ "summary": {
+  "items": 58,
+  "all_runs_ok": true,
+  "items_with_validated_rules": 37,
+  "items_without_rules": [
+   "20260716151549",
+   "20260716173638",
+   "20260716231832",
+   "20260717012112",
+   "20260717110808",
+   "20260717111803",
+   "20260717115647",
+   "20260722172048",
+   "20260722230121",
+   "20260723174017",
+   "20260814113146",
+   "20260814120100",
+   "20260820165646",
+   "20260929152006",
+   "20260929161218",
+   "20260929161925",
+   "20261007120000",
+   "20261013120000",
+   "20261015120000",
+   "20261016120000",
+   "20261018120000"
+  ],
+  "versions_changing_financial_columns": {},
+  "versions_raising_anonymous_surface": {
+   "20260716151458": {
+    "anon_write_tables": [
+     55,
+     59
+    ],
+    "anon_policies": [
+     38,
+     42
+    ]
+   },
+   "20260716152447": {
+    "anon_exec_functions": [
+     68,
+     69
+    ],
+    "security_definer_anon": [
+     55,
+     56
+    ]
+   },
+   "20260716231809": {
+    "anon_write_tables": [
+     59,
+     60
+    ],
+    "anon_policies": [
+     42,
+     43
+    ]
+   },
+   "20260717111014": {
+    "anon_exec_functions": [
+     69,
+     73
+    ],
+    "security_definer_anon": [
+     56,
+     60
+    ]
+   },
+   "20260718000744": {
+    "anon_write_tables": [
+     60,
+     63
+    ],
+    "anon_policies": [
+     43,
+     46
+    ]
+   },
+   "20260718000923": {
+    "anon_exec_functions": [
+     73,
+     75
+    ],
+    "security_definer_anon": [
+     60,
+     62
+    ]
+   },
+   "20260722211023": {
+    "anon_exec_functions": [
+     75,
+     76
+    ],
+    "security_definer_anon": [
+     62,
+     63
+    ]
+   },
+   "20260722212750": {
+    "anon_exec_functions": [
+     76,
+     78
+    ],
+    "anon_write_tables": [
+     63,
+     64
+    ],
+    "anon_policies": [
+     46,
+     47
+    ],
+    "security_definer_anon": [
+     63,
+     65
+    ]
+   },
+   "20260722215732": {
+    "anon_exec_functions": [
+     78,
+     79
+    ],
+    "security_definer_anon": [
+     65,
+     66
+    ]
+   },
+   "20260814120000": {
+    "anon_write_tables": [
+     63,
+     64
+    ]
+   },
+   "20260929145842": {
+    "anon_exec_functions": [
+     79,
+     81
+    ],
+    "anon_write_tables": [
+     64,
+     66
+    ],
+    "anon_policies": [
+     46,
+     48
+    ],
+    "security_definer_anon": [
+     66,
+     67
+    ]
+   },
+   "20260929151836": {
+    "anon_exec_functions": [
+     81,
+     83
+    ],
+    "security_definer_anon": [
+     67,
+     69
+    ]
+   },
+   "20261009120000": {
+    "anon_exec_functions": [
+     69,
+     70
+    ]
+   }
+  }
+ }
+}

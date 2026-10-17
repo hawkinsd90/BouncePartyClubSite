@@ -1,0 +1,184 @@
+version,depends_on,kind,object,certainty,source,enforced_as_prerequisite,evidence_or_note
+20260716151549,20260716151458,table,inventory_products,hard,static,yes,"INSERT INTO inventory_products (slug, name, description, total_quantity, temp_unavailable_qty, active, public_visible, sort_order) VALUES ('"
+20260716151549,20260716151458,table,product_bundle_components,hard,static,yes,"WITH table_product AS (SELECT id FROM inventory_products WHERE slug = 'six-foot-rectangular-table'), chair_product AS (SELECT id FROM invent"
+20260716151549,20260716151458,table,product_bundles,hard,static,yes,"INSERT INTO product_bundles (slug, name, description, standalone_price_cents, addon_price_cents, standalone_enabled, addon_enabled, active, "
+20260716151549,20260716151458,table,product_pricing,hard,static,yes,"WITH table_product AS (SELECT id FROM inventory_products WHERE slug = 'six-foot-rectangular-table'), chair_product AS (SELECT id FROM invent"
+20260716152447,20260716151458,column,order_items.bundle_id,runtime,static,yes (conservative: reference inside a function body; may be validated at creation time),function body mentions table and column
+20260716152447,20260716151458,column,order_items.component_snapshot,runtime,static,yes (conservative: reference inside a function body; may be validated at creation time),function body mentions table and column
+20260716152447,20260716151458,column,order_items.product_id,probable,static,yes,"CREATE OR REPLACE FUNCTION check_product_availability( p_requested_items jsonb, p_start_date date, p_end_date date, p_exclude_order_id uuid "
+20260716152447,20260716151458,table,inventory_products,runtime,static,yes (conservative: reference inside a function body; may be validated at creation time),function body references table
+20260716231809,20260716151458,table,inventory_products,hard,static,yes,ALTER TABLE inventory_products ADD COLUMN IF NOT EXISTS category_id uuid REFERENCES product_categories(id)
+20260716231809,20260716151458,table,product_pricing,hard,static,yes,"UPDATE product_pricing SET standalone_price_cents = 1200, standalone_enabled = true, addon_price_cents = 1200, addon_enabled = true WHERE pr"
+20260716231832,20260716151458,column,order_items.bundle_id,runtime,static,yes (conservative: reference inside a function body; may be validated at creation time),function body mentions table and column
+20260716231832,20260716151458,column,order_items.component_snapshot,runtime,static,yes (conservative: reference inside a function body; may be validated at creation time),function body mentions table and column
+20260716231832,20260716151458,column,order_items.product_id,probable,static,yes,"CREATE OR REPLACE FUNCTION public.check_product_availability( p_requested_items jsonb, p_start_date date, p_end_date date, p_exclude_order_i"
+20260716231832,20260716151458,table,inventory_products,runtime,static,yes (conservative: reference inside a function body; may be validated at creation time),function body references table
+20260716231832,20260716231809,column,inventory_products.category_id,runtime,static,yes (conservative: reference inside a function body; may be validated at creation time),function body mentions table and column
+20260716231832,20260716231809,table,product_categories,runtime,static,yes (conservative: reference inside a function body; may be validated at creation time),function body references table
+20260717012112,20260716151458,table,inventory_products,hard,static,yes,"GRANT SELECT ON public.inventory_products TO anon, authenticated"
+20260717012112,20260716151458,table,product_bundle_components,hard,static,yes,"GRANT SELECT ON public.product_bundle_components TO anon, authenticated"
+20260717012112,20260716151458,table,product_bundles,hard,static,yes,"GRANT SELECT ON public.product_bundles TO anon, authenticated"
+20260717012112,20260716151458,table,product_pricing,hard,static,yes,"GRANT SELECT ON public.product_pricing TO anon, authenticated"
+20260717012112,20260716231809,table,product_categories,hard,static,yes,"GRANT SELECT ON public.product_categories TO anon, authenticated"
+20260717110808,20260716151458,table,inventory_products,hard,static,yes,"GRANT INSERT, UPDATE, DELETE ON public.inventory_products TO authenticated"
+20260717110808,20260716151458,table,product_bundle_components,hard,static,yes,"GRANT INSERT, UPDATE, DELETE ON public.product_bundle_components TO authenticated"
+20260717110808,20260716151458,table,product_bundles,hard,static,yes,"GRANT INSERT, UPDATE, DELETE ON public.product_bundles TO authenticated"
+20260717110808,20260716151458,table,product_pricing,hard,static,yes,"GRANT INSERT, UPDATE, DELETE ON public.product_pricing TO authenticated"
+20260717110808,20260716231809,table,product_categories,hard,static,yes,"GRANT INSERT, UPDATE, DELETE ON public.product_categories TO authenticated"
+20260717111014,20260716151458,table,inventory_products,runtime,static,yes (conservative: reference inside a function body; may be validated at creation time),function body references table
+20260717111014,20260716151458,table,product_bundle_components,runtime,static,yes (conservative: reference inside a function body; may be validated at creation time),function body references table
+20260717111014,20260716151458,table,product_bundles,runtime,static,yes (conservative: reference inside a function body; may be validated at creation time),function body references table
+20260717111014,20260716151458,table,product_pricing,runtime,static,yes (conservative: reference inside a function body; may be validated at creation time),function body references table
+20260717111014,20260716231809,column,inventory_products.category_id,runtime,static,yes (conservative: reference inside a function body; may be validated at creation time),function body mentions table and column
+20260717111014,20260716231809,table,product_categories,runtime,static,yes (conservative: reference inside a function body; may be validated at creation time),function body references table
+20260717111803,20260716231809,table,product_categories,runtime,static,yes (conservative: reference inside a function body; may be validated at creation time),function body references table
+20260717111803,20260717111014,function,reorder_product_categories,hard,static,yes,REVOKE ALL ON FUNCTION public.reorder_product_categories(uuid[]) FROM PUBLIC
+20260717115647,20260716151458,table,inventory_products,runtime,static,yes (conservative: reference inside a function body; may be validated at creation time),function body references table
+20260717115647,20260716151458,table,product_bundle_components,runtime,static,yes (conservative: reference inside a function body; may be validated at creation time),function body references table
+20260717115647,20260716151458,table,product_bundles,runtime,static,yes (conservative: reference inside a function body; may be validated at creation time),function body references table
+20260717115647,20260716231809,column,inventory_products.category_id,runtime,static,yes (conservative: reference inside a function body; may be validated at creation time),function body mentions table and column
+20260717115647,20260716231809,table,product_categories,runtime,static,yes (conservative: reference inside a function body; may be validated at creation time),function body references table
+20260717115647,20260717111014,function,save_product_bundle,hard,static,yes,"REVOKE ALL ON FUNCTION public.save_product_bundle(text,uuid,text,text,text,text,integer,integer,boolean,boolean,boolean,boolean,boolean,bool"
+20260718000744,20260716151458,table,product_bundles,hard,static,yes,ALTER TABLE product_bundles ADD COLUMN IF NOT EXISTS addon_qualifying_threshold_cents integer
+20260718000744,20260716151458,table,product_pricing,hard,static,yes,ALTER TABLE product_pricing ADD COLUMN IF NOT EXISTS addon_qualifying_threshold_cents integer
+20260718000744,20260716231809,table,product_categories,hard,static,yes,"CREATE TABLE IF NOT EXISTS product_bundle_excluded_categories ( bundle_id uuid NOT NULL REFERENCES product_bundles(id) ON DELETE CASCADE, ca"
+20260718000923,20260716151458,table,inventory_products,runtime,static,yes (conservative: reference inside a function body; may be validated at creation time),function body references table
+20260718000923,20260716151458,table,product_bundle_components,runtime,static,yes (conservative: reference inside a function body; may be validated at creation time),function body references table
+20260718000923,20260716151458,table,product_bundles,runtime,static,yes (conservative: reference inside a function body; may be validated at creation time),function body references table
+20260718000923,20260716151458,table,product_pricing,runtime,static,yes (conservative: reference inside a function body; may be validated at creation time),function body references table
+20260718000923,20260716231809,column,inventory_products.category_id,runtime,static,yes (conservative: reference inside a function body; may be validated at creation time),function body mentions table and column
+20260718000923,20260716231809,table,product_categories,runtime,static,yes (conservative: reference inside a function body; may be validated at creation time),function body references table
+20260718000923,20260718000744,column,product_bundles.addon_qualifying_threshold_cents,runtime,static,yes (conservative: reference inside a function body; may be validated at creation time),function body mentions table and column
+20260718000923,20260718000744,column,product_bundles.inflatable_eligibility_mode,runtime,static,yes (conservative: reference inside a function body; may be validated at creation time),function body mentions table and column
+20260718000923,20260718000744,column,product_pricing.addon_qualifying_threshold_cents,runtime,static,yes (conservative: reference inside a function body; may be validated at creation time),function body mentions table and column
+20260718000923,20260718000744,table,package_inflatable_components,runtime,static,yes (conservative: reference inside a function body; may be validated at creation time),function body references table
+20260718000923,20260718000744,table,package_inflatable_eligibility,runtime,static,yes (conservative: reference inside a function body; may be validated at creation time),function body references table
+20260718000923,20260718000744,table,product_bundle_excluded_categories,runtime,static,yes (conservative: reference inside a function body; may be validated at creation time),function body references table
+20260722215732,20260722212750,function,create_order_short_link,hard,static,yes,GRANT EXECUTE ON FUNCTION public.create_order_short_link(UUID) TO authenticated
+20260722215732,20260722212750,table,order_portal_links,hard,static,yes,"DROP POLICY IF EXISTS ""anon_select_order_portal_links"" ON public.order_portal_links"
+20260722230121,20260722212750,function,create_order_short_link,hard,static,yes,REVOKE ALL ON FUNCTION public.create_order_short_link(UUID) FROM PUBLIC
+20260722230121,20260722212750,table,order_portal_links,runtime,static,yes (conservative: reference inside a function body; may be validated at creation time),function body references table
+20260723210301,20260722212750,table,order_portal_links,hard,static,yes,"CREATE POLICY ""Staff can read order portal links"" ON order_portal_links FOR SELECT TO authenticated USING (true)"
+20260723210953,20260722212750,table,order_portal_links,runtime,static,yes (conservative: reference inside a function body; may be validated at creation time),function body references table
+20260814120100,20260814120000,table,contact_inquiries,hard,static,yes,"ALTER TABLE public.contact_inquiries ADD COLUMN IF NOT EXISTS first_name text, ADD COLUMN IF NOT EXISTS last_name text, ADD COLUMN IF NOT EX"
+20260929145842,20260716151458,table,inventory_products,runtime,static,yes (conservative: reference inside a function body; may be validated at creation time),function body references table
+20260929145842,20260716231809,column,inventory_products.category_id,runtime,static,yes (conservative: reference inside a function body; may be validated at creation time),function body mentions table and column
+20260929145842,20260716231809,table,product_categories,hard,static,yes,"CREATE TABLE IF NOT EXISTS public_menu_group_categories ( menu_group_id uuid NOT NULL REFERENCES public_menu_groups(id) ON DELETE CASCADE, c"
+20260929151836,20260929145842,table,public_menu_group_categories,hard,static,yes,"DROP POLICY IF EXISTS ""Public can read menu group categories"" ON public_menu_group_categories"
+20260929151836,20260929145842,table,public_menu_groups,hard,static,yes,"DROP POLICY IF EXISTS ""Public can read enabled menu groups"" ON public_menu_groups"
+20260929152006,20260929145842,table,public_menu_group_categories,runtime,static,yes (conservative: reference inside a function body; may be validated at creation time),function body references table
+20260929152006,20260929145842,table,public_menu_groups,runtime,static,yes (conservative: reference inside a function body; may be validated at creation time),function body references table
+20260929161218,20260929145842,table,public_menu_group_categories,hard,static,yes,"GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE public.public_menu_group_categories TO authenticated"
+20260929161218,20260929145842,table,public_menu_groups,hard,static,yes,"GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE public.public_menu_groups TO authenticated"
+20260929161925,20260929145842,table,public_menu_group_categories,hard,static,yes,"DROP POLICY IF EXISTS ""Admins can read all menu group categories"" ON public.public_menu_group_categories"
+20260929161925,20260929145842,table,public_menu_groups,hard,static,yes,"DROP POLICY IF EXISTS ""Admins can read all menu groups"" ON public.public_menu_groups"
+20261010120000,20260716151458,column,order_items.bundle_id,runtime,static,yes (conservative: reference inside a function body; may be validated at creation time),function body mentions table and column
+20261010120000,20260716151458,column,order_items.component_snapshot,runtime,static,yes (conservative: reference inside a function body; may be validated at creation time),function body mentions table and column
+20261010120000,20260716151458,column,order_items.item_name,runtime,static,yes (conservative: reference inside a function body; may be validated at creation time),function body mentions table and column
+20261010120000,20260716151458,column,order_items.pricing_context,runtime,static,yes (conservative: reference inside a function body; may be validated at creation time),function body mentions table and column
+20261010120000,20260716151458,column,order_items.product_id,runtime,static,yes (conservative: reference inside a function body; may be validated at creation time),function body mentions table and column
+20261010120000,20260925151621,column,orders.setup_fee_cents,runtime,static,yes (conservative: reference inside a function body; may be validated at creation time),function body mentions table and column
+20261011120000,20260716151458,column,order_items.bundle_id,runtime,static,yes (conservative: reference inside a function body; may be validated at creation time),function body mentions table and column
+20261011120000,20260716151458,column,order_items.component_snapshot,runtime,static,yes (conservative: reference inside a function body; may be validated at creation time),function body mentions table and column
+20261011120000,20260716151458,column,order_items.item_name,runtime,static,yes (conservative: reference inside a function body; may be validated at creation time),function body mentions table and column
+20261011120000,20260716151458,column,order_items.pricing_context,runtime,static,yes (conservative: reference inside a function body; may be validated at creation time),function body mentions table and column
+20261011120000,20260716151458,column,order_items.product_id,runtime,static,yes (conservative: reference inside a function body; may be validated at creation time),function body mentions table and column
+20261011120000,20260925151621,column,orders.setup_fee_cents,runtime,static,yes (conservative: reference inside a function body; may be validated at creation time),function body mentions table and column
+20261011120000,20261010120000,function,create_booking_request,hard,static,yes,"REVOKE ALL ON FUNCTION public.create_booking_request(jsonb, text, timestamptz, uuid) FROM PUBLIC"
+20261011120000,20261010120000,table,booking_setup_proofs,runtime,static,yes (conservative: reference inside a function body; may be validated at creation time),function body references table
+20261012120000,20260716151458,column,order_items.bundle_id,runtime,static,yes (conservative: reference inside a function body; may be validated at creation time),function body mentions table and column
+20261012120000,20260716151458,column,order_items.component_snapshot,runtime,static,yes (conservative: reference inside a function body; may be validated at creation time),function body mentions table and column
+20261012120000,20260716151458,column,order_items.item_name,runtime,static,yes (conservative: reference inside a function body; may be validated at creation time),function body mentions table and column
+20261012120000,20260716151458,column,order_items.pricing_context,runtime,static,yes (conservative: reference inside a function body; may be validated at creation time),function body mentions table and column
+20261012120000,20260716151458,column,order_items.product_id,runtime,static,yes (conservative: reference inside a function body; may be validated at creation time),function body mentions table and column
+20261012120000,20260722212750,table,order_portal_links,hard,static,yes,"CREATE POLICY ""Admin and master manage legacy portal links"" ON public.order_portal_links FOR ALL TO authenticated USING ((SELECT public.is_a"
+20261012120000,20260925151621,column,orders.setup_fee_cents,runtime,static,yes (conservative: reference inside a function body; may be validated at creation time),function body mentions table and column
+20261012120000,20261010120000,table,booking_setup_proofs,hard,static,yes,REVOKE ALL ON TABLE public.booking_setup_proofs FROM authenticated
+20261012120000,20261011120000,column,orders.event_address_line2,runtime,static,yes (conservative: reference inside a function body; may be validated at creation time),function body mentions table and column
+20261014120000,20261012120000,function,is_crew_or_admin,hard,static,yes,"CREATE POLICY ""Staff upload public assets"" ON storage.objects FOR INSERT TO authenticated WITH CHECK (bucket_id = 'public-assets' AND (SELEC"
+20261015120000,20261012120000,function,is_crew_or_admin,hard,static,yes,"CREATE POLICY ""Staff read order pictures"" ON storage.objects FOR SELECT TO authenticated USING (bucket_id = 'order-pictures' AND (SELECT pub"
+20261020120000,20261019120000,column,payments.balance_principal_cents,runtime,static,yes (conservative: reference inside a function body; may be validated at creation time),function body mentions table and column
+20261020120000,20261019120000,column,payments.claim_id,runtime,static,yes (conservative: reference inside a function body; may be validated at creation time),function body mentions table and column
+20261020120000,20261019120000,column,payments.claimed_at,runtime,static,yes (conservative: reference inside a function body; may be validated at creation time),function body mentions table and column
+20261020120000,20261019120000,column,payments.deposit_principal_cents,runtime,static,yes (conservative: reference inside a function body; may be validated at creation time),function body mentions table and column
+20261020120000,20261019120000,column,payments.operation_key,runtime,static,yes (conservative: reference inside a function body; may be validated at creation time),function body mentions table and column
+20261020120000,20261019120000,column,payments.principal_amount_cents,runtime,static,yes (conservative: reference inside a function body; may be validated at creation time),function body mentions table and column
+20261020120000,20261019120000,column,payments.provider_attempted_at,runtime,static,yes (conservative: reference inside a function body; may be validated at creation time),function body mentions table and column
+20261020120000,20261019120000,column,payments.stripe_checkout_session_id,runtime,static,yes (conservative: reference inside a function body; may be validated at creation time),function body mentions table and column
+20261020120000,20261019120000,column,payments.tip_amount_cents,runtime,static,yes (conservative: reference inside a function body; may be validated at creation time),function body mentions table and column
+20261020120000,20261019120000,function,claim_payment_operation,hard,static,yes,"REVOKE ALL ON FUNCTION public.claim_payment_operation(uuid, text, text, uuid, boolean, integer, integer, integer, integer) FROM PUBLIC, anon"
+20261021120000,20260715214053,column,orders.customer_view_updated_at,runtime,static,yes (conservative: reference inside a function body; may be validated at creation time),function body mentions table and column
+20261021120000,20260716151458,column,order_items.bundle_id,runtime,static,yes (conservative: reference inside a function body; may be validated at creation time),function body mentions table and column
+20261021120000,20260716151458,column,order_items.component_snapshot,runtime,static,yes (conservative: reference inside a function body; may be validated at creation time),function body mentions table and column
+20261021120000,20260716151458,column,order_items.item_name,runtime,static,yes (conservative: reference inside a function body; may be validated at creation time),function body mentions table and column
+20261021120000,20260716151458,column,order_items.pricing_context,runtime,static,yes (conservative: reference inside a function body; may be validated at creation time),function body mentions table and column
+20261021120000,20260716151458,column,order_items.product_id,runtime,static,yes (conservative: reference inside a function body; may be validated at creation time),function body mentions table and column
+20261021120000,20260925151621,column,orders.setup_fee_cents,runtime,static,yes (conservative: reference inside a function body; may be validated at creation time),function body mentions table and column
+20261021120000,20261011120000,column,orders.event_address_line2,runtime,static,yes (conservative: reference inside a function body; may be validated at creation time),function body mentions table and column
+20261022120000,20261019120000,column,payments.claim_id,runtime,static,yes (conservative: reference inside a function body; may be validated at creation time),function body mentions table and column
+20261022120000,20261019120000,column,payments.claimed_at,runtime,static,yes (conservative: reference inside a function body; may be validated at creation time),function body mentions table and column
+20261022120000,20261019120000,column,payments.operation_key,runtime,static,yes (conservative: reference inside a function body; may be validated at creation time),function body mentions table and column
+20261022120000,20261019120000,column,payments.provider_attempted_at,runtime,static,yes (conservative: reference inside a function body; may be validated at creation time),function body mentions table and column
+20261022120000,20261019120000,column,payments.stripe_checkout_session_id,runtime,static,yes (conservative: reference inside a function body; may be validated at creation time),function body mentions table and column
+20261022120000,20261021120000,function,guard_order_pricing_authority,hard,static,yes,"REVOKE ALL ON FUNCTION public.guard_order_pricing_authority() FROM PUBLIC, anon, authenticated"
+20261023120000,20261019120000,column,payments.balance_principal_cents,runtime,static,yes (conservative: reference inside a function body; may be validated at creation time),function body mentions table and column
+20261023120000,20261019120000,column,payments.deposit_principal_cents,runtime,static,yes (conservative: reference inside a function body; may be validated at creation time),function body mentions table and column
+20261023120000,20261019120000,column,payments.principal_amount_cents,runtime,static,yes (conservative: reference inside a function body; may be validated at creation time),function body mentions table and column
+20261023120000,20261019120000,column,payments.tip_amount_cents,runtime,static,yes (conservative: reference inside a function body; may be validated at creation time),function body mentions table and column
+20261023120000,20261022120000,column,order_refunds.ledger_version,runtime,static,yes (conservative: reference inside a function body; may be validated at creation time),function body mentions table and column
+20261023120000,20261022120000,column,order_refunds.stripe_payment_intent_id,runtime,static,yes (conservative: reference inside a function body; may be validated at creation time),function body mentions table and column
+20261023120000,20261022120000,column,payments.stripe_refund_id,runtime,static,yes (conservative: reference inside a function body; may be validated at creation time),function body mentions table and column
+20261024120000,20261019120000,column,payments.balance_principal_cents,runtime,static,yes (conservative: reference inside a function body; may be validated at creation time),function body mentions table and column
+20261024120000,20261019120000,column,payments.deposit_principal_cents,runtime,static,yes (conservative: reference inside a function body; may be validated at creation time),function body mentions table and column
+20261024120000,20261019120000,column,payments.operation_key,runtime,static,yes (conservative: reference inside a function body; may be validated at creation time),function body mentions table and column
+20261024120000,20261019120000,column,payments.principal_amount_cents,runtime,static,yes (conservative: reference inside a function body; may be validated at creation time),function body mentions table and column
+20261024120000,20261019120000,column,payments.provider_attempted_at,runtime,static,yes (conservative: reference inside a function body; may be validated at creation time),function body mentions table and column
+20261024120000,20261019120000,column,payments.tip_amount_cents,runtime,static,yes (conservative: reference inside a function body; may be validated at creation time),function body mentions table and column
+20261024120000,20261022120000,column,order_refunds.failure_reason,runtime,static,yes (conservative: reference inside a function body; may be validated at creation time),function body mentions table and column
+20261024120000,20261022120000,column,order_refunds.operation_index,runtime,static,yes (conservative: reference inside a function body; may be validated at creation time),function body mentions table and column
+20261024120000,20261022120000,column,order_refunds.operation_key,runtime,static,yes (conservative: reference inside a function body; may be validated at creation time),function body mentions table and column
+20261024120000,20261022120000,column,order_refunds.payment_id,runtime,static,yes (conservative: reference inside a function body; may be validated at creation time),function body mentions table and column
+20261024120000,20261022120000,column,order_refunds.provider_attempted_at,runtime,static,yes (conservative: reference inside a function body; may be validated at creation time),function body mentions table and column
+20261024120000,20261022120000,column,order_refunds.provider_idempotency_key,runtime,static,yes (conservative: reference inside a function body; may be validated at creation time),function body mentions table and column
+20261024120000,20261022120000,column,order_refunds.request_amount_cents,runtime,static,yes (conservative: reference inside a function body; may be validated at creation time),function body mentions table and column
+20261024120000,20261022120000,column,order_refunds.source,runtime,static,yes (conservative: reference inside a function body; may be validated at creation time),function body mentions table and column
+20261024120000,20261022120000,column,order_refunds.stripe_payment_intent_id,runtime,static,yes (conservative: reference inside a function body; may be validated at creation time),function body mentions table and column
+20261024120000,20261022120000,column,order_refunds.updated_at,runtime,static,yes (conservative: reference inside a function body; may be validated at creation time),function body mentions table and column
+20261024120000,20261022120000,column,payments.stripe_refund_id,runtime,static,yes (conservative: reference inside a function body; may be validated at creation time),function body mentions table and column
+20261024120000,20261023120000,column,order_refunds.allocation_version,runtime,static,yes (conservative: reference inside a function body; may be validated at creation time),function body mentions table and column
+20261024120000,20261023120000,column,order_refunds.balance_principal_refunded_cents,runtime,static,yes (conservative: reference inside a function body; may be validated at creation time),function body mentions table and column
+20261024120000,20261023120000,column,order_refunds.deposit_principal_refunded_cents,runtime,static,yes (conservative: reference inside a function body; may be validated at creation time),function body mentions table and column
+20261024120000,20261023120000,column,order_refunds.request_allocation,runtime,static,yes (conservative: reference inside a function body; may be validated at creation time),function body mentions table and column
+20261024120000,20261023120000,column,order_refunds.tip_refunded_cents,runtime,static,yes (conservative: reference inside a function body; may be validated at creation time),function body mentions table and column
+20261024120000,20261023120000,column,order_refunds.unclassified_refunded_cents,runtime,static,yes (conservative: reference inside a function body; may be validated at creation time),function body mentions table and column
+20261025120000,20261019120000,column,payments.balance_principal_cents,runtime,static,yes (conservative: reference inside a function body; may be validated at creation time),function body mentions table and column
+20261025120000,20261019120000,column,payments.deposit_principal_cents,runtime,static,yes (conservative: reference inside a function body; may be validated at creation time),function body mentions table and column
+20261025120000,20261019120000,column,payments.operation_key,runtime,static,yes (conservative: reference inside a function body; may be validated at creation time),function body mentions table and column
+20261025120000,20261019120000,column,payments.principal_amount_cents,runtime,static,yes (conservative: reference inside a function body; may be validated at creation time),function body mentions table and column
+20261025120000,20261019120000,column,payments.provider_attempted_at,runtime,static,yes (conservative: reference inside a function body; may be validated at creation time),function body mentions table and column
+20261025120000,20261019120000,column,payments.tip_amount_cents,runtime,static,yes (conservative: reference inside a function body; may be validated at creation time),function body mentions table and column
+20261025120000,20261022120000,column,order_refunds.failure_reason,runtime,static,yes (conservative: reference inside a function body; may be validated at creation time),function body mentions table and column
+20261025120000,20261022120000,column,order_refunds.operation_index,runtime,static,yes (conservative: reference inside a function body; may be validated at creation time),function body mentions table and column
+20261025120000,20261022120000,column,order_refunds.operation_key,runtime,static,yes (conservative: reference inside a function body; may be validated at creation time),function body mentions table and column
+20261025120000,20261022120000,column,order_refunds.payment_id,runtime,static,yes (conservative: reference inside a function body; may be validated at creation time),function body mentions table and column
+20261025120000,20261022120000,column,order_refunds.provider_attempted_at,runtime,static,yes (conservative: reference inside a function body; may be validated at creation time),function body mentions table and column
+20261025120000,20261022120000,column,order_refunds.request_amount_cents,runtime,static,yes (conservative: reference inside a function body; may be validated at creation time),function body mentions table and column
+20261025120000,20261022120000,column,order_refunds.source,runtime,static,yes (conservative: reference inside a function body; may be validated at creation time),function body mentions table and column
+20261025120000,20261022120000,column,order_refunds.stripe_payment_intent_id,runtime,static,yes (conservative: reference inside a function body; may be validated at creation time),function body mentions table and column
+20261025120000,20261022120000,column,payments.stripe_refund_id,runtime,static,yes (conservative: reference inside a function body; may be validated at creation time),function body mentions table and column
+20261025120000,20261023120000,column,order_refunds.allocation_version,runtime,static,yes (conservative: reference inside a function body; may be validated at creation time),function body mentions table and column
+20261025120000,20261023120000,column,order_refunds.balance_principal_refunded_cents,runtime,static,yes (conservative: reference inside a function body; may be validated at creation time),function body mentions table and column
+20261025120000,20261023120000,column,order_refunds.deposit_principal_refunded_cents,runtime,static,yes (conservative: reference inside a function body; may be validated at creation time),function body mentions table and column
+20261025120000,20261023120000,column,order_refunds.request_allocation,runtime,static,yes (conservative: reference inside a function body; may be validated at creation time),function body mentions table and column
+20261025120000,20261023120000,column,order_refunds.tip_refunded_cents,runtime,static,yes (conservative: reference inside a function body; may be validated at creation time),function body mentions table and column
+20261025120000,20261023120000,column,order_refunds.unclassified_refunded_cents,runtime,static,yes (conservative: reference inside a function body; may be validated at creation time),function body mentions table and column
+20261007120000,,cannot be established statically,,uncertain,static,no,dynamic SQL (EXECUTE/format) inside a DO block: references cannot be established statically
+20261012120000,,cannot be established statically,,uncertain,static,no,dynamic SQL (EXECUTE/format) inside a DO block: references cannot be established statically
+20261013120000,,cannot be established statically,,uncertain,static,no,dynamic SQL (EXECUTE/format) inside a DO block: references cannot be established statically
+20261014120000,,cannot be established statically,,uncertain,static,no,dynamic SQL (EXECUTE/format) inside a DO block: references cannot be established statically
+20261015120000,,cannot be established statically,,uncertain,static,no,dynamic SQL (EXECUTE/format) inside a DO block: references cannot be established statically
+20261015123000,,cannot be established statically,,uncertain,static,no,dynamic SQL (EXECUTE/format) inside a DO block: references cannot be established statically
+20261016120000,,cannot be established statically,,uncertain,static,no,dynamic SQL (EXECUTE/format) inside a DO block: references cannot be established statically
+20261018120000,,cannot be established statically,,uncertain,static,no,dynamic SQL (EXECUTE/format) inside a DO block: references cannot be established statically
+20261018120100,,cannot be established statically,,uncertain,static,no,dynamic SQL (EXECUTE/format) inside a DO block: references cannot be established statically
+20261018120200,,cannot be established statically,,uncertain,static,no,dynamic SQL (EXECUTE/format) inside a DO block: references cannot be established statically
