@@ -1,0 +1,127 @@
+{
+ "checks": [
+  {
+   "id": "T01",
+   "check": "every catalog atom evaluates (no SQL error) on the captured Development schema",
+   "pass": true,
+   "detail": "818 atoms; 0 false; stderr "
+  },
+  {
+   "id": "T02",
+   "check": "all rules execute without SQL error on the Development schema",
+   "pass": true,
+   "detail": "[]"
+  },
+  {
+   "id": "T03",
+   "check": "every plain/security history-only rule is TRUE on the captured Development schema",
+   "pass": true,
+   "detail": "true 201, false []"
+  },
+  {
+   "id": "T04",
+   "check": "negative control: history-only rules are FALSE for versions whose objects the Production pre-upgrade schema lacks",
+   "pass": true,
+   "detail": "3 of 201 false on the Production pre-upgrade restore"
+  },
+  {
+   "id": "T05",
+   "check": "test role is a non-superuser with BYPASSRLS that owns the ledger table",
+   "pass": true,
+   "detail": "false,true"
+  },
+  {
+   "id": "T06",
+   "check": "canary batch script runs as the non-superuser owner: +1 history-only row, marker recognised",
+   "pass": true,
+   "detail": ""
+  },
+  {
+   "id": "T07",
+   "check": "re-running the same batch is refused (duplicate version) and changes nothing",
+   "pass": true,
+   "detail": "ERROR:  version already recorded: 20251002195907\nCONTEXT:  PL/pgSQL function inline_code_block line "
+  },
+  {
+   "id": "T08",
+   "check": "a wrong pre-batch ledger count is refused",
+   "pass": true,
+   "detail": "ERROR:  ledger count differs from the pre-batch export\nCONTEXT:  PL/pgSQL function inline_code_block"
+  },
+  {
+   "id": "T09",
+   "check": "reversal removes exactly the batch's rows and restores the count",
+   "pass": true,
+   "detail": ""
+  },
+  {
+   "id": "T10",
+   "check": "reversal of rows that are not present is refused",
+   "pass": true,
+   "detail": "ERROR:  batch rows not exactly as expected\nCONTEXT:  PL/pgSQL function inline_code_block line 3 at R"
+  },
+  {
+   "id": "T11",
+   "check": "all canary/plain/security history-only batches run in order (predecessor checks pass; Q predecessors other than the satisfiable one are synthetic rows)",
+   "pass": true,
+   "detail": "23 batches; ledger 261; synthetic predecessor rows 1"
+  },
+  {
+   "id": "T12",
+   "check": "an attestation batch whose data rules are false on the empty scratch data fails as a whole and records nothing",
+   "pass": true,
+   "detail": "ERROR:  verification rule failed for 20251003152224\nCONTEXT:  PL/pgSQL function inline_code_block line 6 at RAISE\n"
+  },
+  {
+   "id": "T13",
+   "check": "attestation batch with a satisfiable rule (function identity) recorded a row with the attestation marker and its placeholders filled",
+   "pass": true,
+   "detail": "ERROR:  verification rule failed for 20251003152224\nCONTEXT:  PL/pgSQL function inline_code_block line 6 at RAISE\n"
+  },
+  {
+   "id": "T14",
+   "check": "history-only items that depend on the attested version were ordered after it and already ran or are ready",
+   "pass": true,
+   "detail": "['20251209115445', '20251008153245', '20251213205448', '20251213222807', '20260323155222', '20260323163432']"
+  },
+  {
+   "id": "T15",
+   "check": "SQL batch: the file runs verbatim in one transaction with its executed row (exact SQL in statements[2])",
+   "pass": true,
+   "detail": "-->524288000 "
+  },
+  {
+   "id": "T16",
+   "check": "the SQL batch cannot run twice (rule 'limit still NULL' and duplicate guard)",
+   "pass": true,
+   "detail": "ERROR:  version already recorded: 20260325231044\nCONTEXT:  PL/pgSQL function inline_code_block line "
+  },
+  {
+   "id": "T17",
+   "check": "SQL batch reversal restores the bucket value and removes the ledger row",
+   "pass": true,
+   "detail": ""
+  },
+  {
+   "id": "T18",
+   "check": "one false rule in the last operation rolls back the whole batch (no partial ledger rows)",
+   "pass": true,
+   "detail": "ERROR:  verification rule failed for 20251202161637\nCONTEXT:  PL/pgSQL function inline_code_block li"
+  },
+  {
+   "id": "T19",
+   "check": "no batch script (other than the SQL batches) contains DDL, GRANT, REVOKE or TRUNCATE",
+   "pass": true,
+   "detail": "[]"
+  }
+ ],
+ "limitations": [
+  "PostgreSQL 18 locally versus 17 hosted; scratch ledger owned by a local role, hosted ledger owned by postgres",
+  "the multi-statement call semantics of the hosted integration (one transaction per call) were observed read-only in E2J-B but a write is not rehearsed there",
+  "data rules for attestations are false on empty scratch tables by design; their truth is established only on hosted Development immediately before a batch"
+ ],
+ "summary": {
+  "pass": 19,
+  "fail": 0
+ }
+}

@@ -1,0 +1,147 @@
+{
+ "checks": [
+  {
+   "id": "R01",
+   "check": "allowlist builds from the canonical Development plan with the unmodified builder",
+   "pass": true,
+   "detail": "{\"out\":\"C:\\\\Users\\\\vikki\\\\migration-evidence\\\\step2-final-scratch\\\\dev-allowlist.json\",\"commit\":\"efda4177433258c4b2c469e5aa381bc2545f36ba\",\"execute\":2,\"history_only\":201,\"document_sha256\":\"4271e3e37c5"
+  },
+  {
+   "id": "R02",
+   "check": "plan contains only P1/P2 items; no October, withheld, unresolved, withdrawn or alias-file version",
+   "pass": true,
+   "detail": "{'history-only': 201, 'attestation': 56, 'execute': 2}"
+  },
+  {
+   "id": "R03",
+   "check": "predecessors precede dependents in plan order",
+   "pass": true,
+   "detail": "259"
+  },
+  {
+   "id": "R04",
+   "check": "plan command validates the allowlist against the scratch ledger",
+   "pass": true,
+   "detail": "{'ok': True, 'pending': None}"
+  },
+  {
+   "id": "R05",
+   "check": "interruption: run stops after the first executable item; partial ledger is consistent",
+   "pass": true,
+   "detail": "{'rc': 0, 'ledger': 316, 'msg': ''}"
+  },
+  {
+   "id": "R06",
+   "check": "verify on the interrupted state reports the remaining items (ok=false by design, no ledger inconsistency or refusal)",
+   "pass": true,
+   "detail": "{'missing': 1, 'executed': 1, 'history_only': 201}"
+  },
+  {
+   "id": "R07",
+   "check": "restart completes the plan: ledger = 58 + 259 rows",
+   "pass": true,
+   "detail": "{'rc': 0, 'ledger': 317, 'expected': 317, 'msg': ''}"
+  },
+  {
+   "id": "R08",
+   "check": "second run is a no-op (duplicate prevention at the executor level)",
+   "pass": true,
+   "detail": "{'rc': 0, 'ledger': 317}"
+  },
+  {
+   "id": "R09",
+   "check": "duplicate version insert is refused by the ledger primary key",
+   "pass": true,
+   "detail": "ERROR:  duplicate key value violates unique constraint \"schema_migrations_pkey\"\nDETAIL:  Key (version)=(20251001051900) "
+  },
+  {
+   "id": "R10",
+   "check": "verify after completion passes",
+   "pass": true,
+   "detail": "True"
+  },
+  {
+   "id": "R11",
+   "check": "ledger markers: 58 base, 2 executed, 201 history-only, 56 attestation",
+   "pass": true,
+   "detail": "attestation=56,base=58,executed=2,history-only=201"
+  },
+  {
+   "id": "R12",
+   "check": "isolation: no October, withdrawn, alias-file, unresolved or containment version entered the ledger",
+   "pass": true,
+   "detail": "0"
+  },
+  {
+   "id": "R13",
+   "check": "executed rows store the exact SQL as statements[2]",
+   "pass": true,
+   "detail": "2"
+  },
+  {
+   "id": "R14",
+   "check": "schema effect limited to the two bucket-setting updates (relations, ACLs and function bodies unchanged)",
+   "pass": true,
+   "detail": "{'buckets_before': 'carousel-media:-:-|event-essentials-media:10485760:image/png,image/jpeg,image/jpg,image/gi', 'buckets_after': 'carousel-media:524288000:-|event-essentials-media:10485760:image/png,image/jpeg,image/jpg,image/gif,image/webp,image/heic,image/heif|lot-pic'}"
+  },
+  {
+   "id": "R15",
+   "check": "executor killed five times at different points and restarted each time: partial ledger, never refused for a crash gap",
+   "pass": true,
+   "detail": "{'kills': 5, 'ledger': 289, 'refused_at': []}"
+  },
+  {
+   "id": "R16",
+   "check": "final restart completes the plan without duplicates (crash-gap rows reconciled in the audit store)",
+   "pass": true,
+   "detail": "{'rc': 0, 'ledger': 317, 'reconciled': [], 'msg': ''}"
+  },
+  {
+   "id": "R17",
+   "check": "failing executable item rolls back completely (no executed row) and the run stops",
+   "pass": true,
+   "detail": "{'rc': 3, 'executed_rows': '0', 'msg': ''}"
+  },
+  {
+   "id": "R18",
+   "check": "after the cause is removed the run resumes and completes",
+   "pass": true,
+   "detail": "{'rc': 0, 'ledger': 317}"
+  },
+  {
+   "id": "R20",
+   "check": "crash gap (ledger row committed, completion event lost): restart accepts the row via its record_start event and reconciles the audit store",
+   "pass": true,
+   "detail": "{'version': '20251216210332', 'reconciled': ['20251216210332'], 'msg': ''}"
+  },
+  {
+   "id": "R21",
+   "check": "a history-only ledger row with no audit event of any kind is still refused (fail closed)",
+   "pass": true,
+   "detail": "history-only ledger row 20251209124126 is not backed by audit evidence"
+  },
+  {
+   "id": "R19",
+   "check": "executor still refuses a hosted-looking host (loopback guard unchanged)",
+   "pass": true,
+   "detail": "{\"ok\":false,\"refused\":true,\"code\":\"hosted-guard\",\"message\":\"host must be exactly 127.0.0.1 (got a different value); hosted targets are never"
+  }
+ ],
+ "head": "efda4177433258c4b2c469e5aa381bc2545f36ba",
+ "limitations": [
+  "Local PostgreSQL 18 superuser session; hosted Supabase runs as the non-superuser postgres role (owner of the ledger and application tables) on PostgreSQL 17: ownership and privilege behaviour of the real ledger insert is NOT rehearsed",
+  "storage.buckets is a restored table without the Storage service; bucket updates are rehearsed as plain UPDATEs",
+  "history-only rows are written without per-item read-only predicates (none are defined yet); the hosted plan must re-verify each item at run time",
+  "attestations use a synthetic attester; no owner attestation exists",
+  "no hosted connection exists in the executor by design; a hosted mechanism is a separate, unapproved design"
+ ],
+ "summary": {
+  "pass": 21,
+  "fail": 0,
+  "items": {
+   "history-only": 201,
+   "attestation": 56,
+   "execute": 2
+  }
+ }
+}
