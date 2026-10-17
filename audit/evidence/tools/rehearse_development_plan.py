@@ -12,11 +12,12 @@ import time
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
 import d4_lib as L  # noqa: E402
+from step2_paths import derived, workdir  # noqa: E402
 
 REPO = os.path.abspath(os.path.join(HERE, "..", "..", ".."))
 EXE = os.path.join(REPO, "scripts", "dev", "local-executor", "local-migration-executor.cjs")
 BLD = os.path.join(REPO, "scripts", "dev", "local-executor", "build-allowlist.cjs")
-SCR = r"C:\Users\vikki\migration-evidence\step2-final-scratch"
+SCR = workdir()
 OUT = os.path.join(REPO, "audit", "evidence", "development-plan-rehearsal-results.json")
 STB = r"C:\Users\vikki\migration-evidence\stage-b-20261016"
 MARK = "bpc-migration-executor-scratch:v1"
@@ -44,6 +45,16 @@ def mkdb(name):
 def q(db, sql):
     r = subprocess.run([L.PSQL, "-h", "127.0.0.1", "-p", "54329", "-U", "postgres", "-X", "-q", "-At", "-w", "-d", db, "-c", sql], capture_output=True, text=True, env=env())
     return r.stdout.strip(), r.returncode, r.stderr.strip()
+
+
+def ledger_count(db, tries=8):
+    """Row count of the scratch ledger; retries a failed psql call (a rapid poll against a database being killed or created can return nothing)."""
+    for _ in range(tries):
+        out, rc, _err = q(db, "select count(*) from supabase_migrations.schema_migrations")
+        if rc == 0 and out.strip().isdigit():
+            return int(out)
+        time.sleep(0.2)
+    return -1
 
 
 def exe(cmd, db, allow, audit, extra=(), timeout=3000):
@@ -86,15 +97,15 @@ rc, j = exe("plan", db, allow, aud)
 rec("R04", "plan command validates the allowlist against the scratch ledger", rc == 0, j.get("message") or {k: j.get(k) for k in ("ok", "pending")})
 first_exec = next(i["version"] for i in doc["items"] if i["kind"] == "execute")
 rc, j = exe("run", db, allow, aud, ["--stop-after", first_exec])
-n1 = int(q(db, "select count(*) from supabase_migrations.schema_migrations")[0])
+n1 = ledger_count(db)
 rec("R05", "interruption: run stops after the first executable item; partial ledger is consistent", rc == 0 and n1 > base_n, {"rc": rc, "ledger": n1, "msg": j.get("message", "")})
 rc, j = exe("verify", db, allow, aud)
 rec("R06", "verify on the interrupted state reports the remaining items (ok=false by design, no ledger inconsistency or refusal)", rc != 2 and j.get("ok") is False and len(j.get("missing", [])) == len(doc["items"]) - (n1 - base_n) and not j.get("refused"), {"missing": len(j.get("missing", [])), "executed": j.get("executed"), "history_only": j.get("history_only")})
 rc, j = exe("run", db, allow, aud)
-n2 = int(q(db, "select count(*) from supabase_migrations.schema_migrations")[0])
+n2 = ledger_count(db)
 rec("R07", "restart completes the plan: ledger = 58 + 259 rows", rc == 0 and n2 == base_n + len(doc["items"]), {"rc": rc, "ledger": n2, "expected": base_n + len(doc["items"]), "msg": j.get("message", "")})
 rc, j = exe("run", db, allow, aud)
-n3 = int(q(db, "select count(*) from supabase_migrations.schema_migrations")[0])
+n3 = ledger_count(db)
 rec("R08", "second run is a no-op (duplicate prevention at the executor level)", rc == 0 and n3 == n2, {"rc": rc, "ledger": n3})
 _, rcd, err = q(db, "insert into supabase_migrations.schema_migrations(version,name,statements) select version,name,statements from supabase_migrations.schema_migrations limit 1")
 rec("R09", "duplicate version insert is refused by the ledger primary key", rcd != 0 and "duplicate key" in err, err[:120])
@@ -121,7 +132,7 @@ kills, refused = 0, []
 for target in (base_n + 20, base_n + 60, base_n + 110, base_n + 170, base_n + 230):
     p = subprocess.Popen(args, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, env=env(), cwd=REPO)
     t0 = time.time()
-    while time.time() - t0 < 120 and p.poll() is None and int(q(db2, "select count(*) from supabase_migrations.schema_migrations")[0]) < target:
+    while time.time() - t0 < 120 and p.poll() is None and ledger_count(db2) < target:
         time.sleep(0.05)
     if p.poll() is None:
         subprocess.run(["taskkill", "/F", "/T", "/PID", str(p.pid)], capture_output=True)
@@ -129,10 +140,10 @@ for target in (base_n + 20, base_n + 60, base_n + 110, base_n + 170, base_n + 23
     out_, err_ = p.communicate()
     if "not backed by audit evidence" in (out_ + err_):
         refused.append(target)
-nk = int(q(db2, "select count(*) from supabase_migrations.schema_migrations")[0])
+nk = ledger_count(db2)
 rec("R15", "executor killed five times at different points and restarted each time: partial ledger, never refused for a crash gap", kills >= 3 and refused == [] and base_n < nk, {"kills": kills, "ledger": nk, "refused_at": refused})
 rc, j = exe("run", db2, allow, aud2)
-nk2 = int(q(db2, "select count(*) from supabase_migrations.schema_migrations")[0])
+nk2 = ledger_count(db2)
 dup = q(db2, "select count(*) from (select version from supabase_migrations.schema_migrations group by 1 having count(*)>1) d")[0]
 rec("R16", "final restart completes the plan without duplicates (crash-gap rows reconciled in the audit store)", rc == 0 and nk2 == base_n + len(doc["items"]) and dup == "0", {"rc": rc, "ledger": nk2, "reconciled": j.get("reconciled"), "msg": j.get("message", "")})
 # --- failure of an executable item, then recovery ---
@@ -148,7 +159,7 @@ failed_ledger = q(db3, "select count(*) from supabase_migrations.schema_migratio
 rec("R17", "failing executable item rolls back completely (no executed row) and the run stops", rc != 0 and failed_ledger == "0", {"rc": rc, "executed_rows": failed_ledger, "msg": j.get("message", "")[:100]})
 assert q(db3, "drop trigger zz_fail on storage.buckets")[1] == 0
 rc, j = exe("run", db3, allow, aud3)
-n4 = int(q(db3, "select count(*) from supabase_migrations.schema_migrations")[0])
+n4 = ledger_count(db3)
 rec("R18", "after the cause is removed the run resumes and completes", rc == 0 and n4 == base_n + len(doc["items"]), {"rc": rc, "ledger": n4})
 # --- deterministic crash gap for history-only rows: ledger row committed, completion event lost (tail of the hash-chained audit store removed) ---
 mini_items = [i for i in json.load(open(os.path.join(SCR, "dev-plan-items.json"), encoding="utf-8")) if i["kind"] == "history-only"][:3]
@@ -190,7 +201,7 @@ res["limitations"] = [
     "attestations use a synthetic attester; no owner attestation exists",
     "no hosted connection exists in the executor by design; a hosted mechanism is a separate, unapproved design"]
 res["summary"] = {"pass": sum(c["pass"] for c in res["checks"]), "fail": sum(not c["pass"] for c in res["checks"]), "items": kinds}
-json.dump(res, open(OUT, "w", encoding="utf-8"), indent=1)
+json.dump(res, open(OUT, "w", encoding="utf-8", newline="\n"), indent=1)
 for d_ in (db, db2, db3, db4, db5):
     L.psql("postgres", ["-c", f'drop database if exists "{d_}" with (force)'])
 print(res["summary"])

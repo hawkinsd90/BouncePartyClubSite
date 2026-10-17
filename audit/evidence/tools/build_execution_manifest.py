@@ -14,14 +14,14 @@ from collections import Counter, defaultdict
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
 import e2a_sql as SQL  # noqa: E402
+from step2_paths import derived, workdir  # noqa: E402
 
 EV = os.path.abspath(os.path.join(HERE, ".."))
 AUDIT = os.path.abspath(os.path.join(HERE, "..", ".."))
 REPO = os.path.abspath(os.path.join(AUDIT, ".."))
 MIG = os.path.join(REPO, "supabase", "migrations")
-SCR = r"C:\Users\vikki\migration-evidence\step2-final-scratch"
-STB = r"C:\Users\vikki\migration-evidence\stage-b-20261016"
-E2A = r"C:\Users\vikki\migration-evidence\e2a-scratch\e2a-statements-all.csv"
+SCR = workdir()  # intermediate files; dev-plan-graph.json is produced by build_development_plan.py
+E2A = derived("e2a-statements-all.csv")
 HIST, ATT, XSQL = "Evidence-backed history-only reconciliation candidate", "Qualified owner-attestation candidate", "Actual SQL execution required"
 lit = lambda s: "'" + str(s).replace("'", "''") + "'"
 man = {r["version"]: r for r in csv.DictReader(open(os.path.join(AUDIT, "development-migration-manifest.csv"), encoding="utf-8"))}
@@ -198,8 +198,8 @@ def replica_rule(fn):
 # ------------------------------------------------------------------ build rules
 rules, rows = {}, []
 ATOMS_OUT = {}
-VALID_FILE = os.path.join(SCR, "atom-validation.json")
-AV = json.load(open(VALID_FILE, encoding="utf-8")) if os.path.exists(VALID_FILE) else {}
+VALID_FILE = derived("atom-validation.json")
+AV = json.load(open(VALID_FILE, encoding="utf-8"))
 for v in plan:
     m = man[v]
     fn = m["filename_or_archived_source"]
@@ -269,7 +269,7 @@ for v in plan:
         note += f" | not checked: {', '.join(skipped[:3])}{'...' if len(skipped) > 3 else ''}"
     sql = " AND ".join(f"({p})" for p in sql_parts) if sql_parts else ""
     rules[v] = {"status": status, "kind": kind, "sql": ("SELECT " + sql + " AS rule_ok") if sql else "", "note": note, "predecessors": preds, "atoms": len(sql_parts)}
-json.dump(rules, open(os.path.join(AUDIT, "development-verification-rules.json"), "w", encoding="utf-8"), indent=1)
+json.dump(rules, open(os.path.join(AUDIT, "development-verification-rules.json"), "w", encoding="utf-8", newline="\n"), indent=1)
 print("rule status", dict(Counter(r["status"] for r in rules.values())), "by disposition", dict(Counter((man[v]["proposed_disposition"][:4], rules[v]["status"]) for v in plan)))
-json.dump({"plan": plan}, open(os.path.join(SCR, "rules-plan.json"), "w"))
-json.dump(ATOMS_OUT, open(os.path.join(SCR, "atoms.json"), "w"))
+json.dump({"plan": plan}, open(os.path.join(SCR, "rules-plan.json"), "w", newline="\n"))
+json.dump(ATOMS_OUT, open(os.path.join(SCR, "atoms.json"), "w", newline="\n"))

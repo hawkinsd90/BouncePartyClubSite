@@ -1,0 +1,22 @@
+{
+  "_comment": "Fail-closed deny list for the Development execution package. build_execution_package.py refuses to generate, and developmentExecutionManifest.test.ts fails, if any of these versions would be approvable or would execute. Local negative tests may still use them in isolated scratch databases.",
+  "blocked_no_safe_rule": {
+    "versions": ["20251001052039", "20260125173238", "20260305222010"],
+    "rule": "must stay in a BLOCKED, not-approvable batch class with no verification SQL; they enter an approvable package only after new read-only evidence and explicit owner approval, which would be a new Step 2 decision, not a regeneration"
+  },
+  "excluded_pending_owner": {
+    "versions": ["20260611184401"],
+    "rule": "update_pricing_rules: not an operation in any batch"
+  },
+  "withdrawn": {
+    "versions": ["20260305203528", "20260407203226", "20260407211122"],
+    "rule": "Cases 41, 42 and 43: never an operation"
+  },
+  "never_sql_execute": {
+    "versions": ["20251003170350"],
+    "rule": "demo-admin creation: may be a signed attestation of history, never executed SQL"
+  },
+  "withheld_gate": {
+    "rule": "every manifest row whose disposition starts with 'Withheld' (October deployment gate and security-dependent migrations) is never an operation"
+  }
+}

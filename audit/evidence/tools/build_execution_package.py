@@ -12,11 +12,12 @@ from collections import Counter, defaultdict
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
+from step2_paths import derived, workdir  # noqa: E402
 EV = os.path.abspath(os.path.join(HERE, ".."))
 AUDIT = os.path.abspath(os.path.join(HERE, "..", ".."))
 REPO = os.path.abspath(os.path.join(AUDIT, ".."))
 MIG = os.path.join(REPO, "supabase", "migrations")
-SCR = r"C:\Users\vikki\migration-evidence\step2-final-scratch"
+SCR = workdir()
 HIST, ATT, XSQL = "Evidence-backed history-only reconciliation candidate", "Qualified owner-attestation candidate", "Actual SQL execution required"
 BASE = 58
 PREFIX = "-- BPC-DEV-RECONCILIATION"
@@ -169,7 +170,25 @@ def reversal_script(batch_id):
     return "\n".join(L) + "\n"
 
 
+def check_deny_list(border):
+    """Fail closed: the blocked, excluded, withdrawn, demo-admin and withheld versions can never become approvable operations."""
+    deny = json.load(open(os.path.join(AUDIT, "development-execution-deny.json"), encoding="utf-8"))
+    ops = {i["v"]: i for i in border}
+    errs = []
+    for v in deny["blocked_no_safe_rule"]["versions"]:
+        if v in ops and (ops[v]["klass"] != "Z" or rules[v]["status"] != "BLOCKED" or rules[v]["sql"]):
+            errs.append(f"{v}: blocked version is not in the BLOCKED class with an empty rule")
+        if v not in ops:
+            errs.append(f"{v}: blocked version missing from the package (it must be listed as not approvable)")
+    gone = deny["excluded_pending_owner"]["versions"] + deny["withdrawn"]["versions"] + [v for v, r in man.items() if r["proposed_disposition"].startswith("Withheld")]
+    errs += [f"{v}: excluded, withdrawn or withheld version is an operation" for v in gone if v in ops]
+    errs += [f"{v}: must never be sql-execute" for v in deny["never_sql_execute"]["versions"] if v in ops and man[v]["proposed_disposition"] == XSQL]
+    if errs:
+        sys.exit("DENY LIST VIOLATION (nothing written):\n" + "\n".join(errs))
+
+
 if __name__ == "__main__":
+    check_deny_list(BORDER)
     rows = []
     n = 0
     for it in BORDER:
@@ -184,7 +203,7 @@ if __name__ == "__main__":
             else "ledger +1 row, marker 'attestation NOT EXECUTED'; no schema or data change" if c == ATT else "ledger +1 row, marker 'history-only NOT EXECUTED'; no schema or data change"
         post = (f"SELECT version, left(statements[1], 80) FROM supabase_migrations.schema_migrations WHERE version = '{v}'; ledger count = batch start + position; rule re-evaluates true" +
                 ("; storage.buckets row equals the file's values; statements[2] hash = sha256_lf" if c == XSQL else ""))
-        rec = ("the batch script is one transaction: any failed assertion rolls everything back and records nothing; after a mistaken commit use REVERSAL " + it["batch"] + " (DELETE limited to this batch's versions AND marker; compare with the pre-batch ledger export)" +
+        rec = ("the batch script is one transaction: any failed assertion rolls everything back and records nothing; REVERSAL " + it["batch"] + " exists but is NOT an automatic undo: a committed history entry is reversible only with the owner's separate written authorization for this batch, a fresh ledger export showing the rows exactly as written, a check that nothing later depends on them, and a post-reversal comparison (the DELETE is limited to this batch's versions AND marker; deleting a ledger row never undoes executed SQL)" +
                ("; also restore storage.buckets to the values read before the batch" if c == XSQL else ""))
         att = "yes: signed per version (attested_by, attested_at, scope, not_proven, evidence hash); weak/blocked rule limits must be accepted in the scope" if c == ATT else "no (bookkeeping; owner approves the batch)" if c == HIST else "owner approves the exact SQL"
         step3 = m["step3_dependency"] if m["step3_dependency"] != "no" else ("run before any Step 3 change that removes/alters the checked objects" if SECURITY_RX.search(r["sql"]) else "no")
@@ -199,6 +218,6 @@ if __name__ == "__main__":
         w.writerows(rows)
     # per-batch script hashes (templates with placeholders)
     sh = {b: {"script_sha256": sha(batch_script(b)), "reversal_sha256": sha(reversal_script(b))} for b in sorted({i["batch"] for i in BORDER})}
-    json.dump({"canary": CANARY, "batches": {b: [i["v"] for i in BORDER if i["batch"] == b] for b in sh}, "hashes": sh}, open(os.path.join(AUDIT, "development-execution-batches.json"), "w", encoding="utf-8"), indent=1)
+    json.dump({"canary": CANARY, "batches": {b: [i["v"] for i in BORDER if i["batch"] == b] for b in sh}, "hashes": sh}, open(os.path.join(AUDIT, "development-execution-batches.json"), "w", encoding="utf-8", newline="\n"), indent=1)
     print("ops", len(rows), "batches", len(sh), "canary", CANARY, dict(Counter(r["batch_class"] for r in rows)))
     print("sizes", Counter(len([i for i in BORDER if i["batch"] == b]) for b in sh))

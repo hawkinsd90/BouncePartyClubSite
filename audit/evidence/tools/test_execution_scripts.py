@@ -11,8 +11,9 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
 import d4_lib as L  # noqa: E402
 import build_execution_package as P  # noqa: E402
+from step2_paths import derived, workdir  # noqa: E402
 
-SCR = r"C:\Users\vikki\migration-evidence\step2-final-scratch"
+SCR = workdir()
 OUT = os.path.join(P.AUDIT, "evidence", "development-execution-test-results.json")
 res = {"checks": []}
 
@@ -45,10 +46,10 @@ got = {}
 for line in r.stdout.splitlines():
     i, b = line.split("|")
     got[uniq[int(i)]] = (b == "t")
-VF = os.path.join(SCR, "atom-validation.json")
-prev = json.load(open(VF, encoding="utf-8")) if os.path.exists(VF) else {}
+VF = os.path.join(SCR, "atom-validation.json")  # written here; the committed copy is audit/evidence/derived/atom-validation.json
+prev = json.load(open(VF, encoding="utf-8")) if os.path.exists(VF) else json.load(open(derived("atom-validation.json"), encoding="utf-8"))
 prev.update(got)  # cumulative: atoms pruned from a rule in an earlier pass keep their recorded result
-json.dump(prev, open(VF, "w", encoding="utf-8"))
+json.dump(prev, open(VF, "w", encoding="utf-8", newline="\n"), indent=1, sort_keys=True)
 rec("T01", "every catalog atom evaluates (no SQL error) on the captured Development schema", r.returncode == 0 and len(got) == len(uniq), f"{len(uniq)} atoms; {sum(not b for b in got.values())} false; stderr {r.stderr[:80]}")
 if mode == "atoms":
     print("false atoms:", sum(not b for b in got.values()))
@@ -186,7 +187,7 @@ rec("T19", "no batch script (other than the SQL batches) contains DDL, GRANT, RE
 res["limitations"] = ["PostgreSQL 18 locally versus 17 hosted; scratch ledger owned by a local role, hosted ledger owned by postgres", "the multi-statement call semantics of the hosted integration (one transaction per call) were observed read-only in E2J-B but a write is not rehearsed there",
                       "data rules for attestations are false on empty scratch tables by design; their truth is established only on hosted Development immediately before a batch"]
 res["summary"] = {"pass": sum(c["pass"] for c in res["checks"]), "fail": sum(not c["pass"] for c in res["checks"])}
-json.dump(res, open(OUT, "w", encoding="utf-8"), indent=1)
+json.dump(res, open(OUT, "w", encoding="utf-8", newline="\n"), indent=1)
 for d in (db, db + "_b"):
     L.psql("postgres", ["-c", f"drop database if exists {d} with (force)"])
 L.psql("postgres", ["-c", "drop role if exists e2l_pg"])

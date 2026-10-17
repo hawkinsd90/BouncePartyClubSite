@@ -13,8 +13,9 @@ sys.path.insert(0, HERE)
 import d4_lib as L  # noqa: E402
 import e2d_extra as X  # noqa: E402
 import e2g_executor_tests as G  # noqa: E402
+from step2_paths import derived, workdir  # noqa: E402
 
-SCR = r"C:\Users\vikki\migration-evidence\step2-final-scratch"
+SCR = workdir()
 OUT = os.path.join(G.REPO, "audit", "evidence", "production-plan-rehearsal-results.json")
 cand = json.load(open(os.path.join(SCR, "prod-candidates.json"), encoding="utf-8"))
 allow = json.load(open(G.ALLOW, encoding="utf-8"))
@@ -82,8 +83,8 @@ res["final"]["anon_probe_start"] = res["start_probe"]
 res["final"]["anon_probe_end"] = prev_probe
 res["summary"] = {"items": len(order), "all_runs_ok": all(i["run_ok"] for i in res["items"].values()), "items_with_validated_rules": sum(1 for i in res["items"].values() if i["validated"]),
                   "items_without_rules": [v for v, i in res["items"].items() if not i["validated"]], "versions_changing_financial_columns": res["financial_changes"], "versions_raising_anonymous_surface": res["anon_increases"]}
-json.dump(res, open(OUT, "w", encoding="utf-8"), indent=1)
-json.dump({v: i["valid_atoms"] for v, i in res["items"].items()}, open(os.path.join(SCR, "prod-validated.json"), "w", encoding="utf-8"))
+json.dump(res, open(OUT, "w", encoding="utf-8", newline="\n"), indent=1)
+json.dump({v: i["valid_atoms"] for v, i in res["items"].items()}, open(os.path.join(SCR, "prod-validated.json"), "w", encoding="utf-8", newline="\n"))
 print(json.dumps(res["summary"], indent=1)[:1500])
 print(res["final"])
 G.psql("postgres", 'drop database if exists "bpc_exec_prodstep" with (force)')

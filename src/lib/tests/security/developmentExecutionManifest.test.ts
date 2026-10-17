@@ -48,5 +48,17 @@ ok('the two SQL operations are alone in their batches', ops.filter((o) => o.oper
 ok('a history-only operation never has a rule that depends on a data predicate over private records', ops.filter((o) => o.operation_type === 'history-only').every((o) => !/auth\.users/.test(rules[o.version].sql)));
 const bj = JSON.parse(fs.readFileSync(path.join(ROOT, 'audit', 'development-execution-batches.json'), 'utf8'));
 ok('batch file lists every operation exactly once with script and reversal hashes', Object.values(bj.batches).flat().length === 259 && Object.values(bj.hashes).every((h: any) => /^[0-9a-f]{64}$/.test(h.script_sha256) && /^[0-9a-f]{64}$/.test(h.reversal_sha256)));
+// Fail-closed deny list (audit/development-execution-deny.json): the same rules build_execution_package.py enforces at generation time.
+const deny = JSON.parse(fs.readFileSync(path.join(ROOT, 'audit', 'development-execution-deny.json'), 'utf8'));
+const BLOCKED3 = ['20251001052039', '20260125173238', '20260305222010'];
+ok('the deny list names exactly the three blocked versions', JSON.stringify([...deny.blocked_no_safe_rule.versions].sort()) === JSON.stringify(BLOCKED3));
+ok('each blocked version is listed only as BLOCKED: empty rule, BLOCKED class, not approved, not in an approvable batch class', deny.blocked_no_safe_rule.versions.every((v: string) => {
+  const o = byV.get(v);
+  return o && o.rule_status === 'BLOCKED' && /^BLOCKED/.test(o.batch_class) && o.approval_status === 'not approved' && rules[v].sql === '' && o.operation_type === 'attestation';
+}));
+ok('excluded update_pricing_rules, withdrawn Cases 41/42/43 and every withheld version are never operations', [...deny.excluded_pending_owner.versions, ...deny.withdrawn.versions, ...man.filter((r) => /^Withheld/.test(r.proposed_disposition)).map((r) => r.version)].every((v: string) => !byV.has(v)));
+ok('the demo-admin creation is never an SQL-execute operation', deny.never_sql_execute.versions.every((v: string) => !byV.has(v) || byV.get(v).operation_type !== 'sql-execute'));
+ok('only the two Storage-decision operations execute SQL', ops.filter((o) => o.operation_type === 'sql-execute').length === 2 && ops.filter((o) => o.operation_type === 'sql-execute').every((o) => /^X|SQL/.test(o.batch_class) || /Storage/.test(o.batch_class)));
+ok('no recovery text calls a committed ledger entry silently or automatically reversible', ops.every((o) => !/after a mistaken commit use/i.test(o.failure_and_recovery) && /NOT an automatic undo/.test(o.failure_and_recovery)));
 console.log(`development execution manifest: ${passed} passed, ${failed} failed`);
 if (failed) process.exit(1);

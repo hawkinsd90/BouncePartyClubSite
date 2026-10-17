@@ -11,20 +11,20 @@ import sys
 from collections import Counter, defaultdict
 
 HERE = os.path.dirname(os.path.abspath(__file__))
+sys.path.insert(0, HERE)
+from step2_paths import derived, workdir  # noqa: E402
 EV = os.path.abspath(os.path.join(HERE, ".."))
 AUDIT = os.path.abspath(os.path.join(HERE, "..", ".."))
 REPO = os.path.abspath(os.path.join(AUDIT, ".."))
 MIG = os.path.join(REPO, "supabase", "migrations")
-RAW = r"C:\Users\vikki\migration-evidence\e2jb-development"
-SCR = r"C:\Users\vikki\migration-evidence\step2-final-scratch"
-os.makedirs(SCR, exist_ok=True)
+SCR = workdir()  # intermediate files only
 EXCL = "Excluded from plan (proposed; owner confirmation pending)"
 REC, HIST, ATT, XSQL, WITH, WD, UNR = ("Already recorded", "Evidence-backed history-only reconciliation candidate", "Qualified owner-attestation candidate", "Actual SQL execution required",
                                       "Withheld for the October deployment gate", "Withdrawn", "Unresolved")
 rd = lambda p: list(csv.DictReader(open(os.path.join(EV, p), encoding="utf-8")))
 disp = {r["version"]: r for r in rd("e2k-final-development-disposition.csv")}
 proof = {r["version"]: r for r in rd("e2a-dev-proof.csv") if r["environment"].lower().startswith("dev")}
-live = set(open(os.path.join(RAW, "q01_2_versions.txt")).read().split())
+live = set(open(derived("dev-ledger-versions.txt")).read().split())
 withdrawn_dir = {f[:14]: f for f in os.listdir(os.path.join(EV, "withdrawn-migrations")) if f.endswith(".sql")}
 active = {f[:14]: f for f in os.listdir(MIG) if f.endswith(".sql")}
 
@@ -185,6 +185,6 @@ for v in plan:
         items.append({"version": v, "file": fn, "kind": "history-only", "basis": "REHEARSAL: " + basis_of(v)[:160]})
     elif c == ATT:
         items.append({"version": v, "file": fn, "kind": "attestation", "attested_by": "REHEARSAL-SYNTHETIC (no owner attestation exists)", "attested_at": "2026-10-17", "scope": "rehearsal of mechanics only", "not_proven": "historical execution"})
-json.dump(items, open(os.path.join(SCR, "dev-plan-items.json"), "w", encoding="utf-8"), indent=1)
-json.dump({"phase": {v: phase[v] for v in ALL}, "pred": pred, "plan": plan}, open(os.path.join(SCR, "dev-plan-graph.json"), "w", encoding="utf-8"))
+json.dump(items, open(os.path.join(SCR, "dev-plan-items.json"), "w", encoding="utf-8", newline="\n"), indent=1)
+json.dump({"phase": {v: phase[v] for v in ALL}, "pred": pred, "plan": plan}, open(os.path.join(SCR, "dev-plan-graph.json"), "w", encoding="utf-8", newline="\n"))
 print("rehearsal items", len(items), Counter(i["kind"] for i in items))

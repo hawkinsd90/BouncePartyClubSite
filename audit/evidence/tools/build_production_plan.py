@@ -15,13 +15,14 @@ from collections import Counter, defaultdict
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
 from rule_atoms import atom  # noqa: E402
+from step2_paths import derived, workdir  # noqa: E402
 
 EV = os.path.abspath(os.path.join(HERE, ".."))
 AUDIT = os.path.abspath(os.path.join(HERE, "..", ".."))
 REPO = os.path.abspath(os.path.join(AUDIT, ".."))
 MIG = os.path.join(REPO, "supabase", "migrations")
-SCR = r"C:\Users\vikki\migration-evidence\step2-final-scratch"
-E2A = r"C:\Users\vikki\migration-evidence\e2a-scratch\e2a-statements-all.csv"
+SCR = workdir()  # intermediate files only; nothing here is an input
+E2A = derived("e2a-statements-all.csv")
 rd = lambda p: list(csv.DictReader(open(os.path.join(EV, p), encoding="utf-8")))
 plan = {r["version"]: r for r in rd("e2c-proposed-execution-manifest.csv")}
 hist = {r["version"]: r for r in rd("prod-history-277.csv")}
@@ -58,7 +59,7 @@ def candidates():
             else:
                 lst.append({"atom": a, "pre": False, "post": True, "obj": f"{r['kind']}:{r['object']}"})
         out[v] = lst
-    json.dump(out, open(os.path.join(SCR, "prod-candidates.json"), "w", encoding="utf-8"))
+    json.dump(out, open(os.path.join(SCR, "prod-candidates.json"), "w", encoding="utf-8", newline="\n"))
     print("candidate atoms", sum(len(x) for x in out.values()), "items with atoms", sum(1 for x in out.values() if x))
 
 
@@ -88,7 +89,7 @@ RECOVERY_EXEC = ("Each file runs in ONE transaction with its ledger row: a failu
 
 
 def manifest():
-    val = json.load(open(os.path.join(SCR, "prod-validated.json"), encoding="utf-8")) if os.path.exists(os.path.join(SCR, "prod-validated.json")) else {}
+    val = json.load(open(derived("prod-validated.json"), encoding="utf-8"))
     cand = json.load(open(os.path.join(SCR, "prod-candidates.json"), encoding="utf-8"))
     rehearsal = json.load(open(os.path.join(EV, "production-plan-rehearsal-results.json"), encoding="utf-8")) if os.path.exists(os.path.join(EV, "production-plan-rehearsal-results.json")) else {}
     anon_inc = rehearsal.get("anon_increases", {})
@@ -162,7 +163,7 @@ def manifest():
         w = csv.DictWriter(f, fieldnames=list(rows[0].keys()), lineterminator="\n")
         w.writeheader()
         w.writerows(rows)
-    json.dump(rules, open(os.path.join(AUDIT, "production-verification-rules.json"), "w", encoding="utf-8"), indent=1)
+    json.dump(rules, open(os.path.join(AUDIT, "production-verification-rules.json"), "w", encoding="utf-8", newline="\n"), indent=1)
     print("rows", len(rows), dict(Counter(r["group"] for r in rows)), "rule status", dict(Counter(x["status"] for x in rules.values())))
 
 
