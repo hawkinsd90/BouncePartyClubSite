@@ -1,0 +1,1035 @@
+{
+ "derivation": "pending (repository - Production recorded) minus 40 baseline versions minus cases 41/42 = 44 Development-line + 23 October",
+ "counts": {
+  "repository": 386,
+  "production_recorded": 277,
+  "technically_pending": 109,
+  "reconciliation_only": 42,
+  "upgrade_sql": 67,
+  "development_line": 44,
+  "october": 23
+ },
+ "upgrade_manifest_sha256": "6bc153aea6d21f902fd8e4f23c3ccab337265b0e442163b2a6e80ddbdd2852e4",
+ "upgrade_versions_sha256": "dcebf35714e8bc422f246b94c8cb992bfe389d4c5875254b11b196d0fe73b2c1",
+ "reconciliation_only_versions": [
+  {
+   "version": "20251001051900",
+   "file": "20251001051900_000_create_user_roles.sql",
+   "kind": "baseline"
+  },
+  {
+   "version": "20251001051901",
+   "file": "20251001051901_001_create_core_schema.sql",
+   "kind": "baseline"
+  },
+  {
+   "version": "20251001052039",
+   "file": "20251001052039_002_seed_sample_units.sql",
+   "kind": "baseline"
+  },
+  {
+   "version": "20251001192425",
+   "file": "20251001192425_004_add_new_order_fields.sql",
+   "kind": "baseline"
+  },
+  {
+   "version": "20251002180149",
+   "file": "20251002180149_005_update_home_base_wayne_mi.sql",
+   "kind": "baseline"
+  },
+  {
+   "version": "20251002195907",
+   "file": "20251002195907_006_add_unit_inventory.sql",
+   "kind": "baseline"
+  },
+  {
+   "version": "20251002195922",
+   "file": "20251002195922_007_add_availability_check_function.sql",
+   "kind": "baseline"
+  },
+  {
+   "version": "20251002210020",
+   "file": "20251002210020_008_add_admin_settings.sql",
+   "kind": "baseline"
+  },
+  {
+   "version": "20251003111105",
+   "file": "20251003111105_009_add_sms_conversations.sql",
+   "kind": "baseline"
+  },
+  {
+   "version": "20251003122900",
+   "file": "20251003122900_010_add_contacts_and_invoices.sql",
+   "kind": "baseline"
+  },
+  {
+   "version": "20251003135541",
+   "file": "20251003135541_20251003200000_011_add_special_details.sql",
+   "kind": "baseline"
+  },
+  {
+   "version": "20251003142953",
+   "file": "20251003142953_20251003210000_012_add_pets_field.sql",
+   "kind": "baseline"
+  },
+  {
+   "version": "20251003152224",
+   "file": "20251003152224_20251003210000_013_add_twilio_credentials.sql",
+   "kind": "baseline"
+  },
+  {
+   "version": "20251003164124",
+   "file": "20251003164124_20251003220000_014_add_admin_check_function.sql",
+   "kind": "baseline"
+  },
+  {
+   "version": "20251003170350",
+   "file": "20251003170350_015_create_demo_admin_user.sql",
+   "kind": "baseline"
+  },
+  {
+   "version": "20251003182356",
+   "file": "20251003182356_016_add_sms_message_templates.sql",
+   "kind": "baseline"
+  },
+  {
+   "version": "20251003183947",
+   "file": "20251003183947_017_add_admin_email_setting.sql",
+   "kind": "baseline"
+  },
+  {
+   "version": "20251003200000",
+   "file": "20251003200000_011_add_special_details.sql",
+   "kind": "baseline"
+  },
+  {
+   "version": "20251003200318",
+   "file": "20251003200318_018_fix_infinite_recursion_in_admin_check.sql",
+   "kind": "baseline"
+  },
+  {
+   "version": "20251004233954",
+   "file": "20251004233954_20251004000000_019_add_sms_consent.sql",
+   "kind": "baseline"
+  },
+  {
+   "version": "20251006142419",
+   "file": "20251006142419_20251006000000_020_add_travel_fee_breakdown.sql",
+   "kind": "baseline"
+  },
+  {
+   "version": "20251006222941",
+   "file": "20251006222941_021_add_stripe_payments.sql",
+   "kind": "baseline"
+  },
+  {
+   "version": "20251007210840",
+   "file": "20251007210840_022_add_stripe_publishable_key.sql",
+   "kind": "baseline"
+  },
+  {
+   "version": "20251007214737",
+   "file": "20251007214737_023_update_availability_check_for_date_range.sql",
+   "kind": "baseline"
+  },
+  {
+   "version": "20251007215413",
+   "file": "20251007215413_024_fix_availability_check_nested_aggregate.sql",
+   "kind": "baseline"
+  },
+  {
+   "version": "20251007215603",
+   "file": "20251007215603_025_fix_availability_ambiguous_columns.sql",
+   "kind": "baseline"
+  },
+  {
+   "version": "20251007220415",
+   "file": "20251007220415_026_add_payment_pending_status.sql",
+   "kind": "baseline"
+  },
+  {
+   "version": "20251007221227",
+   "file": "20251007221227_027_update_order_status_to_draft.sql",
+   "kind": "baseline"
+  },
+  {
+   "version": "20251007221817",
+   "file": "20251007221817_028_add_deposit_required_flag.sql",
+   "kind": "baseline"
+  },
+  {
+   "version": "20251008132209",
+   "file": "20251008132209_029_add_stripe_payment_status_column.sql",
+   "kind": "baseline"
+  },
+  {
+   "version": "20251008141359",
+   "file": "20251008141359_030_add_anon_orders_policy.sql",
+   "kind": "baseline"
+  },
+  {
+   "version": "20251008144308",
+   "file": "20251008144308_031_add_admin_notification_template.sql",
+   "kind": "baseline"
+  },
+  {
+   "version": "20251008153245",
+   "file": "20251008153245_032_fix_contacts_bookings_counter.sql",
+   "kind": "baseline"
+  },
+  {
+   "version": "20251008153325",
+   "file": "20251008153325_033_add_order_workflow_and_features.sql",
+   "kind": "baseline"
+  },
+  {
+   "version": "20251008155607",
+   "file": "20251008155607_034_add_order_changelog.sql",
+   "kind": "baseline"
+  },
+  {
+   "version": "20251008170619",
+   "file": "20251008170619_035_add_void_status.sql",
+   "kind": "baseline"
+  },
+  {
+   "version": "20251008180000",
+   "file": "20251008180000_036_add_order_discounts.sql",
+   "kind": "baseline"
+  },
+  {
+   "version": "20251008190000",
+   "file": "20251008190000_037_setup_unit_images_storage.sql",
+   "kind": "baseline"
+  },
+  {
+   "version": "20251008202716",
+   "file": "20251008202716_038_add_wet_mode_images_and_dimensions.sql",
+   "kind": "baseline"
+  },
+  {
+   "version": "20251019141249",
+   "file": "20251019141249_add_tip_support.sql",
+   "kind": "baseline"
+  },
+  {
+   "version": "20260305203528",
+   "file": "20260305203528_add_customer_payment_amount.sql",
+   "kind": "case 41/42 related version"
+  },
+  {
+   "version": "20260407203226",
+   "file": "20260407203226_add_refund_requested_to_orders.sql",
+   "kind": "case 41/42 related version"
+  }
+ ],
+ "excluded_notes": "277 Production-recorded versions and withdrawn Case 43 are not part of the SQL set",
+ "upgrade": [
+  {
+   "order": 1,
+   "version": "20260715214053",
+   "file": "20260715214053_add_customer_view_updated_at.sql",
+   "group": "development-line",
+   "sha256": "5bd583d3f11d8322c228f23e4a5385cac0ad4a910220f7fe46b50c562525936b",
+   "stage_b_prod_class": "GENUINELY_PENDING_EXPECTED",
+   "data_stmts_ins_upd_del_trunc": "ins0/upd0/del0/trunc0",
+   "grant_revoke_stmts": "0",
+   "dynamic_sql": "0",
+   "precedes_production_latest_recorded": true
+  },
+  {
+   "order": 2,
+   "version": "20260715221828",
+   "file": "20260715221828_add_anon_insert_portal_shortlink_policy.sql",
+   "group": "development-line",
+   "sha256": "45b13872fd3d8e211fefba97e5e00e348ac83ee5b495a3b499fc83b8a9cc6a14",
+   "stage_b_prod_class": "PENDING_NET_ZERO_CHAIN",
+   "data_stmts_ins_upd_del_trunc": "ins0/upd0/del0/trunc0",
+   "grant_revoke_stmts": "0",
+   "dynamic_sql": "0",
+   "precedes_production_latest_recorded": true
+  },
+  {
+   "order": 3,
+   "version": "20260716104333",
+   "file": "20260716104333_remove_anon_portal_shortlink_insert.sql",
+   "group": "development-line",
+   "sha256": "25e7594951def591fcf25b703bc59b8a0005624337160edfbed46d2a3159b154",
+   "stage_b_prod_class": "PENDING_DATA_OR_PRIVILEGE_ONLY",
+   "data_stmts_ins_upd_del_trunc": "ins0/upd0/del0/trunc0",
+   "grant_revoke_stmts": "0",
+   "dynamic_sql": "0",
+   "precedes_production_latest_recorded": true
+  },
+  {
+   "order": 4,
+   "version": "20260716151458",
+   "file": "20260716151458_add_tables_chairs_inventory_schema.sql",
+   "group": "development-line",
+   "sha256": "d44720c7c045344041c7c654394033f38041eb187aefe204b84c37c6a02b6214",
+   "stage_b_prod_class": "GENUINELY_PENDING_EXPECTED",
+   "data_stmts_ins_upd_del_trunc": "ins0/upd0/del0/trunc0",
+   "grant_revoke_stmts": "0",
+   "dynamic_sql": "0",
+   "precedes_production_latest_recorded": true
+  },
+  {
+   "order": 5,
+   "version": "20260716151530",
+   "file": "20260716151530_add_check_product_availability_rpc.sql",
+   "group": "development-line",
+   "sha256": "4562c1495b47fc1437f0a39e45f388cbd9dd8213733f11379ad8ff748f9b76a6",
+   "stage_b_prod_class": "PENDING_NET_ZERO_CHAIN",
+   "data_stmts_ins_upd_del_trunc": "ins0/upd0/del0/trunc0",
+   "grant_revoke_stmts": "2",
+   "dynamic_sql": "0",
+   "precedes_production_latest_recorded": true
+  },
+  {
+   "order": 6,
+   "version": "20260716151549",
+   "file": "20260716151549_seed_tables_chairs_data.sql",
+   "group": "development-line",
+   "sha256": "49936db3f749169849195ff6cd700ff0b2500a723fc271a19f00021c338e21b7",
+   "stage_b_prod_class": "PENDING_DATA_OR_PRIVILEGE_ONLY",
+   "data_stmts_ins_upd_del_trunc": "ins3/upd0/del0/trunc0",
+   "grant_revoke_stmts": "0",
+   "dynamic_sql": "0",
+   "precedes_production_latest_recorded": true
+  },
+  {
+   "order": 7,
+   "version": "20260716152447",
+   "file": "20260716152447_fix_check_product_availability_cte_ambiguity.sql",
+   "group": "development-line",
+   "sha256": "656ff24e5a79399a79191c803583c1c017e4e514d3735dcfeedba4602e41829b",
+   "stage_b_prod_class": "PENDING_NET_ZERO_CHAIN",
+   "data_stmts_ins_upd_del_trunc": "ins0/upd0/del0/trunc0",
+   "grant_revoke_stmts": "2",
+   "dynamic_sql": "0",
+   "precedes_production_latest_recorded": true
+  },
+  {
+   "order": 8,
+   "version": "20260716152823",
+   "file": "20260716152823_grant_table_privileges_tc_tables.sql",
+   "group": "development-line",
+   "sha256": "238bf70504faac37937d5085798a96a7f8a00aa1cf31ce5bd1b9e40fb9ead299",
+   "stage_b_prod_class": "PENDING_DATA_OR_PRIVILEGE_ONLY",
+   "data_stmts_ins_upd_del_trunc": "ins0/upd0/del0/trunc0",
+   "grant_revoke_stmts": "8",
+   "dynamic_sql": "0",
+   "precedes_production_latest_recorded": true
+  },
+  {
+   "order": 9,
+   "version": "20260716173638",
+   "file": "20260716173638_seed_event_essentials_settings.sql",
+   "group": "development-line",
+   "sha256": "bc1c585d5255aee1cf7734b8a2c54bee37c4601c6fc63d2dc03b096146676bf7",
+   "stage_b_prod_class": "PENDING_DATA_OR_PRIVILEGE_ONLY",
+   "data_stmts_ins_upd_del_trunc": "ins1/upd0/del0/trunc0",
+   "grant_revoke_stmts": "0",
+   "dynamic_sql": "0",
+   "precedes_production_latest_recorded": true
+  },
+  {
+   "order": 10,
+   "version": "20260716173644",
+   "file": "20260716173644_extend_public_business_settings_for_event_essentials.sql",
+   "group": "development-line",
+   "sha256": "69d02b85086490185d4d56f490614f0ea4a7d176b430f8617f8c186fd31e7028",
+   "stage_b_prod_class": "PENDING_NET_ZERO_CHAIN",
+   "data_stmts_ins_upd_del_trunc": "ins0/upd0/del0/trunc0",
+   "grant_revoke_stmts": "3",
+   "dynamic_sql": "0",
+   "precedes_production_latest_recorded": true
+  },
+  {
+   "order": 11,
+   "version": "20260716231809",
+   "file": "20260716231809_add_product_categories_and_pricing.sql",
+   "group": "development-line",
+   "sha256": "a93fb0b56e94ffde0e53ebd38be9b14d28bedcee6f55acef8f802ee6570ff5a4",
+   "stage_b_prod_class": "GENUINELY_PENDING_EXPECTED",
+   "data_stmts_ins_upd_del_trunc": "ins1/upd5/del0/trunc0",
+   "grant_revoke_stmts": "0",
+   "dynamic_sql": "0",
+   "precedes_production_latest_recorded": true
+  },
+  {
+   "order": 12,
+   "version": "20260716231832",
+   "file": "20260716231832_fix_check_product_availability_visibility.sql",
+   "group": "development-line",
+   "sha256": "00a89953f544ae760e9dbbd384a8f06f6d3bb7c0e53cb6eb1f3b316713728fb7",
+   "stage_b_prod_class": "GENUINELY_PENDING_EXPECTED",
+   "data_stmts_ins_upd_del_trunc": "ins0/upd0/del0/trunc0",
+   "grant_revoke_stmts": "0",
+   "dynamic_sql": "0",
+   "precedes_production_latest_recorded": true
+  },
+  {
+   "order": 13,
+   "version": "20260717012112",
+   "file": "20260717012112_fix_product_categories_role_grants.sql",
+   "group": "development-line",
+   "sha256": "b644627785301a2718715f40731177ba99611509e3f196d1f7fb4f51ab27b9b3",
+   "stage_b_prod_class": "PENDING_DATA_OR_PRIVILEGE_ONLY",
+   "data_stmts_ins_upd_del_trunc": "ins0/upd0/del0/trunc0",
+   "grant_revoke_stmts": "5",
+   "dynamic_sql": "0",
+   "precedes_production_latest_recorded": true
+  },
+  {
+   "order": 14,
+   "version": "20260717110808",
+   "file": "20260717110808_fix_event_essentials_triggers_and_grants.sql",
+   "group": "development-line",
+   "sha256": "908882073afd074218f7610394d0065f254ffd77557a51d24b9db5889ee6463c",
+   "stage_b_prod_class": "GENUINELY_PENDING_EXPECTED",
+   "data_stmts_ins_upd_del_trunc": "ins0/upd0/del0/trunc0",
+   "grant_revoke_stmts": "5",
+   "dynamic_sql": "0",
+   "precedes_production_latest_recorded": true
+  },
+  {
+   "order": 15,
+   "version": "20260717110829",
+   "file": "20260717110829_create_event_essentials_media_bucket.sql",
+   "group": "development-line",
+   "sha256": "ad87b2720743b6f99ce2b001f890938f964f7ef01b0067ca152e98a4436e6e56",
+   "stage_b_prod_class": "GENUINELY_PENDING_EXPECTED",
+   "data_stmts_ins_upd_del_trunc": "ins1/upd0/del0/trunc0",
+   "grant_revoke_stmts": "0",
+   "dynamic_sql": "0",
+   "precedes_production_latest_recorded": true
+  },
+  {
+   "order": 16,
+   "version": "20260717111014",
+   "file": "20260717111014_add_event_essentials_transactional_rpcs.sql",
+   "group": "development-line",
+   "sha256": "3ac3ac980096c76fa06488d959d14395c8d396586f64e06b3001c57066834af1",
+   "stage_b_prod_class": "GENUINELY_PENDING_EXPECTED",
+   "data_stmts_ins_upd_del_trunc": "ins0/upd0/del0/trunc0",
+   "grant_revoke_stmts": "8",
+   "dynamic_sql": "0",
+   "precedes_production_latest_recorded": true
+  },
+  {
+   "order": 17,
+   "version": "20260717111737",
+   "file": "20260717111737_fix_reorder_categories_ambiguous_column.sql",
+   "group": "development-line",
+   "sha256": "636f42de6e249c6a9f061c618ec98e217fd989fd4610acfbda9e767a0fe2c18b",
+   "stage_b_prod_class": "PENDING_NET_ZERO_CHAIN",
+   "data_stmts_ins_upd_del_trunc": "ins0/upd0/del0/trunc0",
+   "grant_revoke_stmts": "2",
+   "dynamic_sql": "0",
+   "precedes_production_latest_recorded": true
+  },
+  {
+   "order": 18,
+   "version": "20260717111803",
+   "file": "20260717111803_fix_reorder_categories_ambiguous_v2.sql",
+   "group": "development-line",
+   "sha256": "dae9d8e2c557ae69a63275c60d344f993783d719c3d4443c8ad03fd8842ae9cf",
+   "stage_b_prod_class": "GENUINELY_PENDING_EXPECTED",
+   "data_stmts_ins_upd_del_trunc": "ins0/upd0/del0/trunc0",
+   "grant_revoke_stmts": "2",
+   "dynamic_sql": "0",
+   "precedes_production_latest_recorded": true
+  },
+  {
+   "order": 19,
+   "version": "20260717113131",
+   "file": "20260717113131_fix_save_product_bundle_quantity_and_missing_product.sql",
+   "group": "development-line",
+   "sha256": "78444067eecb01404346fd551b626a91be0a3aaf378ed8476ec4cfb84bd5d7d7",
+   "stage_b_prod_class": "PENDING_NET_ZERO_CHAIN",
+   "data_stmts_ins_upd_del_trunc": "ins0/upd0/del0/trunc0",
+   "grant_revoke_stmts": "2",
+   "dynamic_sql": "0",
+   "precedes_production_latest_recorded": true
+  },
+  {
+   "order": 20,
+   "version": "20260717115647",
+   "file": "20260717115647_fix_save_product_bundle_integer_overflow.sql",
+   "group": "development-line",
+   "sha256": "e9ccf0f8a2d76bc4266f6e65ee93400be7c35286aafd08e92743df7c5e22dd3a",
+   "stage_b_prod_class": "GENUINELY_PENDING_EXPECTED",
+   "data_stmts_ins_upd_del_trunc": "ins0/upd0/del0/trunc0",
+   "grant_revoke_stmts": "2",
+   "dynamic_sql": "0",
+   "precedes_production_latest_recorded": true
+  },
+  {
+   "order": 21,
+   "version": "20260718000744",
+   "file": "20260718000744_stage_b_pricing_eligibility_schema.sql",
+   "group": "development-line",
+   "sha256": "eec2333e770fce0b0dda108212236eb3e413e4806beda15541d7323cb6b28ac6",
+   "stage_b_prod_class": "GENUINELY_PENDING_EXPECTED",
+   "data_stmts_ins_upd_del_trunc": "ins0/upd0/del0/trunc0",
+   "grant_revoke_stmts": "6",
+   "dynamic_sql": "0",
+   "precedes_production_latest_recorded": true
+  },
+  {
+   "order": 22,
+   "version": "20260718000923",
+   "file": "20260718000923_stage_b_v2_rpcs.sql",
+   "group": "development-line",
+   "sha256": "222cae41dcd4e9161ce5f5cc00935ae2190c02b55d3f0ff6cb78d6062f46b6a3",
+   "stage_b_prod_class": "GENUINELY_PENDING_EXPECTED",
+   "data_stmts_ins_upd_del_trunc": "ins0/upd0/del0/trunc0",
+   "grant_revoke_stmts": "2",
+   "dynamic_sql": "0",
+   "precedes_production_latest_recorded": true
+  },
+  {
+   "order": 23,
+   "version": "20260721164853",
+   "file": "20260721164853_add_event_essentials_order_support.sql",
+   "group": "development-line",
+   "sha256": "972d4b3d0c1f35e584e9f4b69421efc951f12107f3efbe4d8f56f6c609f262f2",
+   "stage_b_prod_class": "GENUINELY_PENDING_EXPECTED",
+   "data_stmts_ins_upd_del_trunc": "ins0/upd0/del0/trunc0",
+   "grant_revoke_stmts": "0",
+   "dynamic_sql": "0",
+   "precedes_production_latest_recorded": true
+  },
+  {
+   "order": 24,
+   "version": "20260722102129",
+   "file": "20260722102129_add_ee_only_deposit_settings.sql",
+   "group": "development-line",
+   "sha256": "66a8e35431ef4e8c00db5872bd1d4c0460500c7e8db06859b32e67204b4d0d7a",
+   "stage_b_prod_class": "GENUINELY_PENDING_EXPECTED",
+   "data_stmts_ins_upd_del_trunc": "ins0/upd1/del0/trunc0",
+   "grant_revoke_stmts": "0",
+   "dynamic_sql": "0",
+   "precedes_production_latest_recorded": true
+  },
+  {
+   "order": 25,
+   "version": "20260722172048",
+   "file": "20260722172048_allow_null_surface_for_ee_only_orders.sql",
+   "group": "development-line",
+   "sha256": "2d3cf03c69ea10a877bcb94acf7ca9b59c7448a3e69709c396e71c147f41a09b",
+   "stage_b_prod_class": "PENDING_REDEFINITION_DEFINITION_UNVERIFIED",
+   "data_stmts_ins_upd_del_trunc": "ins0/upd0/del0/trunc0",
+   "grant_revoke_stmts": "0",
+   "dynamic_sql": "0",
+   "precedes_production_latest_recorded": true
+  },
+  {
+   "order": 26,
+   "version": "20260722211023",
+   "file": "20260722211023_create_portal_short_link_rpc.sql",
+   "group": "development-line",
+   "sha256": "feb0ff6311426af2c3ce2149d414e7d15102af465db8abf68d5de2e67163d7e6",
+   "stage_b_prod_class": "GENUINELY_PENDING_EXPECTED",
+   "data_stmts_ins_upd_del_trunc": "ins0/upd0/del0/trunc0",
+   "grant_revoke_stmts": "1",
+   "dynamic_sql": "0",
+   "precedes_production_latest_recorded": true
+  },
+  {
+   "order": 27,
+   "version": "20260722212750",
+   "file": "20260722212750_create_order_portal_links.sql",
+   "group": "development-line",
+   "sha256": "69cba90cfe6d9e97659e557fe8c9bef160b4234fefdfd804ebb9306c8d5c121b",
+   "stage_b_prod_class": "GENUINELY_PENDING_EXPECTED",
+   "data_stmts_ins_upd_del_trunc": "ins0/upd0/del0/trunc0",
+   "grant_revoke_stmts": "3",
+   "dynamic_sql": "0",
+   "precedes_production_latest_recorded": true
+  },
+  {
+   "order": 28,
+   "version": "20260722215732",
+   "file": "20260722215732_correct_order_portal_links_security.sql",
+   "group": "development-line",
+   "sha256": "a3e9207452fb55429750de4b9f2e5a6c3968d6d27797305b791704b935df8f6f",
+   "stage_b_prod_class": "GENUINELY_PENDING_EXPECTED",
+   "data_stmts_ins_upd_del_trunc": "ins0/upd0/del0/trunc0",
+   "grant_revoke_stmts": "4",
+   "dynamic_sql": "0",
+   "precedes_production_latest_recorded": true
+  },
+  {
+   "order": 29,
+   "version": "20260722230121",
+   "file": "20260722230121_harden_create_order_short_link.sql",
+   "group": "development-line",
+   "sha256": "29e3dbeb95ea49690d8fec98ae43d9365ef631f85a8c6ea66825b811b8ea055a",
+   "stage_b_prod_class": "PENDING_NET_ZERO_CHAIN",
+   "data_stmts_ins_upd_del_trunc": "ins0/upd0/del0/trunc0",
+   "grant_revoke_stmts": "2",
+   "dynamic_sql": "0",
+   "precedes_production_latest_recorded": true
+  },
+  {
+   "order": 30,
+   "version": "20260723174017",
+   "file": "20260723174017_restore_lot_pictures_storage_policies.sql",
+   "group": "development-line",
+   "sha256": "df71ba4db2a816fc4b7aa84b492a29e93fb9c5656f8f9918ccc8ca03a6066ae4",
+   "stage_b_prod_class": "GENUINELY_PENDING_EXPECTED",
+   "data_stmts_ins_upd_del_trunc": "ins0/upd0/del0/trunc0",
+   "grant_revoke_stmts": "0",
+   "dynamic_sql": "0",
+   "precedes_production_latest_recorded": true
+  },
+  {
+   "order": 31,
+   "version": "20260723210301",
+   "file": "20260723210301_fix_notification_channel_and_portal_link_policies.sql",
+   "group": "development-line",
+   "sha256": "734c58d8c2ef45062826f16cb024c18ba9d7a5e50ec0652c8751e17e34dbe37c",
+   "stage_b_prod_class": "GENUINELY_PENDING_EXPECTED",
+   "data_stmts_ins_upd_del_trunc": "ins0/upd0/del0/trunc0",
+   "grant_revoke_stmts": "0",
+   "dynamic_sql": "0",
+   "precedes_production_latest_recorded": true
+  },
+  {
+   "order": 32,
+   "version": "20260723210953",
+   "file": "20260723210953_fix_short_link_search_path_and_notification_message_type.sql",
+   "group": "development-line",
+   "sha256": "91a5b45e9b6245409a56b55a925446a94eccf12be6cdfc71a87d3835edbc741b",
+   "stage_b_prod_class": "GENUINELY_PENDING_EXPECTED",
+   "data_stmts_ins_upd_del_trunc": "ins0/upd0/del0/trunc0",
+   "grant_revoke_stmts": "0",
+   "dynamic_sql": "0",
+   "precedes_production_latest_recorded": true
+  },
+  {
+   "order": 33,
+   "version": "20260814113146",
+   "file": "20260814113146_grant_contact_inquiries_service_role.sql",
+   "group": "development-line",
+   "sha256": "d29a3ab27d6db3a055e80c43fb51ded679a457fc37090b0a2a84e0363839731a",
+   "stage_b_prod_class": "PENDING_DATA_OR_PRIVILEGE_ONLY",
+   "data_stmts_ins_upd_del_trunc": "ins0/upd0/del0/trunc0",
+   "grant_revoke_stmts": "0",
+   "dynamic_sql": "0",
+   "precedes_production_latest_recorded": true
+  },
+  {
+   "order": 34,
+   "version": "20260814114825",
+   "file": "20260814114825_upgrade_contact_inquiries_for_invoices.sql",
+   "group": "development-line",
+   "sha256": "0b75a49b007b5ac467ff27f9c9d609eec82111bfd5cefd741655e51700968b79",
+   "stage_b_prod_class": "GENUINELY_PENDING_EXPECTED",
+   "data_stmts_ins_upd_del_trunc": "ins0/upd0/del0/trunc0",
+   "grant_revoke_stmts": "1",
+   "dynamic_sql": "0",
+   "precedes_production_latest_recorded": true
+  },
+  {
+   "order": 35,
+   "version": "20260814120000",
+   "file": "20260814120000_create_contact_inquiries.sql",
+   "group": "development-line",
+   "sha256": "9ef0fe6e6f484c3a706f6beb8ab2f6c987d5bc0be8a0b04d6602f1f900ce4cd0",
+   "stage_b_prod_class": "GENUINELY_PENDING_EXPECTED",
+   "data_stmts_ins_upd_del_trunc": "ins0/upd0/del0/trunc0",
+   "grant_revoke_stmts": "0",
+   "dynamic_sql": "0",
+   "precedes_production_latest_recorded": true
+  },
+  {
+   "order": 36,
+   "version": "20260814120100",
+   "file": "20260814120100_ensure_contact_inquiries_invoice_fields.sql",
+   "group": "development-line",
+   "sha256": "c8699f8c47a0967c5cc1e25574af24320b647796008c2eaf1fa43c0f590ccfde",
+   "stage_b_prod_class": "GENUINELY_PENDING_EXPECTED",
+   "data_stmts_ins_upd_del_trunc": "ins0/upd0/del0/trunc0",
+   "grant_revoke_stmts": "1",
+   "dynamic_sql": "0",
+   "precedes_production_latest_recorded": true
+  },
+  {
+   "order": 37,
+   "version": "20260820165646",
+   "file": "20260820165646_add_how_did_you_hear_enabled_setting.sql",
+   "group": "development-line",
+   "sha256": "51a818b229c8c983fb9615f282abc9e1d8025ec2a4e9d4f0c5d4838edf3238de",
+   "stage_b_prod_class": "GENUINELY_PENDING_EXPECTED",
+   "data_stmts_ins_upd_del_trunc": "ins0/upd0/del0/trunc0",
+   "grant_revoke_stmts": "3",
+   "dynamic_sql": "0",
+   "precedes_production_latest_recorded": true
+  },
+  {
+   "order": 38,
+   "version": "20260925151621",
+   "file": "20260925151621_add_setup_fee_cents_to_orders.sql",
+   "group": "development-line",
+   "sha256": "0783da2c729be1d31102ae2e2ec445a0b4a212ff3d4a15adcb1d5ed8c91bde5e",
+   "stage_b_prod_class": "GENUINELY_PENDING_EXPECTED",
+   "data_stmts_ins_upd_del_trunc": "ins0/upd0/del0/trunc0",
+   "grant_revoke_stmts": "0",
+   "dynamic_sql": "0",
+   "precedes_production_latest_recorded": true
+  },
+  {
+   "order": 39,
+   "version": "20260925171210",
+   "file": "20260925171210_add_event_essentials_setup_minimum_cents.sql",
+   "group": "development-line",
+   "sha256": "b4ba69a66a7c9ad4db23c5b00365823f80c27bd78bd534cfb99f7834f771ef4a",
+   "stage_b_prod_class": "GENUINELY_PENDING_EXPECTED",
+   "data_stmts_ins_upd_del_trunc": "ins0/upd0/del0/trunc0",
+   "grant_revoke_stmts": "0",
+   "dynamic_sql": "0",
+   "precedes_production_latest_recorded": true
+  },
+  {
+   "order": 40,
+   "version": "20260929145842",
+   "file": "20260929145842_add_public_menu_groups.sql",
+   "group": "development-line",
+   "sha256": "c5d34099bd406e8aee8f41a8f2b469acf6b5ec9adc9ba71f3173536e79f669e1",
+   "stage_b_prod_class": "GENUINELY_PENDING_EXPECTED",
+   "data_stmts_ins_upd_del_trunc": "ins0/upd0/del0/trunc0",
+   "grant_revoke_stmts": "3",
+   "dynamic_sql": "0",
+   "precedes_production_latest_recorded": false
+  },
+  {
+   "order": 41,
+   "version": "20260929151836",
+   "file": "20260929151836_correct_menu_groups_security_and_atomicity.sql",
+   "group": "development-line",
+   "sha256": "34354fa40db5b66e51263e52d1eef7bbe113a31e22bdc20cb33d33c042a158e3",
+   "stage_b_prod_class": "PENDING_NET_ZERO_CHAIN",
+   "data_stmts_ins_upd_del_trunc": "ins0/upd0/del0/trunc0",
+   "grant_revoke_stmts": "4",
+   "dynamic_sql": "0",
+   "precedes_production_latest_recorded": false
+  },
+  {
+   "order": 42,
+   "version": "20260929152006",
+   "file": "20260929152006_fix_menu_groups_atomic_associations.sql",
+   "group": "development-line",
+   "sha256": "6ccb32bb0bef78676187d63b86c4a140b26b0a8bfaf2405696f718cc06ab9958",
+   "stage_b_prod_class": "GENUINELY_PENDING_EXPECTED",
+   "data_stmts_ins_upd_del_trunc": "ins0/upd0/del0/trunc0",
+   "grant_revoke_stmts": "0",
+   "dynamic_sql": "0",
+   "precedes_production_latest_recorded": false
+  },
+  {
+   "order": 43,
+   "version": "20260929161218",
+   "file": "20260929161218_grant_menu_groups_authenticated_access.sql",
+   "group": "development-line",
+   "sha256": "f07376181e1d7ffd71d245b58d4a435702faa03daee205ce64f50456526ceab5",
+   "stage_b_prod_class": "PENDING_DATA_OR_PRIVILEGE_ONLY",
+   "data_stmts_ins_upd_del_trunc": "ins0/upd0/del0/trunc0",
+   "grant_revoke_stmts": "2",
+   "dynamic_sql": "0",
+   "precedes_production_latest_recorded": false
+  },
+  {
+   "order": 44,
+   "version": "20260929161925",
+   "file": "20260929161925_fix_menu_groups_lowercase_role_policies.sql",
+   "group": "development-line",
+   "sha256": "9c70580933be529b55915972c2aa4dfb223f15ad2d7432a1f72ce16a50cf9338",
+   "stage_b_prod_class": "GENUINELY_PENDING_EXPECTED",
+   "data_stmts_ins_upd_del_trunc": "ins0/upd0/del0/trunc0",
+   "grant_revoke_stmts": "0",
+   "dynamic_sql": "0",
+   "precedes_production_latest_recorded": false
+  },
+  {
+   "order": 45,
+   "version": "20261007120000",
+   "file": "20261007120000_harden_payment_rpc_authorization.sql",
+   "group": "october",
+   "sha256": "70cc32988bdabd5dc04af40a0bc7ef1d81e8ba6df3ab6de7ab9bcbb40d9cf71e",
+   "stage_b_prod_class": "PENDING_EXPECTED",
+   "data_stmts_ins_upd_del_trunc": "ins0/upd0/del0/trunc0",
+   "grant_revoke_stmts": "16",
+   "dynamic_sql": "1",
+   "precedes_production_latest_recorded": false
+  },
+  {
+   "order": 46,
+   "version": "20261008120000",
+   "file": "20261008120000_restrict_role_and_admin_rpc_exposure.sql",
+   "group": "october",
+   "sha256": "ebd3f4b40a07d6064b44851f425fb0717276512df64dc7ae8f30a42b93e14a48",
+   "stage_b_prod_class": "PENDING_EXPECTED",
+   "data_stmts_ins_upd_del_trunc": "ins0/upd0/del0/trunc0",
+   "grant_revoke_stmts": "13",
+   "dynamic_sql": "0",
+   "precedes_production_latest_recorded": false
+  },
+  {
+   "order": 47,
+   "version": "20261009120000",
+   "file": "20261009120000_secure_customer_portal_links.sql",
+   "group": "october",
+   "sha256": "f4d47993ede3b92b2c51f1471b04b48303110c02a2ef8fd68d61874b802ec8ac",
+   "stage_b_prod_class": "PENDING_EXPECTED",
+   "data_stmts_ins_upd_del_trunc": "ins0/upd0/del0/trunc0",
+   "grant_revoke_stmts": "2",
+   "dynamic_sql": "0",
+   "precedes_production_latest_recorded": false
+  },
+  {
+   "order": 48,
+   "version": "20261010110000",
+   "file": "20261010110000_add_customer_approval_timestamp.sql",
+   "group": "october",
+   "sha256": "b977c47fc8cccea9b7cd3c61da69a6b6e172386189a4f58e6d32b52053033ce6",
+   "stage_b_prod_class": "PENDING_NO_NEW_EFFECT_ALREADY_PRESENT",
+   "data_stmts_ins_upd_del_trunc": "ins0/upd0/del0/trunc0",
+   "grant_revoke_stmts": "0",
+   "dynamic_sql": "0",
+   "precedes_production_latest_recorded": false
+  },
+  {
+   "order": 49,
+   "version": "20261010120000",
+   "file": "20261010120000_secure_public_booking_creation.sql",
+   "group": "october",
+   "sha256": "a75b9d371585201ba000d5580a1182686998f669295f96105bd6e0fdef4f521e",
+   "stage_b_prod_class": "PENDING_EXPECTED",
+   "data_stmts_ins_upd_del_trunc": "ins0/upd0/del0/trunc0",
+   "grant_revoke_stmts": "12",
+   "dynamic_sql": "0",
+   "precedes_production_latest_recorded": false
+  },
+  {
+   "order": 50,
+   "version": "20261011120000",
+   "file": "20261011120000_order_event_address_line2.sql",
+   "group": "october",
+   "sha256": "4b91107decbed00a6169d8ad051479e0874ee033524003bdbe1c8333dbcb7e29",
+   "stage_b_prod_class": "PENDING_EXPECTED",
+   "data_stmts_ins_upd_del_trunc": "ins0/upd0/del0/trunc0",
+   "grant_revoke_stmts": "4",
+   "dynamic_sql": "0",
+   "precedes_production_latest_recorded": false
+  },
+  {
+   "order": 51,
+   "version": "20261012120000",
+   "file": "20261012120000_core_database_access_lockdown.sql",
+   "group": "october",
+   "sha256": "d00654ed27a25d004578859916077161c6447f9dee6440112a8fba6b0ea830dc",
+   "stage_b_prod_class": "PENDING_EXPECTED",
+   "data_stmts_ins_upd_del_trunc": "ins0/upd0/del0/trunc0",
+   "grant_revoke_stmts": "12",
+   "dynamic_sql": "1",
+   "precedes_production_latest_recorded": false
+  },
+  {
+   "order": 52,
+   "version": "20261013120000",
+   "file": "20261013120000_restrict_remaining_public_database_access.sql",
+   "group": "october",
+   "sha256": "a68824b6076ced053b78bdf209f12fe79912d5403b3354b24e5091d2cc9aaff7",
+   "stage_b_prod_class": "PENDING_EXPECTED",
+   "data_stmts_ins_upd_del_trunc": "ins0/upd0/del0/trunc0",
+   "grant_revoke_stmts": "4",
+   "dynamic_sql": "1",
+   "precedes_production_latest_recorded": false
+  },
+  {
+   "order": 53,
+   "version": "20261014120000",
+   "file": "20261014120000_protect_waiver_media_and_restrict_storage_access.sql",
+   "group": "october",
+   "sha256": "facabbd7b410ebd9d1a4372c5284bf6f4bd814c38c849a11daf7735b7979331f",
+   "stage_b_prod_class": "PENDING_EXPECTED",
+   "data_stmts_ins_upd_del_trunc": "ins0/upd1/del0/trunc0",
+   "grant_revoke_stmts": "0",
+   "dynamic_sql": "1",
+   "precedes_production_latest_recorded": false
+  },
+  {
+   "order": 54,
+   "version": "20261015120000",
+   "file": "20261015120000_protect_customer_order_photos.sql",
+   "group": "october",
+   "sha256": "e5b0f8c2c69022733865a197a1268178713d95802b1f45b3fecfaefa1f54731a",
+   "stage_b_prod_class": "PENDING_EXPECTED",
+   "data_stmts_ins_upd_del_trunc": "ins0/upd1/del0/trunc0",
+   "grant_revoke_stmts": "0",
+   "dynamic_sql": "1",
+   "precedes_production_latest_recorded": false
+  },
+  {
+   "order": 55,
+   "version": "20261015123000",
+   "file": "20261015123000_create_private_order_evidence_storage.sql",
+   "group": "october",
+   "sha256": "a3dab68ccdfde5d3dfd01bdd916882b7bdce004404392e7d80192ba401569f0b",
+   "stage_b_prod_class": "PENDING_EXPECTED",
+   "data_stmts_ins_upd_del_trunc": "ins1/upd0/del0/trunc0",
+   "grant_revoke_stmts": "0",
+   "dynamic_sql": "1",
+   "precedes_production_latest_recorded": false
+  },
+  {
+   "order": 56,
+   "version": "20261016120000",
+   "file": "20261016120000_repair_role_assignment_and_signup_provisioning.sql",
+   "group": "october",
+   "sha256": "2ca02e10dfa040575798c71ef30bf605f6a7ad8b54918928e99a41f7deb6970b",
+   "stage_b_prod_class": "PENDING_EXPECTED",
+   "data_stmts_ins_upd_del_trunc": "ins0/upd1/del1/trunc0",
+   "grant_revoke_stmts": "4",
+   "dynamic_sql": "1",
+   "precedes_production_latest_recorded": false
+  },
+  {
+   "order": 57,
+   "version": "20261017120000",
+   "file": "20261017120000_add_booking_confirmation_claim.sql",
+   "group": "october",
+   "sha256": "10ca659f79b57d15dbfebac32ef9716eb2d427f8ba9bdf32d5a303764bbaf22a",
+   "stage_b_prod_class": "PENDING_EXPECTED",
+   "data_stmts_ins_upd_del_trunc": "ins0/upd0/del0/trunc0",
+   "grant_revoke_stmts": "6",
+   "dynamic_sql": "0",
+   "precedes_production_latest_recorded": false
+  },
+  {
+   "order": 58,
+   "version": "20261018120000",
+   "file": "20261018120000_restrict_future_database_privileges.sql",
+   "group": "october",
+   "sha256": "c84e5881f3a814daf13160a6c5da9121534f28fcfe095cdc9b0e0e5332a8b1cc",
+   "stage_b_prod_class": "PENDING_DATA_OR_PRIVILEGE_ONLY",
+   "data_stmts_ins_upd_del_trunc": "ins0/upd0/del0/trunc0",
+   "grant_revoke_stmts": "0",
+   "dynamic_sql": "1",
+   "precedes_production_latest_recorded": false
+  },
+  {
+   "order": 59,
+   "version": "20261018120100",
+   "file": "20261018120100_secure_site_event_ingestion.sql",
+   "group": "october",
+   "sha256": "3405852cb4b24c62e102821c3fd23357c939975d27acb4c369a075f3c8e24abe",
+   "stage_b_prod_class": "PENDING_DATA_OR_PRIVILEGE_ONLY",
+   "data_stmts_ins_upd_del_trunc": "ins0/upd0/del0/trunc0",
+   "grant_revoke_stmts": "4",
+   "dynamic_sql": "1",
+   "precedes_production_latest_recorded": false
+  },
+  {
+   "order": 60,
+   "version": "20261018120200",
+   "file": "20261018120200_restrict_role_lookup_and_profile_ownership.sql",
+   "group": "october",
+   "sha256": "42ab205aa1c2dd477a437e1d61f90771e10636616bbc543553e2236155bb021e",
+   "stage_b_prod_class": "PENDING_EXPECTED",
+   "data_stmts_ins_upd_del_trunc": "ins0/upd0/del0/trunc0",
+   "grant_revoke_stmts": "6",
+   "dynamic_sql": "1",
+   "precedes_production_latest_recorded": false
+  },
+  {
+   "order": 61,
+   "version": "20261019120000",
+   "file": "20261019120000_add_payment_operations_and_single_financial_application.sql",
+   "group": "october",
+   "sha256": "a25ab2d6d31f8401924c28042cbb38738aa20b4a9c5922eb457421a031ec5c9b",
+   "stage_b_prod_class": "PENDING_EXPECTED",
+   "data_stmts_ins_upd_del_trunc": "ins0/upd0/del0/trunc0",
+   "grant_revoke_stmts": "11",
+   "dynamic_sql": "0",
+   "precedes_production_latest_recorded": false
+  },
+  {
+   "order": 62,
+   "version": "20261020120000",
+   "file": "20261020120000_deposit_catch_up_and_offline_payment_parity.sql",
+   "group": "october",
+   "sha256": "6724ef5cb5a7d64fcaa47fab04ceec16e3b82e1afda81eb33004d002569fb302",
+   "stage_b_prod_class": "PENDING_EXPECTED",
+   "data_stmts_ins_upd_del_trunc": "ins0/upd0/del0/trunc0",
+   "grant_revoke_stmts": "10",
+   "dynamic_sql": "0",
+   "precedes_production_latest_recorded": false
+  },
+  {
+   "order": 63,
+   "version": "20261021120000",
+   "file": "20261021120000_server_authoritative_order_pricing_saves.sql",
+   "group": "october",
+   "sha256": "5478ffa0e5742adf270e0a9fb08513e29a7535e9553c6c23cab6876e36f48cd0",
+   "stage_b_prod_class": "PENDING_EXPECTED",
+   "data_stmts_ins_upd_del_trunc": "ins0/upd0/del0/trunc0",
+   "grant_revoke_stmts": "9",
+   "dynamic_sql": "0",
+   "precedes_production_latest_recorded": false
+  },
+  {
+   "order": 64,
+   "version": "20261022120000",
+   "file": "20261022120000_refund_safety_and_financial_write_authority.sql",
+   "group": "october",
+   "sha256": "05fec2307df354198cbeea4a04f133e898263a0ec208e3fd616b5e4717f58229",
+   "stage_b_prod_class": "PENDING_EXPECTED",
+   "data_stmts_ins_upd_del_trunc": "ins0/upd0/del0/trunc0",
+   "grant_revoke_stmts": "15",
+   "dynamic_sql": "0",
+   "precedes_production_latest_recorded": false
+  },
+  {
+   "order": 65,
+   "version": "20261023120000",
+   "file": "20261023120000_refund_allocation_schema.sql",
+   "group": "october",
+   "sha256": "371b5e99b0188103b580ff91a66ce202ed7d785fc8399896e66db8c37c4bb31b",
+   "stage_b_prod_class": "PENDING_EXPECTED",
+   "data_stmts_ins_upd_del_trunc": "ins0/upd0/del0/trunc0",
+   "grant_revoke_stmts": "2",
+   "dynamic_sql": "0",
+   "precedes_production_latest_recorded": false
+  },
+  {
+   "order": 66,
+   "version": "20261024120000",
+   "file": "20261024120000_refund_allocation_reservation.sql",
+   "group": "october",
+   "sha256": "353b63b371f241dcc258d72ebce40105edbd04256d396faddded36f25df90912",
+   "stage_b_prod_class": "PENDING_EXPECTED",
+   "data_stmts_ins_upd_del_trunc": "ins0/upd0/del0/trunc0",
+   "grant_revoke_stmts": "2",
+   "dynamic_sql": "0",
+   "precedes_production_latest_recorded": false
+  },
+  {
+   "order": 67,
+   "version": "20261025120000",
+   "file": "20261025120000_refund_overview_for_admin.sql",
+   "group": "october",
+   "sha256": "84c8cb248fd92f2accd2779e09f138c868132fb91400df7a22f2ca72111f1c92",
+   "stage_b_prod_class": "PENDING_EXPECTED",
+   "data_stmts_ins_upd_del_trunc": "ins0/upd0/del0/trunc0",
+   "grant_revoke_stmts": "2",
+   "dynamic_sql": "0",
+   "precedes_production_latest_recorded": false
+  }
+ ],
+ "versions_preceding_production_latest_recorded": 39,
+ "production_latest_recorded": "20260928172217"
+}

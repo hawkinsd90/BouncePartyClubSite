@@ -1,0 +1,17 @@
+{
+ "database": "bpc_replay_d2_preupgrade",
+ "selected": 317,
+ "executed_ok_or_failed": 316,
+ "skipped": [
+  {
+   "version": "20260323201502",
+   "reason": "needs the pg_net extension, which plain PostgreSQL cannot install"
+  }
+ ],
+ "failures": [],
+ "adjustments": [
+  "after 20251207163822: applied (user_roles_role_check legacy uppercase CHECK); present before=1, after=0; exit 0",
+  "before 20260615175816: applied (orders already in supabase_realtime); present before=1, after=0; exit 0"
+ ],
+ "result": "COMPLETED"
+}

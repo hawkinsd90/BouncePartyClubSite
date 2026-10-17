@@ -1,0 +1,2310 @@
+{
+ "derivation": "baseline = repository versions < Production's first recorded version (20251126190540); recorded = the 277 captured Production versions; union, ascending by version",
+ "counts": {
+  "repository_files": 386,
+  "baseline": 40,
+  "production_recorded": 277,
+  "selected": 317,
+  "excluded": 69,
+  "excluded_october": 23,
+  "excluded_other_dev_line_including_cases_41_42": 46
+ },
+ "selected_manifest_sha256": "82d8797b18b08c6baabd4f3c0a201a6165ff3fee99e69713bb1c881cf7509499",
+ "selected_versions_sha256": "2edb3714b2e4aa17715ddbec62aecdbf33bbeb939c9286156f9b6ce0844e09fd",
+ "stub_limited_selected_files": [
+  "20260323201502"
+ ],
+ "excluded_versions": [
+  "20260305203528",
+  "20260407203226",
+  "20260715214053",
+  "20260715221828",
+  "20260716104333",
+  "20260716151458",
+  "20260716151530",
+  "20260716151549",
+  "20260716152447",
+  "20260716152823",
+  "20260716173638",
+  "20260716173644",
+  "20260716231809",
+  "20260716231832",
+  "20260717012112",
+  "20260717110808",
+  "20260717110829",
+  "20260717111014",
+  "20260717111737",
+  "20260717111803",
+  "20260717113131",
+  "20260717115647",
+  "20260718000744",
+  "20260718000923",
+  "20260721164853",
+  "20260722102129",
+  "20260722172048",
+  "20260722211023",
+  "20260722212750",
+  "20260722215732",
+  "20260722230121",
+  "20260723174017",
+  "20260723210301",
+  "20260723210953",
+  "20260814113146",
+  "20260814114825",
+  "20260814120000",
+  "20260814120100",
+  "20260820165646",
+  "20260925151621",
+  "20260925171210",
+  "20260929145842",
+  "20260929151836",
+  "20260929152006",
+  "20260929161218",
+  "20260929161925",
+  "20261007120000",
+  "20261008120000",
+  "20261009120000",
+  "20261010110000",
+  "20261010120000",
+  "20261011120000",
+  "20261012120000",
+  "20261013120000",
+  "20261014120000",
+  "20261015120000",
+  "20261015123000",
+  "20261016120000",
+  "20261017120000",
+  "20261018120000",
+  "20261018120100",
+  "20261018120200",
+  "20261019120000",
+  "20261020120000",
+  "20261021120000",
+  "20261022120000",
+  "20261023120000",
+  "20261024120000",
+  "20261025120000"
+ ],
+ "selected": [
+  {
+   "order": 1,
+   "version": "20251001051900",
+   "file": "20251001051900_000_create_user_roles.sql",
+   "origin": "baseline (precedes Production history)",
+   "sha256": "973aefc6df67b675a570d6a49426316afab8a977bae5995391a929e58b79586d"
+  },
+  {
+   "order": 2,
+   "version": "20251001051901",
+   "file": "20251001051901_001_create_core_schema.sql",
+   "origin": "baseline (precedes Production history)",
+   "sha256": "0d95661b8fb082302f95b16b96077ef9e6eb8bb83f16465f54b3346c3776bb8e"
+  },
+  {
+   "order": 3,
+   "version": "20251001052039",
+   "file": "20251001052039_002_seed_sample_units.sql",
+   "origin": "baseline (precedes Production history)",
+   "sha256": "a1443d2f9da0597c562eab1d7b824a23276a61e078f85c1ec605f4bf4a88f0d0"
+  },
+  {
+   "order": 4,
+   "version": "20251001192425",
+   "file": "20251001192425_004_add_new_order_fields.sql",
+   "origin": "baseline (precedes Production history)",
+   "sha256": "b4ad21c32d668bccfb9e6c484acaa0801b7cd5f4ab7834741e9ccd837e08518b"
+  },
+  {
+   "order": 5,
+   "version": "20251002180149",
+   "file": "20251002180149_005_update_home_base_wayne_mi.sql",
+   "origin": "baseline (precedes Production history)",
+   "sha256": "33565508c41488fa5d5543131945d5ebb5ec8b9152da443710310db2cb39c6ce"
+  },
+  {
+   "order": 6,
+   "version": "20251002195907",
+   "file": "20251002195907_006_add_unit_inventory.sql",
+   "origin": "baseline (precedes Production history)",
+   "sha256": "cdd12e1ddfac0f344215b813972ba8da269d1a5506bb6338f18cbc71f682eb18"
+  },
+  {
+   "order": 7,
+   "version": "20251002195922",
+   "file": "20251002195922_007_add_availability_check_function.sql",
+   "origin": "baseline (precedes Production history)",
+   "sha256": "1e8a5290f93ff5450c7e7a96620e5ece1e4b969aa69d9cf47291d980b7ef0f25"
+  },
+  {
+   "order": 8,
+   "version": "20251002210020",
+   "file": "20251002210020_008_add_admin_settings.sql",
+   "origin": "baseline (precedes Production history)",
+   "sha256": "1be19867dc5ba5e600d5a04c1d372a784d1143722195328581b29327471fe74b"
+  },
+  {
+   "order": 9,
+   "version": "20251003111105",
+   "file": "20251003111105_009_add_sms_conversations.sql",
+   "origin": "baseline (precedes Production history)",
+   "sha256": "c9d7115c2fee308a8eca59d9cd67e7d9368f6632ead154572dabae3e4af5719f"
+  },
+  {
+   "order": 10,
+   "version": "20251003122900",
+   "file": "20251003122900_010_add_contacts_and_invoices.sql",
+   "origin": "baseline (precedes Production history)",
+   "sha256": "bbde2ce09a17306d0b68aa7a38006fffd7fdb77d7f9a7b563ce8a9efbc28b100"
+  },
+  {
+   "order": 11,
+   "version": "20251003135541",
+   "file": "20251003135541_20251003200000_011_add_special_details.sql",
+   "origin": "baseline (precedes Production history)",
+   "sha256": "6f8a884aa9680ec81c5b32b4827aa0ecb56b75c317d663cf9c7f542f7eab6cbd"
+  },
+  {
+   "order": 12,
+   "version": "20251003142953",
+   "file": "20251003142953_20251003210000_012_add_pets_field.sql",
+   "origin": "baseline (precedes Production history)",
+   "sha256": "a8ae410336e439c5431ea2f0333a10827c217e5e0698934e0dba61dcc8728f7e"
+  },
+  {
+   "order": 13,
+   "version": "20251003152224",
+   "file": "20251003152224_20251003210000_013_add_twilio_credentials.sql",
+   "origin": "baseline (precedes Production history)",
+   "sha256": "124a24959c0d238f4279cfb848ee28bd1393fef90e36fe77094f140f7eec8ca5"
+  },
+  {
+   "order": 14,
+   "version": "20251003164124",
+   "file": "20251003164124_20251003220000_014_add_admin_check_function.sql",
+   "origin": "baseline (precedes Production history)",
+   "sha256": "ce573ae42b92940d4c3c25a468ba7697c97794db6b21e35c3d884fd691dc91e4"
+  },
+  {
+   "order": 15,
+   "version": "20251003170350",
+   "file": "20251003170350_015_create_demo_admin_user.sql",
+   "origin": "baseline (precedes Production history)",
+   "sha256": "faca489337f7b11b0807c6ed4d1dd6616ae840580bd7129557531f7695ac1aff"
+  },
+  {
+   "order": 16,
+   "version": "20251003182356",
+   "file": "20251003182356_016_add_sms_message_templates.sql",
+   "origin": "baseline (precedes Production history)",
+   "sha256": "334fe08aa6e8931d598620452c0f8a4ae6e591ef1dd80869c6c0c92a29c83b57"
+  },
+  {
+   "order": 17,
+   "version": "20251003183947",
+   "file": "20251003183947_017_add_admin_email_setting.sql",
+   "origin": "baseline (precedes Production history)",
+   "sha256": "5671796cc2639d04d2462d96b89f6fda8f17ce5edc8e5d8bba85abf2fa5225bd"
+  },
+  {
+   "order": 18,
+   "version": "20251003200000",
+   "file": "20251003200000_011_add_special_details.sql",
+   "origin": "baseline (precedes Production history)",
+   "sha256": "6f8a884aa9680ec81c5b32b4827aa0ecb56b75c317d663cf9c7f542f7eab6cbd"
+  },
+  {
+   "order": 19,
+   "version": "20251003200318",
+   "file": "20251003200318_018_fix_infinite_recursion_in_admin_check.sql",
+   "origin": "baseline (precedes Production history)",
+   "sha256": "5a212b248a0717d9b5e60f674454339a9e9481c2e2b993b9e763e55467593682"
+  },
+  {
+   "order": 20,
+   "version": "20251004233954",
+   "file": "20251004233954_20251004000000_019_add_sms_consent.sql",
+   "origin": "baseline (precedes Production history)",
+   "sha256": "a8e21368daf2a6040ad48a6cfd36eb1c07adc6023d99c9e0bd3de51baa5bf0b3"
+  },
+  {
+   "order": 21,
+   "version": "20251006142419",
+   "file": "20251006142419_20251006000000_020_add_travel_fee_breakdown.sql",
+   "origin": "baseline (precedes Production history)",
+   "sha256": "8cddef4e85e366517c346e823a4ca01e128232c162ea067eface74f2c96070ab"
+  },
+  {
+   "order": 22,
+   "version": "20251006222941",
+   "file": "20251006222941_021_add_stripe_payments.sql",
+   "origin": "baseline (precedes Production history)",
+   "sha256": "b1f36c637469c1df4a72f0ead273a0303b1da9edd510786160bc5940c7e12aaa"
+  },
+  {
+   "order": 23,
+   "version": "20251007210840",
+   "file": "20251007210840_022_add_stripe_publishable_key.sql",
+   "origin": "baseline (precedes Production history)",
+   "sha256": "f02fccbc494274f0ec8e2bda1fece51a279bb510460b7fba829c0de8d4585477"
+  },
+  {
+   "order": 24,
+   "version": "20251007214737",
+   "file": "20251007214737_023_update_availability_check_for_date_range.sql",
+   "origin": "baseline (precedes Production history)",
+   "sha256": "8a1a3c9bf30ee38fa4d747ae71d31014ea5a49c7218f88d4455914837c3bc737"
+  },
+  {
+   "order": 25,
+   "version": "20251007215413",
+   "file": "20251007215413_024_fix_availability_check_nested_aggregate.sql",
+   "origin": "baseline (precedes Production history)",
+   "sha256": "8b06d101f974f4dafe3d04469f4485fefd98382b5d37a6a1141ce67041fc15e1"
+  },
+  {
+   "order": 26,
+   "version": "20251007215603",
+   "file": "20251007215603_025_fix_availability_ambiguous_columns.sql",
+   "origin": "baseline (precedes Production history)",
+   "sha256": "92ab16a9f5417aa5b32bc4b12cb476fc1f8a3d8fa57a1d7150b080d0488d94f6"
+  },
+  {
+   "order": 27,
+   "version": "20251007220415",
+   "file": "20251007220415_026_add_payment_pending_status.sql",
+   "origin": "baseline (precedes Production history)",
+   "sha256": "836bcb474c35310e91bcf2ac374845127fc9941cec3d2f4d73a8a7169c786551"
+  },
+  {
+   "order": 28,
+   "version": "20251007221227",
+   "file": "20251007221227_027_update_order_status_to_draft.sql",
+   "origin": "baseline (precedes Production history)",
+   "sha256": "2eed7d41fc3b2a8355c76f6995bdfe6bff60d94b0665bd61c0926e7718bd37d3"
+  },
+  {
+   "order": 29,
+   "version": "20251007221817",
+   "file": "20251007221817_028_add_deposit_required_flag.sql",
+   "origin": "baseline (precedes Production history)",
+   "sha256": "fabb6a0361a80372e93038f2fdcd2540a00c056e72c3c836e715cc07d722669a"
+  },
+  {
+   "order": 30,
+   "version": "20251008132209",
+   "file": "20251008132209_029_add_stripe_payment_status_column.sql",
+   "origin": "baseline (precedes Production history)",
+   "sha256": "c89daf3c7408379f7fa27f5793f97da90aa91c7619f3de872b15b5731248e7c2"
+  },
+  {
+   "order": 31,
+   "version": "20251008141359",
+   "file": "20251008141359_030_add_anon_orders_policy.sql",
+   "origin": "baseline (precedes Production history)",
+   "sha256": "85f225ce61eea91729b03009a73adfd825d491eb85d0c803720a252a7d8301b1"
+  },
+  {
+   "order": 32,
+   "version": "20251008144308",
+   "file": "20251008144308_031_add_admin_notification_template.sql",
+   "origin": "baseline (precedes Production history)",
+   "sha256": "4ce1fdf48a97036be9e7145b8e776ec13a65b0e837338df9dcd526ddafb63bf1"
+  },
+  {
+   "order": 33,
+   "version": "20251008153245",
+   "file": "20251008153245_032_fix_contacts_bookings_counter.sql",
+   "origin": "baseline (precedes Production history)",
+   "sha256": "aa3b23cb4a488dab5b92be244a43763971f67ae5685e4de152a7b4f4dba7f4b1"
+  },
+  {
+   "order": 34,
+   "version": "20251008153325",
+   "file": "20251008153325_033_add_order_workflow_and_features.sql",
+   "origin": "baseline (precedes Production history)",
+   "sha256": "ed22f6092ec6b77abc72ce1252d6825243e8bb0856180643225cb7bb28cac484"
+  },
+  {
+   "order": 35,
+   "version": "20251008155607",
+   "file": "20251008155607_034_add_order_changelog.sql",
+   "origin": "baseline (precedes Production history)",
+   "sha256": "f92de8edec403893b84a3d9037d1d9393fcc5fc39a204b53befdb9f4a2b2001a"
+  },
+  {
+   "order": 36,
+   "version": "20251008170619",
+   "file": "20251008170619_035_add_void_status.sql",
+   "origin": "baseline (precedes Production history)",
+   "sha256": "0e11de1abd03c051cfec460521e983cfac8354013862ad65cb4a42154c5c4c8d"
+  },
+  {
+   "order": 37,
+   "version": "20251008180000",
+   "file": "20251008180000_036_add_order_discounts.sql",
+   "origin": "baseline (precedes Production history)",
+   "sha256": "8f98fe5bdeb5b74f5d4d8708ecb89d2f135daefccc86e87444846159cfadc6b4"
+  },
+  {
+   "order": 38,
+   "version": "20251008190000",
+   "file": "20251008190000_037_setup_unit_images_storage.sql",
+   "origin": "baseline (precedes Production history)",
+   "sha256": "3cd524542811da2e5cc5910c6b426b799a25f155e3210b8ced9038baa5a38efa"
+  },
+  {
+   "order": 39,
+   "version": "20251008202716",
+   "file": "20251008202716_038_add_wet_mode_images_and_dimensions.sql",
+   "origin": "baseline (precedes Production history)",
+   "sha256": "a4d50bef2a053f32174330011f3fba4f5fcf8145324c97f44f6b23884ce14e56"
+  },
+  {
+   "order": 40,
+   "version": "20251019141249",
+   "file": "20251019141249_add_tip_support.sql",
+   "origin": "baseline (precedes Production history)",
+   "sha256": "00122b6e21d4deb9fbbb71e007af32b32ab2bb45bf560e0cc6950031b56fc416"
+  },
+  {
+   "order": 41,
+   "version": "20251126190540",
+   "file": "20251126190540_add_awaiting_customer_approval_status.sql",
+   "origin": "recorded in Production history",
+   "sha256": "afea542993ccb6d4df8d300ec3deea79aa960e5c9322aa74dd7691c092860d08"
+  },
+  {
+   "order": 42,
+   "version": "20251126190624",
+   "file": "20251126190624_add_customer_approval_workflow.sql",
+   "origin": "recorded in Production history",
+   "sha256": "3b33f8fab2222c0280ddb6c938564bf63563b6970ff839e40982e6c7bc94dbe2"
+  },
+  {
+   "order": 43,
+   "version": "20251129190013",
+   "file": "20251129190013_setup_public_assets_storage.sql",
+   "origin": "recorded in Production history",
+   "sha256": "8fb9bea8397b157c6fc5bdea88606ed679ce44eadd47bc695d65302ce32fd1f0"
+  },
+  {
+   "order": 44,
+   "version": "20251129190039",
+   "file": "20251129190039_allow_anon_upload_public_assets.sql",
+   "origin": "recorded in Production history",
+   "sha256": "fd86658f2f4dc01360f3842ece5d30c275fc5cc34c5735b8244aef32586af290"
+  },
+  {
+   "order": 45,
+   "version": "20251130191333",
+   "file": "20251130191333_add_event_end_date_and_pickup_preference.sql",
+   "origin": "recorded in Production history",
+   "sha256": "4e66631748d441b06386171dc6edbab55015f4c2cae2cba0888e55d6b02ff23c"
+  },
+  {
+   "order": 46,
+   "version": "20251130201520",
+   "file": "20251130201520_add_deposit_override_and_payment_clearing.sql",
+   "origin": "recorded in Production history",
+   "sha256": "32b9e21d11c7357b7ecb948bb62d49a8f551dd70bf0bddb73d71091ab910b781"
+  },
+  {
+   "order": 47,
+   "version": "20251130231633",
+   "file": "20251130231633_add_generator_pricing.sql",
+   "origin": "recorded in Production history",
+   "sha256": "4ad0ff0c6d62cbc4527cc6c3384a8b4b21a8a135b40a6a57338d183f89aedefd"
+  },
+  {
+   "order": 48,
+   "version": "20251201023349",
+   "file": "20251201023349_add_order_custom_fees.sql",
+   "origin": "recorded in Production history",
+   "sha256": "e4cf12acda1fbb2a9452d129d2417a17da687543d55bbe90f799d9aad56c440f"
+  },
+  {
+   "order": 49,
+   "version": "20251201025216",
+   "file": "20251201025216_add_saved_fee_discount_templates.sql",
+   "origin": "recorded in Production history",
+   "sha256": "4232eb1d21e7f2dd2ac05af8efea774ba72103efed5e5c3c6714bdfc0a5f8770"
+  },
+  {
+   "order": 50,
+   "version": "20251201183508",
+   "file": "20251201183508_add_generator_qty_column.sql",
+   "origin": "recorded in Production history",
+   "sha256": "bda3ba0655ddcd9e70c0dcfd243f83ad99426419df959e4a5e76e1b3d6f52a14"
+  },
+  {
+   "order": 51,
+   "version": "20251201204918",
+   "file": "20251201204918_add_anon_policies_for_discounts_fees.sql",
+   "origin": "recorded in Production history",
+   "sha256": "8e7860336164564317d093b741d92b7d846651524d99f781d164254d5db846a4"
+  },
+  {
+   "order": 52,
+   "version": "20251202161637",
+   "file": "20251202161637_add_business_name_to_contacts.sql",
+   "origin": "recorded in Production history",
+   "sha256": "0c4c9dfe9d9cee446ad10cf30096590dd47ed51b4f55f662cd6242ad67b91b62"
+  },
+  {
+   "order": 53,
+   "version": "20251202171808",
+   "file": "20251202171808_20251202000000_create_order_signatures_system.sql",
+   "origin": "recorded in Production history",
+   "sha256": "6fd590a87f008138d6bc7a9d7e6a5bb8af3558906501e7f9bb91a39dbd4ad747"
+  },
+  {
+   "order": 54,
+   "version": "20251202175322",
+   "file": "20251202175322_add_renter_information_to_signatures.sql",
+   "origin": "recorded in Production history",
+   "sha256": "14cf977320845574caa52717707a11081ed19e358d3bb70181f5de530edc2154"
+  },
+  {
+   "order": 55,
+   "version": "20251203125006",
+   "file": "20251203125006_20251203000000_add_invoice_links_system.sql",
+   "origin": "recorded in Production history",
+   "sha256": "1118501ac26036dced8394bd7f91df294627f2c7f87c78577c99f23fe7c7cea1"
+  },
+  {
+   "order": 56,
+   "version": "20251203132851",
+   "file": "20251203132851_add_business_name_to_customers.sql",
+   "origin": "recorded in Production history",
+   "sha256": "ef5445c217e6a5e1781aea7531768d515fb8d826d8106be851e08706e0bb07a8"
+  },
+  {
+   "order": 57,
+   "version": "20251203143006",
+   "file": "20251203143006_add_event_details_fields.sql",
+   "origin": "recorded in Production history",
+   "sha256": "7caf5705425615e57ecceb790df4b777db27839508e4c587db61faa76fbec088"
+  },
+  {
+   "order": 58,
+   "version": "20251205115557",
+   "file": "20251205115557_add_task_management_system.sql",
+   "origin": "recorded in Production history",
+   "sha256": "c8d1312cbdc2f8b9f1b202ad2a5ea9e4839bb315cd8de6af468524b9f715b162"
+  },
+  {
+   "order": 59,
+   "version": "20251205125907",
+   "file": "20251205125907_add_crew_checkpoint_sms_templates.sql",
+   "origin": "recorded in Production history",
+   "sha256": "2e642810d157bd6585e17636c7af7be62fd4d1a425b24ba1f6be33d05480c573"
+  },
+  {
+   "order": 60,
+   "version": "20251205125943",
+   "file": "20251205125943_add_crew_location_history_tracking.sql",
+   "origin": "recorded in Production history",
+   "sha256": "d6ce7aba5bc719bd05c104cceb473bd952852e6fbbc0575e10a088173953d62a"
+  },
+  {
+   "order": 61,
+   "version": "20251205130430",
+   "file": "20251205130430_add_eta_fields_to_task_status.sql",
+   "origin": "recorded in Production history",
+   "sha256": "54643783e636f8e83ee3cbeeeb700b799f61686595f68b472604cc701dbb7450"
+  },
+  {
+   "order": 62,
+   "version": "20251207160232",
+   "file": "20251207160232_add_hero_carousel_system.sql",
+   "origin": "recorded in Production history",
+   "sha256": "42abe93bfa173c9b332a9bf18735e0abffc55c5ba96b67fececb250b3bdc1d86"
+  },
+  {
+   "order": 63,
+   "version": "20251207160919",
+   "file": "20251207160919_update_carousel_for_media_uploads.sql",
+   "origin": "recorded in Production history",
+   "sha256": "bd69b52e04d344439badbaaf660e414323cc83b0e9709ccee2a2b7aa328a0484"
+  },
+  {
+   "order": 64,
+   "version": "20251207161003",
+   "file": "20251207161003_add_carousel_storage_policies.sql",
+   "origin": "recorded in Production history",
+   "sha256": "da9d4f4c6ab8bbaad653b37380e0ae1bed54de3018000118a840be6f1f26bc88"
+  },
+  {
+   "order": 65,
+   "version": "20251207163822",
+   "file": "20251207163822_add_role_hierarchy_and_oauth.sql",
+   "origin": "recorded in Production history",
+   "sha256": "75a421590cd1f81df77e670ed70eed69acda4d0967f0e58dca8f35deafa8d603"
+  },
+  {
+   "order": 66,
+   "version": "20251207172335",
+   "file": "20251207172335_fix_carousel_rls_for_master.sql",
+   "origin": "recorded in Production history",
+   "sha256": "32cc69a6efbe9aded5a6438fad71d60c9f36c4cb8e39e7a277ac21cbb71bfb7c"
+  },
+  {
+   "order": 67,
+   "version": "20251207175214",
+   "file": "20251207175214_fix_all_admin_policies_for_master_corrected.sql",
+   "origin": "recorded in Production history",
+   "sha256": "a8febc589c12dd09a3b19b574660914f394289b7186412c557ceff915668afeb"
+  },
+  {
+   "order": 68,
+   "version": "20251207175802",
+   "file": "20251207175802_add_user_roles_read_policies.sql",
+   "origin": "recorded in Production history",
+   "sha256": "bb94f53782be35694dccbc07f16024304c73ec165295045630c66243ac8d4695"
+  },
+  {
+   "order": 69,
+   "version": "20251207182041",
+   "file": "20251207182041_fix_user_roles_circular_dependency.sql",
+   "origin": "recorded in Production history",
+   "sha256": "d94298d3e94fe2baf7d76cb86d1d94cce40d00eb157ae85a5fb13c3cb83c9cca"
+  },
+  {
+   "order": 70,
+   "version": "20251207182057",
+   "file": "20251207182057_fix_user_roles_rls_properly.sql",
+   "origin": "recorded in Production history",
+   "sha256": "5ed2b4746550d51c2d2b8a779ee905fff6139f51a95e2fd2fc73273fcac4b461"
+  },
+  {
+   "order": 71,
+   "version": "20251207183240",
+   "file": "20251207183240_add_get_user_role_function.sql",
+   "origin": "recorded in Production history",
+   "sha256": "926593e1f5120fdb6a44e34f078c10dbb454aac7347e89069a50ed3a3fbad4f6"
+  },
+  {
+   "order": 72,
+   "version": "20251207184549",
+   "file": "20251207184549_fix_circular_rls_dependency.sql",
+   "origin": "recorded in Production history",
+   "sha256": "e40e976ac5185e8f0138e65266cefdaca71f3f9fed0d42111e4d6c39d5b616d6"
+  },
+  {
+   "order": 73,
+   "version": "20251207185927",
+   "file": "20251207185927_remove_circular_policy_completely.sql",
+   "origin": "recorded in Production history",
+   "sha256": "76054117bb7a96b627f8cc6a62962902b5df38caed769492d5bdd2f403c5a10b"
+  },
+  {
+   "order": 74,
+   "version": "20251208125821",
+   "file": "20251208125821_fix_oauth_user_creation.sql",
+   "origin": "recorded in Production history",
+   "sha256": "ebba6c5389aa9dc38ab82a416371e928d6654cb8f24a1962a2111b7a93ae9359"
+  },
+  {
+   "order": 75,
+   "version": "20251208130034",
+   "file": "20251208130034_link_existing_orders_on_signup.sql",
+   "origin": "recorded in Production history",
+   "sha256": "3b8034f1b686ae82294d137e4074f9e079e2e665c67a0748b3c9f5193307d5c7"
+  },
+  {
+   "order": 76,
+   "version": "20251208130213",
+   "file": "20251208130213_add_user_creation_logging.sql",
+   "origin": "recorded in Production history",
+   "sha256": "72d1945d59999e86e2eb6207af2f3750c02991562c7c2afada2209b8c47b6557"
+  },
+  {
+   "order": 77,
+   "version": "20251208143543",
+   "file": "20251208143543_add_oauth_profile_data.sql",
+   "origin": "recorded in Production history",
+   "sha256": "afbfffeaf58cb33f7e3a51b2d57241275f0ac0e6842b63998c5feefc132634a5"
+  },
+  {
+   "order": 78,
+   "version": "20251209115445",
+   "file": "20251209115445_20251209000000_fix_function_search_path_security.sql",
+   "origin": "recorded in Production history",
+   "sha256": "36f97ef087d26975eac88a24c025fc91ac4c31c54dc0006781702e691f81a03e"
+  },
+  {
+   "order": 79,
+   "version": "20251209124058",
+   "file": "20251209124058_20251209000001_optimize_rls_auth_performance.sql",
+   "origin": "recorded in Production history",
+   "sha256": "dde67c7a338b278c2efd1d17585e8b20034bab5f3f508052ab51a7d145f5ef59"
+  },
+  {
+   "order": 80,
+   "version": "20251209124118",
+   "file": "20251209124118_20251209000002_remove_duplicate_rls_policies.sql",
+   "origin": "recorded in Production history",
+   "sha256": "95af1ce66cf2bacebc8ecef238a0efa42faa8ff3cd5285a979193a2bd7bd86d7"
+  },
+  {
+   "order": 81,
+   "version": "20251209124126",
+   "file": "20251209124126_20251209000003_remove_duplicate_payment_index.sql",
+   "origin": "recorded in Production history",
+   "sha256": "64559ebc814df56aec47a9794a1f9ee503fa266dd450d18479d4376a8e6d9922"
+  },
+  {
+   "order": 82,
+   "version": "20251209125102",
+   "file": "20251209125102_20251209000004_consolidate_remaining_duplicates.sql",
+   "origin": "recorded in Production history",
+   "sha256": "120014f6241d2b47ad8f406640a3b9319a76c7433a1005dece255c8344029872"
+  },
+  {
+   "order": 83,
+   "version": "20251209130147",
+   "file": "20251209130147_add_foreign_key_indexes.sql",
+   "origin": "recorded in Production history",
+   "sha256": "2d4a890fb3f55baec9db093659bc723cf37e8ac9e50bf37b17d92071a26c7176"
+  },
+  {
+   "order": 84,
+   "version": "20251209132737",
+   "file": "20251209132737_add_event_times.sql",
+   "origin": "recorded in Production history",
+   "sha256": "1599a8ef518ead2658a92dbaa830d74b69ea91c394a1d9c6c8c2e61b7c57c3d3"
+  },
+  {
+   "order": 85,
+   "version": "20251209132832",
+   "file": "20251209132832_fix_array_availability_for_multi_day.sql",
+   "origin": "recorded in Production history",
+   "sha256": "766973e26eecaa6a2aa44769c81871efd40ab8671946b0c3b9abd6e33010635d"
+  },
+  {
+   "order": 86,
+   "version": "20251209133113",
+   "file": "20251209133113_add_payment_timestamps.sql",
+   "origin": "recorded in Production history",
+   "sha256": "434c0aa9222fc736f004b1e7c5eec61797b13d56934d23f54957d3fb3f42bc78"
+  },
+  {
+   "order": 87,
+   "version": "20251209160206",
+   "file": "20251209160206_add_event_end_time.sql",
+   "origin": "recorded in Production history",
+   "sha256": "85a0fdf8c793c2c25d7883967a404e7b5420f25b171ad7e5bd04983e3a17b44e"
+  },
+  {
+   "order": 88,
+   "version": "20251209160751",
+   "file": "20251209160751_fix_contact_stats_trigger_for_orders_update.sql",
+   "origin": "recorded in Production history",
+   "sha256": "bd5e820d6015582305ac0ceaa5dbc60504e78675ff31df936d2ed9a8f6c414d0"
+  },
+  {
+   "order": 89,
+   "version": "20251209163552",
+   "file": "20251209163552_fix_get_user_order_prefill_function.sql",
+   "origin": "recorded in Production history",
+   "sha256": "7f6c9e5885c7cc0359308e40ae747780c4e8ef2b0fcbe6659605feae4a0d4af1"
+  },
+  {
+   "order": 90,
+   "version": "20251209163810",
+   "file": "20251209163810_fix_get_user_order_prefill_function.sql",
+   "origin": "recorded in Production history",
+   "sha256": "d7b8587abdc2c9dc73c3e843afbce62f19bea8b6cf8a44272855ce4d565f9fd3"
+  },
+  {
+   "order": 91,
+   "version": "20251213183547",
+   "file": "20251213183547_add_payment_method_to_payments.sql",
+   "origin": "recorded in Production history",
+   "sha256": "4d6b1960ec2ef7d6378efe5bea24fea6dc998451da484badbbb022e60863cec1"
+  },
+  {
+   "order": 92,
+   "version": "20251213205448",
+   "file": "20251213205448_fix_order_functions_customer_fields.sql",
+   "origin": "recorded in Production history",
+   "sha256": "9b1219ce724fbf04fd5ca50ef6e6d66a572c533e4a74b68c5cf959c02d13f157"
+  },
+  {
+   "order": 93,
+   "version": "20251213222807",
+   "file": "20251213222807_remove_last_booking_date_from_contact_stats.sql",
+   "origin": "recorded in Production history",
+   "sha256": "4613ff660e40d551d9ec5403857bda08981593cb9321b10baa09742a98be2c71"
+  },
+  {
+   "order": 94,
+   "version": "20251213223314",
+   "file": "20251213223314_fix_anon_consent_policy.sql",
+   "origin": "recorded in Production history",
+   "sha256": "d1cc46d335f916b7166fe77d769dee9e972370a128e42790eab40935efb2aa64"
+  },
+  {
+   "order": 95,
+   "version": "20251213223934",
+   "file": "20251213223934_fix_consent_policy_for_admins.sql",
+   "origin": "recorded in Production history",
+   "sha256": "bb6a7e0c0dc68187b339b14f882dd66042c76e6f3d7d09a80d48cfcd0b7c38fe"
+  },
+  {
+   "order": 96,
+   "version": "20251214230102",
+   "file": "20251214230102_fix_task_status_rls_policies.sql",
+   "origin": "recorded in Production history",
+   "sha256": "e7d6594854368e7395a34975030fc48b815101b7d6f35ae10a9165b380bf97c1"
+  },
+  {
+   "order": 97,
+   "version": "20251215014935",
+   "file": "20251215014935_add_booking_confirmation_sent_flag.sql",
+   "origin": "recorded in Production history",
+   "sha256": "b9d9d6accd340679ddbf8779b6ae77d6b3da92ac9e9db0f75d38ba86a4951cd9"
+  },
+  {
+   "order": 98,
+   "version": "20251215015109",
+   "file": "20251215015109_add_anon_update_booking_confirmation.sql",
+   "origin": "recorded in Production history",
+   "sha256": "d9e3652636d2b2c050fc0cf53dbffce23404b4fc7136b485c7a334f45cc53b21"
+  },
+  {
+   "order": 99,
+   "version": "20251215020530",
+   "file": "20251215020530_add_order_cancellation_reason.sql",
+   "origin": "recorded in Production history",
+   "sha256": "d77f48af6f38d906a8ba188e21e38aff8381a60883a81961c8fcb425fdf6fbbc"
+  },
+  {
+   "order": 100,
+   "version": "20251215163706",
+   "file": "20251215163706_add_tax_waived_field.sql",
+   "origin": "recorded in Production history",
+   "sha256": "0313c21afbfbed81437cc091730eb912136a389f58fe5ae3657f8bd5d9ec6b70"
+  },
+  {
+   "order": 101,
+   "version": "20251216201450",
+   "file": "20251216201450_add_order_cancellation_admin_sms_template.sql",
+   "origin": "recorded in Production history",
+   "sha256": "f1559eca998587bbbcf1690cdd84f094ccc1722b80a7248b109b88fcc1dce229"
+  },
+  {
+   "order": 102,
+   "version": "20251216210332",
+   "file": "20251216210332_drop_redundant_date_columns.sql",
+   "origin": "recorded in Production history",
+   "sha256": "653ae8c5eba6689179d2c9b45fab9eacd39cecb74bdd4d60ec47524b97a4cdcf"
+  },
+  {
+   "order": 103,
+   "version": "20251218153557",
+   "file": "20251218153557_fix_get_user_order_prefill_joins.sql",
+   "origin": "recorded in Production history",
+   "sha256": "d965a712aeddb2a81776a4bdd964824e86d9b2ae881fa31f877ee54162e2ff1b"
+  },
+  {
+   "order": 104,
+   "version": "20251221223035",
+   "file": "20251221223035_add_auto_task_creation_trigger.sql",
+   "origin": "recorded in Production history",
+   "sha256": "8b64cf1a44b1bdeecc4dc98795505ae54806639b15da414ab5c467098a1abcf8"
+  },
+  {
+   "order": 105,
+   "version": "20251221223055",
+   "file": "20251221223055_add_auto_order_status_progression.sql",
+   "origin": "recorded in Production history",
+   "sha256": "d2bcc18b1404dbb4d36a32942cb54a22703a89abdb02b1ec70b921e41493db94"
+  },
+  {
+   "order": 106,
+   "version": "20251221223207",
+   "file": "20251221223207_clarify_route_stops_vs_task_status.sql",
+   "origin": "recorded in Production history",
+   "sha256": "e3ce2cbcef4ad8eb602379dae7bf4fd2e1d9d21d2de776f9d73474ac4234381f"
+  },
+  {
+   "order": 107,
+   "version": "20251221224640",
+   "file": "20251221224640_add_permissions_changelog_system.sql",
+   "origin": "recorded in Production history",
+   "sha256": "94b9e0f883214d8dc5c177f22d6988fe7c4b0179bb04fb148bb6aec24bc4bbca"
+  },
+  {
+   "order": 108,
+   "version": "20251221225000",
+   "file": "20251221225000_add_email_templates_system.sql",
+   "origin": "recorded in Production history",
+   "sha256": "bf572df3dd9a405f803b6298a16b902722b16906e4fa53ff370f7f68707ad373"
+  },
+  {
+   "order": 109,
+   "version": "20251221231332",
+   "file": "20251221231332_add_deposit_field_to_pricing.sql",
+   "origin": "recorded in Production history",
+   "sha256": "9ea02912fe766efbc436393da8d3d9345153865e98aad3957ec3a81196d74004"
+  },
+  {
+   "order": 110,
+   "version": "20251221231556",
+   "file": "20251221231556_fix_user_roles_rls_for_admin_management.sql",
+   "origin": "recorded in Production history",
+   "sha256": "e72e1f12333e435d2adcd33195cb467f5bcde4cf4334db7800b7e5f7668e0ce4"
+  },
+  {
+   "order": 111,
+   "version": "20251221231712",
+   "file": "20251221231712_create_blackout_system.sql",
+   "origin": "recorded in Production history",
+   "sha256": "e5591cd23b56e873dbb21277a89b9ae45163a49de7844d7a5461433850153506"
+  },
+  {
+   "order": 112,
+   "version": "20251221234856",
+   "file": "20251221234856_fix_user_roles_infinite_recursion.sql",
+   "origin": "recorded in Production history",
+   "sha256": "09765d8ff30ccf91dd43897c19e99eeda35198f2ffca9cc2b0aaceb4ad155a04"
+  },
+  {
+   "order": 113,
+   "version": "20251222014723",
+   "file": "20251222014723_fix_deposit_and_add_free_cities.sql",
+   "origin": "recorded in Production history",
+   "sha256": "63675e6fbff07d6a9c773b99d1180dbf29c52c5f51490f76e76dc2e2fa79949e"
+  },
+  {
+   "order": 114,
+   "version": "20251222020729",
+   "file": "20251222020729_add_generator_and_same_day_fees.sql",
+   "origin": "recorded in Production history",
+   "sha256": "73bc20cf64ce8ffa186e583b2875525b6984be23d49bc059ce342458393373c4"
+  },
+  {
+   "order": 115,
+   "version": "20251222022503",
+   "file": "20251222022503_fix_email_templates_and_get_user_info.sql",
+   "origin": "recorded in Production history",
+   "sha256": "8ae83886a398878c88329f22079ee809f36f28c0b8fa65a208e605603dacf274"
+  },
+  {
+   "order": 116,
+   "version": "20251227152354",
+   "file": "20251227152354_20251227000000_add_fee_waiver_reasons.sql",
+   "origin": "recorded in Production history",
+   "sha256": "f65c649aec6b1224cf7101f71a51ff048d8186302edb19bf8953f8a389e0269b"
+  },
+  {
+   "order": 117,
+   "version": "20251229223230",
+   "file": "20251229223230_update_customer_profiles_names.sql",
+   "origin": "recorded in Production history",
+   "sha256": "b92c54348362488a14d62ce3af19d36908fac4beaa99cc405daeed367e366c4e"
+  },
+  {
+   "order": 118,
+   "version": "20251230184205",
+   "file": "20251230184205_fix_carousel_rls_policies.sql",
+   "origin": "recorded in Production history",
+   "sha256": "8ac166212ed32b800b4482c0af320da319a456bf5abadeef4b692b395427e62a"
+  },
+  {
+   "order": 119,
+   "version": "20251230184228",
+   "file": "20251230184228_fix_carousel_storage_policies.sql",
+   "origin": "recorded in Production history",
+   "sha256": "cc53274eaca0d6af4430cdb2fb3bb4159b1e8c420cb542a5a9b63075d03cd3c7"
+  },
+  {
+   "order": 120,
+   "version": "20251231161729",
+   "file": "20251231161729_create_order_pictures_system.sql",
+   "origin": "recorded in Production history",
+   "sha256": "5bc22c275de38fcd052c77fbf08f907874556bbe50da78965229432b0adba8ea"
+  },
+  {
+   "order": 121,
+   "version": "20251231170906",
+   "file": "20251231170906_20251231170000_create_rate_limiting_system.sql",
+   "origin": "recorded in Production history",
+   "sha256": "28b465a1e3bc78e984292056be1e72bc735eab657168894a72403f59d16549d4"
+  },
+  {
+   "order": 122,
+   "version": "20251231171245",
+   "file": "20251231171245_20251231171000_add_payment_method_validation.sql",
+   "origin": "recorded in Production history",
+   "sha256": "d1814d9f5e22b7fdcc62b3e6a911ef7ec6a5aba3b7b0f3c8be5e58eb153dbf12"
+  },
+  {
+   "order": 123,
+   "version": "20251231171420",
+   "file": "20251231171420_20251231172000_add_business_branding_settings.sql",
+   "origin": "recorded in Production history",
+   "sha256": "9ec43479b25d6c83193ab0afbc237924be3df67ea51da3c5fd775322e7ed4bb8"
+  },
+  {
+   "order": 124,
+   "version": "20251231174141",
+   "file": "20251231174141_add_order_status_validation.sql",
+   "origin": "recorded in Production history",
+   "sha256": "720bc526a7e99ba0711ae9a67b8c243819b406674067499f3d93621e54777a95"
+  },
+  {
+   "order": 125,
+   "version": "20251231174711",
+   "file": "20251231174711_create_notification_failure_tracking.sql",
+   "origin": "recorded in Production history",
+   "sha256": "4c82b1fe684ea53826c8d20e71fac219d182faad2579feed296415d66e44ee78"
+  },
+  {
+   "order": 126,
+   "version": "20251231190052",
+   "file": "20251231190052_fix_get_user_order_prefill_column_name.sql",
+   "origin": "recorded in Production history",
+   "sha256": "dc1d37f4dd062f5cb1bf9f5c2b0ea6a8aeab16ef16ea5e6eaa023097755e1db0"
+  },
+  {
+   "order": 127,
+   "version": "20260101163312",
+   "file": "20260101163312_fix_pending_review_to_confirmed_transition.sql",
+   "origin": "recorded in Production history",
+   "sha256": "9b06d577325fc86323675be6d4cdf6c0ddb6a7cdc9619fab2523a3cf352a7769"
+  },
+  {
+   "order": 128,
+   "version": "20260105212344",
+   "file": "20260105212344_add_sandbag_generator_fee_waivers.sql",
+   "origin": "recorded in Production history",
+   "sha256": "b011d37b26332a40065aee4a97b5e019cd19f383c606d88e7cae00252c61e5da"
+  },
+  {
+   "order": 129,
+   "version": "20260119195140",
+   "file": "20260119195140_add_apply_taxes_by_default.sql",
+   "origin": "recorded in Production history",
+   "sha256": "cb1df9ba1245f77ff06dcf3444cba07de5da6a98384d1623fa8d535042e47c8e"
+  },
+  {
+   "order": 130,
+   "version": "20260120203953",
+   "file": "20260120203953_backfill_tax_waived_for_old_orders.sql",
+   "origin": "recorded in Production history",
+   "sha256": "dc31bda334afb748ddb2f92fb13afd2df2da2ecdeeecc8301f8995e5bd94ffbf"
+  },
+  {
+   "order": 131,
+   "version": "20260125170305",
+   "file": "20260125170305_fix_tax_waived_backfill_logic.sql",
+   "origin": "recorded in Production history",
+   "sha256": "65e76328da3c8a9b4ddf2a4cb3dd2ed7ce3081c0a5e1fc787b9d672c1cbbca93"
+  },
+  {
+   "order": 132,
+   "version": "20260125173238",
+   "file": "20260125173238_fix_incorrect_balance_due_calculations.sql",
+   "origin": "recorded in Production history",
+   "sha256": "5953906e180eec1513843b1ef51c1b6c11af91894c58608ba414db9ef6fed1b4"
+  },
+  {
+   "order": 133,
+   "version": "20260126184412",
+   "file": "20260126184412_add_travel_fee_default_and_home_address.sql",
+   "origin": "recorded in Production history",
+   "sha256": "70591f80da12689059dbc853137ed742cdaf80a9cb1ed7c18f26564540d4f24d"
+  },
+  {
+   "order": 134,
+   "version": "20260126193205",
+   "file": "20260126193205_fix_home_address_default_to_woodward_st.sql",
+   "origin": "recorded in Production history",
+   "sha256": "42aff783ded17430f086d383de39a30bf6f5331d3f8fca5a64f0ab42c3a24282"
+  },
+  {
+   "order": 135,
+   "version": "20260126193229",
+   "file": "20260126193229_create_order_lot_pictures_system.sql",
+   "origin": "recorded in Production history",
+   "sha256": "6232c415f19277a56ab356b10a374d64258d4f63be9466004988141dca1c8227"
+  },
+  {
+   "order": 136,
+   "version": "20260126193254",
+   "file": "20260126193254_add_pictures_reminder_sms_template.sql",
+   "origin": "recorded in Production history",
+   "sha256": "95425b7f3434591cfcdbe340d61af4bedfba020883d57a639e140765d609c69e"
+  },
+  {
+   "order": 137,
+   "version": "20260203053948",
+   "file": "20260203053948_20260203000000_add_social_media_urls.sql",
+   "origin": "recorded in Production history",
+   "sha256": "ad2e778c8694b8d25a81ce8f620166b5918b3dc67185fa14c659f556a3143d2d"
+  },
+  {
+   "order": 138,
+   "version": "20260224133344",
+   "file": "20260224133344_create_google_reviews_system.sql",
+   "origin": "recorded in Production history",
+   "sha256": "f6cb1d304c4fab125a8c400c9f5401063c0d0603f9efa5f21e0a6b396088861a"
+  },
+  {
+   "order": 139,
+   "version": "20260224145954",
+   "file": "20260224145954_change_power_circuits_to_decimal.sql",
+   "origin": "recorded in Production history",
+   "sha256": "e99ef6695ec6660c15f6a0ed9daa822833bb2d266db445b4c532bf2c156874cc"
+  },
+  {
+   "order": 140,
+   "version": "20260224161311",
+   "file": "20260224161311_add_featured_image_to_unit_media.sql",
+   "origin": "recorded in Production history",
+   "sha256": "885fa76fe6f9da7183d694ee4df89f92262838b9c1def2e1b967319c86d720bd"
+  },
+  {
+   "order": 141,
+   "version": "20260224165424",
+   "file": "20260224165424_convert_unit_type_to_array.sql",
+   "origin": "recorded in Production history",
+   "sha256": "e0b3cded5bc5423f5074b0a72cfc00700fd70e2dbe294bc360e7f97282e7b054"
+  },
+  {
+   "order": 142,
+   "version": "20260224183629",
+   "file": "20260224183629_add_google_review_to_pickup_messages.sql",
+   "origin": "recorded in Production history",
+   "sha256": "11482741e9b9ffb1eb983eb0c01a32c989f3e7e9a7c36a55ec854731ebe475a0"
+  },
+  {
+   "order": 143,
+   "version": "20260224184535",
+   "file": "20260224184535_update_google_review_url.sql",
+   "origin": "recorded in Production history",
+   "sha256": "8503a7aeffcb6d8f1ed60e477822b8278e974539c0b404256704b3d788d4f7dc"
+  },
+  {
+   "order": 144,
+   "version": "20260302131311",
+   "file": "20260302131311_add_user_id_to_customers_and_password_reset.sql",
+   "origin": "recorded in Production history",
+   "sha256": "af91769e4073876d4314df9889f82a507960235e5c3db52fcc45ea4da016f9d9"
+  },
+  {
+   "order": 145,
+   "version": "20260302131724",
+   "file": "20260302131724_fix_auth_trigger_link_user_id_to_customers.sql",
+   "origin": "recorded in Production history",
+   "sha256": "03319efbadd31dfcd6f18625def7cb35f1bdf7d9a560783de018360d61735150"
+  },
+  {
+   "order": 146,
+   "version": "20260304230635",
+   "file": "20260304230635_fix_lot_pictures_upload_and_tracking.sql",
+   "origin": "recorded in Production history",
+   "sha256": "031fee05b9b4440fccef9e3bdfc5d6a3fbe489ce1751123754335eabf5b2e0c3"
+  },
+  {
+   "order": 147,
+   "version": "20260305002952",
+   "file": "20260305002952_fix_lot_pictures_anon_policy.sql",
+   "origin": "recorded in Production history",
+   "sha256": "4497bbb8a9c62ff392e922d78e9f8eea640fb97e6df5cec2911388963228cfb1"
+  },
+  {
+   "order": 148,
+   "version": "20260305004845",
+   "file": "20260305004845_fix_lot_pictures_anon_upload_complete.sql",
+   "origin": "recorded in Production history",
+   "sha256": "3bcc4c5bd83f15c778ec26de2efffe91a9725ed7971871b5065ce6a454209dc3"
+  },
+  {
+   "order": 149,
+   "version": "20260305005525",
+   "file": "20260305005525_fix_lot_pictures_authenticated_upload.sql",
+   "origin": "recorded in Production history",
+   "sha256": "970bcae0d7deceae1cd4568382c970c7e582f2b82ac117f8da7cb31288a04189"
+  },
+  {
+   "order": 150,
+   "version": "20260305010355",
+   "file": "20260305010355_add_delete_policy_lot_pictures.sql",
+   "origin": "recorded in Production history",
+   "sha256": "a80cb9494b6f50ddbaa4ccc55fca464c743be8e6ecedab9f5c08ef1516ab69a3"
+  },
+  {
+   "order": 151,
+   "version": "20260305010420",
+   "file": "20260305010420_add_storage_delete_policy_authenticated.sql",
+   "origin": "recorded in Production history",
+   "sha256": "661c027dbb9065e507ba62ad75f2905afbbc969d1b0c086d271fbb36069f3aea"
+  },
+  {
+   "order": 152,
+   "version": "20260305011324",
+   "file": "20260305011324_fix_lot_pictures_select_policy.sql",
+   "origin": "recorded in Production history",
+   "sha256": "2a21b66779e9d2d8733c96f2e2f043380dd9c5de42b58a790342b80483fc64bc"
+  },
+  {
+   "order": 153,
+   "version": "20260305012217",
+   "file": "20260305012217_cleanup_duplicate_lot_pictures_storage_policies.sql",
+   "origin": "recorded in Production history",
+   "sha256": "84b76686fe5d53f11bfacd2e804e1012fed499ba96fb04f3e41adb1a21fdfeeb"
+  },
+  {
+   "order": 154,
+   "version": "20260305160637",
+   "file": "20260305160637_add_gas_mileage_tracking.sql",
+   "origin": "recorded in Production history",
+   "sha256": "edbaa6f7ba5600a4016acd4e27e369bc5a8b9fb8bd591473801f6eaad33d7e05"
+  },
+  {
+   "order": 155,
+   "version": "20260305172037",
+   "file": "20260305172037_add_payment_method_brand.sql",
+   "origin": "recorded in Production history",
+   "sha256": "3ec381092e129ffb5b487e218a90e56a79bad98bd264cda4468888a2cbbad460"
+  },
+  {
+   "order": 156,
+   "version": "20260305205811",
+   "file": "20260305205811_add_customer_selected_payment_tracking.sql",
+   "origin": "recorded in Production history",
+   "sha256": "8f6892b3bea402bf217f4c97bd2af29f9708cdae88e8ec7ac2f43cd847ecbe38"
+  },
+  {
+   "order": 157,
+   "version": "20260305222010",
+   "file": "20260305222010_fix_balance_exclude_tip.sql",
+   "origin": "recorded in Production history",
+   "sha256": "fe1928dac8ecbb326e632faac659e8b307d614ad1027a97768ef315e8687f33d"
+  },
+  {
+   "order": 158,
+   "version": "20260306143732",
+   "file": "20260306143732_add_critical_performance_indexes.sql",
+   "origin": "recorded in Production history",
+   "sha256": "e257d5ed37639c881d0d48a05174c5a1e3d66c9b62e2e32407e12f150d9f290e"
+  },
+  {
+   "order": 159,
+   "version": "20260311105210",
+   "file": "20260311105210_create_transaction_receipts.sql",
+   "origin": "recorded in Production history",
+   "sha256": "78e2f96ca7a5c9d8c9582ca702b56b9026e529c1b92cba2fa268efd741ba5d20"
+  },
+  {
+   "order": 160,
+   "version": "20260311111714",
+   "file": "20260311111714_upgrade_transaction_receipts_enterprise_safety.sql",
+   "origin": "recorded in Production history",
+   "sha256": "ac32174d134a79e27e52cb9837b626bddc5d01693229e2148cbaeac4c23bf41f"
+  },
+  {
+   "order": 161,
+   "version": "20260311113547",
+   "file": "20260311113547_fix_webhook_idempotency_and_receipt_deduplication.sql",
+   "origin": "recorded in Production history",
+   "sha256": "857f326aa97b67af2460ac906d5564fd58e460cd1d96e14256e65766dff94b02"
+  },
+  {
+   "order": 162,
+   "version": "20260311121119",
+   "file": "20260311121119_add_deposit_percentage_column.sql",
+   "origin": "recorded in Production history",
+   "sha256": "e1b6a6cb6b51631e54529d57284171e9a1b23620612a8dff38cc6b9dde90343f"
+  },
+  {
+   "order": 163,
+   "version": "20260311191611",
+   "file": "20260311191611_20260311150000_add_invoice_partial_status.sql",
+   "origin": "recorded in Production history",
+   "sha256": "1fbee0769ec46f337071cc923443dda3b8e11bada890757f921d7aae2e982fa2"
+  },
+  {
+   "order": 164,
+   "version": "20260311202123",
+   "file": "20260311202123_fix_receipt_constraint_for_deposit_plus_tip.sql",
+   "origin": "recorded in Production history",
+   "sha256": "d066edf8ac62a896321f77cf3f2d1122df4cd8aa9c571b327bf331c97698236e"
+  },
+  {
+   "order": 165,
+   "version": "20260314213726",
+   "file": "20260314213726_add_address_key_deduplication.sql",
+   "origin": "recorded in Production history",
+   "sha256": "70ffa2e9022d7740b876f1485f05eaf1d404537ee2f680a860bb00f5102cc89e"
+  },
+  {
+   "order": 166,
+   "version": "20260314215031",
+   "file": "20260314215031_fix_address_key_backfill_prefer_coords.sql",
+   "origin": "recorded in Production history",
+   "sha256": "2e34a4e065a2d4f545cbf674e46c00fda7139b1dbc8694708e0bc4c1dc5885f6"
+  },
+  {
+   "order": 167,
+   "version": "20260315173552",
+   "file": "20260315173552_fix_trigger_customers_no_updated_at.sql",
+   "origin": "recorded in Production history",
+   "sha256": "ee85fbcd31f079aef74464d62e1ed54cc3bebeea3fe2e60f2121247cc0811f5d"
+  },
+  {
+   "order": 168,
+   "version": "20260315173745",
+   "file": "20260315173745_fix_trigger_customer_profile_columns.sql",
+   "origin": "recorded in Production history",
+   "sha256": "583b46c163e452148bdb3634bd921fb5f8858e90026af96f6732888da8be8ca8"
+  },
+  {
+   "order": 169,
+   "version": "20260315175240",
+   "file": "20260315175240_fix_trigger_oauth_provider_variable_collision.sql",
+   "origin": "recorded in Production history",
+   "sha256": "0eb979eb75892b6d9134e016ff841a4cc141b53a36e45dd53860460deaef088d"
+  },
+  {
+   "order": 170,
+   "version": "20260315190615",
+   "file": "20260315190615_add_branded_signup_confirmation_hook.sql",
+   "origin": "recorded in Production history",
+   "sha256": "3f94918d8f03d27c7dafa14ad4808d3155409f8d15b428542c80249873b15b7e"
+  },
+  {
+   "order": 171,
+   "version": "20260315194114",
+   "file": "20260315194114_fix_custom_email_hook_env_vars.sql",
+   "origin": "recorded in Production history",
+   "sha256": "b81d6cc4fc262ad9bd8a5f4e4aeb0e40b79610bb0703ad0c800113eb9e8e086c"
+  },
+  {
+   "order": 172,
+   "version": "20260315202232",
+   "file": "20260315202232_fix_email_hook_direct_resend_call.sql",
+   "origin": "recorded in Production history",
+   "sha256": "2436bcf50e624e811836af8d0b08395f3a560f75044e7be23cfe98ea1cb8ffda"
+  },
+  {
+   "order": 173,
+   "version": "20260316162524",
+   "file": "20260316162524_deprecate_postgres_custom_email_hook.sql",
+   "origin": "recorded in Production history",
+   "sha256": "f2a9bdd42d2bac132d45ec07c87e66e74430288b3de83d8136120df3bb703f16"
+  },
+  {
+   "order": 174,
+   "version": "20260316174421",
+   "file": "20260316174421_restore_postgres_custom_email_hook.sql",
+   "origin": "recorded in Production history",
+   "sha256": "b335c3f7490131b8562e7bcd28e030224683aa9c39781cdddc9e2c876d6c7e2b"
+  },
+  {
+   "order": 175,
+   "version": "20260316234814",
+   "file": "20260316234814_deprecate_custom_auth_email_hook_architecture.sql",
+   "origin": "recorded in Production history",
+   "sha256": "f72e00445f3f9722e432b210f13c382d4d321a07c2946cba4e843f478e9b6c00"
+  },
+  {
+   "order": 176,
+   "version": "20260317003321",
+   "file": "20260317003321_fix_get_user_order_prefill_drop_and_recreate.sql",
+   "origin": "recorded in Production history",
+   "sha256": "bc083e389229cb7b93e8ec2171035e370405a96e9dd8d25837eb690c9a02fcc8"
+  },
+  {
+   "order": 177,
+   "version": "20260317144212",
+   "file": "20260317144212_add_address_from_signup_metadata.sql",
+   "origin": "recorded in Production history",
+   "sha256": "1fc371cab2ccd5b034ff3dd55a53ca91e8dbac9e2c7281ed7b44559e5f915f12"
+  },
+  {
+   "order": 178,
+   "version": "20260317162507",
+   "file": "20260317162507_fix_signup_address_on_conflict_partial_index.sql",
+   "origin": "recorded in Production history",
+   "sha256": "5946a51f502b5258cd0a08ca61db0e39c41e53d51de21ec5f20342c8aa58382e"
+  },
+  {
+   "order": 179,
+   "version": "20260317175547",
+   "file": "20260317175547_create_user_consent_log.sql",
+   "origin": "recorded in Production history",
+   "sha256": "205a1995398d563e8b8edf3649f8af59b86386826f2af911d0253e4ae08d5687"
+  },
+  {
+   "order": 180,
+   "version": "20260317181119",
+   "file": "20260317181119_fix_consent_log_remove_unsafe_insert_policies.sql",
+   "origin": "recorded in Production history",
+   "sha256": "cab08f63559b3b737d1653ca5787e8e1fcdd3536a6cb053c102a9d9bcfd5b535"
+  },
+  {
+   "order": 181,
+   "version": "20260317183923",
+   "file": "20260317183923_add_consent_batch_id_idempotency.sql",
+   "origin": "recorded in Production history",
+   "sha256": "b74be3a4ceac0d51c04a0e97864af7d39047f6eba5d74a88dec486b829d54f2e"
+  },
+  {
+   "order": 182,
+   "version": "20260317201616",
+   "file": "20260317201616_add_pending_signups_consent_table.sql",
+   "origin": "recorded in Production history",
+   "sha256": "e9cde1fb2168d8a3c408016f7df06b69ea658234d1d0a15a10161695cb55aa7a"
+  },
+  {
+   "order": 183,
+   "version": "20260317202513",
+   "file": "20260317202513_fix_pending_signups_consent_authenticated_insert.sql",
+   "origin": "recorded in Production history",
+   "sha256": "5796d1f136f4cbfa69d7184a39eae5a0ad89ae2efa0fefaa6d7cabcfaf36eb80"
+  },
+  {
+   "order": 184,
+   "version": "20260318182333",
+   "file": "20260318182333_fix_order_changelog_anon_customer_approval.sql",
+   "origin": "recorded in Production history",
+   "sha256": "8897dd3c4edce62c3a1c458f17ffa82e6eb0dfcc1b27a7704481d96baf59762d"
+  },
+  {
+   "order": 185,
+   "version": "20260318191352",
+   "file": "20260318191352_fix_waterslide_water_price.sql",
+   "origin": "recorded in Production history",
+   "sha256": "76e5c2b28eea1e983105f4ea067b4392a21584b88f8fe2850d52ea8f9d1d93a0"
+  },
+  {
+   "order": 186,
+   "version": "20260318191537",
+   "file": "20260318191537_add_addresses_upsert_support.sql",
+   "origin": "recorded in Production history",
+   "sha256": "c4a6fe0028081ee2efceaab049d92d24f239bd7fe11698fd1069115cf0576b8b"
+  },
+  {
+   "order": 187,
+   "version": "20260318191608",
+   "file": "20260318191608_fix_order_changelog_anon_status_change.sql",
+   "origin": "recorded in Production history",
+   "sha256": "70a791f4b306d25b04398a39e13ed95e1d1c6c30b3029e4dfaa1ffcf77bf6e0c"
+  },
+  {
+   "order": 188,
+   "version": "20260318193312",
+   "file": "20260318193312_fix_address_key_constraint_for_upsert.sql",
+   "origin": "recorded in Production history",
+   "sha256": "733de084bfee37361dd2f131adcd80f1d556e888fb2aa28c9e3142cb24399001"
+  },
+  {
+   "order": 189,
+   "version": "20260320001735",
+   "file": "20260320001735_fix_draft_to_confirmed_status_transition.sql",
+   "origin": "recorded in Production history",
+   "sha256": "d4082c551c15eef8fe0694eac72f333f6f20859f27851037a5f565b48f0b9bad"
+  },
+  {
+   "order": 190,
+   "version": "20260320134456",
+   "file": "20260320134456_add_require_card_on_file_to_orders.sql",
+   "origin": "recorded in Production history",
+   "sha256": "648ed34dd40c128906fe41ef195423b618d046d0177bb3349a1f0899f314f558"
+  },
+  {
+   "order": 191,
+   "version": "20260320150558",
+   "file": "20260320150558_fix_confirmed_transition_for_no_card_required.sql",
+   "origin": "recorded in Production history",
+   "sha256": "8184786a5cd67955344a1f71d012f526d634799f7612b03d81839f26e5e111b2"
+  },
+  {
+   "order": 192,
+   "version": "20260321194111",
+   "file": "20260321194111_add_customer_read_policy_task_status.sql",
+   "origin": "recorded in Production history",
+   "sha256": "6ce75b9debff394f21e774b899894810828e922d46a36de3f9f618624c89733f"
+  },
+  {
+   "order": 193,
+   "version": "20260321210200",
+   "file": "20260321210200_add_task_status_customer_anon_read_policy.sql",
+   "origin": "recorded in Production history",
+   "sha256": "1ceb0e0c1b36a48ba44842edcc1784025d289d234b9b2b67a308e14034e3efee"
+  },
+  {
+   "order": 194,
+   "version": "20260322203342",
+   "file": "20260322203342_fix_auto_update_order_status_trigger_security.sql",
+   "origin": "recorded in Production history",
+   "sha256": "10afa695f6e891d3ac94e4cea63ead41d58635e151d65b079bd5675b00ee9148"
+  },
+  {
+   "order": 195,
+   "version": "20260322203356",
+   "file": "20260322203356_fix_crew_location_history_authenticated_insert_policy.sql",
+   "origin": "recorded in Production history",
+   "sha256": "fdf10d6656a8bce8bc692c8aecc92707fe8f33205c45b874053e62c0d5e3bc0a"
+  },
+  {
+   "order": 196,
+   "version": "20260322204401",
+   "file": "20260322204401_fix_auto_update_order_status_valid_transitions.sql",
+   "origin": "recorded in Production history",
+   "sha256": "794170ed953f3658199e8d0fec1058dc03c7484eb6f752fb150606ab4d762a5d"
+  },
+  {
+   "order": 197,
+   "version": "20260322204444",
+   "file": "20260322204444_fix_auto_update_order_status_trigger_correct_columns.sql",
+   "origin": "recorded in Production history",
+   "sha256": "17505c7930f745b6f639f1aaf0c07a103bc51c5656a1a6ecc8dc632ee08ff3c5"
+  },
+  {
+   "order": 198,
+   "version": "20260322205212",
+   "file": "20260322205212_fix_auto_update_order_status_confirmed_to_setup_in_progress.sql",
+   "origin": "recorded in Production history",
+   "sha256": "41b2204508b7ac1d0bc3eb146c3ead8281bcb96ddb5332ea29e1b91ccedd3850"
+  },
+  {
+   "order": 199,
+   "version": "20260322210503",
+   "file": "20260322210503_fix_validate_order_status_transition_missing_column.sql",
+   "origin": "recorded in Production history",
+   "sha256": "701900f48e93611fc2d0e34323274ad7d06d29be8b68dcaf0cb1c35c4c8e084d"
+  },
+  {
+   "order": 200,
+   "version": "20260322223521",
+   "file": "20260322223521_fix_auto_update_order_status_use_in_progress.sql",
+   "origin": "recorded in Production history",
+   "sha256": "ebaf6fb9c9275f30e282a5a5cc80a587613959d8fd84d59b0e2755e844a2aff7"
+  },
+  {
+   "order": 201,
+   "version": "20260322224107",
+   "file": "20260322224107_fix_order_status_model_align_trigger_and_validator.sql",
+   "origin": "recorded in Production history",
+   "sha256": "2a1e8df1827139891afe4e0c660c3ec520e2c4dffdbb642f51f6aff57476bd28"
+  },
+  {
+   "order": 202,
+   "version": "20260323035524",
+   "file": "20260323035524_add_record_cash_payment_rpc.sql",
+   "origin": "recorded in Production history",
+   "sha256": "dcf7f9907b5024fba98c63fe614ec2857df44a1ee66f4ae75cf920b595c9c8af"
+  },
+  {
+   "order": 203,
+   "version": "20260323040745",
+   "file": "20260323040745_fix_record_cash_payment_rpc_payment_columns.sql",
+   "origin": "recorded in Production history",
+   "sha256": "9969420fe29bc166ed34af62400e0fe1d760138ca350c390db1fd0e3aad58cbd"
+  },
+  {
+   "order": 204,
+   "version": "20260323155019",
+   "file": "20260323155019_add_order_archival_system.sql",
+   "origin": "recorded in Production history",
+   "sha256": "35d31b200fa70eb266d5b946256b8774a68dbdc623cc939e9a9c7478f79bf0a7"
+  },
+  {
+   "order": 205,
+   "version": "20260323155222",
+   "file": "20260323155222_add_loyalty_fields_to_contacts.sql",
+   "origin": "recorded in Production history",
+   "sha256": "ff39e0d1a4f1f3d8e2c5881285fff38604e8377dc466986072f6efb5c3ef467a"
+  },
+  {
+   "order": 206,
+   "version": "20260323163328",
+   "file": "20260323163328_add_admin_check_to_archive_old_orders.sql",
+   "origin": "recorded in Production history",
+   "sha256": "00c2102ce42df3e25e3adb38cd142036f95d1d87a3693d00e224226603e8662e"
+  },
+  {
+   "order": 207,
+   "version": "20260323163432",
+   "file": "20260323163432_fix_loyalty_trigger_exclude_cancelled_orders.sql",
+   "origin": "recorded in Production history",
+   "sha256": "a367b47ddb66d4da2d6b0080c966910360cb7bc446e35383085410f4f8a70f7a"
+  },
+  {
+   "order": 208,
+   "version": "20260323164559",
+   "file": "20260323164559_fix_total_spent_cents_include_custom_fees_discounts.sql",
+   "origin": "recorded in Production history",
+   "sha256": "d3bd9a8b92ab0e2a0f6f36a648399a8c4cc1843c2385bddfa6b08a78a03831b0"
+  },
+  {
+   "order": 209,
+   "version": "20260323175228",
+   "file": "20260323175228_20260323_security_tighten_lot_pictures_anon_rls.sql",
+   "origin": "recorded in Production history",
+   "sha256": "f56ea45f447ee1c4b08caada9da4498e71faa4630b2f2efe12c383fa1cfcbb4a"
+  },
+  {
+   "order": 210,
+   "version": "20260323175233",
+   "file": "20260323175233_20260323_security_tighten_unit_images_storage_admin_only.sql",
+   "origin": "recorded in Production history",
+   "sha256": "0cd29573c2ee1fdd8cdd47a41252e137872599a62338ddb37526efaa7a41af91"
+  },
+  {
+   "order": 211,
+   "version": "20260323175236",
+   "file": "20260323175236_20260323_security_redact_secrets_in_settings_changelog.sql",
+   "origin": "recorded in Production history",
+   "sha256": "28506cdaad1268396c0a0e931b33b1bf5da3a52f7e19ec4f9fa7db1f805f9b4f"
+  },
+  {
+   "order": 212,
+   "version": "20260323200908",
+   "file": "20260323200908_add_admin_analytics_overview.sql",
+   "origin": "recorded in Production history",
+   "sha256": "ac6452654f5c316f874c2467a490dfa2865521d6dc9f5521d67dda6f59d23141"
+  },
+  {
+   "order": 213,
+   "version": "20260323200931",
+   "file": "20260323200931_add_site_events_tracking.sql",
+   "origin": "recorded in Production history",
+   "sha256": "3dc064296e006f7786dd536a9cf68013d6ae016c2a65b6136b2bd58f5f59ce64"
+  },
+  {
+   "order": 214,
+   "version": "20260323200947",
+   "file": "20260323200947_add_google_calendar_sync_table.sql",
+   "origin": "recorded in Production history",
+   "sha256": "4ba2369bd47ce01dd162a0247f337f1ae93b60061227ff7c61135e0af69729ac"
+  },
+  {
+   "order": 215,
+   "version": "20260323201502",
+   "file": "20260323201502_add_google_calendar_auto_sync_trigger.sql",
+   "origin": "recorded in Production history",
+   "sha256": "9fc48cac893d126d056add5af869e280d62f925a4564b4e3c107e758df3b6172"
+  },
+  {
+   "order": 216,
+   "version": "20260323201532",
+   "file": "20260323201532_fix_calendar_trigger_use_admin_settings.sql",
+   "origin": "recorded in Production history",
+   "sha256": "22841f990a09031236468a08759cae92bf758e6c9a0c6d7bf6dd10e45195c4b6"
+  },
+  {
+   "order": 217,
+   "version": "20260323204632",
+   "file": "20260323204632_disable_google_calendar_trigger_until_credentials_ready.sql",
+   "origin": "recorded in Production history",
+   "sha256": "41fee070b05a2398db32b0a740412b39100498e125f1896147be98817ec15de8"
+  },
+  {
+   "order": 218,
+   "version": "20260323204640",
+   "file": "20260323204640_add_gcal_queue_admin_read_policy.sql",
+   "origin": "recorded in Production history",
+   "sha256": "ad403c9ade9ca302406410cf78166f1bd25cb853df7d8d87ab20c0cdf4e8cfed"
+  },
+  {
+   "order": 219,
+   "version": "20260323210432",
+   "file": "20260323210432_fix_get_admin_analytics_correct_schema.sql",
+   "origin": "recorded in Production history",
+   "sha256": "b7af062e1ff0e260ca15bb1b6746d4c4e5b85c3a5699e3225821dfd53c14fa57"
+  },
+  {
+   "order": 220,
+   "version": "20260323210519",
+   "file": "20260323210519_fix_get_admin_analytics_lead_time_cast.sql",
+   "origin": "recorded in Production history",
+   "sha256": "43f87c7282c5bb033189a59f9cf34c5b01cf0b9f9eeceecc483d86c33160d400"
+  },
+  {
+   "order": 221,
+   "version": "20260324012349",
+   "file": "20260324012349_create_signed_waivers_storage_bucket.sql",
+   "origin": "recorded in Production history",
+   "sha256": "fb3208d86d1b72f7b851032fb94356b76dd64c044b20a1763dfdfe9cadeab41e"
+  },
+  {
+   "order": 222,
+   "version": "20260324043743",
+   "file": "20260324043743_set_replica_identity_full_for_realtime.sql",
+   "origin": "recorded in Production history",
+   "sha256": "dabcf8a2d1d661e5b7bd8c05f602b3a4d63db4c0a1999ee35d1573f64f0c967c"
+  },
+  {
+   "order": 223,
+   "version": "20260324051349",
+   "file": "20260324051349_add_anon_read_policy_order_signatures.sql",
+   "origin": "recorded in Production history",
+   "sha256": "3e499322d214b576d3a74009d628c59ca1b88c6da2af9f8604f853a2c22eb86e"
+  },
+  {
+   "order": 224,
+   "version": "20260324051459",
+   "file": "20260324051459_add_tables_to_realtime_publication.sql",
+   "origin": "recorded in Production history",
+   "sha256": "b91664177686fb03c774c0efc07e6c9236a0ceb0bda3c0dbd9b09db7d8415bbd"
+  },
+  {
+   "order": 225,
+   "version": "20260324052320",
+   "file": "20260324052320_fix_order_signatures_authenticated_policy.sql",
+   "origin": "recorded in Production history",
+   "sha256": "52bb8afe19a8b731b029958f901887b8ba094903ec849bf838daf1da6510cfc0"
+  },
+  {
+   "order": 226,
+   "version": "20260324135229",
+   "file": "20260324135229_fix_order_signatures_policy_security_definer.sql",
+   "origin": "recorded in Production history",
+   "sha256": "38790957023e3edf1f64cb5940d1a81f42481bf4b83a73c3585cb973498d20c0"
+  },
+  {
+   "order": 227,
+   "version": "20260324142355",
+   "file": "20260324142355_make_signatures_bucket_public.sql",
+   "origin": "recorded in Production history",
+   "sha256": "b9c3890ead35c5e1b59bc6b7492717d9d31f055896e1f6126f57eca0d292a17c"
+  },
+  {
+   "order": 228,
+   "version": "20260324150819",
+   "file": "20260324150819_fix_order_pictures_select_policy.sql",
+   "origin": "recorded in Production history",
+   "sha256": "4903cdf013a4b4a4916762f61a7fb9f8cfce508e780cbbb4ea37164700c483e1"
+  },
+  {
+   "order": 229,
+   "version": "20260324150838",
+   "file": "20260324150838_make_order_pictures_bucket_public.sql",
+   "origin": "recorded in Production history",
+   "sha256": "f44df5a74d3e546fc5f3d0f9fe8696bb0f5bc86abc0d78840307d6f0894fd747"
+  },
+  {
+   "order": 230,
+   "version": "20260324154955",
+   "file": "20260324154955_add_order_pictures_to_realtime_publication.sql",
+   "origin": "recorded in Production history",
+   "sha256": "9fed5ab4c75b4441ae28ce3ba473fc574b34a996bc1c0127d5c71c23360d506c"
+  },
+  {
+   "order": 231,
+   "version": "20260324160956",
+   "file": "20260324160956_fix_replica_identity_full_for_remaining_realtime_tables.sql",
+   "origin": "recorded in Production history",
+   "sha256": "6cf4bc6e4b2a195ff68b25b742b16e149c366af972c5dadaa25f850e39fcb286"
+  },
+  {
+   "order": 232,
+   "version": "20260324161031",
+   "file": "20260324161031_tighten_order_signatures_anon_select_policy.sql",
+   "origin": "recorded in Production history",
+   "sha256": "a35e7912960de6cea4021473893512bdbede42bdfa7de8fc4989e9bdf09a3ca4"
+  },
+  {
+   "order": 233,
+   "version": "20260324162302",
+   "file": "20260324162302_drop_order_signatures_anon_select_policy.sql",
+   "origin": "recorded in Production history",
+   "sha256": "d57b600961c8d5d64565f1d3798bee3a7e878fcdde26e3811adf5d4fce6547ca"
+  },
+  {
+   "order": 234,
+   "version": "20260324175546",
+   "file": "20260324175546_fix_get_user_role_case_sensitivity_v2.sql",
+   "origin": "recorded in Production history",
+   "sha256": "24205669c9b76ba3835f2c88be4817608b0e8c83ec8d7e2a4ac9dc63b4cfeec0"
+  },
+  {
+   "order": 235,
+   "version": "20260324175858",
+   "file": "20260324175858_fix_log_permission_change_trigger_constraints.sql",
+   "origin": "recorded in Production history",
+   "sha256": "6521e2992a892b0074e4109ae8f6b4b403700663ff056cbbc5a6947a174c95c6"
+  },
+  {
+   "order": 236,
+   "version": "20260324175909",
+   "file": "20260324175909_fix_permission_changelog_role_constraints.sql",
+   "origin": "recorded in Production history",
+   "sha256": "8dc65a847915ee6f369b6e5f4af8535969abc7df793ed062ca685868bcec7bdc"
+  },
+  {
+   "order": 237,
+   "version": "20260324175947",
+   "file": "20260324175947_fix_contacts_rls_lowercase_and_anon_insert.sql",
+   "origin": "recorded in Production history",
+   "sha256": "089b166745cac5d0be6f693aefb71fb0e8d4bfff3a8aedf7c21f21b006bd77a0"
+  },
+  {
+   "order": 238,
+   "version": "20260324180043",
+   "file": "20260324180043_fix_all_rls_policies_lowercase_roles.sql",
+   "origin": "recorded in Production history",
+   "sha256": "2c5f3c83cc165fd68d7b99b659d48dcca2d249943aa0b8e15be5221bc90eb8b4"
+  },
+  {
+   "order": 239,
+   "version": "20260324190039",
+   "file": "20260324190039_normalize_remaining_uppercase_roles.sql",
+   "origin": "recorded in Production history",
+   "sha256": "d6382226f05d7e3b0b9d08dfebc5e238913bec219eb982f8928f3e5da52ebcf9"
+  },
+  {
+   "order": 240,
+   "version": "20260324190114",
+   "file": "20260324190114_fix_contacts_anon_upsert_insert_and_update.sql",
+   "origin": "recorded in Production history",
+   "sha256": "215bc70912e8e94a785545d7d2473ac5d011a2957dd8a18fd7c0ff24468330f9"
+  },
+  {
+   "order": 241,
+   "version": "20260324191353",
+   "file": "20260324191353_tighten_contacts_anon_update_policy.sql",
+   "origin": "recorded in Production history",
+   "sha256": "62b81fb8cb4ae74aae9f4c4fe8af6b97ce601206d777027bf0e106d7c5149ce0"
+  },
+  {
+   "order": 242,
+   "version": "20260324191502",
+   "file": "20260324191502_tighten_contacts_anon_update_policy.sql",
+   "origin": "recorded in Production history",
+   "sha256": "2a57c2e40d4555cb1863976f953ecc52ca7b36ddca61e42137942a8c4ed62596"
+  },
+  {
+   "order": 243,
+   "version": "20260324191543",
+   "file": "20260324191543_add_atomic_approve_order_rpc.sql",
+   "origin": "recorded in Production history",
+   "sha256": "3f9d6f6dba2bd514bf7704dfaaec3b9fd006e055888eb56b7f37c6bebf732c04"
+  },
+  {
+   "order": 244,
+   "version": "20260324191556",
+   "file": "20260324191556_replace_claim_order_rpc_with_status_predicated_update.sql",
+   "origin": "recorded in Production history",
+   "sha256": "f187cc37f424fec3dc9e152446fb03fde1eeffdeb69b942c2e5e2bb9aea63c24"
+  },
+  {
+   "order": 245,
+   "version": "20260324191655",
+   "file": "20260324191655_drop_remaining_open_contacts_update_policy.sql",
+   "origin": "recorded in Production history",
+   "sha256": "60b965600213aa7002c061ef6117f05b6af6d77454e8d2ee34a538f4175acbce"
+  },
+  {
+   "order": 246,
+   "version": "20260324193222",
+   "file": "20260324193222_add_assign_role_by_email_and_get_all_role_users.sql",
+   "origin": "recorded in Production history",
+   "sha256": "5d0143027d459c9a3c919caf0b29004e2446f4d9f5eeadb754b7c52fd59a9d4c"
+  },
+  {
+   "order": 247,
+   "version": "20260324195725",
+   "file": "20260324195725_add_notes_to_order_changelog.sql",
+   "origin": "recorded in Production history",
+   "sha256": "afc62f38a4962dfe02788b557b9e87308b749cb8991bc4ba1509b9fb15a060ee"
+  },
+  {
+   "order": 248,
+   "version": "20260324200626",
+   "file": "20260324200626_fix_log_permission_change_embed_actor_email.sql",
+   "origin": "recorded in Production history",
+   "sha256": "ee920e595deabc7bfb87691d704101a9e232a56363905eca3a74bd3a4266d5e0"
+  },
+  {
+   "order": 249,
+   "version": "20260324210923",
+   "file": "20260324210923_add_lifecycle_notification_flags.sql",
+   "origin": "recorded in Production history",
+   "sha256": "444ab38ab869d4c0674f95620e4c378e9007b0cf1969376907b66e49eb16a1b8"
+  },
+  {
+   "order": 250,
+   "version": "20260324230943",
+   "file": "20260324230943_fix_oauth_name_priority_signup_form_over_google.sql",
+   "origin": "recorded in Production history",
+   "sha256": "60f607b68a30881c8f7926e4c62919f7382f5697dd298b5f4bd545eda74fbb91"
+  },
+  {
+   "order": 251,
+   "version": "20260325060943",
+   "file": "20260325060943_add_order_financials_applied_to_payments.sql",
+   "origin": "recorded in Production history",
+   "sha256": "f63c766498361ce2bee058bcc8c2c33a5468aa9b4bea8a543d33d92516d4cca0"
+  },
+  {
+   "order": 252,
+   "version": "20260325061545",
+   "file": "20260325061545_add_claim_balance_payment_financials_rpc.sql",
+   "origin": "recorded in Production history",
+   "sha256": "9b5c9374e457399a0e7f1ce9a7d3502457a3d842ddc6b59dab5e6b7b5ca29842"
+  },
+  {
+   "order": 253,
+   "version": "20260325062358",
+   "file": "20260325062358_add_apply_balance_payment_financials_atomic_rpc.sql",
+   "origin": "recorded in Production history",
+   "sha256": "2d6517b51ef74cbe3d8d616224c02b39f761aaaa862b00d73bd3262d7290346b"
+  },
+  {
+   "order": 254,
+   "version": "20260325231020",
+   "file": "20260325231020_add_carousel_show_arrows_setting.sql",
+   "origin": "recorded in Production history",
+   "sha256": "b6abf43ffa183d4c30dd460c74650550e3e210de1b36e400309cfd33f55036a3"
+  },
+  {
+   "order": 255,
+   "version": "20260325231044",
+   "file": "20260325231044_increase_carousel_media_file_size_limit.sql",
+   "origin": "recorded in Production history",
+   "sha256": "67a9dc2d3d3e0c71947239ddadc453b0318230cbcb30859edf3669598d55be6f"
+  },
+  {
+   "order": 256,
+   "version": "20260326004004",
+   "file": "20260326004004_backfill_order_payment_method_last_four_brand.sql",
+   "origin": "recorded in Production history",
+   "sha256": "e33c7e0256cf3f911f641a42f0843267f89d249a036876b62c9557ef57bdf800"
+  },
+  {
+   "order": 257,
+   "version": "20260326052113",
+   "file": "20260326052113_fix_get_all_role_users_drop_and_recreate.sql",
+   "origin": "recorded in Production history",
+   "sha256": "6ccbb7621fc215ff018e18268c8be45fb1c7529fd1f2a0641f2f457b90625556"
+  },
+  {
+   "order": 258,
+   "version": "20260326052438",
+   "file": "20260326052438_fix_get_all_role_users_exclude_customer_role.sql",
+   "origin": "recorded in Production history",
+   "sha256": "35fd0ccbd4aadefd4b2771095d0bcff3ae22626a4dfae71078e484c67f7eea6f"
+  },
+  {
+   "order": 259,
+   "version": "20260327125333",
+   "file": "20260327125333_add_record_check_payment_rpc.sql",
+   "origin": "recorded in Production history",
+   "sha256": "abdbbf6845c38154d9ccfe202cd4c06e29da25e446021f1d2973ad466fe16b95"
+  },
+  {
+   "order": 260,
+   "version": "20260327131256",
+   "file": "20260327131256_fix_record_check_payment_rpc_drop_recreate.sql",
+   "origin": "recorded in Production history",
+   "sha256": "673ef8d23c3c705393daf89bf0368aa3b7ff75a8e79ed950d1c94da3722fd358"
+  },
+  {
+   "order": 261,
+   "version": "20260327134130",
+   "file": "20260327134130_fix_record_check_payment_use_notes_column.sql",
+   "origin": "recorded in Production history",
+   "sha256": "aaf224ff8ac080f25804d8714213d480647adffef25cb40ff811e19608d734d8"
+  },
+  {
+   "order": 262,
+   "version": "20260327162019",
+   "file": "20260327162019_add_blackout_block_type_and_enforcement_rpc.sql",
+   "origin": "recorded in Production history",
+   "sha256": "382f00342dc802c3313ddaccdd5162b8c953aeb45172f289b64369e1986e46e5"
+  },
+  {
+   "order": 263,
+   "version": "20260327163057",
+   "file": "20260327163057_fix_check_date_blackout_normalize_reversed_ranges.sql",
+   "origin": "recorded in Production history",
+   "sha256": "9a8336667a66d5fa121853d6299de6d62b24460168dfec80dbbe7d986b8f3223"
+  },
+  {
+   "order": 264,
+   "version": "20260327170800",
+   "file": "20260327170800_20260327180000_add_recurrence_and_expiration_to_blackout_dates.sql",
+   "origin": "recorded in Production history",
+   "sha256": "414a7cef36c02d0839b5c6597b15743d24f58b7057cfc2c0458ef38ed39853db"
+  },
+  {
+   "order": 265,
+   "version": "20260327171850",
+   "file": "20260327171850_20260327163057_fix_check_date_blackout_normalize_reversed_ranges.sql",
+   "origin": "recorded in Production history",
+   "sha256": "5f431c94ab506cdf1ca24142ec825d1aad28c54e20f152f4dcc9ce35578ca696"
+  },
+  {
+   "order": 266,
+   "version": "20260327171915",
+   "file": "20260327171915_20260327163057_fix_check_date_blackout_wrap_aware_v2.sql",
+   "origin": "recorded in Production history",
+   "sha256": "24c129c77715ba1781fe920a7499847defd466a15eeda9edeb10f8454e59c972"
+  },
+  {
+   "order": 267,
+   "version": "20260327211441",
+   "file": "20260327211441_fix_contacts_upsert_and_add_delete_policy.sql",
+   "origin": "recorded in Production history",
+   "sha256": "529f527af649564a7b880650f074ed3694cf42250e299c7c082c33785434daf5"
+  },
+  {
+   "order": 268,
+   "version": "20260328182519",
+   "file": "20260328182519_add_date_range_params_to_admin_analytics.sql",
+   "origin": "recorded in Production history",
+   "sha256": "3cfeaf9900e4646604399f9f3d4274dbc0293965f01236c1ae6bb0c680e59766"
+  },
+  {
+   "order": 269,
+   "version": "20260328183418",
+   "file": "20260328183418_fix_admin_analytics_total_cents_column.sql",
+   "origin": "recorded in Production history",
+   "sha256": "3da72913d0f7f0d9b6144b1c2424e409e3c2b22d6c39f13f88ddc3b4f32a620f"
+  },
+  {
+   "order": 270,
+   "version": "20260328183925",
+   "file": "20260328183925_fix_admin_analytics_tip_cents_column.sql",
+   "origin": "recorded in Production history",
+   "sha256": "27e9abaf31b4995429b803f60121d5d64ad6a453d56e0264e48a89f9ee9404ed"
+  },
+  {
+   "order": 271,
+   "version": "20260328184611",
+   "file": "20260328184611_fix_admin_analytics_extract_epoch_cast.sql",
+   "origin": "recorded in Production history",
+   "sha256": "551e03e1505a0c351f8ad91f11c47a97c3c9993a54ff55290752495e05c32fb7"
+  },
+  {
+   "order": 272,
+   "version": "20260331151647",
+   "file": "20260331151647_add_image_visibility_mode_to_unit_media.sql",
+   "origin": "recorded in Production history",
+   "sha256": "af1b8dbfb0c8db686f19b1272fc510263ba9cf184f7946060d5b093b5a9fa5c5"
+  },
+  {
+   "order": 273,
+   "version": "20260402143448",
+   "file": "20260402143448_add_is_admin_internal_to_sms_conversations.sql",
+   "origin": "recorded in Production history",
+   "sha256": "820e5eb989ec292172bf42ff41d34e8cf0790d51ab7f0540bbb5e18380ec6c0e"
+  },
+  {
+   "order": 274,
+   "version": "20260408200431",
+   "file": "20260408200431_add_refund_requested_to_orders.sql",
+   "origin": "recorded in Production history",
+   "sha256": "26988ec16332be273a76e857e4fecbf52331f90d317e7e7f4e0bdafb5f74e06f"
+  },
+  {
+   "order": 275,
+   "version": "20260409154545",
+   "file": "20260409154545_fix_confirmed_to_awaiting_customer_approval_transition.sql",
+   "origin": "recorded in Production history",
+   "sha256": "006c03e8ac60b77da0d378f73784978a04dfa0897d8d506da9a3575130da09ed"
+  },
+  {
+   "order": 276,
+   "version": "20260409155123",
+   "file": "20260409155123_fix_invoice_links_rls_split_for_all_policy.sql",
+   "origin": "recorded in Production history",
+   "sha256": "9434710fa70c894857f5187852fc4fae161e582af808d47470d4f760c4ad8b8c"
+  },
+  {
+   "order": 277,
+   "version": "20260415182819",
+   "file": "20260415182819_add_short_code_to_invoice_links.sql",
+   "origin": "recorded in Production history",
+   "sha256": "85ed83a01356e8f6a6d657ec6756d80f5cd5e752121b127fb6cc5a5b979e3551"
+  },
+  {
+   "order": 278,
+   "version": "20260415194218",
+   "file": "20260415194218_sync_invoice_links_expires_at_on_event_date_change.sql",
+   "origin": "recorded in Production history",
+   "sha256": "98babdcc19bf3c358c9b87d36e10c228bdd200cd4b4d7229c8e0f7dcf3563aa2"
+  },
+  {
+   "order": 279,
+   "version": "20260415233743",
+   "file": "20260415233743_add_link_type_to_invoice_links.sql",
+   "origin": "recorded in Production history",
+   "sha256": "7093d4d371cb5a4374fe54d8e125f0b8fbf3e199cd13a3e59af56a793ca0b452"
+  },
+  {
+   "order": 280,
+   "version": "20260415234700",
+   "file": "20260415234700_backfill_portal_shortlinks_in_invoice_links.sql",
+   "origin": "recorded in Production history",
+   "sha256": "2d95be6f0b75c78a420f7e48bea4ec44e9f83c10d13fbe27635f95deac942a65"
+  },
+  {
+   "order": 281,
+   "version": "20260415235903",
+   "file": "20260415235903_document_decline_link_historical_gap.sql",
+   "origin": "recorded in Production history",
+   "sha256": "07ae0d2ba1313313809c63bc1532fbf4230f67f460303bb8b6b0422a53e6baa3"
+  },
+  {
+   "order": 282,
+   "version": "20260420171351",
+   "file": "20260420171351_add_generator_fee_cents_to_invoices.sql",
+   "origin": "recorded in Production history",
+   "sha256": "3c21057ed08df3e1444b8e76817c91ebcd7d5e610c71bc51617fc270ff8642e6"
+  },
+  {
+   "order": 283,
+   "version": "20260421025937",
+   "file": "20260421025937_tighten_orders_rls_replace_open_policies_with_rpc.sql",
+   "origin": "recorded in Production history",
+   "sha256": "82833ea5060ea85ee762980b05f1f95e6725bc4a6fd19dcec9c4c8106a8208da"
+  },
+  {
+   "order": 284,
+   "version": "20260421133448",
+   "file": "20260421133448_add_get_order_with_relations_by_token.sql",
+   "origin": "recorded in Production history",
+   "sha256": "c4bd88b07c84ef50508e52c6d2bdaf7c7c888ff1d00924923063213eed807db0"
+  },
+  {
+   "order": 285,
+   "version": "20260421160051",
+   "file": "20260421160051_add_get_public_business_settings_rpc.sql",
+   "origin": "recorded in Production history",
+   "sha256": "37e7b74fef5dae72fd19126363dd7c04740274c20a1e76d8fdb2399c894a1b75"
+  },
+  {
+   "order": 286,
+   "version": "20260501173826",
+   "file": "20260501173826_add_billing_addresses_table.sql",
+   "origin": "recorded in Production history",
+   "sha256": "6b0443377510e852866269e60f44b7b72a40ba5bd3202a91eb9f8aad178b90be"
+  },
+  {
+   "order": 287,
+   "version": "20260501173956",
+   "file": "20260501173956_add_billing_address_to_orders.sql",
+   "origin": "recorded in Production history",
+   "sha256": "d5467c4ce221d4011b18ddd5b0df13f98e0853b3f427f489f2a1d05b6d8b0677"
+  },
+  {
+   "order": 288,
+   "version": "20260517221038",
+   "file": "20260517221038_fix_public_assets_bucket_size_and_mime_types.sql",
+   "origin": "recorded in Production history",
+   "sha256": "3bf3fa249ee1ab5b8680ed0285e9bf71d84a93b00f5f813a2af1756bf8950d76"
+  },
+  {
+   "order": 289,
+   "version": "20260518174651",
+   "file": "20260518174651_add_referral_source_to_orders.sql",
+   "origin": "recorded in Production history",
+   "sha256": "8c1ef6b90c7d698d05fda4d11e398cd8f6aead09bd147f4aaa3888e6479be9e9"
+  },
+  {
+   "order": 290,
+   "version": "20260521153603",
+   "file": "20260521153603_add_get_booking_sources_analytics_rpc.sql",
+   "origin": "recorded in Production history",
+   "sha256": "5ffabe875f2bc4759ed1a8a11975eacb0c8b20cc6e3b990a13230c68b91baa43"
+  },
+  {
+   "order": 291,
+   "version": "20260521153805",
+   "file": "20260521153805_fix_booking_sources_analytics_revenue_column.sql",
+   "origin": "recorded in Production history",
+   "sha256": "6b12aec579bb06a8735c282ea9a8209c250c091fc8c02eb3a6746509c6e8d794"
+  },
+  {
+   "order": 292,
+   "version": "20260526165610",
+   "file": "20260526165610_add_address_lot_pictures.sql",
+   "origin": "recorded in Production history",
+   "sha256": "e7cf1c686f0e332ca5de9e499f4e2d83181086f8bcd56459d24193175561c281"
+  },
+  {
+   "order": 293,
+   "version": "20260526165639",
+   "file": "20260526165639_add_save_lot_picture_to_address_rpc.sql",
+   "origin": "recorded in Production history",
+   "sha256": "3b5a1429a2068acb5f8caf93f67587cddb690d76b1532744569077c03eee0680"
+  },
+  {
+   "order": 294,
+   "version": "20260526182307",
+   "file": "20260526182307_add_get_booking_source_analytics_rpc.sql",
+   "origin": "recorded in Production history",
+   "sha256": "e934bc51e332ede085f999e3e665b8b6ead5b5f97c920218abc16295d43229b1"
+  },
+  {
+   "order": 295,
+   "version": "20260611153900",
+   "file": "20260611153900_add_same_day_weekday_delivery_fee.sql",
+   "origin": "recorded in Production history",
+   "sha256": "0f6eeb26dc6f4a2fa4b97f909ec1755a98922651c15bbb1fd6dd1b5b86ff3f8f"
+  },
+  {
+   "order": 296,
+   "version": "20260611170601",
+   "file": "20260611170601_add_same_day_weekday_delivery_fee.sql",
+   "origin": "recorded in Production history",
+   "sha256": "9c41d17f3b4445586329363f20257de89e6d0d75195e25286f4e7a369f0e1bda"
+  },
+  {
+   "order": 297,
+   "version": "20260611172855",
+   "file": "20260611172855_reload_pgrst_schema_cache.sql",
+   "origin": "recorded in Production history",
+   "sha256": "436b4960975f23be6818c28102923df1139a36091b236e231930404f28c214f0"
+  },
+  {
+   "order": 298,
+   "version": "20260611174321",
+   "file": "20260611174321_force_pgrst_schema_cache_refresh.sql",
+   "origin": "recorded in Production history",
+   "sha256": "68ae67d5c0ec6b83440e3980002db8115e44db142f21fe9c8f3b950fd5c0a4cb"
+  },
+  {
+   "order": 299,
+   "version": "20260611184401",
+   "file": "20260611184401_create_update_pricing_rules_rpc.sql",
+   "origin": "recorded in Production history",
+   "sha256": "2e16c389a6aa650746c6854866cceb23a45e5ed480ab925d235d7d6e7ac686d9"
+  },
+  {
+   "order": 300,
+   "version": "20260611192325",
+   "file": "20260611192325_add_same_day_weekday_delivery_fee.sql",
+   "origin": "recorded in Production history",
+   "sha256": "486d886a25845734985bff382044b7b72c495d53a71884b33e54d85ef0f2676f"
+  },
+  {
+   "order": 301,
+   "version": "20260615173154",
+   "file": "20260615173154_add_same_day_weekday_delivery_fee_to_orders.sql",
+   "origin": "recorded in Production history",
+   "sha256": "6d74937a8af7e34ff743f42206931be24d8242d962efe1e6474b73cb884d4fcb"
+  },
+  {
+   "order": 302,
+   "version": "20260615174758",
+   "file": "20260615174758_add_find_order_by_id_prefix_rpc.sql",
+   "origin": "recorded in Production history",
+   "sha256": "efa2859d3aaf61f772ac48ed6965a8fcd83461c9ff82ffefe1715bd09880c698"
+  },
+  {
+   "order": 303,
+   "version": "20260615175816",
+   "file": "20260615175816_add_orders_to_realtime_publication.sql",
+   "origin": "recorded in Production history",
+   "sha256": "36f25c454280d35c5ec8496d66918fe0aa048e4f6e627d47d43cbcd87dac8b11"
+  },
+  {
+   "order": 304,
+   "version": "20260618163315",
+   "file": "20260618163315_exclude_admin_orders_from_analytics.sql",
+   "origin": "recorded in Production history",
+   "sha256": "05d1c90d1f89ea24063436b30a7c934e62e81cfef4910a0e6fc84807ae26f630"
+  },
+  {
+   "order": 305,
+   "version": "20260618164803",
+   "file": "20260618164803_fix_admin_analytics_exclude_admin_correct_columns.sql",
+   "origin": "recorded in Production history",
+   "sha256": "2165b93d6c45bad9b2c8bf284c7cc4abf51d01f48677bbcda98b427e13f19716"
+  },
+  {
+   "order": 306,
+   "version": "20260629140504",
+   "file": "20260629140504_add_physical_waiver_fields.sql",
+   "origin": "recorded in Production history",
+   "sha256": "d7ef851da472b4bf8fc4b529747492a420dfb90c50f86e6fcf135c24a006f6e3"
+  },
+  {
+   "order": 307,
+   "version": "20260629140526",
+   "file": "20260629140526_add_delivery_timing_analytics_rpc.sql",
+   "origin": "recorded in Production history",
+   "sha256": "c06e17be4c725f310711f47068491feb2ce4df7d936968eb4615c11256bf9c8c"
+  },
+  {
+   "order": 308,
+   "version": "20260701012902",
+   "file": "20260701012902_add_pet_reminder_to_sms_templates.sql",
+   "origin": "recorded in Production history",
+   "sha256": "eada33db9c6314c09b52cc7d8bb6d5ec274458f6b7e922942c5fedb4ad36e095"
+  },
+  {
+   "order": 309,
+   "version": "20260701141540",
+   "file": "20260701141540_update_order_confirmation_delivery_instructions.sql",
+   "origin": "recorded in Production history",
+   "sha256": "0d7c928cd41dab08dab24187ac103953e6bf9054b499f5d815823f7fe199ef06"
+  },
+  {
+   "order": 310,
+   "version": "20260702215203",
+   "file": "20260702215203_add_increment_order_refunded_cents_rpc.sql",
+   "origin": "recorded in Production history",
+   "sha256": "473da969c253c10ff1dac2533141994f4de41ec2178397167ef77a2197710a5f"
+  },
+  {
+   "order": 311,
+   "version": "20260702215312",
+   "file": "20260702215312_fix_analytics_net_refunds_from_revenue.sql",
+   "origin": "recorded in Production history",
+   "sha256": "36068150d2362639d91df03a3944b8ed27a9e96499b37c6463baf142564d1473"
+  },
+  {
+   "order": 312,
+   "version": "20260702222459",
+   "file": "20260702222459_fix_analytics_revenue_payment_based_include_cancelled.sql",
+   "origin": "recorded in Production history",
+   "sha256": "ea42027feed508bc9ee10226ce9f1c50ebf17897bc8120ae87e6ed5732ecfdb6"
+  },
+  {
+   "order": 313,
+   "version": "20260702231624",
+   "file": "20260702231624_fix_analytics_cash_period_date_filtering.sql",
+   "origin": "recorded in Production history",
+   "sha256": "0d84dc6f8878ea5fc8a75014ef9b0907c73fa33849552d61381c8de1de9b06cc"
+  },
+  {
+   "order": 314,
+   "version": "20260712101626",
+   "file": "20260712101626_20260712000000_add_task_status_unique_constraint.sql",
+   "origin": "recorded in Production history",
+   "sha256": "04079f4683b9d8669265a7c121a8b280bb026781a3b6aef11331eb840f8cf5c5"
+  },
+  {
+   "order": 315,
+   "version": "20260816221636",
+   "file": "20260816221636_20260816120000_add_payment_lock_column.sql.sql",
+   "origin": "recorded in Production history",
+   "sha256": "b9b818eba27ecef29521254ecdffbc78993491b355c9a98259a62449f1be5eaf"
+  },
+  {
+   "order": 316,
+   "version": "20260816222905",
+   "file": "20260816222905_20260816130000_fix_admin_analytics_payment_type_column.sql.sql",
+   "origin": "recorded in Production history",
+   "sha256": "ca48b39245641385a9e029b1eacc5ceb4eccaa40566468484bd511f7813d37fd"
+  },
+  {
+   "order": 317,
+   "version": "20260928172217",
+   "file": "20260928172217_20260928120000_add_parks_acknowledgment_system.sql",
+   "origin": "recorded in Production history",
+   "sha256": "a701d52a540b57366daa9d45da7fd48ac5b93e71477d2317bef4ef1b9638acb2"
+  }
+ ],
+ "aliasing": "none applied: Production's recorded versions are matched by exact version; cases 41 and 42 (20260305203528, 20260407203226) are excluded because their versions are not recorded in Production, while the related recorded versions 20260305205811 and 20260408200431 are included."
+}

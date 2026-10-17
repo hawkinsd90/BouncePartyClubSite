@@ -1,0 +1,1129 @@
+{
+ "database": "bpc_replay_d3_snapshot",
+ "selected": 67,
+ "applied": 67,
+ "failed": [],
+ "not_run": 0,
+ "result": "ALL SELECTED MIGRATIONS APPLIED",
+ "results": [
+  {
+   "order": 1,
+   "version": "20260715214053",
+   "file": "20260715214053_add_customer_view_updated_at.sql",
+   "sha256": "5bd583d3f11d8322c228f23e4a5385cac0ad4a910220f7fe46b50c562525936b",
+   "group": "development-line",
+   "status": "applied",
+   "categories_changed": [
+    "columns"
+   ],
+   "notices": [],
+   "notice_count": 0,
+   "data_stmts": "ins0/upd0/del0/trunc0",
+   "stage_b_prod_class": "GENUINELY_PENDING_EXPECTED"
+  },
+  {
+   "order": 2,
+   "version": "20260715221828",
+   "file": "20260715221828_add_anon_insert_portal_shortlink_policy.sql",
+   "sha256": "45b13872fd3d8e211fefba97e5e00e348ac83ee5b495a3b499fc83b8a9cc6a14",
+   "group": "development-line",
+   "status": "applied",
+   "categories_changed": [
+    "policies"
+   ],
+   "notices": [],
+   "notice_count": 0,
+   "data_stmts": "ins0/upd0/del0/trunc0",
+   "stage_b_prod_class": "PENDING_NET_ZERO_CHAIN"
+  },
+  {
+   "order": 3,
+   "version": "20260716104333",
+   "file": "20260716104333_remove_anon_portal_shortlink_insert.sql",
+   "sha256": "25e7594951def591fcf25b703bc59b8a0005624337160edfbed46d2a3159b154",
+   "group": "development-line",
+   "status": "applied",
+   "categories_changed": [
+    "policies"
+   ],
+   "notices": [],
+   "notice_count": 0,
+   "data_stmts": "ins0/upd0/del0/trunc0",
+   "stage_b_prod_class": "PENDING_DATA_OR_PRIVILEGE_ONLY"
+  },
+  {
+   "order": 4,
+   "version": "20260716151458",
+   "file": "20260716151458_add_tables_chairs_inventory_schema.sql",
+   "sha256": "d44720c7c045344041c7c654394033f38041eb187aefe204b84c37c6a02b6214",
+   "group": "development-line",
+   "status": "applied",
+   "categories_changed": [
+    "tables",
+    "columns",
+    "constraints",
+    "indexes",
+    "triggers",
+    "policies"
+   ],
+   "notices": [],
+   "notice_count": 0,
+   "data_stmts": "ins0/upd0/del0/trunc0",
+   "stage_b_prod_class": "GENUINELY_PENDING_EXPECTED"
+  },
+  {
+   "order": 5,
+   "version": "20260716151530",
+   "file": "20260716151530_add_check_product_availability_rpc.sql",
+   "sha256": "4562c1495b47fc1437f0a39e45f388cbd9dd8213733f11379ad8ff748f9b76a6",
+   "group": "development-line",
+   "status": "applied",
+   "categories_changed": [
+    "functions"
+   ],
+   "notices": [],
+   "notice_count": 0,
+   "data_stmts": "ins0/upd0/del0/trunc0",
+   "stage_b_prod_class": "PENDING_NET_ZERO_CHAIN"
+  },
+  {
+   "order": 6,
+   "version": "20260716151549",
+   "file": "20260716151549_seed_tables_chairs_data.sql",
+   "sha256": "49936db3f749169849195ff6cd700ff0b2500a723fc271a19f00021c338e21b7",
+   "group": "development-line",
+   "status": "applied",
+   "categories_changed": [],
+   "notices": [],
+   "notice_count": 0,
+   "data_stmts": "ins3/upd0/del0/trunc0",
+   "stage_b_prod_class": "PENDING_DATA_OR_PRIVILEGE_ONLY"
+  },
+  {
+   "order": 7,
+   "version": "20260716152447",
+   "file": "20260716152447_fix_check_product_availability_cte_ambiguity.sql",
+   "sha256": "656ff24e5a79399a79191c803583c1c017e4e514d3735dcfeedba4602e41829b",
+   "group": "development-line",
+   "status": "applied",
+   "categories_changed": [
+    "functions"
+   ],
+   "notices": [],
+   "notice_count": 0,
+   "data_stmts": "ins0/upd0/del0/trunc0",
+   "stage_b_prod_class": "PENDING_NET_ZERO_CHAIN"
+  },
+  {
+   "order": 8,
+   "version": "20260716152823",
+   "file": "20260716152823_grant_table_privileges_tc_tables.sql",
+   "sha256": "238bf70504faac37937d5085798a96a7f8a00aa1cf31ce5bd1b9e40fb9ead299",
+   "group": "development-line",
+   "status": "applied",
+   "categories_changed": [],
+   "notices": [],
+   "notice_count": 0,
+   "data_stmts": "ins0/upd0/del0/trunc0",
+   "stage_b_prod_class": "PENDING_DATA_OR_PRIVILEGE_ONLY"
+  },
+  {
+   "order": 9,
+   "version": "20260716173638",
+   "file": "20260716173638_seed_event_essentials_settings.sql",
+   "sha256": "bc1c585d5255aee1cf7734b8a2c54bee37c4601c6fc63d2dc03b096146676bf7",
+   "group": "development-line",
+   "status": "applied",
+   "categories_changed": [],
+   "notices": [],
+   "notice_count": 0,
+   "data_stmts": "ins1/upd0/del0/trunc0",
+   "stage_b_prod_class": "PENDING_DATA_OR_PRIVILEGE_ONLY"
+  },
+  {
+   "order": 10,
+   "version": "20260716173644",
+   "file": "20260716173644_extend_public_business_settings_for_event_essentials.sql",
+   "sha256": "69d02b85086490185d4d56f490614f0ea4a7d176b430f8617f8c186fd31e7028",
+   "group": "development-line",
+   "status": "applied",
+   "categories_changed": [
+    "functions"
+   ],
+   "notices": [],
+   "notice_count": 0,
+   "data_stmts": "ins0/upd0/del0/trunc0",
+   "stage_b_prod_class": "PENDING_NET_ZERO_CHAIN"
+  },
+  {
+   "order": 11,
+   "version": "20260716231809",
+   "file": "20260716231809_add_product_categories_and_pricing.sql",
+   "sha256": "a93fb0b56e94ffde0e53ebd38be9b14d28bedcee6f55acef8f802ee6570ff5a4",
+   "group": "development-line",
+   "status": "applied",
+   "categories_changed": [
+    "tables",
+    "columns",
+    "constraints",
+    "indexes",
+    "triggers",
+    "policies"
+   ],
+   "notices": [
+    "NOTICE:  policy \"Public can view active visible categories\" for relation \"product_categories\" does not exist, skipping",
+    "NOTICE:  policy \"Admins can select all categories\" for relation \"product_categories\" does not exist, skipping",
+    "NOTICE:  policy \"Admins can insert categories\" for relation \"product_categories\" does not exist, skipping",
+    "NOTICE:  policy \"Admins can update categories\" for relation \"product_categories\" does not exist, skipping",
+    "NOTICE:  policy \"Admins can delete categories\" for relation \"product_categories\" does not exist, skipping",
+    "NOTICE:  trigger \"update_product_categories_timestamp\" for relation \"product_categories\" does not exist, skipping"
+   ],
+   "notice_count": 6,
+   "data_stmts": "ins1/upd5/del0/trunc0",
+   "stage_b_prod_class": "GENUINELY_PENDING_EXPECTED"
+  },
+  {
+   "order": 12,
+   "version": "20260716231832",
+   "file": "20260716231832_fix_check_product_availability_visibility.sql",
+   "sha256": "00a89953f544ae760e9dbbd384a8f06f6d3bb7c0e53cb6eb1f3b316713728fb7",
+   "group": "development-line",
+   "status": "applied",
+   "categories_changed": [
+    "functions"
+   ],
+   "notices": [],
+   "notice_count": 0,
+   "data_stmts": "ins0/upd0/del0/trunc0",
+   "stage_b_prod_class": "GENUINELY_PENDING_EXPECTED"
+  },
+  {
+   "order": 13,
+   "version": "20260717012112",
+   "file": "20260717012112_fix_product_categories_role_grants.sql",
+   "sha256": "b644627785301a2718715f40731177ba99611509e3f196d1f7fb4f51ab27b9b3",
+   "group": "development-line",
+   "status": "applied",
+   "categories_changed": [],
+   "notices": [],
+   "notice_count": 0,
+   "data_stmts": "ins0/upd0/del0/trunc0",
+   "stage_b_prod_class": "PENDING_DATA_OR_PRIVILEGE_ONLY"
+  },
+  {
+   "order": 14,
+   "version": "20260717110808",
+   "file": "20260717110808_fix_event_essentials_triggers_and_grants.sql",
+   "sha256": "908882073afd074218f7610394d0065f254ffd77557a51d24b9db5889ee6463c",
+   "group": "development-line",
+   "status": "applied",
+   "categories_changed": [
+    "triggers"
+   ],
+   "notices": [],
+   "notice_count": 0,
+   "data_stmts": "ins0/upd0/del0/trunc0",
+   "stage_b_prod_class": "GENUINELY_PENDING_EXPECTED"
+  },
+  {
+   "order": 15,
+   "version": "20260717110829",
+   "file": "20260717110829_create_event_essentials_media_bucket.sql",
+   "sha256": "ad87b2720743b6f99ce2b001f890938f964f7ef01b0067ca152e98a4436e6e56",
+   "group": "development-line",
+   "status": "applied",
+   "categories_changed": [
+    "policies",
+    "storage_buckets"
+   ],
+   "notices": [
+    "NOTICE:  policy \"Public can read event-essentials media\" for relation \"storage.objects\" does not exist, skipping",
+    "NOTICE:  policy \"Admins can upload event-essentials media\" for relation \"storage.objects\" does not exist, skipping",
+    "NOTICE:  policy \"Admins can update event-essentials media\" for relation \"storage.objects\" does not exist, skipping",
+    "NOTICE:  policy \"Admins can delete event-essentials media\" for relation \"storage.objects\" does not exist, skipping"
+   ],
+   "notice_count": 4,
+   "data_stmts": "ins1/upd0/del0/trunc0",
+   "stage_b_prod_class": "GENUINELY_PENDING_EXPECTED"
+  },
+  {
+   "order": 16,
+   "version": "20260717111014",
+   "file": "20260717111014_add_event_essentials_transactional_rpcs.sql",
+   "sha256": "3ac3ac980096c76fa06488d959d14395c8d396586f64e06b3001c57066834af1",
+   "group": "development-line",
+   "status": "applied",
+   "categories_changed": [
+    "functions"
+   ],
+   "notices": [],
+   "notice_count": 0,
+   "data_stmts": "ins0/upd0/del0/trunc0",
+   "stage_b_prod_class": "GENUINELY_PENDING_EXPECTED"
+  },
+  {
+   "order": 17,
+   "version": "20260717111737",
+   "file": "20260717111737_fix_reorder_categories_ambiguous_column.sql",
+   "sha256": "636f42de6e249c6a9f061c618ec98e217fd989fd4610acfbda9e767a0fe2c18b",
+   "group": "development-line",
+   "status": "applied",
+   "categories_changed": [
+    "functions"
+   ],
+   "notices": [],
+   "notice_count": 0,
+   "data_stmts": "ins0/upd0/del0/trunc0",
+   "stage_b_prod_class": "PENDING_NET_ZERO_CHAIN"
+  },
+  {
+   "order": 18,
+   "version": "20260717111803",
+   "file": "20260717111803_fix_reorder_categories_ambiguous_v2.sql",
+   "sha256": "dae9d8e2c557ae69a63275c60d344f993783d719c3d4443c8ad03fd8842ae9cf",
+   "group": "development-line",
+   "status": "applied",
+   "categories_changed": [
+    "functions"
+   ],
+   "notices": [],
+   "notice_count": 0,
+   "data_stmts": "ins0/upd0/del0/trunc0",
+   "stage_b_prod_class": "GENUINELY_PENDING_EXPECTED"
+  },
+  {
+   "order": 19,
+   "version": "20260717113131",
+   "file": "20260717113131_fix_save_product_bundle_quantity_and_missing_product.sql",
+   "sha256": "78444067eecb01404346fd551b626a91be0a3aaf378ed8476ec4cfb84bd5d7d7",
+   "group": "development-line",
+   "status": "applied",
+   "categories_changed": [
+    "functions"
+   ],
+   "notices": [],
+   "notice_count": 0,
+   "data_stmts": "ins0/upd0/del0/trunc0",
+   "stage_b_prod_class": "PENDING_NET_ZERO_CHAIN"
+  },
+  {
+   "order": 20,
+   "version": "20260717115647",
+   "file": "20260717115647_fix_save_product_bundle_integer_overflow.sql",
+   "sha256": "e9ccf0f8a2d76bc4266f6e65ee93400be7c35286aafd08e92743df7c5e22dd3a",
+   "group": "development-line",
+   "status": "applied",
+   "categories_changed": [
+    "functions"
+   ],
+   "notices": [],
+   "notice_count": 0,
+   "data_stmts": "ins0/upd0/del0/trunc0",
+   "stage_b_prod_class": "GENUINELY_PENDING_EXPECTED"
+  },
+  {
+   "order": 21,
+   "version": "20260718000744",
+   "file": "20260718000744_stage_b_pricing_eligibility_schema.sql",
+   "sha256": "eec2333e770fce0b0dda108212236eb3e413e4806beda15541d7323cb6b28ac6",
+   "group": "development-line",
+   "status": "applied",
+   "categories_changed": [
+    "tables",
+    "columns",
+    "constraints",
+    "indexes",
+    "policies"
+   ],
+   "notices": [
+    "NOTICE:  constraint \"product_pricing_addon_threshold_nonnegative\" of relation \"product_pricing\" does not exist, skipping",
+    "NOTICE:  constraint \"product_bundles_addon_threshold_nonnegative\" of relation \"product_bundles\" does not exist, skipping",
+    "NOTICE:  constraint \"product_bundles_inflatable_eligibility_mode_check\" of relation \"product_bundles\" does not exist, skipping",
+    "NOTICE:  constraint \"package_inflatable_components_qty_positive\" of relation \"package_inflatable_components\" does not exist, skipping",
+    "NOTICE:  constraint \"package_inflatable_components_selection_mode_check\" of relation \"package_inflatable_components\" does not exist, skipping",
+    "NOTICE:  policy \"Admins can select all excluded categories\" for relation \"product_bundle_excluded_categories\" does not exist, skipping"
+   ],
+   "notice_count": 24,
+   "data_stmts": "ins0/upd0/del0/trunc0",
+   "stage_b_prod_class": "GENUINELY_PENDING_EXPECTED"
+  },
+  {
+   "order": 22,
+   "version": "20260718000923",
+   "file": "20260718000923_stage_b_v2_rpcs.sql",
+   "sha256": "222cae41dcd4e9161ce5f5cc00935ae2190c02b55d3f0ff6cb78d6062f46b6a3",
+   "group": "development-line",
+   "status": "applied",
+   "categories_changed": [
+    "functions"
+   ],
+   "notices": [],
+   "notice_count": 0,
+   "data_stmts": "ins0/upd0/del0/trunc0",
+   "stage_b_prod_class": "GENUINELY_PENDING_EXPECTED"
+  },
+  {
+   "order": 23,
+   "version": "20260721164853",
+   "file": "20260721164853_add_event_essentials_order_support.sql",
+   "sha256": "972d4b3d0c1f35e584e9f4b69421efc951f12107f3efbe4d8f56f6c609f262f2",
+   "group": "development-line",
+   "status": "applied",
+   "categories_changed": [
+    "columns",
+    "constraints"
+   ],
+   "notices": [],
+   "notice_count": 0,
+   "data_stmts": "ins0/upd0/del0/trunc0",
+   "stage_b_prod_class": "GENUINELY_PENDING_EXPECTED"
+  },
+  {
+   "order": 24,
+   "version": "20260722102129",
+   "file": "20260722102129_add_ee_only_deposit_settings.sql",
+   "sha256": "66a8e35431ef4e8c00db5872bd1d4c0460500c7e8db06859b32e67204b4d0d7a",
+   "group": "development-line",
+   "status": "applied",
+   "categories_changed": [
+    "columns"
+   ],
+   "notices": [],
+   "notice_count": 0,
+   "data_stmts": "ins0/upd1/del0/trunc0",
+   "stage_b_prod_class": "GENUINELY_PENDING_EXPECTED"
+  },
+  {
+   "order": 25,
+   "version": "20260722172048",
+   "file": "20260722172048_allow_null_surface_for_ee_only_orders.sql",
+   "sha256": "2d3cf03c69ea10a877bcb94acf7ca9b59c7448a3e69709c396e71c147f41a09b",
+   "group": "development-line",
+   "status": "applied",
+   "categories_changed": [
+    "columns",
+    "constraints"
+   ],
+   "notices": [],
+   "notice_count": 0,
+   "data_stmts": "ins0/upd0/del0/trunc0",
+   "stage_b_prod_class": "PENDING_REDEFINITION_DEFINITION_UNVERIFIED"
+  },
+  {
+   "order": 26,
+   "version": "20260722211023",
+   "file": "20260722211023_create_portal_short_link_rpc.sql",
+   "sha256": "feb0ff6311426af2c3ce2149d414e7d15102af465db8abf68d5de2e67163d7e6",
+   "group": "development-line",
+   "status": "applied",
+   "categories_changed": [
+    "functions"
+   ],
+   "notices": [],
+   "notice_count": 0,
+   "data_stmts": "ins0/upd0/del0/trunc0",
+   "stage_b_prod_class": "GENUINELY_PENDING_EXPECTED"
+  },
+  {
+   "order": 27,
+   "version": "20260722212750",
+   "file": "20260722212750_create_order_portal_links.sql",
+   "sha256": "69cba90cfe6d9e97659e557fe8c9bef160b4234fefdfd804ebb9306c8d5c121b",
+   "group": "development-line",
+   "status": "applied",
+   "categories_changed": [
+    "tables",
+    "columns",
+    "constraints",
+    "indexes",
+    "triggers",
+    "functions",
+    "policies"
+   ],
+   "notices": [
+    "NOTICE:  trigger \"trg_order_portal_links_updated_at\" for relation \"public.order_portal_links\" does not exist, skipping"
+   ],
+   "notice_count": 1,
+   "data_stmts": "ins0/upd0/del0/trunc0",
+   "stage_b_prod_class": "GENUINELY_PENDING_EXPECTED"
+  },
+  {
+   "order": 28,
+   "version": "20260722215732",
+   "file": "20260722215732_correct_order_portal_links_security.sql",
+   "sha256": "a3e9207452fb55429750de4b9f2e5a6c3968d6d27797305b791704b935df8f6f",
+   "group": "development-line",
+   "status": "applied",
+   "categories_changed": [
+    "tables",
+    "indexes",
+    "functions",
+    "policies"
+   ],
+   "notices": [],
+   "notice_count": 0,
+   "data_stmts": "ins0/upd0/del0/trunc0",
+   "stage_b_prod_class": "GENUINELY_PENDING_EXPECTED"
+  },
+  {
+   "order": 29,
+   "version": "20260722230121",
+   "file": "20260722230121_harden_create_order_short_link.sql",
+   "sha256": "29e3dbeb95ea49690d8fec98ae43d9365ef631f85a8c6ea66825b811b8ea055a",
+   "group": "development-line",
+   "status": "applied",
+   "categories_changed": [
+    "functions"
+   ],
+   "notices": [],
+   "notice_count": 0,
+   "data_stmts": "ins0/upd0/del0/trunc0",
+   "stage_b_prod_class": "PENDING_NET_ZERO_CHAIN"
+  },
+  {
+   "order": 30,
+   "version": "20260723174017",
+   "file": "20260723174017_restore_lot_pictures_storage_policies.sql",
+   "sha256": "df71ba4db2a816fc4b7aa84b492a29e93fb9c5656f8f9918ccc8ca03a6066ae4",
+   "group": "development-line",
+   "status": "applied",
+   "categories_changed": [
+    "policies"
+   ],
+   "notices": [
+    "NOTICE:  policy \"Anon can insert lot pictures for existing orders\" for relation \"storage.objects\" does not exist, skipping"
+   ],
+   "notice_count": 1,
+   "data_stmts": "ins0/upd0/del0/trunc0",
+   "stage_b_prod_class": "GENUINELY_PENDING_EXPECTED"
+  },
+  {
+   "order": 31,
+   "version": "20260723210301",
+   "file": "20260723210301_fix_notification_channel_and_portal_link_policies.sql",
+   "sha256": "734c58d8c2ef45062826f16cb024c18ba9d7a5e50ec0652c8751e17e34dbe37c",
+   "group": "development-line",
+   "status": "applied",
+   "categories_changed": [
+    "columns",
+    "policies"
+   ],
+   "notices": [],
+   "notice_count": 0,
+   "data_stmts": "ins0/upd0/del0/trunc0",
+   "stage_b_prod_class": "GENUINELY_PENDING_EXPECTED"
+  },
+  {
+   "order": 32,
+   "version": "20260723210953",
+   "file": "20260723210953_fix_short_link_search_path_and_notification_message_type.sql",
+   "sha256": "91a5b45e9b6245409a56b55a925446a94eccf12be6cdfc71a87d3835edbc741b",
+   "group": "development-line",
+   "status": "applied",
+   "categories_changed": [
+    "columns",
+    "functions"
+   ],
+   "notices": [],
+   "notice_count": 0,
+   "data_stmts": "ins0/upd0/del0/trunc0",
+   "stage_b_prod_class": "GENUINELY_PENDING_EXPECTED"
+  },
+  {
+   "order": 33,
+   "version": "20260814113146",
+   "file": "20260814113146_grant_contact_inquiries_service_role.sql",
+   "sha256": "d29a3ab27d6db3a055e80c43fb51ded679a457fc37090b0a2a84e0363839731a",
+   "group": "development-line",
+   "status": "applied",
+   "categories_changed": [],
+   "notices": [],
+   "notice_count": 0,
+   "data_stmts": "ins0/upd0/del0/trunc0",
+   "stage_b_prod_class": "PENDING_DATA_OR_PRIVILEGE_ONLY"
+  },
+  {
+   "order": 34,
+   "version": "20260814114825",
+   "file": "20260814114825_upgrade_contact_inquiries_for_invoices.sql",
+   "sha256": "0b75a49b007b5ac467ff27f9c9d609eec82111bfd5cefd741655e51700968b79",
+   "group": "development-line",
+   "status": "applied",
+   "categories_changed": [],
+   "notices": [],
+   "notice_count": 0,
+   "data_stmts": "ins0/upd0/del0/trunc0",
+   "stage_b_prod_class": "GENUINELY_PENDING_EXPECTED"
+  },
+  {
+   "order": 35,
+   "version": "20260814120000",
+   "file": "20260814120000_create_contact_inquiries.sql",
+   "sha256": "9ef0fe6e6f484c3a706f6beb8ab2f6c987d5bc0be8a0b04d6602f1f900ce4cd0",
+   "group": "development-line",
+   "status": "applied",
+   "categories_changed": [
+    "tables",
+    "columns",
+    "constraints",
+    "indexes",
+    "policies"
+   ],
+   "notices": [
+    "NOTICE:  policy \"Admins can view contact inquiries\" for relation \"contact_inquiries\" does not exist, skipping"
+   ],
+   "notice_count": 1,
+   "data_stmts": "ins0/upd0/del0/trunc0",
+   "stage_b_prod_class": "GENUINELY_PENDING_EXPECTED"
+  },
+  {
+   "order": 36,
+   "version": "20260814120100",
+   "file": "20260814120100_ensure_contact_inquiries_invoice_fields.sql",
+   "sha256": "c8699f8c47a0967c5cc1e25574af24320b647796008c2eaf1fa43c0f590ccfde",
+   "group": "development-line",
+   "status": "applied",
+   "categories_changed": [
+    "columns"
+   ],
+   "notices": [],
+   "notice_count": 0,
+   "data_stmts": "ins0/upd0/del0/trunc0",
+   "stage_b_prod_class": "GENUINELY_PENDING_EXPECTED"
+  },
+  {
+   "order": 37,
+   "version": "20260820165646",
+   "file": "20260820165646_add_how_did_you_hear_enabled_setting.sql",
+   "sha256": "51a818b229c8c983fb9615f282abc9e1d8025ec2a4e9d4f0c5d4838edf3238de",
+   "group": "development-line",
+   "status": "applied",
+   "categories_changed": [
+    "functions"
+   ],
+   "notices": [],
+   "notice_count": 0,
+   "data_stmts": "ins0/upd0/del0/trunc0",
+   "stage_b_prod_class": "GENUINELY_PENDING_EXPECTED"
+  },
+  {
+   "order": 38,
+   "version": "20260925151621",
+   "file": "20260925151621_add_setup_fee_cents_to_orders.sql",
+   "sha256": "0783da2c729be1d31102ae2e2ec445a0b4a212ff3d4a15adcb1d5ed8c91bde5e",
+   "group": "development-line",
+   "status": "applied",
+   "categories_changed": [
+    "columns",
+    "constraints"
+   ],
+   "notices": [],
+   "notice_count": 0,
+   "data_stmts": "ins0/upd0/del0/trunc0",
+   "stage_b_prod_class": "GENUINELY_PENDING_EXPECTED"
+  },
+  {
+   "order": 39,
+   "version": "20260925171210",
+   "file": "20260925171210_add_event_essentials_setup_minimum_cents.sql",
+   "sha256": "b4ba69a66a7c9ad4db23c5b00365823f80c27bd78bd534cfb99f7834f771ef4a",
+   "group": "development-line",
+   "status": "applied",
+   "categories_changed": [
+    "columns",
+    "constraints"
+   ],
+   "notices": [],
+   "notice_count": 0,
+   "data_stmts": "ins0/upd0/del0/trunc0",
+   "stage_b_prod_class": "GENUINELY_PENDING_EXPECTED"
+  },
+  {
+   "order": 40,
+   "version": "20260929145842",
+   "file": "20260929145842_add_public_menu_groups.sql",
+   "sha256": "c5d34099bd406e8aee8f41a8f2b469acf6b5ec9adc9ba71f3173536e79f669e1",
+   "group": "development-line",
+   "status": "applied",
+   "categories_changed": [
+    "tables",
+    "columns",
+    "constraints",
+    "indexes",
+    "triggers",
+    "functions",
+    "policies"
+   ],
+   "notices": [
+    "NOTICE:  policy \"Public can read enabled menu groups\" for relation \"public_menu_groups\" does not exist, skipping",
+    "NOTICE:  policy \"Admins can read all menu groups\" for relation \"public_menu_groups\" does not exist, skipping",
+    "NOTICE:  policy \"Admins can insert menu groups\" for relation \"public_menu_groups\" does not exist, skipping",
+    "NOTICE:  policy \"Admins can update menu groups\" for relation \"public_menu_groups\" does not exist, skipping",
+    "NOTICE:  policy \"Admins can delete menu groups\" for relation \"public_menu_groups\" does not exist, skipping",
+    "NOTICE:  policy \"Public can read menu group categories\" for relation \"public_menu_group_categories\" does not exist, skipping"
+   ],
+   "notice_count": 10,
+   "data_stmts": "ins0/upd0/del0/trunc0",
+   "stage_b_prod_class": "GENUINELY_PENDING_EXPECTED"
+  },
+  {
+   "order": 41,
+   "version": "20260929151836",
+   "file": "20260929151836_correct_menu_groups_security_and_atomicity.sql",
+   "sha256": "34354fa40db5b66e51263e52d1eef7bbe113a31e22bdc20cb33d33c042a158e3",
+   "group": "development-line",
+   "status": "applied",
+   "categories_changed": [
+    "functions",
+    "policies"
+   ],
+   "notices": [],
+   "notice_count": 0,
+   "data_stmts": "ins0/upd0/del0/trunc0",
+   "stage_b_prod_class": "PENDING_NET_ZERO_CHAIN"
+  },
+  {
+   "order": 42,
+   "version": "20260929152006",
+   "file": "20260929152006_fix_menu_groups_atomic_associations.sql",
+   "sha256": "6ccb32bb0bef78676187d63b86c4a140b26b0a8bfaf2405696f718cc06ab9958",
+   "group": "development-line",
+   "status": "applied",
+   "categories_changed": [
+    "functions"
+   ],
+   "notices": [],
+   "notice_count": 0,
+   "data_stmts": "ins0/upd0/del0/trunc0",
+   "stage_b_prod_class": "GENUINELY_PENDING_EXPECTED"
+  },
+  {
+   "order": 43,
+   "version": "20260929161218",
+   "file": "20260929161218_grant_menu_groups_authenticated_access.sql",
+   "sha256": "f07376181e1d7ffd71d245b58d4a435702faa03daee205ce64f50456526ceab5",
+   "group": "development-line",
+   "status": "applied",
+   "categories_changed": [],
+   "notices": [],
+   "notice_count": 0,
+   "data_stmts": "ins0/upd0/del0/trunc0",
+   "stage_b_prod_class": "PENDING_DATA_OR_PRIVILEGE_ONLY"
+  },
+  {
+   "order": 44,
+   "version": "20260929161925",
+   "file": "20260929161925_fix_menu_groups_lowercase_role_policies.sql",
+   "sha256": "9c70580933be529b55915972c2aa4dfb223f15ad2d7432a1f72ce16a50cf9338",
+   "group": "development-line",
+   "status": "applied",
+   "categories_changed": [
+    "policies"
+   ],
+   "notices": [],
+   "notice_count": 0,
+   "data_stmts": "ins0/upd0/del0/trunc0",
+   "stage_b_prod_class": "GENUINELY_PENDING_EXPECTED"
+  },
+  {
+   "order": 45,
+   "version": "20261007120000",
+   "file": "20261007120000_harden_payment_rpc_authorization.sql",
+   "sha256": "70cc32988bdabd5dc04af40a0bc7ef1d81e8ba6df3ab6de7ab9bcbb40d9cf71e",
+   "group": "october",
+   "status": "applied",
+   "categories_changed": [
+    "functions"
+   ],
+   "notices": [],
+   "notice_count": 0,
+   "data_stmts": "ins0/upd0/del0/trunc0",
+   "stage_b_prod_class": "PENDING_EXPECTED"
+  },
+  {
+   "order": 46,
+   "version": "20261008120000",
+   "file": "20261008120000_restrict_role_and_admin_rpc_exposure.sql",
+   "sha256": "ebd3f4b40a07d6064b44851f425fb0717276512df64dc7ae8f30a42b93e14a48",
+   "group": "october",
+   "status": "applied",
+   "categories_changed": [
+    "tables",
+    "functions"
+   ],
+   "notices": [
+    "NOTICE:  policy \"Service role full access to user_roles\" for relation \"public.user_roles\" does not exist, skipping"
+   ],
+   "notice_count": 1,
+   "data_stmts": "ins0/upd0/del0/trunc0",
+   "stage_b_prod_class": "PENDING_EXPECTED"
+  },
+  {
+   "order": 47,
+   "version": "20261009120000",
+   "file": "20261009120000_secure_customer_portal_links.sql",
+   "sha256": "f4d47993ede3b92b2c51f1471b04b48303110c02a2ef8fd68d61874b802ec8ac",
+   "group": "october",
+   "status": "applied",
+   "categories_changed": [
+    "columns",
+    "indexes",
+    "triggers",
+    "functions"
+   ],
+   "notices": [
+    "NOTICE:  trigger \"trg_invoice_links_enforce_revocation\" for relation \"public.invoice_links\" does not exist, skipping"
+   ],
+   "notice_count": 1,
+   "data_stmts": "ins0/upd0/del0/trunc0",
+   "stage_b_prod_class": "PENDING_EXPECTED"
+  },
+  {
+   "order": 48,
+   "version": "20261010110000",
+   "file": "20261010110000_add_customer_approval_timestamp.sql",
+   "sha256": "b977c47fc8cccea9b7cd3c61da69a6b6e172386189a4f58e6d32b52053033ce6",
+   "group": "october",
+   "status": "applied",
+   "categories_changed": [],
+   "notices": [
+    "NOTICE:  column \"customer_approved_at\" of relation \"orders\" already exists, skipping"
+   ],
+   "notice_count": 1,
+   "data_stmts": "ins0/upd0/del0/trunc0",
+   "stage_b_prod_class": "PENDING_NO_NEW_EFFECT_ALREADY_PRESENT"
+  },
+  {
+   "order": 49,
+   "version": "20261010120000",
+   "file": "20261010120000_secure_public_booking_creation.sql",
+   "sha256": "a75b9d371585201ba000d5580a1182686998f669295f96105bd6e0fdef4f521e",
+   "group": "october",
+   "status": "applied",
+   "categories_changed": [
+    "tables",
+    "columns",
+    "constraints",
+    "indexes",
+    "functions"
+   ],
+   "notices": [],
+   "notice_count": 0,
+   "data_stmts": "ins0/upd0/del0/trunc0",
+   "stage_b_prod_class": "PENDING_EXPECTED"
+  },
+  {
+   "order": 50,
+   "version": "20261011120000",
+   "file": "20261011120000_order_event_address_line2.sql",
+   "sha256": "4b91107decbed00a6169d8ad051479e0874ee033524003bdbe1c8333dbcb7e29",
+   "group": "october",
+   "status": "applied",
+   "categories_changed": [
+    "columns",
+    "functions"
+   ],
+   "notices": [],
+   "notice_count": 0,
+   "data_stmts": "ins0/upd0/del0/trunc0",
+   "stage_b_prod_class": "PENDING_EXPECTED"
+  },
+  {
+   "order": 51,
+   "version": "20261012120000",
+   "file": "20261012120000_core_database_access_lockdown.sql",
+   "sha256": "d00654ed27a25d004578859916077161c6447f9dee6440112a8fba6b0ea830dc",
+   "group": "october",
+   "status": "applied",
+   "categories_changed": [
+    "tables",
+    "functions",
+    "policies"
+   ],
+   "notices": [],
+   "notice_count": 0,
+   "data_stmts": "ins0/upd0/del0/trunc0",
+   "stage_b_prod_class": "PENDING_EXPECTED"
+  },
+  {
+   "order": 52,
+   "version": "20261013120000",
+   "file": "20261013120000_restrict_remaining_public_database_access.sql",
+   "sha256": "a68824b6076ced053b78bdf209f12fe79912d5403b3354b24e5091d2cc9aaff7",
+   "group": "october",
+   "status": "applied",
+   "categories_changed": [
+    "tables",
+    "functions",
+    "policies"
+   ],
+   "notices": [],
+   "notice_count": 0,
+   "data_stmts": "ins0/upd0/del0/trunc0",
+   "stage_b_prod_class": "PENDING_EXPECTED"
+  },
+  {
+   "order": 53,
+   "version": "20261014120000",
+   "file": "20261014120000_protect_waiver_media_and_restrict_storage_access.sql",
+   "sha256": "facabbd7b410ebd9d1a4372c5284bf6f4bd814c38c849a11daf7735b7979331f",
+   "group": "october",
+   "status": "applied",
+   "categories_changed": [
+    "policies",
+    "storage_buckets"
+   ],
+   "notices": [],
+   "notice_count": 0,
+   "data_stmts": "ins0/upd1/del0/trunc0",
+   "stage_b_prod_class": "PENDING_EXPECTED"
+  },
+  {
+   "order": 54,
+   "version": "20261015120000",
+   "file": "20261015120000_protect_customer_order_photos.sql",
+   "sha256": "e5b0f8c2c69022733865a197a1268178713d95802b1f45b3fecfaefa1f54731a",
+   "group": "october",
+   "status": "applied",
+   "categories_changed": [
+    "policies",
+    "storage_buckets"
+   ],
+   "notices": [],
+   "notice_count": 0,
+   "data_stmts": "ins0/upd1/del0/trunc0",
+   "stage_b_prod_class": "PENDING_EXPECTED"
+  },
+  {
+   "order": 55,
+   "version": "20261015123000",
+   "file": "20261015123000_create_private_order_evidence_storage.sql",
+   "sha256": "a3dab68ccdfde5d3dfd01bdd916882b7bdce004404392e7d80192ba401569f0b",
+   "group": "october",
+   "status": "applied",
+   "categories_changed": [
+    "policies",
+    "storage_buckets"
+   ],
+   "notices": [],
+   "notice_count": 0,
+   "data_stmts": "ins1/upd0/del0/trunc0",
+   "stage_b_prod_class": "PENDING_EXPECTED"
+  },
+  {
+   "order": 56,
+   "version": "20261016120000",
+   "file": "20261016120000_repair_role_assignment_and_signup_provisioning.sql",
+   "sha256": "2ca02e10dfa040575798c71ef30bf605f6a7ad8b54918928e99a41f7deb6970b",
+   "group": "october",
+   "status": "applied",
+   "categories_changed": [
+    "constraints",
+    "functions"
+   ],
+   "notices": [
+    "NOTICE:  column \"first_name\" of relation \"customer_profiles\" already exists, skipping",
+    "NOTICE:  column \"last_name\" of relation \"customer_profiles\" already exists, skipping"
+   ],
+   "notice_count": 2,
+   "data_stmts": "ins0/upd1/del1/trunc0",
+   "stage_b_prod_class": "PENDING_EXPECTED"
+  },
+  {
+   "order": 57,
+   "version": "20261017120000",
+   "file": "20261017120000_add_booking_confirmation_claim.sql",
+   "sha256": "10ca659f79b57d15dbfebac32ef9716eb2d427f8ba9bdf32d5a303764bbaf22a",
+   "group": "october",
+   "status": "applied",
+   "categories_changed": [
+    "columns",
+    "functions"
+   ],
+   "notices": [],
+   "notice_count": 0,
+   "data_stmts": "ins0/upd0/del0/trunc0",
+   "stage_b_prod_class": "PENDING_EXPECTED"
+  },
+  {
+   "order": 58,
+   "version": "20261018120000",
+   "file": "20261018120000_restrict_future_database_privileges.sql",
+   "sha256": "c84e5881f3a814daf13160a6c5da9121534f28fcfe095cdc9b0e0e5332a8b1cc",
+   "group": "october",
+   "status": "applied",
+   "categories_changed": [
+    "default_acls"
+   ],
+   "notices": [],
+   "notice_count": 0,
+   "data_stmts": "ins0/upd0/del0/trunc0",
+   "stage_b_prod_class": "PENDING_DATA_OR_PRIVILEGE_ONLY"
+  },
+  {
+   "order": 59,
+   "version": "20261018120100",
+   "file": "20261018120100_secure_site_event_ingestion.sql",
+   "sha256": "3405852cb4b24c62e102821c3fd23357c939975d27acb4c369a075f3c8e24abe",
+   "group": "october",
+   "status": "applied",
+   "categories_changed": [
+    "tables",
+    "policies"
+   ],
+   "notices": [],
+   "notice_count": 0,
+   "data_stmts": "ins0/upd0/del0/trunc0",
+   "stage_b_prod_class": "PENDING_DATA_OR_PRIVILEGE_ONLY"
+  },
+  {
+   "order": 60,
+   "version": "20261018120200",
+   "file": "20261018120200_restrict_role_lookup_and_profile_ownership.sql",
+   "sha256": "42ab205aa1c2dd477a437e1d61f90771e10636616bbc543553e2236155bb021e",
+   "group": "october",
+   "status": "applied",
+   "categories_changed": [
+    "tables",
+    "columns",
+    "functions"
+   ],
+   "notices": [],
+   "notice_count": 0,
+   "data_stmts": "ins0/upd0/del0/trunc0",
+   "stage_b_prod_class": "PENDING_EXPECTED"
+  },
+  {
+   "order": 61,
+   "version": "20261019120000",
+   "file": "20261019120000_add_payment_operations_and_single_financial_application.sql",
+   "sha256": "a25ab2d6d31f8401924c28042cbb38738aa20b4a9c5922eb457421a031ec5c9b",
+   "group": "october",
+   "status": "applied",
+   "categories_changed": [
+    "columns",
+    "constraints",
+    "indexes",
+    "triggers",
+    "functions"
+   ],
+   "notices": [
+    "NOTICE:  trigger \"trg_guard_payment_authoritative_order_changes\" for relation \"public.orders\" does not exist, skipping"
+   ],
+   "notice_count": 1,
+   "data_stmts": "ins0/upd0/del0/trunc0",
+   "stage_b_prod_class": "PENDING_EXPECTED"
+  },
+  {
+   "order": 62,
+   "version": "20261020120000",
+   "file": "20261020120000_deposit_catch_up_and_offline_payment_parity.sql",
+   "sha256": "6724ef5cb5a7d64fcaa47fab04ceec16e3b82e1afda81eb33004d002569fb302",
+   "group": "october",
+   "status": "applied",
+   "categories_changed": [
+    "constraints",
+    "functions"
+   ],
+   "notices": [],
+   "notice_count": 0,
+   "data_stmts": "ins0/upd0/del0/trunc0",
+   "stage_b_prod_class": "PENDING_EXPECTED"
+  },
+  {
+   "order": 63,
+   "version": "20261021120000",
+   "file": "20261021120000_server_authoritative_order_pricing_saves.sql",
+   "sha256": "5478ffa0e5742adf270e0a9fb08513e29a7535e9553c6c23cab6876e36f48cd0",
+   "group": "october",
+   "status": "applied",
+   "categories_changed": [
+    "tables",
+    "columns",
+    "constraints",
+    "triggers",
+    "functions",
+    "policies"
+   ],
+   "notices": [
+    "NOTICE:  trigger \"trg_guard_order_pricing_authority\" for relation \"public.orders\" does not exist, skipping"
+   ],
+   "notice_count": 1,
+   "data_stmts": "ins0/upd0/del0/trunc0",
+   "stage_b_prod_class": "PENDING_EXPECTED"
+  },
+  {
+   "order": 64,
+   "version": "20261022120000",
+   "file": "20261022120000_refund_safety_and_financial_write_authority.sql",
+   "sha256": "05fec2307df354198cbeea4a04f133e898263a0ec208e3fd616b5e4717f58229",
+   "group": "october",
+   "status": "applied",
+   "categories_changed": [
+    "tables",
+    "columns",
+    "constraints",
+    "indexes",
+    "triggers",
+    "functions",
+    "policies"
+   ],
+   "notices": [
+    "NOTICE:  trigger \"trg_cancel_unattempted_payments_on_order_close\" for relation \"public.orders\" does not exist, skipping",
+    "NOTICE:  trigger \"trg_note_payment_applied_to_closed_order\" for relation \"public.payments\" does not exist, skipping",
+    "NOTICE:  policy \"Admins can view refunds\" for relation \"public.order_refunds\" does not exist, skipping"
+   ],
+   "notice_count": 3,
+   "data_stmts": "ins0/upd0/del0/trunc0",
+   "stage_b_prod_class": "PENDING_EXPECTED"
+  },
+  {
+   "order": 65,
+   "version": "20261023120000",
+   "file": "20261023120000_refund_allocation_schema.sql",
+   "sha256": "371b5e99b0188103b580ff91a66ce202ed7d785fc8399896e66db8c37c4bb31b",
+   "group": "october",
+   "status": "applied",
+   "categories_changed": [
+    "columns",
+    "constraints",
+    "functions"
+   ],
+   "notices": [],
+   "notice_count": 0,
+   "data_stmts": "ins0/upd0/del0/trunc0",
+   "stage_b_prod_class": "PENDING_EXPECTED"
+  },
+  {
+   "order": 66,
+   "version": "20261024120000",
+   "file": "20261024120000_refund_allocation_reservation.sql",
+   "sha256": "353b63b371f241dcc258d72ebce40105edbd04256d396faddded36f25df90912",
+   "group": "october",
+   "status": "applied",
+   "categories_changed": [
+    "functions"
+   ],
+   "notices": [],
+   "notice_count": 0,
+   "data_stmts": "ins0/upd0/del0/trunc0",
+   "stage_b_prod_class": "PENDING_EXPECTED"
+  },
+  {
+   "order": 67,
+   "version": "20261025120000",
+   "file": "20261025120000_refund_overview_for_admin.sql",
+   "sha256": "84c8cb248fd92f2accd2779e09f138c868132fb91400df7a22f2ca72111f1c92",
+   "group": "october",
+   "status": "applied",
+   "categories_changed": [
+    "functions"
+   ],
+   "notices": [],
+   "notice_count": 0,
+   "data_stmts": "ins0/upd0/del0/trunc0",
+   "stage_b_prod_class": "PENDING_EXPECTED"
+  }
+ ],
+ "history_rows_after": 386
+}
