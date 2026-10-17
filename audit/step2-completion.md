@@ -88,7 +88,3 @@ G2 security decisions before any privilege-related action; deploy-first Edge Fun
 ## Evidence pruning
 
 After final acceptance, 131 stage reports, intermediate CSVs and one-off capture/analysis scripts were removed from the working tree (not from history): everything the tests, generators and executor read, the Step 2 records and the security-handoff material stay. To read a removed file: `git show 0658fdd:audit/evidence/<name>`; to list them: `git diff --name-status 0658fdd HEAD -- audit/evidence`.
-
-## Generated files are not committed
-
-The seven generated outputs in `audit/` (production and development manifests, verification rules, execution manifest, batches, approval package) are no longer tracked. After a fresh clone run `python -I audit/evidence/tools/generate_all.py`; the output is deterministic and was verified byte-identical to the last committed versions (commit `ba56aff`). Because the owner approves a specific file hash, regenerate and record the SHA-256 of each output at approval time instead of relying on a committed copy.
