@@ -137,11 +137,11 @@ if (fs.existsSync(`${PROT}/prod_catalog_history.json`) && fs.existsSync(`${PROT}
   const P = calc.calculateEnvironment('prod', loc.versions, prod, aliases, null);
   const D = calc.calculateEnvironment('dev', loc.versions, dev, aliases, null);
   ok('evidence: no findings in the repository or either history', loc.findings.length === 0 && P.findings.length === 0 && D.findings.length === 0);
-  ok('evidence: 386 repository versions', loc.versions.length === 386);
+  ok('evidence: 384 repository versions (Cases 41 and 42 withdrawn in E2F)', loc.versions.length === 384);
   ok('evidence: 277 Production and 58 Development recorded', P.recorded_count === 277 && D.recorded_count === 58);
-  ok('evidence: Production pending 109, Development pending 329', P.pending_count === 109 && D.pending_count === 329);
+  ok('evidence: Production pending 107, Development pending 327', P.pending_count === 107 && D.pending_count === 327);
   ok('evidence: Case 43 is not pending anywhere and not in the repository', !P.pending_versions.includes('20260407211122') && !D.pending_versions.includes('20260407211122') && !loc.versions.includes('20260407211122'));
-  ok('evidence: cases 41 and 42 stay pending on Production (annotated, not removed)', P.pending_versions.includes('20260305203528') && P.pending_versions.includes('20260407203226') && P.alias_annotations.length === 2);
+  ok('evidence: cases 41 and 42 are withdrawn: not in the repository, not pending anywhere, no alias annotation', ['20260305203528', '20260407203226'].every((v: string) => !loc.versions.includes(v) && !P.pending_versions.includes(v) && !D.pending_versions.includes(v)) && P.alias_annotations.length === 0);
   ok('evidence: Development 20260814120000 stays pending; 20260814002658 is recorded without a local file', D.pending_versions.includes('20260814120000') && same(D.recorded_without_local_file, ['20260814002658']));
   const octo = loc.versions.filter((v: string) => v >= '20261007000000');
   ok('evidence: the 23 October migrations are pending in both environments', octo.length === 23 && octo.every((v: string) => P.pending_versions.includes(v) && D.pending_versions.includes(v)));

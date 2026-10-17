@@ -1,14 +1,12 @@
 {
   "purpose": "Documented relationships between a repository migration version and a DIFFERENT recorded history version. ANNOTATIONS ONLY: the pending-set calculator never removes a version from the pending set because of an alias, and nothing here renames a file or marks anything applied.",
   "aliases": [
-    { "env": "prod", "local_version": "20260305203528", "recorded_version": "20260305205811", "kind": "case-41 related-but-not-identical SQL",
-      "note": "Prod recorded add_customer_selected_payment_tracking under a different version; the SQL differs (Stage B report, case 41)." },
-    { "env": "prod", "local_version": "20260407203226", "recorded_version": "20260408200431", "kind": "case-42 related-but-not-identical SQL",
-      "note": "Prod recorded add_refund_requested_to_orders under a different version; the SQL differs (Stage B report, case 42)." },
     { "env": "dev", "local_version": "20260814120000", "recorded_version": "20260814002658", "kind": "dev recorded the migration under a different version",
       "note": "Dev recorded this migration as 20260814002658 (Stage B notes); the repository file is 20260814120000." }
   ],
   "withdrawn": [
-    { "version": "20260407211122", "note": "Case 43, withdrawn before application in Stage C3 (audit/evidence/withdrawn-migrations/). Must not be in the repository and must not be recorded in any history." }
+    { "version": "20260407211122", "note": "Case 43, withdrawn before application in Stage C3 (audit/evidence/withdrawn-migrations/). Must not be in the repository and must not be recorded in any history." },
+    { "version": "20260305203528", "note": "Case 41, withdrawn in Stage E2F (owner decision D-3); preserved in audit/evidence/withdrawn-migrations/. Its backfill differs from Production-recorded 20260305205811. Must not be in the repository and must not be recorded in any history." },
+    { "version": "20260407203226", "note": "Case 42, withdrawn in Stage E2F (owner decision D-4); executable SQL identical to Production-recorded 20260408200431; preserved in audit/evidence/withdrawn-migrations/. Must not be in the repository and must not be recorded in any history." }
   ]
 }

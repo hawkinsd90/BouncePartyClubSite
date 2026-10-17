@@ -1,0 +1,50 @@
+{
+ "purpose": "Withdrawn migrations: preserved byte for byte next to this file. They are NOT in supabase/migrations and must never be executed or recorded in any migration history. sha256_working_copy_bytes was computed on the Windows checkout (CRLF); sha256_lf_normalized (CRLF converted to LF, the form git stores) is the stable identity across checkouts. The list is also the deny list for a future allowlist executor.",
+ "withdrawn": [
+  {
+   "version": "20260305203528",
+   "file": "20260305203528_add_customer_payment_amount.sql",
+   "sha256_working_copy_bytes": "a6a679d26b0e7200990438338a66f684184721e4f80e60fd72cf2828bed601e8",
+   "sha256_lf_normalized": "b322d4f57d596a4ab7a743c12d85122f48e23a7433d887133172e7ed185f7a34",
+   "bytes": 774,
+   "reason": "Case 41, withdrawn by owner decision D-3 (Stage E2F). The ADD COLUMN statements equal the Production-recorded 20260305205811, but the backfill differs materially: this file sets customer_selected_payment_type to 'deposit' for every NULL row, whereas 20260305205811 sets 'full' when deposit_due_cents covers subtotal + travel + surface + same-day pickup + tax and 'deposit' otherwise. Executing it could overwrite real payment-selection data. Local test (E2B-1, 13 synthetic orders with NULL selection): 13 'deposit' versus 12 'deposit' and 1 'full'.",
+   "retained_counterpart": "20260305205811_add_customer_selected_payment_tracking.sql (recorded in Production)",
+   "evidence": [
+    "audit/evidence/e2a-prod-alias-comparison.md",
+    "audit/evidence/e2b1-report.md",
+    "audit/evidence/e2c-version-identity-impact.md",
+    "audit/evidence/e2e-repository-cleanup-plan.md"
+   ],
+   "never_record_in_any_history": true
+  },
+  {
+   "version": "20260407203226",
+   "file": "20260407203226_add_refund_requested_to_orders.sql",
+   "sha256_working_copy_bytes": "589560b47350a0d0c1ffe64988971fa89ea4c68330465d5b761b21b6e09f5170",
+   "sha256_lf_normalized": "0947816e8823b4123b22f442cc10c9e69bcb09d3ad7f2a942210d13509df05b9",
+   "bytes": 1178,
+   "reason": "Case 42, withdrawn by owner decision D-4 (Stage E2F). Its executable SQL is identical (comment-removed, whitespace-collapsed digest 23fa13edf474228c...) to the Production-recorded 20260408200431; only the longer header comment differs, and the whole file, header included, is preserved here. The body is a guarded DO block that adds orders.refund_requested only when missing, so it is a duplicate.",
+   "retained_counterpart": "20260408200431_add_refund_requested_to_orders.sql (recorded in Production)",
+   "evidence": [
+    "audit/evidence/e2a-prod-alias-comparison.md",
+    "audit/evidence/e2c-version-identity-impact.md",
+    "audit/evidence/e2e-repository-cleanup-plan.md"
+   ],
+   "never_record_in_any_history": true
+  },
+  {
+   "version": "20260407211122",
+   "file": "20260407211122_add_anon_insert_policy_order_changelog_cancellation.sql",
+   "sha256_working_copy_bytes": "9e09c0a24aec4b6fa4e6403b64f8c89b4f2488af977c6055d3916ef16b7c0a85",
+   "sha256_lf_normalized": "12e457dd465350b7c8c6ad559aa1c51c34135ab6a2993f79aa21b5f4610c839b",
+   "bytes": 1007,
+   "reason": "Case 43, withdrawn before application in Stage C3 (obsolete anonymous cancellation policy). Unchanged by E2F.",
+   "retained_counterpart": "none",
+   "evidence": [
+    "audit/evidence/case-43-impact-analysis.md",
+    "audit/evidence/c3-report.md"
+   ],
+   "never_record_in_any_history": true
+  }
+ ]
+}
