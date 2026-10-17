@@ -490,7 +490,7 @@ Output: `audit/evidence/reconciliation-manifest.md` containing, per environment,
 **F1 Dev (G7).** Single transaction per the W.4 template; asserts inserted-row count equals the manifest; rolls back on mismatch. **No schema change, no October file executed, containment and stubs untouched.**
 **F2 Prod (G8).** Same template. Timing is your decision N6: (X, recommended) execute in the production window immediately before the release deploy, with the exact reviewed list frozen in Step 2 and rehearsed in D; or (Y) execute now. Under X, Step 2 is recorded "complete with Prod execution scheduled as a Step 9 precondition"; under Y, Step 2 completes only after F2 and its verification.
 
-Stop (stage F): inserted-row count differs; any non-history row changes; any proof id missing. Rollback: the manifest's delete-by-version SQL, run only for the rows this stage inserted (identified by the marker text in `statements`).
+Stop (stage F): inserted-row count differs; any non-history row changes; any proof id missing. Rollback: the manifest's delete-by-version SQL, run only for the rows this stage inserted (identified by the marker text in `statements`) and only after fresh ledger inspection, a dependency check and separate owner authorization; a committed history entry is not silently reversible.
 
 #### Stage G: post-reconciliation verification (read-only)
 
@@ -770,7 +770,7 @@ commit;
 -- rollback (only rows this stage inserted):
 -- delete from supabase_migrations.schema_migrations where statements[1] like '-- reconciled by evidence:%';
 ```
-The marker in `statements` keeps the record truthful (the SQL was **not** run) and makes rollback exact. Alias cases 41–42 add rows for the repo versions even though Prod already holds differently versioned twins; the manifest records that.
+The marker in `statements` keeps the record truthful (the SQL was **not** run) and makes the rows identifiable (reversal still needs the checks in the hosted procedure, section 7). Alias cases 41–42 add rows for the repo versions even though Prod already holds differently versioned twins; the manifest records that.
 
 ---
 
