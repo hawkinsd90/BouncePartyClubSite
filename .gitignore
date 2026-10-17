@@ -36,3 +36,7 @@ docs/typecheck-lint-cleanup-plan.md
 # legacy names of the same utility (renamed to SyncDevDataFromProd); kept so nothing sensitive can ever be committed under the old names
 .dev-refresh/
 .env.dev-refresh
+audit/evidence/tools/__pycache__/c4_sql_fingerprint.cpython-314.pyc
+
+__pycache__/
+
