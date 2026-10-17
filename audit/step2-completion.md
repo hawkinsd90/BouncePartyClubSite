@@ -84,3 +84,7 @@ Ledger inserts (history-only 225, attestation 58 or fewer, deferred ones later);
 
 ## 9. Security and deployment dependencies
 G2 security decisions before any privilege-related action; deploy-first Edge Functions before the October files that need them; the October rehearsal and recovery plan before October; schema containment stays until policies are cleaned. Details: `audit/evidence/e2k-security-handoff.md` and `audit/evidence/e2j-development-release-gates.md`.
+
+## Evidence pruning
+
+After final acceptance, 131 stage reports, intermediate CSVs and one-off capture/analysis scripts were removed from the working tree (not from history): everything the tests, generators and executor read, the Step 2 records and the security-handoff material stay. To read a removed file: `git show 0658fdd:audit/evidence/<name>`; to list them: `git diff --name-status 0658fdd HEAD -- audit/evidence`.
