@@ -19,6 +19,7 @@ REPO = os.path.abspath(os.path.join(AUDIT, ".."))
 MIG = os.path.join(REPO, "supabase", "migrations")
 SCR = workdir()  # intermediate files only
 EXCL = "Excluded from plan (proposed; owner confirmation pending)"
+S3B = "Step 3B corrective SQL (new; executes after the October block)"
 REC, HIST, ATT, XSQL, WITH, WD, UNR = ("Already recorded", "Evidence-backed history-only reconciliation candidate", "Qualified owner-attestation candidate", "Actual SQL execution required",
                                       "Withheld for the October deployment gate", "Withdrawn", "Unresolved")
 rd = lambda p: list(csv.DictReader(open(os.path.join(EV, p), encoding="utf-8")))
@@ -52,6 +53,15 @@ def basis_of(v):
 OCT_FROM = "20261007000000"
 ALL = list(disp.keys())
 assert len(ALL) == 388
+# Step 3B corrective migrations (version 20261026000000 and later) are NEW SQL created after the Step 2 evidence was captured. They are
+# not in the evidence tables, so they are appended here: SQL that executes in version order after the October block, one transaction
+# per file, with no bookkeeping alternative. Their per-file prerequisites and read-only checks are in audit/security/.
+S3B_FROM = "20261026000000"
+S3B_VERSIONS = sorted(v for v in active if v >= S3B_FROM)
+for _v in S3B_VERSIONS:
+    disp[_v] = {"filename": active[_v], "final_category": S3B,
+                "evidence_basis": "Step 3B corrective migration written after the Step 2 captures (audit/security/step3-remediation-plan.md); no hosted state to compare, the effect is verified by audit/security/step3b-verification-rules.json"}
+ALL = ALL + S3B_VERSIONS
 # ---- predecessors: superseding versions that are still pending ----
 pred = {}
 for v in ALL:
@@ -70,6 +80,10 @@ def reach(a, b, seen=None):
     return False
 for v in ALL:
     pred[v] = [p for p in pred[v] if not reach(p, v)]
+# Step 3B files run in version order after the LAST October file and after each other.
+_chain = ["20261025120000"] + S3B_VERSIONS
+for _a, _b in zip(_chain, _chain[1:]):
+    pred[_b] = [_a]
 
 # ---- phases ----
 def base_phase(v):
@@ -78,6 +92,8 @@ def base_phase(v):
         return 0
     if c == XSQL:
         return 2
+    if c == S3B:
+        return 5
     if v >= OCT_FROM and v in active:
         return 3
     if c == WITH:
@@ -96,7 +112,7 @@ while changed:
                 phase[v], changed = 4, True
             elif need == 9:
                 phase[v], changed = 9, True
-PH = {0: "none", 1: "P1 pre-October bookkeeping", 2: "P2 pre-October SQL", 3: "P3 October block", 4: "P4 after October / gate", 9: "decision pending"}
+PH = {0: "none", 1: "P1 pre-October bookkeeping", 2: "P2 pre-October SQL", 3: "P3 October block", 4: "P4 after October / gate", 5: "P5 Step 3B corrective SQL", 9: "decision pending"}
 
 # ---- topological order for P1/P2 ----
 def topo(vs):
@@ -124,6 +140,7 @@ STOP = {REC: "none; verify the row still exists (Q01) before any other action",
         XSQL: "stop if Q20 shows the effect already present (then history-only); if the bucket row is missing; execute only the unchanged file in one transaction",
         WITH: "stop if its gate (Step 3 decisions, Edge Function deploy-first, rehearsal, recovery plan) is not closed; October files run only in version order",
         WD: "never recorded, never executed, never restored to the active directory",
+        S3B: "stop unless every October file has run and been verified; execute only the unchanged file in one transaction, in version order; stop on the first failure; verify with audit/security/step3b-verification-rules.json",
         UNR: "no operation until the owner decision is recorded", EXCL: "never execute; deny-listed; if the owner later wants parity with Production that is a new, separately approved SQL decision"}
 STEP3 = {"20251003170350": "yes: dormant master account with committed password (hardening before any reopening)", "20260323175236": "no (safe state verified)"}
 rows = []
@@ -150,19 +167,21 @@ for v in ALL:
         op = f"Execute {fn} unchanged in one transaction together with its executed ledger row (exact LF SQL stored)"
     elif c == WITH:
         op = ("Execute " + fn + " as SQL in version order after its gates" if v >= OCT_FROM and v in active else "History-only row only after its superseding/gating versions have run and been re-verified")
+    elif c == S3B:
+        op = f"Execute {fn} unchanged in one transaction (Step 3B), in version order, after the October block; same file for Production and Development"
     elif c == WD:
         op = "none (withdrawn; excluded from every plan)"
     elif c == EXCL:
         op = "none proposed: excluded from every allowlist and listed in the execution deny list; stays pending in the ledger unless the owner separately chooses a justified not-applicable attestation"
     else:
         op = "owner decision first"
-    step3 = STEP3.get(v, "yes: October gate G2/G3/G4 and the Step 3 items" if (v >= OCT_FROM and v in active) else "yes: containment/storage decisions" if c == WITH else "no")
+    step3 = ("this IS a Step 3B migration: see audit/security/step3-security-issue-register.csv" if c == S3B else None) or STEP3.get(v, "yes: October gate G2/G3/G4 and the Step 3 items" if (v >= OCT_FROM and v in active) else "yes: containment/storage decisions" if c == WITH else "no")
     rows.append({
         "version": v, "filename_or_archived_source": src, "development_ledger_status": led, "current_state_evidence": basis_of(v)[:420],
         "proposed_disposition": c, "plan_phase": PH[phase[v]], "plan_order": order.get(v, ""),
         "exact_required_operation": op, "required_predecessor_versions": ";".join(pred[v]), "step3_dependency": step3,
-        "owner_attestation_needed": "yes (per version)" if c == ATT else "no" if c in (REC, HIST, WD) else "owner approval of the SQL" if c == XSQL else "gate decisions" if c == WITH else "owner confirmation of the exclusion" if c == EXCL else "decision",
-        "sql_executes": "yes" if (c == XSQL or (c == WITH and v >= OCT_FROM and v in active)) else "no",
+        "owner_attestation_needed": "yes (per version)" if c == ATT else "no" if c in (REC, HIST, WD) else "owner approval of the SQL" if c in (XSQL, S3B) else "gate decisions" if c == WITH else "owner confirmation of the exclusion" if c == EXCL else "decision",
+        "sql_executes": "yes" if (c in (XSQL, S3B) or (c == WITH and v >= OCT_FROM and v in active)) else "no",
         "history_only_justified": "yes (supersession/catalog identity; not proof of execution)" if c == HIST else "conditional (after gate)" if c == WITH and not (v >= OCT_FROM and v in active) else "no",
         "stop_and_verification_conditions": STOP[c]})
 with open(os.path.join(AUDIT, "development-migration-manifest.csv"), "w", encoding="utf-8", newline="") as f:

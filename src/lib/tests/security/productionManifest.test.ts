@@ -33,16 +33,16 @@ const rules = JSON.parse(fs.readFileSync(path.join(ROOT, 'audit', 'production-ve
 const disp = (d: string) => rows.filter((r) => r.proposed_disposition.startsWith(d));
 const exec = disp('SQL execution');
 
-ok('387 unique versions: 277 recorded + 58 executable + 9 omissions + 40 baseline + 3 withdrawn', rows.length === 387 && byV.size === 387 && disp('Already recorded').length === 277 && exec.length === 58 && disp('History-only').length === 9
+ok('392 unique versions: 277 recorded + 58 executable + 9 omissions + 40 baseline + 3 withdrawn + 5 Step 3B', rows.length === 392 && byV.size === 392 && disp('Step 3B').length === 5 && disp('Already recorded').length === 277 && exec.length === 58 && disp('History-only').length === 9
   && disp('Baseline').length === 40 && disp('Withdrawn').length === 3);
 ok('executable set equals the rehearsed E2C manifest (58) and the nine omissions equal its history-only rows', e2c.filter((r) => r.proposed_action === 'execute').map((r) => r.version).sort().join() === exec.map((r) => r.version).sort().join()
   && e2c.filter((r) => r.proposed_action !== 'execute').map((r) => r.version).sort().join() === disp('History-only').map((r) => r.version).sort().join());
 const active = fs.readdirSync(path.join(ROOT, 'supabase', 'migrations')).filter((f: string) => f.endsWith('.sql'));
-ok('every one of the 384 active files appears exactly once; the 3 archived originals are the withdrawn rows', active.length === 384 && active.every((f: string) => rows.filter((r) => r.filename_or_archived_source === f).length === 1)
+ok('every one of the 389 active files appears exactly once; the 3 archived originals are the withdrawn rows', active.length === 389 && active.every((f: string) => rows.filter((r) => r.filename_or_archived_source === f).length === 1)
   && disp('Withdrawn').every((r) => r.filename_or_archived_source.startsWith('audit/evidence/withdrawn-migrations/') && fs.existsSync(path.join(ROOT, r.filename_or_archived_source))));
 const W = ['20260305203528', '20260407203226', '20260407211122'];
 ok('Cases 41, 42, 43 are exactly the withdrawn rows and are never in the active directory', disp('Withdrawn').map((r) => r.version).sort().join() === W.join() && W.every((v) => !active.some((f: string) => f.startsWith(v))));
-ok('SQL is required only for the 58 executable rows', rows.every((r) => (r.required_sql_execution.startsWith('yes')) === r.proposed_disposition.startsWith('SQL execution')));
+ok('SQL is required only for the 58 executable rows and the 5 Step 3B rows', rows.every((r) => (r.required_sql_execution.startsWith('yes')) === (r.proposed_disposition.startsWith('SQL execution') || r.proposed_disposition.startsWith('Step 3B'))));
 ok('baseline files are never executed and nothing is described as approved', disp('Baseline').every((r) => /NEVER execute/.test(r.proposed_disposition) && r.required_sql_execution.startsWith('no')) && rows.every((r) => r.owner_approval === 'not approved'));
 ok('the Development alias ledger row does not exist in Production; the contact-inquiry file is an ordinary executable here', !byV.has('20260814002658') && byV.get('20260814120000').proposed_disposition.startsWith('SQL execution'));
 const planned = rows.filter((r) => r.plan_order !== '').sort((a, b) => Number(a.plan_order) - Number(b.plan_order));

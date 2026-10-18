@@ -158,7 +158,25 @@ def manifest():
         fn = next((f for f in os.listdir(os.path.join(EV, "withdrawn-migrations")) if f.startswith(v)), "")
         row(v, "audit/evidence/withdrawn-migrations/" + fn, "not recorded (must never be)", "withdrawn", w_.get("note", w_.get("reason", ""))[:300], "Withdrawn", "no", "none", "", "", "", "none", "must not be present in the active migration directory (pending-set calculator and executor refuse it)",
             "n/a", "none", "")
-    assert len(rows) == 277 + 58 + 9 + 40 + 3, len(rows)
+    # ---- Step 3B appendix: corrective SQL written after the Step 2 captures (version 20261026000000 and later). It is NOT part of the
+    # 67-item rehearsed plan, the 58-item executor allowlist or production-verification-rules.json; it runs after plan_order 67 in version order.
+    S3B_EFFECT = {
+        "20261026120000": "Revoke API-role privileges on sequences (anon all; authenticated setval); remove anon table privileges where no anon policy exists; pin one SECURITY DEFINER search_path (SEC-014, SEC-039, SEC-037)",
+        "20261026120100": "GRANT SELECT on the eight Event Essentials catalog tables to service_role only (SEC-016)",
+        "20261026120200": "Add the Crew task_status INSERT policy and the Admin transaction_receipts UPDATE policy (SEC-036)",
+        "20261026120300": "Add a trigger that rejects browser-role writes to the booking-confirmation claim columns of orders (SEC-047)",
+        "20261026120400": "Remove the anon/authenticated entries from the supabase_admin default privileges in schema public where the role may (SEC-015)",
+    }
+    s3b = sorted(v for v in active if v >= "20261026000000")
+    assert s3b == sorted(S3B_EFFECT), s3b
+    chain = ["20261025120000"] + s3b
+    for a_, b_ in zip(chain, chain[1:]):
+        row(b_, active[b_], "not recorded", "step3b", S3B_EFFECT[b_], "Step 3B corrective SQL (new; executes after plan_order 67; NOT approved for hosted execution)",
+            "yes: original file, original version, one transaction with its ledger row, in version order after plan_order 67", "none (recorded as executed by the approved application method)", "", "", a_,
+            "audit/security/step3b-verification-rules.json lists the read-only pre- and post-state check; compatible Edge Functions are deployed first where audit/security/step3-step4-deployment-dependencies.md says so",
+            "audit/security/step3b-verification-rules.json: pre_state_sql is true before the file, post_state_sql after it", "audit/security/step3b-verification-rules.json: post_state_sql is true; the anon-executable allow-list, sequence and policy checks of securityPosture.test.ts hold",
+            RECOVERY_EXEC, "")
+    assert len(rows) == 277 + 58 + 9 + 40 + 3 + 5, len(rows)
     with open(os.path.join(AUDIT, "production-migration-manifest.csv"), "w", encoding="utf-8", newline="") as f:
         w = csv.DictWriter(f, fieldnames=list(rows[0].keys()), lineterminator="\n")
         w.writeheader()

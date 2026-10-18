@@ -37,16 +37,17 @@ const WITH = 'Withheld for the October deployment gate';
 const WD = 'Withdrawn';
 const UNR = 'Unresolved';
 const EXCL = 'Excluded from plan (proposed; owner confirmation pending)';
+const S3B = 'Step 3B corrective SQL (new; executes after the October block)';
 const count = (c: string) => rows.filter((r) => r.proposed_disposition === c).length;
 
-ok('388 unique versions', rows.length === 388 && byV.size === 388);
-ok('categories are the eight allowed values', rows.every((r) => [REC, HIST, ATT, XSQL, WITH, WD, UNR, EXCL].includes(r.proposed_disposition)));
-ok('counts: 59 recorded, 225 history-only, 58 attestation, 2 SQL, 40 withheld, 3 withdrawn, 1 excluded, 0 unresolved', count(REC) === 59 && count(HIST) === 225 && count(ATT) === 58 && count(XSQL) === 2 && count(WITH) === 40 && count(WD) === 3 && count(EXCL) === 1 && count(UNR) === 0);
+ok('393 unique versions (388 from Step 2 + the 5 Step 3B corrective migrations)', rows.length === 393 && byV.size === 393);
+ok('categories are the nine allowed values', rows.every((r) => [REC, HIST, ATT, XSQL, WITH, WD, UNR, EXCL, S3B].includes(r.proposed_disposition)));
+ok('counts: 59 recorded, 225 history-only, 58 attestation, 2 SQL, 40 withheld, 3 withdrawn, 1 excluded, 0 unresolved, 5 Step 3B', count(REC) === 59 && count(HIST) === 225 && count(ATT) === 58 && count(XSQL) === 2 && count(WITH) === 40 && count(WD) === 3 && count(EXCL) === 1 && count(UNR) === 0 && count(S3B) === 5);
 
-// accounting: 384 active files + 3 archived + 1 ledger-only alias version
+// accounting: 389 active files (384 + 5 Step 3B) + 3 archived + 1 ledger-only alias version
 const active = fs.readdirSync(path.join(ROOT, 'supabase', 'migrations')).filter((f: string) => f.endsWith('.sql'));
-ok('every active migration file appears exactly once in the manifest', active.every((f: string) => rows.filter((r) => r.filename_or_archived_source === f).length === 1) && active.length === 384);
-ok('exactly 384 rows point at an active file, 3 at the archive, 1 is ledger-only', rows.filter((r) => active.includes(r.filename_or_archived_source)).length === 384
+ok('every active migration file appears exactly once in the manifest', active.every((f: string) => rows.filter((r) => r.filename_or_archived_source === f).length === 1) && active.length === 389);
+ok('exactly 389 rows point at an active file, 3 at the archive, 1 is ledger-only', rows.filter((r) => active.includes(r.filename_or_archived_source)).length === 389
   && rows.filter((r) => r.filename_or_archived_source.startsWith('audit/evidence/withdrawn-migrations/')).length === 3 && rows.filter((r) => r.filename_or_archived_source.startsWith('ledger-only')).length === 1);
 
 // withdrawn cases and alias
@@ -57,10 +58,10 @@ ok('alias: file 20260814120000 and ledger version 20260814002658 are both Alread
 
 // SQL execution
 const sqlRows = rows.filter((r) => r.sql_executes === 'yes');
-ok('SQL executes only for the two bucket files and the 23 October files', sqlRows.length === 25 && rows.filter((r) => r.proposed_disposition === XSQL).map((r) => r.version).sort().join() === '20260325231044,20260517221038'
-  && sqlRows.filter((r) => r.proposed_disposition === WITH).every((r) => r.version >= '20261007000000') && sqlRows.filter((r) => r.proposed_disposition === WITH).length === 23);
+ok('SQL executes only for the two bucket files, the 23 October files and the 5 Step 3B files', sqlRows.length === 30 && rows.filter((r) => r.proposed_disposition === XSQL).map((r) => r.version).sort().join() === '20260325231044,20260517221038'
+  && sqlRows.filter((r) => r.proposed_disposition === S3B).length === 5 && sqlRows.filter((r) => r.proposed_disposition === WITH).every((r) => r.version >= '20261007000000') && sqlRows.filter((r) => r.proposed_disposition === WITH).length === 23);
 ok('no bookkeeping row (history-only, attestation, recorded, withdrawn, unresolved) executes SQL', rows.filter((r) => [HIST, ATT, REC, WD, UNR, EXCL].includes(r.proposed_disposition)).every((r) => r.sql_executes === 'no'));
-ok('every October file is withheld and in phase P3', rows.filter((r) => r.version >= '20261007000000' && active.includes(r.filename_or_archived_source)).every((r) => r.proposed_disposition === WITH && r.plan_phase.startsWith('P3')));
+ok('every October file is withheld and in phase P3', rows.filter((r) => r.version >= '20261007000000' && r.version < '20261026000000' && active.includes(r.filename_or_archived_source)).every((r) => r.proposed_disposition === WITH && r.plan_phase.startsWith('P3')));
 const demo = byV.get('20251003170350');
 ok('the demo-admin migration is never executed and is not planned for execution', demo.sql_executes === 'no' && !/execute/i.test(demo.exact_required_operation.replace(/no SQL runs/i, '')) && demo.step3_dependency.startsWith('yes'));
 ok('no version is unresolved; the only exclusion is update_pricing_rules (20260611184401), never executed', rows.filter((r) => r.proposed_disposition === EXCL).map((r) => r.version).join() === '20260611184401' && byV.get('20260611184401').sql_executes === 'no' && byV.get('20260611184401').plan_order === '');
