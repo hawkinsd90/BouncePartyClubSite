@@ -54,6 +54,8 @@ function eq(label: string, a: unknown, b: unknown) {
   ok(`${label} (got ${JSON.stringify(a)}, expected ${JSON.stringify(b)})`, JSON.stringify(a) === JSON.stringify(b));
 }
 const read = (p: string): string => fs.readFileSync(p, 'utf8');
+// SQL text compared with multi-line literals must not depend on the checkout's line endings (core.autocrlf): compare it with LF endings.
+const readLf = (p: string): string => read(p).split(String.fromCharCode(13) + String.fromCharCode(10)).join(String.fromCharCode(10));
 const sha256 = (v: string) => nodeCrypto.createHash('sha256').update(v).digest('hex');
 
 // ---------------------------------------------------------------------------------------------------------------
@@ -451,7 +453,7 @@ const noRows = (w: World, snapshot: string) => JSON.stringify(w.db) === snapshot
     ok('account: a guest record is also usable by a signed-in caller (unchanged behaviour)', guestSigned.status === 200 && orderRow(w5b).customer_id === 'c-guest');
 
     // The authoritative rule lives in the RPC, before every side-effecting write (static binding of the emulation to the SQL)
-    const sqlText = read('supabase/migrations/20261011120000_order_event_address_line2.sql');
+    const sqlText = readLf('supabase/migrations/20261011120000_order_event_address_line2.sql');
     const raise = sqlText.indexOf("RAISE EXCEPTION 'account_sign_in_required'");
     ok('account (SQL): the rejection exists with the exact guard condition', raise > 0 && sqlText.includes("IF v_customer_uid IS NOT NULL AND v_customer_uid IS DISTINCT FROM p_caller_user_id THEN\n    RAISE EXCEPTION 'account_sign_in_required';"));
     ok('account (SQL): the rejection comes BEFORE the profile update, contacts, addresses, orders, items, consents and proof writes', ['UPDATE customers', 'INSERT INTO contacts', 'INSERT INTO addresses', 'INSERT INTO orders', 'INSERT INTO order_items', 'INSERT INTO consent_records', 'INSERT INTO booking_setup_proofs'].every((t) => sqlText.indexOf(t) > raise));
@@ -886,7 +888,7 @@ const noRows = (w: World, snapshot: string) => JSON.stringify(w.db) === snapshot
     const w4 = makeWorld();
     await book(w4, req('payload-unit@example.com', ' Apt 2A '));
     ok('unit: the RPC payload carries the address line2; the order column is derived by the RPC, not sent', w4.rpcCalls[0].p_payload.address.line2 === 'Apt 2A' && !('event_address_line2' in w4.rpcCalls[0].p_payload.order));
-    const unitSql = read('supabase/migrations/20261011120000_order_event_address_line2.sql');
+    const unitSql = readLf('supabase/migrations/20261011120000_order_event_address_line2.sql');
     ok('unit (SQL): the RPC derives the order unit from the validated address, trimmed, empty when none', unitSql.includes("COALESCE(btrim(v_address->>'line2'), '')") && !/v_order->>'event_address_line2'/.test(unitSql));
   }
 

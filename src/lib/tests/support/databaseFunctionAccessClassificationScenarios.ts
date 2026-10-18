@@ -46,30 +46,11 @@ const list = (a: string[]) => a.map((x) => `'${x}'`).join(', ');
 
 // The live Dev state that the repository history does not reproduce.
 export const LIVE_FIXTURE_SQL = `
--- billing_addresses exists only on the live database. Modelled from its live definition and policies.
-CREATE TABLE public.billing_addresses (
-  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  customer_id uuid REFERENCES public.customers(id) ON DELETE SET NULL,
-  order_id uuid REFERENCES public.orders(id) ON DELETE CASCADE,
-  line1 text, line2 text, city text, state text, zip text, source text,
-  created_at timestamptz NOT NULL DEFAULT now()
-);
-ALTER TABLE public.billing_addresses ENABLE ROW LEVEL SECURITY;
-CREATE POLICY "Admins can read billing addresses" ON public.billing_addresses FOR SELECT TO authenticated
-  USING (EXISTS (SELECT 1 FROM public.user_roles WHERE user_roles.user_id = auth.uid() AND lower(user_roles.role) = ANY (ARRAY['admin'::text, 'master'::text])));
-CREATE POLICY "Anyone can insert billing address" ON public.billing_addresses FOR INSERT TO anon WITH CHECK (true);
-CREATE POLICY "Authenticated can insert billing address" ON public.billing_addresses FOR INSERT TO authenticated WITH CHECK (true);
+-- billing_addresses is created, with its three policies, by recovered migration 20260501173826 (Production history recovered in Step 2);
+-- the live Production/Dev table grants ALL to the API roles, which the replay's default privileges may not reproduce.
 GRANT ALL ON TABLE public.billing_addresses TO anon, authenticated, service_role;
 
--- The live-only booking-sources analytics function (it checks the caller itself).
-CREATE FUNCTION public.get_booking_sources_analytics(p_since timestamptz, p_until timestamptz) RETURNS jsonb
-LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $f$
-DECLARE caller_role text;
-BEGIN
-  SELECT role INTO caller_role FROM public.user_roles WHERE user_id = auth.uid() LIMIT 1;
-  IF caller_role IS NULL OR lower(caller_role) NOT IN ('admin', 'master') THEN RETURN '[]'::jsonb; END IF;
-  RETURN '[]'::jsonb;
-END $f$;
+-- get_booking_sources_analytics is created by recovered migrations 20260521153603 and 20260521153805 (Production history recovered in Step 2).
 
 -- The live get_user_role lower-cases the stored role (the replayed history does not).
 CREATE OR REPLACE FUNCTION public.get_user_role(user_id_input uuid) RETURNS text LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public AS $f$

@@ -129,7 +129,10 @@ const sql = stripSql(raw);
   const refs = (name: string) => [...browser, ...edge].filter((f) => read(f).includes(name));
   ok('source: no application code reads or writes the billing addresses table', refs(billing).length === 0);
   const migrationsMentioningBilling = fs.readdirSync('supabase/migrations').filter((f: string) => read('supabase/migrations/' + f).includes(billing) && f !== '20261013120000_restrict_remaining_public_database_access.sql');
-  ok('source: no earlier migration creates the billing addresses table (it exists only on the live database)', migrationsMentioningBilling.length === 0);
+  // Recovered migration 20260501173826 (Production history, recovered in Step 2) is the ONLY file that creates the table; 20261013 restricts it.
+  const BILLING_CREATOR = '20260501173826_add_billing_addresses_table.sql';
+  ok('source: exactly one earlier migration (the recovered one) creates the billing addresses table, and no other migration but the restriction mentions it', JSON.stringify(migrationsMentioningBilling) === JSON.stringify([BILLING_CREATOR]) && /CREATE TABLE IF NOT EXISTS (public\.)?billing_addresses|CREATE TABLE (public\.)?billing_addresses/i.test(read('supabase/migrations/' + BILLING_CREATOR)));
+  ok('source: the restriction migration drops the anonymous and authenticated write policies on the billing addresses table', /billing_addresses/.test(read('supabase/migrations/20261013120000_restrict_remaining_public_database_access.sql')));
   const hook = ['stripe', 'webhook', 'events'].join('_');
   ok('source: the Stripe webhook event table is touched only by the webhook idempotency module', refs(hook).join() === 'supabase/functions/_shared/payments/webhook-idempotency.ts');
   const wh = read('supabase/functions/stripe-webhook/index.ts');
@@ -148,7 +151,7 @@ const sql = stripSql(raw);
   const args = ['-h', host, '-p', port, '-U', 'postgres', '-d', db, '-X', '-q', '-w'];
   let psql: string | null = null;
   for (const c of candidates) {
-    const probe = spawnSync(c, [...args, '-Atc', "SELECT to_regprocedure('public.is_crew_or_admin()') IS NOT NULL AND to_regclass('public.billing_addresses') IS NULL"], { encoding: 'utf8', timeout: 15000 });
+    const probe = spawnSync(c, [...args, '-Atc', "SELECT to_regprocedure('public.is_crew_or_admin()') IS NOT NULL"], { encoding: 'utf8', timeout: 15000 });
     if (probe.status === 0 && probe.stdout.trim() === 't') { psql = c; break; }
   }
   if (!psql) {

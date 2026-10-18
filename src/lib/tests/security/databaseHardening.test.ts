@@ -127,7 +127,7 @@ const PRE_DATA = `
 ALTER TABLE auth.users DISABLE TRIGGER USER;
 INSERT INTO auth.users (id, email) VALUES ('${PRE_USER}', 'pre.existing@example.com');
 INSERT INTO public.contacts (id, email, first_name, last_name, customer_id) VALUES ('${PRE_CONTACT}', 'pre.existing.contact@example.com', 'Pre', 'Existing', NULL);
-INSERT INTO public.customer_profiles (user_id, contact_id, display_name) VALUES ('${PRE_USER}', '${PRE_CONTACT}', 'Pre Existing');
+INSERT INTO public.customer_profiles (user_id, contact_id, first_name) VALUES ('${PRE_USER}', '${PRE_CONTACT}', 'Pre Existing');
 INSERT INTO public.site_events (event_name, session_id, page_path, metadata) VALUES ('quote_submitted', 'dddddddd-dddd-4ddd-8ddd-dddddddddddd', '/quote', '{}'::jsonb), ('unit_view', 'dddddddd-dddd-4ddd-8ddd-dddddddddddd', '/units/x', '{"name":"X","slug":"x"}'::jsonb);
 `;
 const PROFILE_FIXTURE = `
@@ -141,7 +141,7 @@ INSERT INTO public.user_roles (user_id, role, created_at) VALUES
   ('${U.crewCust}', 'customer', now() - interval '2 minutes'), ('${U.crewCust}', 'crew', now() - interval '1 minute');
 ALTER TABLE public.user_roles DROP CONSTRAINT IF EXISTS user_roles_role_check;
 INSERT INTO public.user_roles (user_id, role) VALUES ('${U.mixed}', ' Admin ');
-INSERT INTO public.customer_profiles (user_id, contact_id, display_name, phone) VALUES ('${U.a}', NULL, 'Ann', '5550000001'), ('${U.b}', NULL, 'Bob', '5550000002');
+INSERT INTO public.customer_profiles (user_id, contact_id, first_name, phone) VALUES ('${U.a}', NULL, 'Ann', '5550000001'), ('${U.b}', NULL, 'Bob', '5550000002');
 INSERT INTO public.site_events (event_name, session_id, page_path, metadata) VALUES ('quote_started', 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', '/quote', '{}'::jsonb);
 `;
 
@@ -277,7 +277,7 @@ const ownIds = 'SELECT count(*)::text FROM public.current_customer_ids()';
 add('profile: a pre-existing profile keeps its contact link (no data was changed)', 'postgres', null, `SELECT contact_id::text FROM public.customer_profiles WHERE user_id = '${PRE_USER}'`, PRE_CONTACT);
 add('profile: customer A reads their own profile', 'authenticated', U.a, 'SELECT count(*)::text FROM public.customer_profiles', '1');
 add('profile: customer A cannot read B\'s profile', 'authenticated', U.a, `SELECT count(*)::text FROM public.customer_profiles WHERE user_id = '${U.b}'`, '0');
-add('profile: customer A can edit their display name', 'authenticated', U.a, cnt("UPDATE public.customer_profiles SET display_name = 'Ann Updated'"), '1');
+add('profile: customer A can edit their first name', 'authenticated', U.a, cnt("UPDATE public.customer_profiles SET first_name = 'Ann Updated'"), '1');
 add('profile: customer A can edit their phone', 'authenticated', U.a, cnt("UPDATE public.customer_profiles SET phone = '5551112222'"), '1');
 add('profile: customer A can edit notification preferences', 'authenticated', U.a, cnt('UPDATE public.customer_profiles SET email_notifications = false, sms_notifications = false'), '1');
 add('profile: customer A can edit first and last name', 'authenticated', U.a, cnt("UPDATE public.customer_profiles SET first_name = 'Ann', last_name = 'Adams', updated_at = now()"), '1');
@@ -287,9 +287,9 @@ add('profile: customer A cannot set contact_id to an arbitrary id', 'authenticat
 add('profile: customer A cannot set contact_id to their own existing value either (the column is not writable at all)', 'authenticated', U.a, cnt('UPDATE public.customer_profiles SET contact_id = contact_id'), DENIED);
 add('profile: customer A cannot re-point user_id at B', 'authenticated', U.a, cnt(`UPDATE public.customer_profiles SET user_id = '${U.b}'`), DENIED);
 add('profile: customer A cannot change the profile id or created_at', 'authenticated', U.a, cnt("UPDATE public.customer_profiles SET created_at = now() - interval '5 years'"), DENIED);
-add('profile: a mixed update that includes contact_id fails as a whole', 'authenticated', U.a, cnt(`UPDATE public.customer_profiles SET display_name = 'Hacked', contact_id = '${CONTACT_LEGACY}'`), DENIED);
-add('profile: ... and the display name was not changed by the failed mixed update', 'postgres', null, `SELECT display_name FROM public.customer_profiles WHERE user_id = '${U.a}'`, 'Ann Updated');
-add('profile: customer A cannot edit B\'s profile (row level security)', 'authenticated', U.a, cnt(`UPDATE public.customer_profiles SET display_name = 'x' WHERE user_id = '${U.b}'`), '0');
+add('profile: a mixed update that includes contact_id fails as a whole', 'authenticated', U.a, cnt(`UPDATE public.customer_profiles SET first_name = 'Hacked', contact_id = '${CONTACT_LEGACY}'`), DENIED);
+add('profile: ... and the first name was not changed (still the value set above) by the failed mixed update', 'postgres', null, `SELECT first_name FROM public.customer_profiles WHERE user_id = '${U.a}'`, 'Ann');
+add('profile: customer A cannot edit B\'s profile (row level security)', 'authenticated', U.a, cnt(`UPDATE public.customer_profiles SET first_name = 'x' WHERE user_id = '${U.b}'`), '0');
 add('profile: customer A cannot insert a profile for themselves or others', 'authenticated', U.a, cnt(`INSERT INTO public.customer_profiles (user_id, contact_id) VALUES ('${U.nobody}', '${CONTACT_LEGACY}')`), DENIED);
 add('profile: customer A cannot delete a profile', 'authenticated', U.a, cnt('DELETE FROM public.customer_profiles'), DENIED);
 add('profile: anonymous cannot read or write profiles', 'anon', null, 'SELECT count(*)::text FROM public.customer_profiles', DENIED);
@@ -305,8 +305,8 @@ add('profile: sign-up still provisions a profile with its contact link (trigger-
   "SELECT (cp.contact_id IS NOT NULL)::text FROM public.customer_profiles cp WHERE cp.user_id = '44444444-0000-4000-8000-000000000001'", 'true',
   { setup: "ALTER TABLE auth.users ENABLE TRIGGER on_auth_user_created; INSERT INTO auth.users (id, email, raw_user_meta_data) VALUES ('44444444-0000-4000-8000-000000000001', 'signup.new@example.com', '{\"first_name\":\"Sue\",\"last_name\":\"Signup\"}'::jsonb);" });
 add('profile: Admin can still read all profiles', 'authenticated', U.admin, 'SELECT count(*)::text FROM public.customer_profiles', (v) => Number(v) >= 3);
-add('profile: Admin cannot edit another user\'s profile through the API (no such policy existed)', 'authenticated', U.admin, cnt("UPDATE public.customer_profiles SET display_name = 'x'"), '0');
-add('profile: authenticated UPDATE is limited to the editable columns', 'postgres', null, "SELECT string_agg(column_name, ',' ORDER BY column_name) FROM information_schema.column_privileges WHERE table_schema = 'public' AND table_name = 'customer_profiles' AND grantee = 'authenticated' AND privilege_type = 'UPDATE'", 'display_name,email_notifications,first_name,last_name,phone,sms_notifications,updated_at');
+add('profile: Admin cannot edit another user\'s profile through the API (no such policy existed)', 'authenticated', U.admin, cnt("UPDATE public.customer_profiles SET first_name = 'x'"), '0');
+add('profile: authenticated UPDATE is limited to the editable columns', 'postgres', null, "SELECT string_agg(column_name, ',' ORDER BY column_name) FROM information_schema.column_privileges WHERE table_schema = 'public' AND table_name = 'customer_profiles' AND grantee = 'authenticated' AND privilege_type = 'UPDATE'", 'email_notifications,first_name,last_name,phone,sms_notifications,updated_at');
 add('profile: contact_id is not writable by anon or authenticated', 'postgres', null, "SELECT count(*)::text FROM (VALUES ('anon'), ('authenticated')) r(role) WHERE has_column_privilege(r.role, 'public.customer_profiles', 'contact_id', 'UPDATE') OR has_column_privilege(r.role, 'public.customer_profiles', 'contact_id', 'INSERT')", '0');
 add('profile: service_role keeps full access', 'postgres', null, "SELECT (has_table_privilege('service_role', 'public.customer_profiles', 'SELECT') AND has_table_privilege('service_role', 'public.customer_profiles', 'INSERT') AND has_table_privilege('service_role', 'public.customer_profiles', 'UPDATE') AND has_table_privilege('service_role', 'public.customer_profiles', 'DELETE'))::text", 'true');
 add('profile: the own-profile row policies are untouched', 'postgres', null, "SELECT string_agg(policyname, ',' ORDER BY policyname) FROM pg_policies WHERE schemaname = 'public' AND tablename = 'customer_profiles'", 'Admins can view all profiles,Users can update own profile,Users can view own profile');
