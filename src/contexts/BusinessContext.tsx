@@ -50,14 +50,18 @@ export function BusinessProvider({ children }: { children: ReactNode }) {
 
         if (cancelled) return;
 
-        if (error) {
+        // Signed-out visitors hold no privilege on admin_settings (the table also holds provider credentials), so this read may be
+        // refused for them. That is not a failure: the public values come from get_public_business_settings via the address helper
+        // below, exactly as when the read used to return no rows. Any other error is still reported.
+        const refusedForVisitor = error && (error.code === '42501' || /permission denied/i.test(error.message ?? ''));
+        if (error && !refusedForVisitor) {
           console.error('Error loading business settings:', error);
           return;
         }
 
         const newSettings = { ...defaultSettings };
 
-        if (data && data.length > 0) {
+        if (!error && data && data.length > 0) {
           data.forEach(({ key, value }) => {
             if (key in newSettings) {
               newSettings[key as keyof BusinessSettings] = value || '';

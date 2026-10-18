@@ -378,9 +378,12 @@ export function MessageTemplatesTab() {
                       </div>
                       <div className="bg-slate-50 rounded-lg p-4">
                         <p className="text-xs text-slate-600 font-bold mb-2">CONTENT:</p>
-                        <div
-                          className="text-sm text-slate-700 prose max-w-none"
-                          dangerouslySetInnerHTML={{ __html: template.content_template }}
+                        {/* Stored template HTML is shown in a sandboxed frame (no scripts, no same-origin access, no forms), never injected into the admin page. */}
+                        <iframe
+                          title={`Preview of ${template.template_name}`}
+                          sandbox=""
+                          srcDoc={template.content_template}
+                          className="w-full h-72 rounded border border-slate-200 bg-white"
                         />
                       </div>
                     </div>

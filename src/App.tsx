@@ -9,6 +9,7 @@ import { Layout } from './components/common/Layout';
 import { GoogleAdsTag } from './components/common/GoogleAdsTag';
 import { Home } from './pages/Home';
 import { useAuth } from './contexts/AuthContext';
+import { safeInternalPath } from './lib/core/safeInternalPath';
 
 const Catalog = lazy(() => import('./pages/Catalog').then(m => ({ default: m.Catalog })));
 const UnitDetail = lazy(() => import('./pages/UnitDetail').then(m => ({ default: m.UnitDetail })));
@@ -46,8 +47,8 @@ function OAuthRedirectHandler() {
     if (location.pathname !== '/') return;
 
     const params = new URLSearchParams(location.search);
-    const next = params.get('next');
-    if (next && next.startsWith('/') && !next.startsWith('//')) {
+    const next = safeInternalPath(params.get('next'), window.location.origin);
+    if (next) {
       navigate(next, { replace: true });
     }
   }, [user, location.pathname, location.search]);
