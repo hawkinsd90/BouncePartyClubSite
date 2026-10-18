@@ -114,6 +114,7 @@ export const REVIEWED_TRIGGERS = {
   'order_portal_links.trg_order_portal_links_updated_at': 'timestamp on UPDATE (table is emptied, not imported)',
   'orders.trg_cancel_unattempted_payments_on_order_close': 'would cancel payment rows when an order closes; Production already did',
   'orders.trg_guard_order_pricing_authority': 'pricing authority guard for application writes; imported rows are Production truth',
+  'orders.trg_guard_booking_confirmation_columns': 'confirmation-state guard for application (browser-role) writes; the refresh runs as the table owner and imported rows are Production truth',
   'orders.trg_guard_payment_authoritative_order_changes': 'payment authority guard for application writes; imported rows are Production truth',
   'orders.trg_sync_invoice_links_expires_at': 'would rewrite imported invoice link expiry',
   'orders.trigger_auto_create_task_status': 'would create tasks; tasks are imported from Production',

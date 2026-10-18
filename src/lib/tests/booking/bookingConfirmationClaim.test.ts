@@ -59,7 +59,8 @@ ok('static: release never sets the sent flag', !/release_booking_confirmation[\s
 ok('static: a stale timeout below sixty seconds is refused', /p_stale_seconds < 60/.test(sql));
 ok('static: no policy, default privilege, other table or other grant is touched', !/CREATE POLICY|DROP POLICY|ALTER DEFAULT PRIVILEGES|GRANT [^;]*ON (TABLE|ALL)|ALTER TABLE public\.(?!orders)/i.test(sql));
 ok('static: the migration carries no internal planning labels and no project reference', !/\b(Phase|Stage) ?[A-Z0-9]\b|\bA1\b|qaagfafagdpgzcijnfbw/.test(raw));
-ok('static: no earlier migration was edited to add the claim state', names.filter((n) => n !== '20261017120000_add_booking_confirmation_claim.sql').every((n) => !/booking_confirmation_claim_id/.test(read(`supabase/migrations/${n}`))));
+ok('static: no earlier migration was edited to add the claim state', names.filter((n) => n < '20261017120000_add_booking_confirmation_claim.sql').every((n) => !/booking_confirmation_claim_id/.test(read(`supabase/migrations/${n}`))));
+ok('static: the only later migration that mentions the claim state is the Step 3B guard trigger (it adds no column)', names.filter((n) => n > '20261017120000_add_booking_confirmation_claim.sql' && /booking_confirmation_claim_id/.test(read(`supabase/migrations/${n}`))).join() === '20261026120300_guard_booking_confirmation_columns.sql');
 
 // ---------------------------------------------------------------------------------------------------------------------
 // EXECUTED
@@ -157,7 +158,9 @@ add('PUBLIC holds no execute on any of the three', `SELECT count(*)::text FROM p
 add('anon and authenticated hold no execute (ACL check)', `SELECT count(*)::text FROM pg_proc p WHERE proname IN ('claim_booking_confirmation','finalize_booking_confirmation','release_booking_confirmation') AND pronamespace = 'public'::regnamespace AND (has_function_privilege('anon', p.oid, 'EXECUTE') OR has_function_privilege('authenticated', p.oid, 'EXECUTE'))`, '0', 'postgres');
 add('service_role holds execute on all three', `SELECT count(*)::text FROM pg_proc p WHERE proname IN ('claim_booking_confirmation','finalize_booking_confirmation','release_booking_confirmation') AND pronamespace = 'public'::regnamespace AND has_function_privilege('service_role', p.oid, 'EXECUTE')`, '3', 'postgres');
 add('all three are SECURITY DEFINER with a pinned search_path', `SELECT count(*)::text FROM pg_proc WHERE proname IN ('claim_booking_confirmation','finalize_booking_confirmation','release_booking_confirmation') AND pronamespace = 'public'::regnamespace AND prosecdef AND proconfig::text ~ 'search_path=public'`, '3', 'postgres');
-add('the claim columns are not writable by anon or authenticated', `SELECT count(*)::text FROM (VALUES ('anon'), ('authenticated')) r(role) WHERE has_column_privilege(r.role, 'public.orders', 'booking_confirmation_claim_id', 'UPDATE') OR has_column_privilege(r.role, 'public.orders', 'booking_confirmation_claim_id', 'SELECT')`, '0', 'postgres');
+// anon holds nothing on the table. Signed-in staff keep table-level SELECT/UPDATE on orders (the staff UI selects * and updates other columns), so a column-privilege check cannot prove
+// "staff cannot write the claim"; that guarantee is the BEFORE trigger of 20261026120300 and is executed in securityPosture.test.ts (SEC-047).
+add('the claim columns are not readable or writable by anon', `SELECT count(*)::text FROM (VALUES ('booking_confirmation_claim_id'), ('booking_confirmation_claimed_at')) c(col) WHERE has_column_privilege('anon', 'public.orders', c.col, 'UPDATE') OR has_column_privilege('anon', 'public.orders', c.col, 'SELECT')`, '0', 'postgres');
 
 // Hosted projects give new functions to anon / authenticated / service_role by default; the migration must take that away.
 const DEFAULT_ACL_SQL = 'ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT EXECUTE ON FUNCTIONS TO anon, authenticated, service_role;\n';
