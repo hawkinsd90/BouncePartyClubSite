@@ -1,0 +1,182 @@
+{
+ "_comment": "Expected result of src/lib/tests/security/securityPosture.test.ts against the databases BEFORE the Step 3B migrations (repository chain to 20261025120000, Production-shaped with the 67 upgrade files, Development-shaped with October and the containment end state). The baseline demonstrates the vulnerabilities: it is accepted ONLY when exactly these assertions fail with exactly these observed values and nothing else is wrong. Recorded from a real run on 2026-10-17; each name starts with the issue id it demonstrates.",
+ "databases": {
+  "bpc_replay_full25": {
+   "passed": 80,
+   "failed": 14,
+   "total": 94,
+   "failures": [
+    {
+     "name": "SEC-002 no private table is readable by anon: customers, payments, addresses, user_roles, admin_settings",
+     "got": "f,f,f,f,t"
+    },
+    {
+     "name": "SEC-003 anon holds INSERT (not SELECT, UPDATE or DELETE) on the signup-consent table",
+     "got": "t,t,t,t"
+    },
+    {
+     "name": "SEC-014 a signed-in customer cannot setval the ledger sequence",
+     "got": "1"
+    },
+    {
+     "name": "SEC-014 anon cannot setval the receipt sequence",
+     "got": "1"
+    },
+    {
+     "name": "SEC-014 anon holds no privilege on any public sequence",
+     "got": "2"
+    },
+    {
+     "name": "SEC-014 authenticated cannot setval any public sequence",
+     "got": "2"
+    },
+    {
+     "name": "SEC-036 admin can set the receipt flag",
+     "got": "0"
+    },
+    {
+     "name": "SEC-036 crew can create a missing task row",
+     "got": "ERR:42501"
+    },
+    {
+     "name": "SEC-037 every SECURITY DEFINER function pins its search_path",
+     "got": "1"
+    },
+    {
+     "name": "SEC-039 anon cannot read admin_settings",
+     "got": "0"
+    },
+    {
+     "name": "SEC-039 anon holds no table privilege on a table without an anon/public policy",
+     "got": "23"
+    },
+    {
+     "name": "SEC-047 admin cannot change the confirmation claim",
+     "got": "1"
+    },
+    {
+     "name": "SEC-047 crew cannot change the confirmation claim",
+     "got": "1"
+    },
+    {
+     "name": "SEC-047 master cannot set the confirmation-sent flag",
+     "got": "1"
+    }
+   ]
+  },
+  "bpc_replay_prodpre": {
+   "passed": 80,
+   "failed": 14,
+   "total": 94,
+   "failures": [
+    {
+     "name": "SEC-002 no private table is readable by anon: customers, payments, addresses, user_roles, admin_settings",
+     "got": "f,f,f,f,t"
+    },
+    {
+     "name": "SEC-003 anon holds INSERT (not SELECT, UPDATE or DELETE) on the signup-consent table",
+     "got": "t,t,t,t"
+    },
+    {
+     "name": "SEC-014 a signed-in customer cannot setval the ledger sequence",
+     "got": "1"
+    },
+    {
+     "name": "SEC-014 anon cannot setval the receipt sequence",
+     "got": "1"
+    },
+    {
+     "name": "SEC-014 anon holds no privilege on any public sequence",
+     "got": "2"
+    },
+    {
+     "name": "SEC-014 authenticated cannot setval any public sequence",
+     "got": "2"
+    },
+    {
+     "name": "SEC-036 admin can set the receipt flag",
+     "got": "0"
+    },
+    {
+     "name": "SEC-036 crew can create a missing task row",
+     "got": "ERR:42501"
+    },
+    {
+     "name": "SEC-037 every SECURITY DEFINER function pins its search_path",
+     "got": "1"
+    },
+    {
+     "name": "SEC-039 anon cannot read admin_settings",
+     "got": "0"
+    },
+    {
+     "name": "SEC-039 anon holds no table privilege on a table without an anon/public policy",
+     "got": "23"
+    },
+    {
+     "name": "SEC-047 admin cannot change the confirmation claim",
+     "got": "1"
+    },
+    {
+     "name": "SEC-047 crew cannot change the confirmation claim",
+     "got": "1"
+    },
+    {
+     "name": "SEC-047 master cannot set the confirmation-sent flag",
+     "got": "1"
+    }
+   ]
+  },
+  "bpc_replay_devpre4": {
+   "passed": 83,
+   "failed": 11,
+   "total": 94,
+   "failures": [
+    {
+     "name": "SEC-002 no private table is readable by anon: customers, payments, addresses, user_roles, admin_settings",
+     "got": "f,f,f,f,t"
+    },
+    {
+     "name": "SEC-003 anon holds INSERT (not SELECT, UPDATE or DELETE) on the signup-consent table",
+     "got": "t,t,t,t"
+    },
+    {
+     "name": "SEC-014 anon holds no privilege on any public sequence",
+     "got": "2"
+    },
+    {
+     "name": "SEC-036 admin can set the receipt flag",
+     "got": "0"
+    },
+    {
+     "name": "SEC-036 crew can create a missing task row",
+     "got": "ERR:42501"
+    },
+    {
+     "name": "SEC-037 every SECURITY DEFINER function pins its search_path",
+     "got": "1"
+    },
+    {
+     "name": "SEC-039 anon cannot read admin_settings",
+     "got": "0"
+    },
+    {
+     "name": "SEC-039 anon holds no table privilege on a table without an anon/public policy",
+     "got": "20"
+    },
+    {
+     "name": "SEC-047 admin cannot change the confirmation claim",
+     "got": "1"
+    },
+    {
+     "name": "SEC-047 crew cannot change the confirmation claim",
+     "got": "1"
+    },
+    {
+     "name": "SEC-047 master cannot set the confirmation-sent flag",
+     "got": "1"
+    }
+   ]
+  }
+ }
+}

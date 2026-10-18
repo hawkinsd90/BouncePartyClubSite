@@ -1,0 +1,195 @@
+{
+ "_comment": "Required inputs of the Step 3 security ACCEPTANCE command (node scripts/dev/security-scratch.cjs accept). Acceptance is always strict: every database below must exist, every suite must run and pass with no skipped layer, every file in must_exist must be present, and the number of discovered test files may not fall below min_discovered_test_files. Baseline runs are accepted only when they fail exactly as recorded in step3b-baseline-expected.json.",
+ "min_discovered_test_files": 120,
+ "databases": [
+  {
+   "name": "bpc_replay_oct12",
+   "purpose": "repository chain through 20261012120000"
+  },
+  {
+   "name": "bpc_replay_rolepre",
+   "purpose": "repository chain through 20261015123000"
+  },
+  {
+   "name": "bpc_replay_hardpre",
+   "purpose": "repository chain through 20261017120000"
+  },
+  {
+   "name": "bpc_replay_oct18",
+   "purpose": "repository chain through 20261018120200"
+  },
+  {
+   "name": "bpc_replay_full25",
+   "purpose": "repository chain through 20261025120000 (before Step 3B)"
+  },
+  {
+   "name": "bpc_replay_full",
+   "purpose": "complete repository chain (after Step 3B)"
+  },
+  {
+   "name": "bpc_replay_prodpre",
+   "purpose": "Production-shaped, before Step 3B"
+  },
+  {
+   "name": "bpc_replay_prodshape",
+   "purpose": "Production-shaped, after Step 3B"
+  },
+  {
+   "name": "bpc_replay_devpre4",
+   "purpose": "Development-shaped, before Step 3B"
+  },
+  {
+   "name": "bpc_replay_devshape",
+   "purpose": "Development-shaped, after Step 3B"
+  }
+ ],
+ "must_exist": [
+  "src/lib/tests/booking/bookingConfirmationClaim.test.ts",
+  "src/lib/tests/notifications/sendSmsNotificationFailureRecording.test.ts",
+  "src/lib/tests/payments/paymentCharging.test.ts",
+  "src/lib/tests/payments/paymentOperations.test.ts",
+  "src/lib/tests/payments/refundSafety.test.ts",
+  "src/lib/tests/portal/portalLinks.test.ts",
+  "src/lib/tests/security/adminAccessHardening.test.ts",
+  "src/lib/tests/security/anonPrivilegeSweep.test.ts",
+  "src/lib/tests/security/bookingConfirmationGuard.test.ts",
+  "src/lib/tests/security/contactInquiryMigrations.test.ts",
+  "src/lib/tests/security/coreDatabaseAccess.test.ts",
+  "src/lib/tests/security/customerPhotoAccess.test.ts",
+  "src/lib/tests/security/customerPortalAccess.test.ts",
+  "src/lib/tests/security/databaseFunctionAccessClassification.test.ts",
+  "src/lib/tests/security/databaseHardening.test.ts",
+  "src/lib/tests/security/defaultPrivilegeMigration.test.ts",
+  "src/lib/tests/security/demoCredentialExposure.test.ts",
+  "src/lib/tests/security/developmentExecutionManifest.test.ts",
+  "src/lib/tests/security/developmentManifest.test.ts",
+  "src/lib/tests/security/edgeAuthHelpers.test.ts",
+  "src/lib/tests/security/edgeFunctionHardening.test.ts",
+  "src/lib/tests/security/fixPaymentMethodAuthorization.test.ts",
+  "src/lib/tests/security/migrationPendingSet.test.ts",
+  "src/lib/tests/security/migrationReplaySafety.test.ts",
+  "src/lib/tests/security/notificationRelayAuthorization.test.ts",
+  "src/lib/tests/security/orderEvidenceAccess.test.ts",
+  "src/lib/tests/security/paymentRpcHandlerAuthorization.test.ts",
+  "src/lib/tests/security/privateMediaAccess.test.ts",
+  "src/lib/tests/security/productionBackendGuard.test.ts",
+  "src/lib/tests/security/productionManifest.test.ts",
+  "src/lib/tests/security/publicBookingSecurity.test.ts",
+  "src/lib/tests/security/recordConsentAuthorization.test.ts",
+  "src/lib/tests/security/recoveredMigrationFiles.test.ts",
+  "src/lib/tests/security/roleAssignment.test.ts",
+  "src/lib/tests/security/safeInternalPath.test.ts",
+  "src/lib/tests/security/securityAcceptanceRunner.test.ts",
+  "src/lib/tests/security/securityPosture.test.ts",
+  "src/lib/tests/security/siteEventIngestion.test.ts",
+  "src/lib/tests/security/step3bMigrationPlan.test.ts",
+  "src/lib/tests/security/waiverAuthorization.test.ts",
+  "src/lib/tests/syncDevDataFromProd/outboundGuard.test.ts"
+ ],
+ "extra_runs": [
+  {
+   "file": "src/lib/tests/security/coreDatabaseAccess.test.ts",
+   "db": "bpc_replay_prodpre",
+   "env": {
+    "CORE_DB_NAME": "bpc_replay_prodpre"
+   }
+  },
+  {
+   "file": "src/lib/tests/security/coreDatabaseAccess.test.ts",
+   "db": "bpc_replay_prodshape",
+   "env": {
+    "CORE_DB_NAME": "bpc_replay_prodshape"
+   }
+  },
+  {
+   "file": "src/lib/tests/security/coreDatabaseAccess.test.ts",
+   "db": "bpc_replay_devpre4",
+   "env": {
+    "CORE_DB_NAME": "bpc_replay_devpre4"
+   }
+  },
+  {
+   "file": "src/lib/tests/security/coreDatabaseAccess.test.ts",
+   "db": "bpc_replay_devshape",
+   "env": {
+    "CORE_DB_NAME": "bpc_replay_devshape"
+   }
+  },
+  {
+   "file": "src/lib/tests/security/bookingConfirmationGuard.test.ts",
+   "db": "bpc_replay_prodshape",
+   "env": {
+    "GUARD_DB_NAME": "bpc_replay_prodshape"
+   }
+  },
+  {
+   "file": "src/lib/tests/security/bookingConfirmationGuard.test.ts",
+   "db": "bpc_replay_devshape",
+   "env": {
+    "GUARD_DB_NAME": "bpc_replay_devshape"
+   }
+  },
+  {
+   "file": "src/lib/tests/security/anonPrivilegeSweep.test.ts",
+   "db": "bpc_replay_prodpre",
+   "env": {
+    "SWEEP_DB_NAME": "bpc_replay_prodpre"
+   }
+  },
+  {
+   "file": "src/lib/tests/security/anonPrivilegeSweep.test.ts",
+   "db": "bpc_replay_devpre4",
+   "env": {
+    "SWEEP_DB_NAME": "bpc_replay_devpre4"
+   }
+  },
+  {
+   "file": "src/lib/tests/security/securityPosture.test.ts",
+   "db": "bpc_replay_full",
+   "env": {
+    "POSTURE_DB_NAME": "bpc_replay_full"
+   }
+  },
+  {
+   "file": "src/lib/tests/security/securityPosture.test.ts",
+   "db": "bpc_replay_prodshape",
+   "env": {
+    "POSTURE_DB_NAME": "bpc_replay_prodshape"
+   }
+  },
+  {
+   "file": "src/lib/tests/security/securityPosture.test.ts",
+   "db": "bpc_replay_devshape",
+   "env": {
+    "POSTURE_DB_NAME": "bpc_replay_devshape"
+   }
+  }
+ ],
+ "baseline_runs": [
+  {
+   "file": "src/lib/tests/security/securityPosture.test.ts",
+   "db": "bpc_replay_full25",
+   "env": {
+    "POSTURE_DB_NAME": "bpc_replay_full25"
+   },
+   "baseline": "bpc_replay_full25"
+  },
+  {
+   "file": "src/lib/tests/security/securityPosture.test.ts",
+   "db": "bpc_replay_prodpre",
+   "env": {
+    "POSTURE_DB_NAME": "bpc_replay_prodpre"
+   },
+   "baseline": "bpc_replay_prodpre"
+  },
+  {
+   "file": "src/lib/tests/security/securityPosture.test.ts",
+   "db": "bpc_replay_devpre4",
+   "env": {
+    "POSTURE_DB_NAME": "bpc_replay_devpre4"
+   },
+   "baseline": "bpc_replay_devpre4"
+  }
+ ],
+ "baseline_expected": "audit/security/step3b-baseline-expected.json"
+}
