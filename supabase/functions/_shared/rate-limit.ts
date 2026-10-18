@@ -38,6 +38,9 @@ export const RATE_LIMIT_CONFIGS: Record<string, RateLimitConfig> = {
   // codebase takes from forwarding headers; if a caller could rotate that value, this bucket still bounds the total. A real site sees a
   // handful of events a day (Dev holds ~1,000 in six months), so 240 a minute is several orders of magnitude above real use.
   'record-site-event-global': { maxRequests: 240, windowSeconds: 60 },
+  // Browser crash reports to the administrator (public by design): a handful a minute per address, and a ceiling on the total.
+  'send-error-notification': { maxRequests: 10, windowSeconds: 600 },
+  'send-error-notification-global': { maxRequests: 60, windowSeconds: 600 },
   // A customer's own booking confirmation, per order (a real customer needs one, perhaps a retry).
   'customer-notice': { maxRequests: 3, windowSeconds: 600 },
 };

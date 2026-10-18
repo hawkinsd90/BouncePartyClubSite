@@ -1,41 +1,21 @@
 import "jsr:@supabase/functions-js@2/edge-runtime.d.ts";
-import Stripe from "npm:stripe@20.0.0";
-import { corsHeaders } from "../_shared/cors.ts";
 
-const stripe = new Stripe(Deno.env.get("STRIPE_SECRET_KEY") || "", {
-  apiVersion: "2024-11-20.acacia",
-});
+// RETIRED (Step 3B, SEC-024). It returned the card brand and last four digits of ANY Stripe payment method id to any caller holding the public anon key (verify_jwt = true only checks the signature, which the anon key passes). No application code, database object or backend function calls it.
+//
+// It now answers 410 to every request and never reaches Stripe, the database or any other service.
 
-Deno.serve(async (req: Request) => {
+const corsHeaders = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
+  "Access-Control-Allow-Headers": "Content-Type, Authorization, X-Client-Info, Apikey",
+};
+
+Deno.serve((req: Request) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { status: 200, headers: corsHeaders });
   }
-
-  try {
-    const { paymentMethodId } = await req.json();
-
-    if (!paymentMethodId) {
-      return new Response(
-        JSON.stringify({ error: "Missing paymentMethodId" }),
-        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
-    }
-
-    const pm = await stripe.paymentMethods.retrieve(paymentMethodId);
-
-    return new Response(
-      JSON.stringify({
-        last4: pm.card?.last4 || null,
-        brand: pm.card?.brand || null,
-      }),
-      { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-    );
-  } catch (error: unknown) {
-    console.error("[GET-PAYMENT-METHOD] Error:", error);
-    const message = error instanceof Error ? error.message : "Unknown error";
-    return new Response(
-      JSON.stringify({ error: message }),
-      { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-    );
-  }
+  return new Response(
+    JSON.stringify({ success: false, code: "ENDPOINT_RETIRED", error: "This endpoint is no longer available." }),
+    { status: 410, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+  );
 });

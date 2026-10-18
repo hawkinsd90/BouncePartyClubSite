@@ -1,5 +1,6 @@
 import "jsr:@supabase/functions-js@2/edge-runtime.d.ts";
 import { createClient } from "npm:@supabase/supabase-js@2.57.4";
+import { formParams, twilioCandidateUrls, verifyTwilioRequest } from "../_shared/twilio-signature.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -29,7 +30,24 @@ Deno.serve(async (req: Request) => {
 
   try {
     const formData = await req.formData();
-    
+
+    // Public endpoint (Twilio cannot send a Supabase JWT): the Twilio signature is the only proof of origin. It is checked
+    // before anything is read from or written to the database other than the signing token itself.
+    const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+    const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+    const supabase = createClient(supabaseUrl, supabaseServiceKey);
+    const { data: tokenRow } = await supabase.from("admin_settings").select("value").eq("key", "twilio_auth_token").maybeSingle();
+    const verdict = await verifyTwilioRequest({
+      signatureHeader: req.headers.get("X-Twilio-Signature"),
+      authToken: tokenRow?.value as string | undefined,
+      params: formParams(formData),
+      candidateUrls: twilioCandidateUrls({ requestUrl: req.url, supabaseUrl, functionName: "twilio-webhook", override: Deno.env.get("TWILIO_WEBHOOK_URL") ?? undefined }),
+    });
+    if (!verdict.ok) {
+      console.error("[twilio-webhook] rejected request:", verdict.reason);
+      return new Response("Forbidden", { status: 403, headers: { "Content-Type": "text/plain" } });
+    }
+
     const messageSid = formData.get("MessageSid") as string;
     const from = formData.get("From") as string;
     const to = formData.get("To") as string;
@@ -53,10 +71,6 @@ Deno.serve(async (req: Request) => {
         }
       );
     }
-
-    const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
-    const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-    const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
     const normalizePhone = (phone: string) => {
       return phone.replace(/[^0-9]/g, "").slice(-10);

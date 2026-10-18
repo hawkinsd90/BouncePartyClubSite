@@ -16,6 +16,7 @@
 
 import "jsr:@supabase/functions-js@2/edge-runtime.d.ts";
 import { createClient } from "npm:@supabase/supabase-js@2.57.4";
+import { resolveCaller, requireRoles, authFailureResponse, STAFF_ADMIN_ROLES } from "../_shared/auth.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -262,6 +263,15 @@ Deno.serve(async (req: Request) => {
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const supabase = createClient(supabaseUrl, serviceKey);
+
+    // Backend or staff only (the database trigger sends the service-role key; an Admin or Master may run a manual sync). The public
+    // anon key passes verify_jwt, so it is rejected here, before any request body is read, any credential is loaded from
+    // admin_settings, or the sync queue is touched.
+    const caller = await resolveCaller(supabase, req.headers.get("Authorization"), serviceKey);
+    if (caller.kind !== "service") {
+      const gate = requireRoles(caller, STAFF_ADMIN_ROLES, { unauthorized: "Authentication required", forbidden: "Admin access required" });
+      if (!gate.ok) return authFailureResponse(gate, corsHeaders, "error-only");
+    }
 
     let body: { dates?: string[]; reconcile?: boolean } = {};
     if (req.method === "POST") {

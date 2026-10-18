@@ -1,5 +1,6 @@
 import "jsr:@supabase/functions-js@2/edge-runtime.d.ts";
 import { createClient } from "npm:@supabase/supabase-js@2.57.4";
+import { formParams, twilioCandidateUrls, verifyTwilioRequest } from "../_shared/twilio-signature.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -17,7 +18,27 @@ Deno.serve(async (req: Request) => {
 
   try {
     const formData = await req.formData();
-    
+
+    // Public endpoint (Twilio cannot send a Supabase JWT): the Twilio signature is the only proof of origin. It is checked before
+    // any status is written; the only database read before that is the signing token.
+    const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+    const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+    const supabase = createClient(supabaseUrl, supabaseServiceKey);
+    const { data: tokenRow } = await supabase.from("admin_settings").select("value").eq("key", "twilio_auth_token").maybeSingle();
+    const verdict = await verifyTwilioRequest({
+      signatureHeader: req.headers.get("X-Twilio-Signature"),
+      authToken: tokenRow?.value as string | undefined,
+      params: formParams(formData),
+      candidateUrls: twilioCandidateUrls({ requestUrl: req.url, supabaseUrl, functionName: "twilio-status-callback", override: Deno.env.get("TWILIO_STATUS_CALLBACK_URL") ?? undefined }),
+    });
+    if (!verdict.ok) {
+      console.error("[twilio-status-callback] rejected request:", verdict.reason);
+      return new Response(
+        JSON.stringify({ error: "Forbidden" }),
+        { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
     const messageSid = formData.get("MessageSid") as string;
     const messageStatus = formData.get("MessageStatus") as string;
     const errorCode = formData.get("ErrorCode") as string;
@@ -36,10 +57,6 @@ Deno.serve(async (req: Request) => {
         }
       );
     }
-
-    const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
-    const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-    const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
     const { error: updateError } = await supabase
       .from("sms_conversations")

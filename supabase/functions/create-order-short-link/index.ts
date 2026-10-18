@@ -1,4 +1,8 @@
-import "jsr:@supabase/functions-js/edge-runtime.d.ts";
+import "jsr:@supabase/functions-js@2/edge-runtime.d.ts";
+
+// RETIRED (Step 3B, SEC-032). It called the legacy create_order_short_link RPC, which 20261009/20261012 revoke from every browser role, so the function could only fail. Portal links are created by portal-link and request-portal-link. Nothing calls it.
+//
+// It now answers 410 to every request and never reaches Stripe, the database or any other service.
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -6,55 +10,12 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "Content-Type, Authorization, X-Client-Info, Apikey",
 };
 
-Deno.serve(async (req: Request) => {
+Deno.serve((req: Request) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { status: 200, headers: corsHeaders });
   }
-
-  try {
-    const { order_id } = await req.json();
-
-    if (!order_id) {
-      return new Response(
-        JSON.stringify({ success: false, error: "Missing order ID" }),
-        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } },
-      );
-    }
-
-    const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
-    const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-
-    const rpcResponse = await fetch(`${supabaseUrl}/rest/v1/rpc/create_order_short_link`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${serviceRoleKey}`,
-        apikey: serviceRoleKey,
-      },
-      body: JSON.stringify({ p_order_id: order_id }),
-    });
-
-    const rpcResult = await rpcResponse.json();
-
-    if (!rpcResult.success) {
-      return new Response(
-        JSON.stringify(rpcResult),
-        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } },
-      );
-    }
-
-    const siteUrl = Deno.env.get("SITE_URL") || Deno.env.get("APP_URL") || "";
-    const baseUrl = siteUrl || "https://bouncyhousehub.com";
-    const portalUrl = `${baseUrl}/portal/${rpcResult.short_code}`;
-
-    return new Response(
-      JSON.stringify({ success: true, short_code: rpcResult.short_code, portal_url: portalUrl }),
-      { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } },
-    );
-  } catch (error) {
-    return new Response(
-      JSON.stringify({ success: false, error: error.message }),
-      { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } },
-    );
-  }
+  return new Response(
+    JSON.stringify({ success: false, code: "ENDPOINT_RETIRED", error: "This endpoint is no longer available." }),
+    { status: 410, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+  );
 });

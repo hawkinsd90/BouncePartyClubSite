@@ -27,6 +27,7 @@
  */
 
 import "jsr:@supabase/functions-js@2/edge-runtime.d.ts";
+import { resolveReturnOrigin } from "../_shared/booking/returnOrigin.ts";
 
 Deno.serve((req: Request) => {
   // Parse the URL to extract query parameters sent by Stripe
@@ -35,7 +36,14 @@ Deno.serve((req: Request) => {
   // Extract payment completion data from URL query string
   const orderId = url.searchParams.get("orderId") || "";      // Our internal order UUID
   const sessionId = url.searchParams.get("session_id") || ""; // Stripe's session ID
-  const origin = url.searchParams.get("origin") || "*";       // Opener window origin for security
+  // Target origin of the postMessage: ONLY an allowlisted origin (production site, SITE_URL / RETURN_ORIGINS, loopback development).
+  // It never falls back to "*": a message carrying the order id and Stripe session id must not be deliverable to an arbitrary site.
+  const origin = resolveReturnOrigin([url.searchParams.get("origin")], [Deno.env.get("SITE_URL"), Deno.env.get("RETURN_ORIGINS")]);
+  // JSON placed inside an inline <script> must not be able to close it or start an HTML comment.
+  const UNSAFE = new RegExp("[<>&" + String.fromCharCode(0x2028, 0x2029) + "]", "g");
+  const BACKSLASH = String.fromCharCode(92);
+  const js = (value: unknown) =>
+    JSON.stringify(value).replace(UNSAFE, (c) => BACKSLASH + "u" + c.charCodeAt(0).toString(16).padStart(4, "0"));
 
   // Build a minimal HTML page with inline JavaScript
   // This JavaScript runs immediately when the page loads
@@ -49,8 +57,8 @@ Deno.serve((req: Request) => {
         // Build message object containing payment completion data
         var msg = {
           type: 'BPC_CHECKOUT_COMPLETE',                   // Custom message type for identification
-          orderId: ${JSON.stringify(orderId)},             // Order UUID from our database
-          session_id: ${JSON.stringify(sessionId)}         // Stripe checkout session ID
+          orderId: ${js(orderId)},             // Order UUID from our database
+          session_id: ${js(sessionId)}         // Stripe checkout session ID
         };
 
         try {
@@ -58,9 +66,9 @@ Deno.serve((req: Request) => {
           // This will be the original checkout page that opened Stripe
           if (window.opener && window.opener.postMessage) {
             // Send the payment data back to the parent window
-            // targetOrigin = ${JSON.stringify(origin || "*")} for security
+            // targetOrigin = ${js(origin)}: an allowlisted origin only
             // Only the specified origin will receive this message
-            window.opener.postMessage(msg, ${JSON.stringify(origin || "*")});
+            window.opener.postMessage(msg, ${js(origin)});
           }
         } catch(e) {
           // Silently fail if postMessage doesn't work

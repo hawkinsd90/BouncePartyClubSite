@@ -47,7 +47,7 @@ verify_jwt = false
 verify_jwt = true
 
 [functions.get-session-metadata]
-verify_jwt = false
+verify_jwt = true
 
 [functions.get-stripe-publishable-key]
 verify_jwt = false
@@ -113,7 +113,7 @@ verify_jwt = false
 verify_jwt = true
 
 [functions.twilio-status-callback]
-verify_jwt = true
+verify_jwt = false
 
 [functions.twilio-webhook]
 verify_jwt = false
@@ -146,4 +146,10 @@ verify_jwt = false
 verify_jwt = false
 
 [functions.staff-order-save]
+verify_jwt = true
+
+[functions.create-order-short-link]
+verify_jwt = true
+
+[functions.submit-contact-inquiry]
 verify_jwt = true
