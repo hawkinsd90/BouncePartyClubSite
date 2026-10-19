@@ -45,7 +45,12 @@ ok('categories are the nine allowed values', rows.every((r) => [REC, HIST, ATT, 
 ok('counts: 59 recorded, 225 history-only, 58 attestation, 2 SQL, 40 withheld, 3 withdrawn, 1 excluded, 0 unresolved, 5 Step 3B', count(REC) === 59 && count(HIST) === 225 && count(ATT) === 58 && count(XSQL) === 2 && count(WITH) === 40 && count(WD) === 3 && count(EXCL) === 1 && count(UNR) === 0 && count(S3B) === 5);
 
 // accounting: 389 active files (384 + 5 Step 3B) + 3 archived + 1 ledger-only alias version
-const active = fs.readdirSync(path.join(ROOT, 'supabase', 'migrations')).filter((f: string) => f.endsWith('.sql'));
+const COMPAT_DOC = JSON.parse(fs.readFileSync(path.join(ROOT, 'audit', 'step4', 'compat-migrations.json'), 'utf8'));
+const COMPAT_FILES: string[] = COMPAT_DOC.files.map((x: any) => x.filename);
+const allSql = fs.readdirSync(path.join(ROOT, 'supabase', 'migrations')).filter((f: string) => f.endsWith('.sql'));
+// the two Step 4A.7 compatibility files are declared, hash-pinned local proposals; they are never manifest rows, so they are excluded from the Step 2 accounting only by name
+const active = allSql.filter((f: string) => !COMPAT_FILES.includes(f));
+ok('only the two declared, hash-pinned compatibility files exist beyond the Step 2 accounting, and no manifest row mentions them', allSql.length === active.length + COMPAT_FILES.length && COMPAT_FILES.length === 2 && COMPAT_DOC.files.every((x: any) => allSql.includes(x.filename) && require('crypto').createHash('sha256').update(fs.readFileSync(path.join(ROOT, 'supabase', 'migrations', x.filename), 'utf8').split(String.fromCharCode(13)).join('')).digest('hex') === x.sha256_lf) && rows.every((r: any) => !COMPAT_FILES.includes(r.filename_or_archived_source) && !COMPAT_DOC.files.some((x: any) => x.version === r.version)));
 ok('every active migration file appears exactly once in the manifest', active.every((f: string) => rows.filter((r) => r.filename_or_archived_source === f).length === 1) && active.length === 389);
 ok('exactly 389 rows point at an active file, 3 at the archive, 1 is ledger-only', rows.filter((r) => active.includes(r.filename_or_archived_source)).length === 389
   && rows.filter((r) => r.filename_or_archived_source.startsWith('audit/evidence/withdrawn-migrations/')).length === 3 && rows.filter((r) => r.filename_or_archived_source.startsWith('ledger-only')).length === 1);

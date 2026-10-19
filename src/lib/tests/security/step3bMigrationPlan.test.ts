@@ -70,8 +70,12 @@ ok('the accepted Step 2 checkpoint commit is present in this repository (a shall
   const atCheckpoint = checkpointPresent ? git('ls-tree', '--name-only', STEP2_CHECKPOINT, 'supabase/migrations/').stdout.split(NL).filter(Boolean).map((f: string) => f.replace('supabase/migrations/', '')) : [];
   const changedFiles = checkpointPresent ? git('diff', '--name-status', STEP2_CHECKPOINT, '--', 'supabase/migrations').stdout.split(NL).filter(Boolean).filter((l: string) => !l.startsWith('A')) : ['unknown'];
   ok(`no migration present at the Step 2 checkpoint was modified, renamed or deleted (${changedFiles.join('; ') || 'none'})`, changedFiles.length === 0);
-  const added = migrations.filter((f) => !atCheckpoint.includes(f)).map((f) => f.slice(0, 14));
+  // Step 4A.7: two declared, hash-pinned compatibility proposals (audit/step4/compat-migrations.json) are the only other additions
+  const compatDoc = JSON.parse(fs.readFileSync(path.join(ROOT, 'audit', 'step4', 'compat-migrations.json'), 'utf8'));
+  const compatNames: string[] = compatDoc.files.map((x: any) => x.filename);
+  const added = migrations.filter((f) => !atCheckpoint.includes(f) && !compatNames.includes(f)).map((f) => f.slice(0, 14));
   ok(`exactly the five Step 3B files are new relative to the Step 2 checkpoint (${added.join(', ')})`, atCheckpoint.length === 384 && added.join() === VERSIONS.join());
+  ok('the only other additions are the two declared compatibility files, each unchanged from its pinned hash and absent from the checkpoint', compatNames.length === 2 && compatNames.every((f) => migrations.includes(f) && !atCheckpoint.includes(f)) && compatDoc.files.every((x: any) => require('crypto').createHash('sha256').update(fs.readFileSync(path.join(ROOT, 'supabase', 'migrations', x.filename), 'utf8').split(String.fromCharCode(13)).join('')).digest('hex') === x.sha256_lf));
 }
 
 const dev: any[] = parseCsv(fs.readFileSync(path.join(ROOT, 'audit', 'development-migration-manifest.csv'), 'utf8'));

@@ -1,0 +1,339 @@
+{
+ "generated_by": "scripts/dev/hosted-executor/compat-migrations-oracle.py",
+ "local_only": true,
+ "cli_version": "2.104.0",
+ "compat_files": [
+  "20260324175545_compat_replace_legacy_user_roles_check.sql",
+  "20260615175815_compat_orders_realtime_before_duplicate_add.sql"
+ ],
+ "compat_sha256": {
+  "20260324175545_compat_replace_legacy_user_roles_check.sql": "4435b680e6b3a60cfe12837387e5de86ef2726e9f142d58a843bfc9071736bca",
+  "20260615175815_compat_orders_realtime_before_duplicate_add.sql": "491a473c4a558883f86c18626770665654af9af220b0f2519ce20aa361929518"
+ },
+ "scenarios": {
+  "C1_without_compat_files": {
+   "files": 388,
+   "applied": 233,
+   "ledger_rows": 232,
+   "stopped_after": "20260324162302",
+   "error": "ERROR: new row for relation \"user_roles\" violates check constraint \"user_roles_role_check\" (SQLSTATE 23514)"
+  },
+  "C2_with_both_compat_files": {
+   "files": 390,
+   "applied": 390,
+   "completed": true,
+   "ledger_rows": 390,
+   "compat_rows_recorded": "20260324175545,20260615175815",
+   "dry_run_after": "Remote database is up to date.",
+   "final_state": {
+    "user_roles_checks": "user_roles_role_check CHECK ((role = ANY (ARRAY['master'::text, 'admin'::text, 'crew'::text, 'customer'::text])))",
+    "orders_in_publication": "1",
+    "orders_replica_identity": "f",
+    "publication_members": "order_lot_pictures,order_pictures,order_signatures,orders,payments,task_status",
+    "schema_sha256": "68c06bdc854f7abe3b3c9255be172ce7cd1b546779a172666e1e1566983eee17"
+   },
+   "future_file_applied": [
+    "20261201120000"
+   ]
+  },
+  "C3_equals_tool_adjusted_replay": {
+   "adjusted_replay_without_compat_completed": true,
+   "adjusted_state": {
+    "user_roles_checks": "user_roles_role_check CHECK ((role = ANY (ARRAY['master'::text, 'admin'::text, 'crew'::text, 'customer'::text])))",
+    "orders_in_publication": "1",
+    "orders_replica_identity": "f",
+    "publication_members": "order_lot_pictures,order_pictures,order_signatures,orders,payments,task_status",
+    "schema_sha256": "68c06bdc854f7abe3b3c9255be172ce7cd1b546779a172666e1e1566983eee17"
+   },
+   "cli_with_compat_state": {
+    "user_roles_checks": "user_roles_role_check CHECK ((role = ANY (ARRAY['master'::text, 'admin'::text, 'crew'::text, 'customer'::text])))",
+    "orders_in_publication": "1",
+    "orders_replica_identity": "f",
+    "publication_members": "order_lot_pictures,order_pictures,order_signatures,orders,payments,task_status",
+    "schema_sha256": "68c06bdc854f7abe3b3c9255be172ce7cd1b546779a172666e1e1566983eee17"
+   },
+   "schema_sha256_equal": true,
+   "all_state_fields_equal": true
+  },
+  "C4_rerun_on_finished_database": {
+   "exit_a": 0,
+   "exit_b": 0,
+   "state_unchanged": true
+  },
+  "C5_development_shape": {
+   "template": "bpc_replay_e2i_devbase",
+   "ledger": "58 rows, max 20260929161925",
+   "before": {
+    "user_roles_checks": "none",
+    "orders_in_publication": "1",
+    "orders_replica_identity": "f"
+   },
+   "exit_a": 0,
+   "exit_b": 0,
+   "state_unchanged": true
+  },
+  "C6_production_shape": {
+   "template": "bpc_replay_prodshape",
+   "ledger": "277 rows, max 20260928172217",
+   "before": {
+    "user_roles_checks": "user_roles_role_check CHECK ((role = ANY (ARRAY['master'::text, 'admin'::text, 'crew'::text, 'customer'::text])))",
+    "orders_in_publication": "1",
+    "orders_replica_identity": "f"
+   },
+   "exit_a": 0,
+   "exit_b": 0,
+   "state_unchanged": true
+  },
+  "C7_legacy_constraint_state": {
+   "before": "user_roles_role_check CHECK ((role = ANY (ARRAY['MASTER'::text, 'ADMIN'::text, 'CREW'::text, 'CUSTOMER'::text])))",
+   "after_a": "user_roles_role_check CHECK ((role = ANY (ARRAY['MASTER'::text, 'ADMIN'::text, 'CREW'::text, 'CUSTOMER'::text, 'master'::text, 'admin'::text, 'crew'::text, 'customer'::text])))",
+   "exit": 0,
+   "rerun_unchanged": true,
+   "insert_before_a": {
+    "MASTER": "accepted",
+    "master": "rejected",
+    "superuser": "rejected"
+   },
+   "insert_after_a": {
+    "MASTER": "accepted",
+    "master": "accepted",
+    "superuser": "rejected",
+    "Admin ": "rejected"
+   }
+  },
+  "C8_absent_and_canonical_constraints": {
+   "canonical_before": "user_roles_role_check CHECK ((role = ANY (ARRAY['master'::text, 'admin'::text, 'crew'::text, 'customer'::text])))",
+   "canonical_untouched": true,
+   "absent_stays_absent": true
+  },
+  "C9_publication_in_order": {
+   "orders_member_before": "1",
+   "after_b": "0",
+   "rerun_unchanged": true,
+   "replica_identity_before_after": [
+    "f",
+    "f"
+   ],
+   "other_members_unchanged": true,
+   "protected_file_then_succeeds": true,
+   "orders_member_after_protected_file": "1",
+   "membership_equals_full_build": true
+  },
+  "C10_publication_absent": {
+   "exit": 0,
+   "publication_created_by_file": "0"
+  },
+  "C11_existing_database_conditions": {
+   "a_ledger_lacks_later_versions": {
+    "description": "Production shape, ledger rows >= 20260615175816 deleted (the former C11)",
+    "exit": 0,
+    "orders_still_member": true,
+    "state_unchanged": true,
+    "notice": "psql:C:/Users/vikki/Desktop/Repos/BouncePartyClubSite/supabase/migrations/20260615175815_compat_orders_realtime_before_duplicate_add.sql:103: NOTICE:  compat 20260615175815 did nothing: objects created by later migrations exist"
+   },
+   "b_no_ledger_at_all": {
+    "description": "Production shape, the whole ledger schema removed",
+    "exit": 0,
+    "orders_still_member": true,
+    "state_unchanged": true,
+    "notice": "psql:C:/Users/vikki/Desktop/Repos/BouncePartyClubSite/supabase/migrations/20260615175815_compat_orders_realtime_before_duplicate_add.sql:103: NOTICE:  compat 20260615175815 did nothing: objects created by later migrations exist"
+   },
+   "b2_development_shape_empty_ledger": {
+    "description": "Development shape, ledger emptied",
+    "exit": 0,
+    "orders_still_member": true,
+    "state_unchanged": true,
+    "notice": "psql:C:/Users/vikki/Desktop/Repos/BouncePartyClubSite/supabase/migrations/20260615175815_compat_orders_realtime_before_duplicate_add.sql:103: NOTICE:  compat 20260615175815 did nothing: objects created by later migrations exist"
+   },
+   "c_in_order_but_orders_has_a_row": {
+    "description": "in-order build with no ledger and no later tables but one synthetic order row",
+    "exit": 0,
+    "orders_still_member": true,
+    "state_unchanged": true,
+    "notice": "psql:C:/Users/vikki/Desktop/Repos/BouncePartyClubSite/supabase/migrations/20260615175815_compat_orders_realtime_before_duplicate_add.sql:103: NOTICE:  compat 20260615175815 did nothing: public.orders contains rows",
+    "orders_rows": "1"
+   },
+   "d_force_rls_cannot_prove_empty": {
+    "description": "in-order build, orders uses FORCE ROW LEVEL SECURITY",
+    "exit": 0,
+    "orders_still_member": true,
+    "state_unchanged": true,
+    "notice": "psql:C:/Users/vikki/Desktop/Repos/BouncePartyClubSite/supabase/migrations/20260615175815_compat_orders_realtime_before_duplicate_add.sql:103: NOTICE:  compat 20260615175815 did nothing: public.orders uses FORCE ROW LEVEL SECURITY, so emptiness cannot be proven"
+   },
+   "e_single_later_table_inventory_products": {
+    "description": "in-order build plus only public.inventory_products",
+    "exit": 0,
+    "orders_still_member": true,
+    "state_unchanged": true,
+    "notice": "psql:C:/Users/vikki/Desktop/Repos/BouncePartyClubSite/supabase/migrations/20260615175815_compat_orders_realtime_before_duplicate_add.sql:103: NOTICE:  compat 20260615175815 did nothing: objects created by later migrations exist"
+   },
+   "e_single_later_table_order_portal_links": {
+    "description": "in-order build plus only public.order_portal_links",
+    "exit": 0,
+    "orders_still_member": true,
+    "state_unchanged": true,
+    "notice": "psql:C:/Users/vikki/Desktop/Repos/BouncePartyClubSite/supabase/migrations/20260615175815_compat_orders_realtime_before_duplicate_add.sql:103: NOTICE:  compat 20260615175815 did nothing: objects created by later migrations exist"
+   },
+   "e_single_later_table_package_inflatable_eligibility": {
+    "description": "in-order build plus only public.package_inflatable_eligibility",
+    "exit": 0,
+    "orders_still_member": true,
+    "state_unchanged": true,
+    "notice": "psql:C:/Users/vikki/Desktop/Repos/BouncePartyClubSite/supabase/migrations/20260615175815_compat_orders_realtime_before_duplicate_add.sql:103: NOTICE:  compat 20260615175815 did nothing: objects created by later migrations exist"
+   },
+   "e_single_later_table_public_menu_groups": {
+    "description": "in-order build plus only public.public_menu_groups",
+    "exit": 0,
+    "orders_still_member": true,
+    "state_unchanged": true,
+    "notice": "psql:C:/Users/vikki/Desktop/Repos/BouncePartyClubSite/supabase/migrations/20260615175815_compat_orders_realtime_before_duplicate_add.sql:103: NOTICE:  compat 20260615175815 did nothing: objects created by later migrations exist"
+   },
+   "f_unexpected_error_does_nothing": {
+    "description": "in-order build, run by a role that cannot alter the publication",
+    "exit": 0,
+    "orders_still_member": true,
+    "state_unchanged": true,
+    "notice": "psql:C:/Users/vikki/Desktop/Repos/BouncePartyClubSite/supabase/migrations/20260615175815_compat_orders_realtime_before_duplicate_add.sql:103: NOTICE:  compat 20260615175815 did nothing: unexpected error, nothing changed: must be owner of publication supabase_realtime"
+   }
+  },
+  "C11_in_order_still_acts": {
+   "exit": 0,
+   "orders_removed_from_publication": true
+  },
+  "C11_documented_residual": {
+   "description": "empty database built up to and including 20260615175816, no ledger: indistinguishable from a fresh build, so the file acts (no customer data can exist in this state)",
+   "exit": 0,
+   "orders_removed_from_publication": true
+  },
+  "C12_role_writes_by_non_privileged_actors": {
+   "before_a": {
+    "anon": {
+     "MASTER": "rls",
+     "master": "rls",
+     "ADMIN": "rls",
+     "admin": "rls",
+     "crew": "rls",
+     "CUSTOMER": "rls",
+     "customer": "rls",
+     "superuser": "rls"
+    },
+    "authenticated_no_role_row": {
+     "MASTER": "rls",
+     "master": "rls",
+     "ADMIN": "rls",
+     "admin": "rls",
+     "crew": "rls",
+     "CUSTOMER": "rls",
+     "customer": "rls",
+     "superuser": "rls"
+    },
+    "authenticated_customer": {
+     "MASTER": "rls",
+     "master": "rls",
+     "ADMIN": "rls",
+     "admin": "rls",
+     "crew": "rls",
+     "CUSTOMER": "rls",
+     "customer": "rls",
+     "superuser": "rls"
+    }
+   },
+   "after_a": {
+    "anon": {
+     "MASTER": "rls",
+     "master": "rls",
+     "ADMIN": "rls",
+     "admin": "rls",
+     "crew": "rls",
+     "CUSTOMER": "rls",
+     "customer": "rls",
+     "superuser": "rls"
+    },
+    "authenticated_no_role_row": {
+     "MASTER": "rls",
+     "master": "rls",
+     "ADMIN": "rls",
+     "admin": "rls",
+     "crew": "rls",
+     "CUSTOMER": "rls",
+     "customer": "rls",
+     "superuser": "rls"
+    },
+    "authenticated_customer": {
+     "MASTER": "rls",
+     "master": "rls",
+     "ADMIN": "rls",
+     "admin": "rls",
+     "crew": "rls",
+     "CUSTOMER": "rls",
+     "customer": "rls",
+     "superuser": "rls"
+    }
+   },
+   "any_accepted_before": false,
+   "any_accepted_after": false,
+   "policies": "Admin can insert crew roles INSERT ; Master can insert user roles INSERT"
+  },
+  "C13_C14_treatment_on_existing_databases": {
+   "development_shape": {
+    "template": "bpc_replay_e2i_devbase",
+    "record_without_executing": {
+     "pending_before": [
+      "20260324175545",
+      "20260615175815"
+     ],
+     "pending_after": [],
+     "up_to_date": true,
+     "state_unchanged": true,
+     "orders_still_member": true,
+     "rows_are_single_element_not_executed_markers": true
+    },
+    "ordinary_push_include_all": {
+     "pending_before": [
+      "20260324175545",
+      "20260615175815"
+     ],
+     "applied": [
+      "20260324175545",
+      "20260615175815"
+     ],
+     "ledger_rows_added": 2,
+     "state_unchanged": true,
+     "orders_still_member": true,
+     "user_roles_checks_unchanged": true,
+     "up_to_date_afterwards": true
+    }
+   },
+   "production_shape": {
+    "template": "bpc_replay_prodshape",
+    "record_without_executing": {
+     "pending_before": [
+      "20260324175545",
+      "20260615175815"
+     ],
+     "pending_after": [],
+     "up_to_date": true,
+     "state_unchanged": true,
+     "orders_still_member": true,
+     "rows_are_single_element_not_executed_markers": true
+    },
+    "ordinary_push_include_all": {
+     "pending_before": [
+      "20260324175545",
+      "20260615175815"
+     ],
+     "applied": [
+      "20260324175545",
+      "20260615175815"
+     ],
+     "ledger_rows_added": 2,
+     "state_unchanged": true,
+     "orders_still_member": true,
+     "user_roles_checks_unchanged": true,
+     "up_to_date_afterwards": true
+    }
+   }
+  }
+ },
+ "record_marker_template": "-- BPC-DEV-RECONCILIATION history-only NOT EXECUTED run={{RUN_ID}} basis=compat migration for fresh-database replay only; its guards make it a no-op on this database; recorded so that standard tooling does not treat it as pending; its SQL was not run here"
+}

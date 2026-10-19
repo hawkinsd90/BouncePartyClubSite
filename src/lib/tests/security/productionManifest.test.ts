@@ -37,7 +37,9 @@ ok('392 unique versions: 277 recorded + 58 executable + 9 omissions + 40 baselin
   && disp('Baseline').length === 40 && disp('Withdrawn').length === 3);
 ok('executable set equals the rehearsed E2C manifest (58) and the nine omissions equal its history-only rows', e2c.filter((r) => r.proposed_action === 'execute').map((r) => r.version).sort().join() === exec.map((r) => r.version).sort().join()
   && e2c.filter((r) => r.proposed_action !== 'execute').map((r) => r.version).sort().join() === disp('History-only').map((r) => r.version).sort().join());
-const active = fs.readdirSync(path.join(ROOT, 'supabase', 'migrations')).filter((f: string) => f.endsWith('.sql'));
+const COMPAT_DOC = JSON.parse(fs.readFileSync(path.join(ROOT, 'audit', 'step4', 'compat-migrations.json'), 'utf8'));
+const COMPAT_FILES: string[] = COMPAT_DOC.files.map((x: any) => x.filename);
+const active = fs.readdirSync(path.join(ROOT, 'supabase', 'migrations')).filter((f: string) => f.endsWith('.sql') && !COMPAT_FILES.includes(f));
 ok('every one of the 389 active files appears exactly once; the 3 archived originals are the withdrawn rows', active.length === 389 && active.every((f: string) => rows.filter((r) => r.filename_or_archived_source === f).length === 1)
   && disp('Withdrawn').every((r) => r.filename_or_archived_source.startsWith('audit/evidence/withdrawn-migrations/') && fs.existsSync(path.join(ROOT, r.filename_or_archived_source))));
 const W = ['20260305203528', '20260407203226', '20260407211122'];

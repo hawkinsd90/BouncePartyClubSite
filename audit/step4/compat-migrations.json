@@ -1,0 +1,16 @@
+{
+ "schema": "bpc-compat-migrations/1",
+ "status": "LOCAL PROPOSAL (Step 4A.7). Not authorized for any hosted database, not in the sealed 28-file package, not in the executor, not in the Step 2 manifests or deny list. Changing either file requires a new review and a new hash here. Revised in the Step 4A.7 review: file 20260615175815 now acts only when three independent tests agree (ledger, later-created tables, empty orders).",
+ "files": [
+  {
+   "version": "20260324175545",
+   "filename": "20260324175545_compat_replace_legacy_user_roles_check.sql",
+   "sha256_lf": "4435b680e6b3a60cfe12837387e5de86ef2726e9f142d58a843bfc9071736bca"
+  },
+  {
+   "version": "20260615175815",
+   "filename": "20260615175815_compat_orders_realtime_before_duplicate_add.sql",
+   "sha256_lf": "491a473c4a558883f86c18626770665654af9af220b0f2519ce20aa361929518"
+  }
+ ]
+}
