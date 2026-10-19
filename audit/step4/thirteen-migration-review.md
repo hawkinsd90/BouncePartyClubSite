@@ -217,6 +217,9 @@ F3 shows that once every file has a row, a new migration stamped later than the 
 | 13 | `20260611184401` | S3 | marker "deliberately not executed" (owner decision U-E2I-4) |
 Every marker needs your signature per version. Do not request a 13-row attestation until you have accepted this strategy.
 
+## 17b. Step 4A.7 (strategy A approved in principle)
+The exact marker class, wording and fourteen-field record for each of the 13 versions, the marker SQL proposal and the two locally tested compatibility migrations are in `strategy-a-attestation-package.md`. The classes in section 17 are unchanged: 7 `effects-present-execution-unproven` and 6 `deliberately-not-executed`. Nothing is approved or recorded.
+
 ## 18. Owner decisions now supported
 1. Accept strategy A (markers plus attestations) for Development, with the fresh-database management rules in section 15, and B as a later project.
 2. Say whether the optional additive compatibility files (section 15, item 2) should be prepared for review.

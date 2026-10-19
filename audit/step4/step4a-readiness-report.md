@@ -106,3 +106,22 @@ With containment on (`anon`/`authenticated` without USAGE on `public`), every on
 - **Bolt** can push to `Dev` and apply SQL through Supabase's MCP; gate G-20. `bolt-access-control.md`.
 - **Gates:** 31 in `owner-gates-register.csv` with decision timing and class.
 - **Backups:** `backup-options-comparison.md` (recommendation: managed-backup check + verified manual dump, no PITR; D-02 stays BLOCKED).
+
+
+---
+
+## 11. Step 4A.8 status record (2026-10-19)
+Recorded decisions and states; **no hosted execution gate is marked passed**.
+| Item | Status |
+|---|---|
+| Strategy A (markers with individual attestations) | approved **in principle** only |
+| The 13 exact attestations | **pending individual owner review** (`owner-attestation-review.md`); none approved, signed or recorded; four need a separate deny-list exception id |
+| Marker SQL (`strategy-a-marker-proposal.sql`) | execution **not authorized**; future invocation `psql -X -v ON_ERROR_STOP=1 -1 -f <approved-filled-file>`; no filled file exists |
+| Compatibility migrations A (`20260324175545`) and B (`20260615175815`) | **approved for inclusion in the repository**; on existing Development and Production databases both versions are to be **recorded without executing their SQL**, never executed there; the hosted records are not yet authorized; `supabase db push --include-all` is prohibited against hosted Development and Production for them |
+| Record-only prerequisite | required before automatic Supabase deployments resume (both files are older than both ledger heads) |
+| Local commits | approved (this task); pushes, merges, rebases, resets, deployments and hosted mutations remain prohibited |
+| Netlify continuous deployment | stays ON |
+| Isolated Development SMS or feature hotfixes | none; functional testing starts after the full coordinated Development deployment |
+| Backups | combined approach approved (D-02 strategy approved); backup execution and restore proof **pending** |
+| Supabase automatic Development migration deployment | must stay **controlled** during historical recovery (Deploy to production OFF for Development before the first push) |
+| Production | requires separate approval and is not changed |

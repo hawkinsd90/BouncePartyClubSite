@@ -1,0 +1,164 @@
+{
+ "generated_by": "scripts/dev/hosted-executor/marker-proposal-oracle.py",
+ "local_only": true,
+ "template": "bpc_replay_e2i_devbase",
+ "scenarios": {
+  "static": {
+   "first_statement_is_a_single_do_block": true,
+   "no_psql_meta_commands": true,
+   "no_transaction_control": true,
+   "thirteen_versions_allowlisted": true,
+   "deny_exception_versions_listed": true,
+   "prerequisite_versions_listed": true,
+   "insert_statements": 1,
+   "writes_only_via_one_insert": true
+  },
+  "M1_as_committed": {
+   "exit_nonzero": true,
+   "message": "psql:C:/Users/vikki/Desktop/Repos/BouncePartyClubSite/audit/step4/strategy-a-marker-proposal.sql:112: ERROR:  PROPOSAL ONLY: placeholders are unfilled; no row was written",
+   "ledger_unchanged": true,
+   "without_on_error_stop_still_unchanged": true
+  },
+  "M2_synthetic_fill_in": {
+   "exit": 0,
+   "ledger_rows_after": 100,
+   "ledger_rows_before": 87,
+   "rows_in_expected_form": 13,
+   "base_rows_unchanged": true,
+   "deny_exception_rows": [
+    "20251001052039",
+    "20260125173238",
+    "20260305222010",
+    "20260611184401"
+   ],
+   "cli_pending_13_before": [
+    "20251001051901",
+    "20251001052039",
+    "20251001192425",
+    "20260125173238",
+    "20260126193205",
+    "20260224133344",
+    "20260224161311",
+    "20260224183629",
+    "20260224184535",
+    "20260305222010",
+    "20260311113547",
+    "20260315173745",
+    "20260611184401"
+   ],
+   "cli_pending_13_after": [],
+   "states": "deliberately-not-executed,effects-present-execution-unproven",
+   "second_run_refused": true
+  },
+  "M3_wrong_expected_count": {
+   "raised": true,
+   "expected_reason_seen": true,
+   "message": "psql:C:/Users/vikki/AppData/Local/Temp/tmpvipcyvjk.sql:112: ERROR:  ledger differs from the approved base (count 87 / hash 691793fe958a6c855790eb9df6df0719ff656e804ecd114f255c77dc376b5720)",
+   "ledger_unchanged": true
+  },
+  "M3_wrong_base_hash": {
+   "raised": true,
+   "expected_reason_seen": true,
+   "message": "psql:C:/Users/vikki/AppData/Local/Temp/tmpgowca164.sql:112: ERROR:  ledger differs from the approved base (count 87 / hash 691793fe958a6c855790eb9df6df0719ff656e804ecd114f255c77dc376b5720)",
+   "ledger_unchanged": true
+  },
+  "M3_marker_placeholder_left": {
+   "raised": true,
+   "expected_reason_seen": true,
+   "message": "psql:C:/Users/vikki/AppData/Local/Temp/tmpv85yqdoc.sql:112: ERROR:  placeholder left in the marker for 20251001051901",
+   "ledger_unchanged": true
+  },
+  "M3_denied_version_on_allowlist": {
+   "raised": true,
+   "expected_reason_seen": true,
+   "message": "psql:C:/Users/vikki/AppData/Local/Temp/tmpwz_xja8v.sql:112: ERROR:  a denied or withdrawn version is on the allowlist",
+   "ledger_unchanged": true
+  },
+  "M3_marker_wrong_form": {
+   "raised": true,
+   "expected_reason_seen": true,
+   "message": "psql:C:/Users/vikki/AppData/Local/Temp/tmpoye8v1fb.sql:112: ERROR:  malformed marker for 20251001052039",
+   "ledger_unchanged": true
+  },
+  "M3_missing_prerequisites_sealed_package_and_alias_rows": {
+   "raised": true,
+   "expected_reason_seen": true,
+   "message": "psql:C:/Users/vikki/AppData/Local/Temp/tmpaxb3f_eb.sql:112: ERROR:  prerequisite ledger rows are missing: the sealed package and the alias rows must be recorded first",
+   "ledger_unchanged": true
+  },
+  "M3_missing_development_alias_row": {
+   "raised": true,
+   "expected_reason_seen": true,
+   "message": "psql:C:/Users/vikki/AppData/Local/Temp/tmpy8n17s4q.sql:112: ERROR:  the Development-only alias row 20260814002658 is missing: wrong database or alias reconciliation not done",
+   "ledger_unchanged": true
+  },
+  "M3_deny_exception_approval_absent_on_a_denied_version": {
+   "raised": true,
+   "expected_reason_seen": true,
+   "message": "psql:C:/Users/vikki/AppData/Local/Temp/tmpietd6tom.sql:112: ERROR:  the deny-list exception approval id must be present on exactly the four deny-listed versions (20251001052039)",
+   "ledger_unchanged": true
+  },
+  "M3_deny_exception_approval_unfilled": {
+   "raised": true,
+   "expected_reason_seen": true,
+   "message": "psql:C:/Users/vikki/AppData/Local/Temp/tmpirih94rd.sql:112: ERROR:  placeholder left in the marker for 20251001052039",
+   "ledger_unchanged": true
+  },
+  "M3_deny_exception_approval_on_a_non_denied_version": {
+   "raised": true,
+   "expected_reason_seen": true,
+   "message": "psql:C:/Users/vikki/AppData/Local/Temp/tmpxd77uwn7.sql:112: ERROR:  the deny-list exception approval id must be present on exactly the four deny-listed versions (20251001051901)",
+   "ledger_unchanged": true
+  },
+  "M3_database_name_not_postgres": {
+   "raised": true,
+   "expected_reason_seen": true,
+   "message": "psql:C:/Users/vikki/AppData/Local/Temp/tmp42o7d6y5.sql:112: ERROR:  unexpected database bpc_replay_m47_n12",
+   "ledger_unchanged": true
+  },
+  "M3_version_already_present": {
+   "raised": true,
+   "expected_reason_seen": true,
+   "message": "psql:C:/Users/vikki/AppData/Local/Temp/tmpvkm7o5k0.sql:112: ERROR:  an allowlisted version already has a ledger row",
+   "ledger_unchanged": true
+  },
+  "M3_production_shaped_ledger_refused": {
+   "raised": true,
+   "expected_reason_seen": true,
+   "message": "psql:C:/Users/vikki/AppData/Local/Temp/tmp65dtuzkm.sql:112: ERROR:  the Development-only alias row 20260814002658 is missing: wrong database or alias reconciliation not done",
+   "ledger_unchanged": true,
+   "ten_of_thirteen_already_recorded": "10"
+  },
+  "M4_transports": {
+   "psql_f_single_transaction": {
+    "success_exit": 0,
+    "rows_written": 13,
+    "unfilled_exit_nonzero": true,
+    "unfilled_ledger_unchanged": true,
+    "unfilled_message": "psql:C:/Users/vikki/AppData/Local/Temp/tmpjgc4haim.sql:112: ERROR:  PROPOSAL ONLY: placeholders are unfilled; no row was written"
+   },
+   "psql_stdin_executor_style": {
+    "success_exit": 0,
+    "rows_written": 13,
+    "unfilled_exit_nonzero": true,
+    "unfilled_ledger_unchanged": true,
+    "unfilled_message": "psql:<stdin>:112: ERROR:  PROPOSAL ONLY: placeholders are unfilled; no row was written"
+   },
+   "psql_c_one_query_as_an_sql_api_would_send_it": {
+    "success_exit": 0,
+    "rows_written": 13,
+    "unfilled_exit_nonzero": true,
+    "unfilled_ledger_unchanged": true,
+    "unfilled_message": "ERROR:  PROPOSAL ONLY: placeholders are unfilled; no row was written"
+   },
+   "psql_f_without_any_flag": {
+    "success_exit": 0,
+    "rows_written": 13,
+    "unfilled_exit_nonzero": false,
+    "unfilled_ledger_unchanged": true,
+    "unfilled_message": "psql:C:/Users/vikki/AppData/Local/Temp/tmphdq4lsnq.sql:112: ERROR:  PROPOSAL ONLY: placeholders are unfilled; no row was written"
+   },
+   "note": "The file has no psql meta-command and no BEGIN/COMMIT; the invocation flags -v ON_ERROR_STOP=1 and -1 are client options, not file content. Without ON_ERROR_STOP psql exits 0 after a failed statement but the DO block has written nothing (unfilled_ledger_unchanged)."
+  }
+ }
+}
