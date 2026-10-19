@@ -1,4 +1,6 @@
-# Development backup options (Decision 2: no method chosen yet)
+# Development backup options (Decision 2)
+
+> **Step 4A.5: the owner selected the combined approach** (managed-backup check, encrypted `pg_dump -Fc` immediately before the first authorized hosted database migration, local restore proof, retention until deployment and integration testing end, no PITR, Storage bytes accounted separately). D-02 = STRATEGY APPROVED - EXECUTION AND RESTORE VERIFICATION PENDING. The exact commands, storage requirements and pass criteria are in `d02-restore-point-procedure.md`. The comparison below is retained as the basis for that choice.
 
 Nothing was purchased, enabled, created, deleted or restored. Facts are tagged **[LIVE]** (read-only observation 2026-10-19), **[DOCS]** (current Supabase documentation), **[QUOTE]** (price quoted by the Supabase connector, read-only) or **[INFERRED]**.
 

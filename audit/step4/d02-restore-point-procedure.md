@@ -1,6 +1,6 @@
 # D-02: Development restore point (owner-executable procedure)
 
-**Status: BLOCKED.** Backup capability cannot be verified read-only from this environment. Nothing here was created, deleted or restored. Step 4B cannot start until the owner records the evidence below (stage S0).
+**Status: STRATEGY APPROVED — EXECUTION AND RESTORE VERIFICATION PENDING** (owner decision, Step 4A.5; see the last section). The owner has not authorized taking the hosted backup, modifying Development, or starting Step 4B. The earlier text below is kept as history: where it says BLOCKED it means "no usable restore point has been proven yet". Nothing here was created, deleted or restored.
 
 ## What is known (read-only, 2026-10-18)
 | Fact | Source | Provenance |
@@ -89,3 +89,88 @@ It does not claim that a restore of this project has been tested, that the Pro p
 
 ## Step 4A.3 (2026-10-19): method selection
 Decision 2: no method chosen. The full comparison of Supabase managed backups, a manual logical backup with a locally verified restore, PITR and a combination, with verified plan, size, cost quotes and a local restore rehearsal, is in `backup-options-comparison.md`. Recommendation there: managed-backup check + manual logical dump verified by a local restore, no PITR. **D-02 stays BLOCKED** until the owner records the method, the dashboard backup list, and the Development-only-data statement, and the local restore proof runs on the owner's dump.
+
+
+---
+
+## Step 4A.5 (2026-10-19): owner decision recorded and the pre-deployment backup procedure prepared
+
+**D-02 = STRATEGY APPROVED — EXECUTION AND RESTORE VERIFICATION PENDING.** Nothing in this section was run. No hosted connection, dump, restore, purchase or setting change occurred in Step 4A.5.
+
+### Approved strategy (owner)
+1. Verify an existing recent Supabase **managed** Development backup (dashboard read only).
+2. Immediately **before the first authorized hosted database migration**, create one **encrypted manual `pg_dump -Fc` backup**.
+3. Prove that dump restores in an **isolated local PostgreSQL** database.
+4. Validate ledger integrity, schema and critical data after that restore.
+5. Retain the backup securely until Development deployment **and** integration testing are complete.
+6. **No PITR** (not purchased or enabled).
+7. Account **separately** for Storage object bytes (not in any PostgreSQL backup).
+
+### Approvals still required before anything runs (each separate, none given)
+| # | Approval | Why |
+|---|---|---|
+| 1 | Reading the dashboard Backups page and recording timestamps | confirms a managed backup exists and its age |
+| 2 | Taking the hosted dump at a named UTC time, using a connection string you hold | a hosted connection (read-only `pg_dump`, brief share locks) |
+| 3 | Where the encrypted dump is stored and who can read it | it contains copied customer data and password hashes |
+| 4 | The local restore proof and its pass criteria (below) | gate before the first hosted change |
+| 5 | The Storage accounting choice (inventory only, or a byte copy) | see below |
+| 6 | What Development-only data may be lost on a restore | defines the loss tolerance |
+| 7 | Starting Step 4B itself | not requested |
+
+### Step 1: managed backup check (owner, dashboard, text notes only)
+Dashboard > project `srxunxiytojjsuhcmzjg` > Database > Backups > Scheduled backups. Record every UTC timestamp. Needed: the newest is under 12 hours old at the start of the window, or take the manual dump at the start of the window and treat the managed backup as the second copy. Do not click Restore.
+
+### Step 2: exact pre-deployment backup commands (for later authorization; not run)
+Run from the owner's machine, in one shell, with the session-pooler connection string in an environment variable that is never written to a file or pasted into chat. The client tools must be PostgreSQL 17 or newer (the server is 17.6).
+```bash
+# 0. read-only snapshot of the migration ledger, compared later (must show 58 rows, max 20260929161925)
+psql "$DEV_DB_URL" -Atc "select version||'|'||coalesce(name,'')||'|'||md5(coalesce(array_to_string(statements,E'\n'),'')) from supabase_migrations.schema_migrations order by version" > ledger-before.txt
+sha256sum ledger-before.txt > ledger-before.sha256
+
+# 1. the backup: custom format, all schemas the postgres role can read, ACLs and owners kept
+pg_dump "$DEV_DB_URL" --format=custom --compress=6 --verbose --lock-wait-timeout=60s --file=dev-pre-rollout.dump 2> pg_dump.log
+
+# 2. roles (names and memberships only; passwords of custom roles are not restorable from Supabase)
+supabase db dump --db-url "$DEV_DB_URL" --role-only -f dev-roles.sql
+
+# 3. integrity record
+sha256sum dev-pre-rollout.dump dev-roles.sql > dev-backup.sha256
+pg_restore --list dev-pre-rollout.dump > dev-toc.txt
+```
+If `pg_dump` is refused on a platform-owned schema, do not widen privileges. Fall back to the explicit list `--schema=public --schema=auth --schema=storage --schema=supabase_migrations`, record that the fallback was used, and note the schemas that are then absent.
+
+### Encrypted storage requirements
+- Encrypt before the file leaves the working folder: `gpg --symmetric --cipher-algo AES256 dev-pre-rollout.dump` or `7z a -p -mhe=on` (the passphrase is kept in the owner's password manager, never in Git, chat or the repository).
+- Store in a folder that is **outside the repository** and outside any cloud-synced public share, readable only by the owner; keep one offline copy (external drive) if the folder is cloud-synced.
+- Keep the plain `.dump` only for the local restore proof, then delete it; keep the encrypted file, `dev-backup.sha256`, `ledger-before.txt` and `pg_dump.log`.
+- Record the SHA-256 of both the plain and the encrypted file and the UTC time. Keep the backup until Development deployment **and** integration testing finish, then decide retention (it holds customer data).
+
+### Step 3: local restore verification (no hosted change)
+1. Use the scratch PostgreSQL cluster (roles `anon`, `authenticated`, `service_role`, `authenticator`, `supabase_admin`, `supabase_auth_admin`, `supabase_storage_admin` must exist, as in the Step 4 scratch template).
+2. `createdb bpc_restore_verify`, then decrypt a **copy** of the encrypted file and run `pg_restore --exit-on-error --dbname=bpc_restore_verify dev-pre-rollout.dump`. Restoring with `--no-owner` is not accepted for the proof: the earlier local rehearsal showed it changes the schema-owner category.
+3. Compare to the hosted values captured before the dump.
+
+### Success criteria (all must hold)
+| Check | Pass |
+|---|---|
+| Dump and encrypted copy | SHA-256 recorded; decrypt of the stored copy equals the plain file |
+| `pg_restore` | exit code 0, no errors in the log |
+| Ledger | restored `supabase_migrations.schema_migrations` export equals `ledger-before.txt` byte for byte (58 rows, max `20260929161925`) |
+| Fingerprint | the read-only catalog fingerprint (`scripts/dev/hosted-executor/lib/fingerprint.cjs`) run on the restore equals the one run on hosted Development at dump time, per category |
+| Critical data | row counts equal the hosted counts for `orders` (171 at last read), `payments` (185), `auth.users` (9), `customers`, `customer_profiles`, `units` (16), `unit_media` (35), `pricing_rules` (1), `admin_settings`, `storage.objects` (500 metadata rows); and sums of `orders.balance_due_cents` and of payment amounts equal |
+| Containment | `anon` and `authenticated` still have no USAGE on schema `public` in the restore |
+| Storage | the inventory in the next section was captured |
+Any difference: stop. D-02 is then not satisfied and nothing hosted proceeds.
+
+### What is and is not recoverable from the manual dump
+| Recoverable | Not recoverable from it |
+|---|---|
+| All database tables and their data in the dumped schemas, including `auth.users` (with password hashes), Storage **metadata rows**, the migration ledger, functions, triggers, policies, grants, owners | **Storage object bytes** (about 898 MB, 500 objects); deployed Edge Functions and their secrets; dashboard and integration settings; Netlify; custom role passwords; anything written after the dump |
+
+### Storage object bytes (accounted separately)
+The 28 migration files never delete or update objects (grep of all 28 files), so the rollout is not expected to alter bytes. Account for them in one of two ways (owner chooses):
+- **Inventory only (recommended):** read-only list of `storage.objects` per bucket (count, total size, and a hash over names, sizes and etags), taken at dump time and again after the rollout; equal inventories prove nothing changed. This needs only a SELECT.
+- **Byte copy (optional):** download the buckets with the Storage API or `supabase storage cp` (about 898 MB; `signed-waivers` alone is about 498 MB of customer documents, so it falls under the same encryption rules). Needed only if the owner cannot recreate these files from Production.
+
+### Managed backup, restate
+The managed daily backup is the second copy for the database. It does not cover Storage bytes, functions or secrets, and PITR is not used. The earlier local rehearsal (a dump and restore of the **scratch replica** with an identical 60-row ledger and fingerprint) is a rehearsal only: it is not a backup of Development and does not satisfy D-02.

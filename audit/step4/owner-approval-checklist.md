@@ -8,7 +8,7 @@ Legend: **S0** approvals and restore point; **S1** notification containment; **S
 
 | Gate | Item | Owner action | Blocks | Hosted mutation | Status |
 |---|---|---|---|---|---|
-| D-02 | Development restore point | Read the backup list and PITR state; choose A (restore to a new project, then delete it) or B (logical dump restored locally); state what Development-only data may be lost | S0,S5 | No for reading | BLOCKED |
+| D-02 | Development restore point | Approve separately: dashboard backup read, the hosted dump at a named UTC time, encrypted storage location, the local restore proof and pass criteria, the Storage accounting choice, tolerated Development-only data loss | S0,S5 | No for reading | STRATEGY APPROVED - EXECUTION AND RESTORE VERIFICATION PENDING |
 | D-03a | Supabase and Netlify settings inspection | Record the answers to the nine questions in d03 (Supabase GitHub integration toggles, production branch, working directory; Netlify branch, branch deploys, published deploy, env vars) | S0,S9 | No | ANSWERED for Supabase and for Netlify build/env |
 | D-03c | Netlify continuous deployment (kept ON) | Nothing to change. Record the currently published deploy ID before the push as the rollback target; accept the incompatibility window | none (recorded only; not a blocker) | No (continuous deployment stays on) | OWNER STRATEGY APPROVED |
 | G-01 | Provider credentials and testing safeguards | No separate action. Inside the single coordinated rollout the guarded relays (S1) deploy before any operation that could send a real message; confirm configuration items C1-C10 in provider-safety-checklist.md (read-only) before provider tests | S1 | YES if secrets must be changed (owner action) | OWNER STRATEGY APPROVED |
@@ -29,7 +29,7 @@ Legend: **S0** approvals and restore point; **S1** notification containment; **S
 | G-18 | Commit and package freeze | Approve the commit sequence in package-freeze-and-commit-sequence.md; commit only after approval; do not edit the 28 files | S0 | No (local commits) | OPEN |
 | G-19 | Stub functions with repository changes (fix-payment-method, backfill-payment-methods) | Decide deploy or leave the stubs | S6 | Deploy later if chosen | OPEN |
 | G-20 | Bolt access freeze | Read which Supabase project(s) and branch Bolt is connected to; disconnect or restrict Bolt during the recovery; add branch protection on Dev and main | S0,S9 | YES (settings in Bolt, GitHub, Supabase | OPEN |
-| G-21 | Close the standard-migration obstacles | Decide: (a) comment-only alias file for 20260814002658, (b) ledger row for 20260814120000, (c) owner-signed attestation rows for the 13 after new read-only evidence | S15 | YES later (ledger rows) + local commits | OPEN. The proposal to record all 13 unresolved versions as NOT EXECUTED is NOT approved |
+| G-21 | Close the standard-migration obstacles | Decide: (a) comment-only alias file for 20260814002658, (b) ledger row for 20260814120000, (c) owner-signed attestation rows for the 13 after new read-only evidence | S15 | YES later (ledger rows) + local commits | OPEN. Proposal to record all 13 as NOT EXECUTED is NOT approved. Step 4A.5 read-only Development evidence is in thirteen-migration-review.md sections 8-12: none of the 13 is S1; 9 would be harmful to execute |
 | G-22 | Reconcile origin/Dev (aeb708e) | Choose R1 merge (recommended) or R3 force push; confirm whether the stray vite timestamp file should stay deleted | S0,S9 | No for R1 (local merge) | OPEN |
 | G-24 | Align config.toml with the approved function decisions | Make config.toml equal the approved JWT matrix (reviewed commit) before the integration is re-enabled | S15 | No (a commit) | OPEN |
 | G-25 | Re-enable Supabase automatic deployment (after proof) | Read the toggles; approve the dry run against Development (hosted connection, no write); approve the canary push; then switch Deploy to production ON | S15 | YES (owner toggle | OPEN |
@@ -51,7 +51,7 @@ Legend: **S0** approvals and restore point; **S1** notification containment; **S
 
 | Gate | Item | Class | Status |
 |---|---|---|---|
-| D-02 | Development restore point | Pending owner authorization | BLOCKED |
+| D-02 | Development restore point | Strategy approved | STRATEGY APPROVED - EXECUTION AND RESTORE VERIFICATION PENDI |
 | D-03a | Supabase and Netlify settings inspection | Requires read-only verification | ANSWERED for Supabase and for Netlify build/env |
 | G-14 | Deployment window and on-call | Pending owner authorization | OPEN |
 | G-18 | Commit and package freeze | Pending owner authorization | OPEN |
@@ -75,7 +75,7 @@ Legend: **S0** approvals and restore point; **S1** notification containment; **S
 | G-17 | Hosted authorization documents | Pending owner authorization | OPEN |
 | D-JWT-1 | Edge Function verify_jwt decisions | Pending owner authorization | OPEN |
 | G-19 | Stub functions with repository changes (fix-payment-method, backfill-payment-methods) | Pending owner authorization | OPEN |
-| G-21 | Close the standard-migration obstacles | Deferred until after the Development deployment | OPEN. The proposal to record all 13 unresolved versions as N |
+| G-21 | Close the standard-migration obstacles | Deferred until after the Development deployment | OPEN. Proposal to record all 13 as NOT EXECUTED is NOT appro |
 | G-24 | Align config.toml with the approved function decisions | Deferred until after the Development deployment | OPEN |
 | G-25 | Re-enable Supabase automatic deployment (after proof) | Deferred until after the Development deployment | OPEN |
 

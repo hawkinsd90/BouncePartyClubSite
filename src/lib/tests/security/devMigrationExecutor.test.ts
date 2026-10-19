@@ -156,7 +156,8 @@ ok('S11 gate: contains 20 checks and the five Step 3B post_effect_present rules 
   const g = (id: string) => gates.find((x: any) => x.gate_id === id);
   ok('gates register: 31 gates, unique ids, every required column filled', gates.length === 31 && new Set(gates.map((x: any) => x.gate_id)).size === 31 && gates.every((x: any) => required.every((c) => (x[c] || '').length > 0)));
   ok('gates register: no gate is marked PASS (nothing has been satisfied by this planning work)', gates.every((x: any) => !/^PASS/i.test(x.current_status)));
-  ok('gates register: D-02 is BLOCKED and G-16 is OPEN', /^BLOCKED/.test(g('D-02').current_status) && /^OPEN/.test(g('G-16').current_status));
+  ok('gates register: D-02 is strategy-approved with execution and restore verification still pending (hosted dump not authorized) and G-16 is OPEN', /^STRATEGY APPROVED - EXECUTION AND RESTORE VERIFICATION PENDING/.test(g('D-02').current_status) && /Not yet authorized: the hosted dump/.test(g('D-02').current_status) && /^Strategy approved/.test(g('D-02').gate_class) && /^OPEN/.test(g('G-16').current_status));
+  ok('gates register: G-21 records that the NOT EXECUTED proposal is not approved', /NOT approved/.test(g('G-21').current_status));
   ok('gates register: every gate that needs a hosted change says so', ['D-03b', 'G-03', 'G-03P', 'G-15', 'G-20', 'G-25'].every((id) => /^YES/.test(g(id).requires_hosted_mutation)));
   ok('gates register: S0, S4b, S9 and S11 are blocked by the expected gates', ['D-02', 'D-03a', 'G-14', 'G-18'].every((id) => g(id).blocks_stages.split(',').includes('S0')) && g('G-16').blocks_stages.includes('S4b') && ['D-03b', 'G-15', 'G-20', 'G-22'].every((id) => g(id).blocks_stages.includes('S9') || g(id).blocks_stages.includes('S0')) && g('G-03').blocks_stages.includes('S11'));
   const jwt = readCsv('audit/step4/edge-function-jwt-compatibility-matrix.csv');
@@ -178,6 +179,11 @@ ok('S11 gate: contains 20 checks and the five Step 3B post_effect_present rules 
   ok('cli oracle: a failing file records nothing and shows an error', st('K.').ledger_delta === 0 && st('K.').bad_recorded === '0' && st('K.').error_shown === true);
   const alt = JSON.parse(fs.readFileSync(path.join(ROOT, 'audit/step4/exclusion-alternatives-oracle.json'), 'utf8'));
   ok('exclusion oracle: a sub-directory and a renamed file are ignored by the CLI; repair --status applied records the file SQL as executed (rejected); a marker row stops pending-ness', alt.E1_subdirectory.pending.join() === '20260101000000,20260103000000' && alt.E2_renamed_extension.raw.some((l: string) => /Skipping migration/.test(l)) && alt.E3_repair_applied.recorded_statement === 'create table must_not_exist(id int)' && alt.E3_repair_applied.table_exists === '' && alt.E4_repair_reverted.row_count === '0' && alt.E5_marker_row.pending.join() === '20260101000000,20260103000000');
+  const fresh = JSON.parse(fs.readFileSync(path.join(ROOT, 'audit/step4/fresh-database-oracle-results.json'), 'utf8'));
+  const f1 = fresh.scenarios.F1_repository_as_is;
+  const f3 = fresh.scenarios.F3_additive_compat_files;
+  ok('fresh-database oracle: local only; the repository as it is stops at 20260324175546 and none of the 13 versions is the failing file', fresh.local_only === true && f1.failing_file === '20260324175546' && f1.max_recorded_version === '20260324162302' && !(oracle.unrecordable_under_current_approvals as string[]).includes(f1.failing_file));
+  ok('fresh-database oracle: two additive idempotent files let a fresh build finish, then a later file applies and only those two stay pending on an existing database', f3.completed === true && f3.applied === f3.files_pushed && /up to date/.test(f3.dry_run_after) && f3.future_file_applied.join() === '20261201120000' && f3.existing_db_without_compat_rows_include_all_pending.join() === '20251207163823,20260615175815');
   const review13 = fs.readFileSync(path.join(ROOT, 'audit/step4/thirteen-migration-review.md'), 'utf8');
   const unrecordable13 = oracle.unrecordable_under_current_approvals as string[];
   ok('13-migration review: not approved, covers all 13 versions, records no ledger change', /NOT APPROVED/.test(review13) && /No ledger row was written/.test(review13) && unrecordable13.length === 13 && unrecordable13.every((v: string) => review13.indexOf('`' + v + '_') >= 0));

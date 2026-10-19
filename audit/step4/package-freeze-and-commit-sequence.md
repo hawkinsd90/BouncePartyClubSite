@@ -74,6 +74,9 @@ Columns: **R** required for the Development rollout, **A** required for recovery
 4. **Commit group 3** `feat(migration-executor): add the exact-version executor, sealed package, rehearsal evidence and tests` (15 files marked 3).
 The unit suite is green only after all three (it reads documents and matrices), as for Step 3.
 
+## 4b. Later additions (Step 4A.5 and 4A.6)
+After the three commits above, one more local commit adds the Step 4A.5 evidence and Step 4A.6 strategy: the eight Step 4A.5 modifications (`backup-options-comparison.md`, `d02-restore-point-procedure.md`, `development-deployment-runbook.md`, `owner-approval-checklist.md`, `owner-gates-register.csv`, `standard-migration-recovery-plan.md`, `thirteen-migration-review.md`, `devMigrationExecutor.test.ts`), this file, and two new files: `scripts/dev/hosted-executor/fresh-database-oracle.py` and `audit/step4/fresh-database-oracle-results.json`. The sealed package, the 28 migration files and the executor are unchanged.
+
 ## 5. Freeze rules after committing
 1. The 28 migration files, `fingerprint.cjs`, the sealed package and the template state are **frozen**; any change means a new seal, a new package hash, new authorizations and a new rehearsal.
 2. Record in the S0 approval: the final HEAD, the package `document_sha256`, and the SHA-256 of `executor-rehearsal-results.json`, `s11-gate-checks.sql`, `g16-storage-canary.sql` and `cli-oracle-results.json`.

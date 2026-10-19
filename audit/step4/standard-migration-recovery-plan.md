@@ -3,6 +3,10 @@
 The custom executor is a **temporary recovery tool**. This plan says how Development gets from its current ledger to a state where `supabase db push` and the Supabase GitHub integration work in the ordinary way, with no recurring repairs. Evidence: the real Supabase CLI (v2.104.0) pointed at disposable local databases (`scripts/dev/hosted-executor/cli-oracle.py`, results in `cli-oracle-results.json`). Nothing hosted was contacted or changed.
 
 > **Step 4A.4 update:** the representation of the 13 unrecordable versions below (sections 4 O3, 5, 6 T4-T6) is a **proposal, not an approved plan**. It is independently reviewed in `thirteen-migration-review.md`, which tests the alternatives with the real CLI (`exclusion-alternatives-oracle.json`): `migration repair --status applied` is rejected because it records the file's own SQL as if executed; moving or renaming files hides them from the CLI but breaks Production's reconciliation; marker rows are honest only with explicit wording and a per-version signature. Nothing is recorded until the owner decides per version (G-21).
+>
+> **Step 4A.6 update:** a database built from the repository files stops at `20260324175546` (not caused by the 13); markers fix only existing databases. Recommended strategy: markers now, a reviewed baseline later; fresh-database management rules and the optional additive compatibility files are in `thirteen-migration-review.md` sections 13-18 (evidence: `fresh-database-oracle-results.json`).
+>
+> **Step 4A.5 update:** hosted read-only evidence (thirteen-migration-review.md sections 8-12) shows none of the 13 is demonstrated as executed on Development, 9 would be harmful to execute and 4 would be redundant. Recording a marker row (option B) satisfies the CLI and the integration but leaves a fresh database executing those files; that trade-off needs an explicit owner decision before T4-T6.
 
 ## 1. How the standard tooling behaves (observed, not assumed)
 | Rule | Observed with the real CLI |

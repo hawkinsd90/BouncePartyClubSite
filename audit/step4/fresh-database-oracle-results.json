@@ -1,0 +1,40 @@
+{
+ "generated_by": "scripts/dev/hosted-executor/fresh-database-oracle.py",
+ "local_only": true,
+ "cli_version": "2.104.0",
+ "files_in_repository": 389,
+ "scenarios": {
+  "F1_repository_as_is": {
+   "applied_before_stop": 233,
+   "last_applied": "20260324175546",
+   "ledger_rows": 232,
+   "error_lines": [
+    "ERROR: new row for relation \"user_roles\" violates check constraint \"user_roles_role_check\" (SQLSTATE 23514)",
+    "At statement: 2"
+   ],
+   "failing_file": "20260324175546",
+   "max_recorded_version": "20260324162302",
+   "first_unapplied_file": "20260324175546_fix_get_user_role_case_sensitivity_v2.sql"
+  },
+  "F3_additive_compat_files": {
+   "files_pushed": 390,
+   "applied": 390,
+   "completed": true,
+   "ledger_rows": 390,
+   "dry_run_after": "Remote database is up to date.",
+   "units_after_fresh_build": "8",
+   "seed_units": "2",
+   "future_file_applied": [
+    "20261201120000"
+   ],
+   "existing_db_without_compat_rows_no_flag": [
+    "Found local migration files to be inserted before the last migration on remote database.",
+    "Rerun the command with --include-all flag to apply these migrations:"
+   ],
+   "existing_db_without_compat_rows_include_all_pending": [
+    "20251207163823",
+    "20260615175815"
+   ]
+  }
+ }
+}
