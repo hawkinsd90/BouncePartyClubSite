@@ -1,0 +1,198 @@
+[
+ {
+  "version": "20261007120000",
+  "file": "20261007120000_harden_payment_rpc_authorization.sql",
+  "runnable_as_hosted_like_operator": true,
+  "error": "",
+  "advanced_as": "emulated-operator"
+ },
+ {
+  "version": "20261008120000",
+  "file": "20261008120000_restrict_role_and_admin_rpc_exposure.sql",
+  "runnable_as_hosted_like_operator": true,
+  "error": "",
+  "advanced_as": "emulated-operator"
+ },
+ {
+  "version": "20261009120000",
+  "file": "20261009120000_secure_customer_portal_links.sql",
+  "runnable_as_hosted_like_operator": true,
+  "error": "",
+  "advanced_as": "emulated-operator"
+ },
+ {
+  "version": "20261010110000",
+  "file": "20261010110000_add_customer_approval_timestamp.sql",
+  "runnable_as_hosted_like_operator": true,
+  "error": "",
+  "advanced_as": "emulated-operator"
+ },
+ {
+  "version": "20261010120000",
+  "file": "20261010120000_secure_public_booking_creation.sql",
+  "runnable_as_hosted_like_operator": true,
+  "error": "",
+  "advanced_as": "emulated-operator"
+ },
+ {
+  "version": "20261011120000",
+  "file": "20261011120000_order_event_address_line2.sql",
+  "runnable_as_hosted_like_operator": true,
+  "error": "",
+  "advanced_as": "emulated-operator"
+ },
+ {
+  "version": "20261012120000",
+  "file": "20261012120000_core_database_access_lockdown.sql",
+  "runnable_as_hosted_like_operator": true,
+  "error": "",
+  "advanced_as": "emulated-operator"
+ },
+ {
+  "version": "20261013120000",
+  "file": "20261013120000_restrict_remaining_public_database_access.sql",
+  "runnable_as_hosted_like_operator": true,
+  "error": "",
+  "advanced_as": "emulated-operator"
+ },
+ {
+  "version": "20261014120000",
+  "file": "20261014120000_protect_waiver_media_and_restrict_storage_access.sql",
+  "runnable_as_hosted_like_operator": false,
+  "error": "psql:<stdin>:140: ERROR:  must be owner of relation objects\r",
+  "advanced_as": "superuser"
+ },
+ {
+  "version": "20261015120000",
+  "file": "20261015120000_protect_customer_order_photos.sql",
+  "runnable_as_hosted_like_operator": false,
+  "error": "psql:<stdin>:121: ERROR:  must be owner of relation objects\r",
+  "advanced_as": "superuser"
+ },
+ {
+  "version": "20261015123000",
+  "file": "20261015123000_create_private_order_evidence_storage.sql",
+  "runnable_as_hosted_like_operator": false,
+  "error": "psql:<stdin>:126: ERROR:  must be owner of relation objects",
+  "advanced_as": "superuser"
+ },
+ {
+  "version": "20261016120000",
+  "file": "20261016120000_repair_role_assignment_and_signup_provisioning.sql",
+  "runnable_as_hosted_like_operator": true,
+  "error": "",
+  "advanced_as": "emulated-operator"
+ },
+ {
+  "version": "20261017120000",
+  "file": "20261017120000_add_booking_confirmation_claim.sql",
+  "runnable_as_hosted_like_operator": true,
+  "error": "",
+  "advanced_as": "emulated-operator"
+ },
+ {
+  "version": "20261018120000",
+  "file": "20261018120000_restrict_future_database_privileges.sql",
+  "runnable_as_hosted_like_operator": true,
+  "error": "",
+  "advanced_as": "emulated-operator"
+ },
+ {
+  "version": "20261018120100",
+  "file": "20261018120100_secure_site_event_ingestion.sql",
+  "runnable_as_hosted_like_operator": true,
+  "error": "",
+  "advanced_as": "emulated-operator"
+ },
+ {
+  "version": "20261018120200",
+  "file": "20261018120200_restrict_role_lookup_and_profile_ownership.sql",
+  "runnable_as_hosted_like_operator": true,
+  "error": "",
+  "advanced_as": "emulated-operator"
+ },
+ {
+  "version": "20261019120000",
+  "file": "20261019120000_add_payment_operations_and_single_financial_application.sql",
+  "runnable_as_hosted_like_operator": true,
+  "error": "",
+  "advanced_as": "emulated-operator"
+ },
+ {
+  "version": "20261020120000",
+  "file": "20261020120000_deposit_catch_up_and_offline_payment_parity.sql",
+  "runnable_as_hosted_like_operator": true,
+  "error": "",
+  "advanced_as": "emulated-operator"
+ },
+ {
+  "version": "20261021120000",
+  "file": "20261021120000_server_authoritative_order_pricing_saves.sql",
+  "runnable_as_hosted_like_operator": true,
+  "error": "",
+  "advanced_as": "emulated-operator"
+ },
+ {
+  "version": "20261022120000",
+  "file": "20261022120000_refund_safety_and_financial_write_authority.sql",
+  "runnable_as_hosted_like_operator": true,
+  "error": "",
+  "advanced_as": "emulated-operator"
+ },
+ {
+  "version": "20261023120000",
+  "file": "20261023120000_refund_allocation_schema.sql",
+  "runnable_as_hosted_like_operator": true,
+  "error": "",
+  "advanced_as": "emulated-operator"
+ },
+ {
+  "version": "20261024120000",
+  "file": "20261024120000_refund_allocation_reservation.sql",
+  "runnable_as_hosted_like_operator": true,
+  "error": "",
+  "advanced_as": "emulated-operator"
+ },
+ {
+  "version": "20261025120000",
+  "file": "20261025120000_refund_overview_for_admin.sql",
+  "runnable_as_hosted_like_operator": true,
+  "error": "",
+  "advanced_as": "emulated-operator"
+ },
+ {
+  "version": "20261026120000",
+  "file": "20261026120000_restrict_sequence_and_anon_table_privileges.sql",
+  "runnable_as_hosted_like_operator": true,
+  "error": "",
+  "advanced_as": "emulated-operator"
+ },
+ {
+  "version": "20261026120100",
+  "file": "20261026120100_grant_service_role_catalog_read.sql",
+  "runnable_as_hosted_like_operator": true,
+  "error": "",
+  "advanced_as": "emulated-operator"
+ },
+ {
+  "version": "20261026120200",
+  "file": "20261026120200_restore_crew_task_and_receipt_access.sql",
+  "runnable_as_hosted_like_operator": true,
+  "error": "",
+  "advanced_as": "emulated-operator"
+ },
+ {
+  "version": "20261026120300",
+  "file": "20261026120300_guard_booking_confirmation_columns.sql",
+  "runnable_as_hosted_like_operator": true,
+  "error": "",
+  "advanced_as": "emulated-operator"
+ },
+ {
+  "version": "20261026120400",
+  "file": "20261026120400_restrict_supabase_admin_default_privileges.sql",
+  "runnable_as_hosted_like_operator": true,
+  "error": "",
+  "advanced_as": "emulated-operator"
+ }
+]

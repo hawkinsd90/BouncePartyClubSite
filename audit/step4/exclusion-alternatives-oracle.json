@@ -1,0 +1,52 @@
+{
+ "E1_subdirectory": {
+  "pending": [
+   "20260101000000",
+   "20260103000000"
+  ],
+  "text": [
+   " \u2022 20260101000000_base.sql",
+   " \u2022 20260103000000_good.sql",
+   "A new version of Supabase CLI is available: v2.121.0 (currently installed v2.104.0)",
+   "We recommend updating regularly for new features and bug fixes: https://supabase.com/docs/guides/cli/getting-started#updating-the-supabase-cli"
+  ]
+ },
+ "E2_renamed_extension": {
+  "pending": [
+   "20260102000000",
+   "20260101000000",
+   "20260103000000"
+  ],
+  "raw": [
+   "Skipping migration 20260102000000_unsafe.sql.notmigration... (file name must match pattern \"<timestamp>_name.sql\")"
+  ]
+ },
+ "E3_repair_applied": {
+  "cli": [
+   "We recommend updating regularly for new features and bug fixes: https://supabase.com/docs/guides/cli/getting-started#updating-the-supabase-cli",
+   "Run supabase migration list to show the updated migration history."
+  ],
+  "row": "20260102000000|unsafe|1",
+  "table_exists": "",
+  "recorded_statement": "create table must_not_exist(id int)"
+ },
+ "E3_after_repair_dry_run": {
+  "pending": [
+   "20260101000000",
+   "20260103000000"
+  ]
+ },
+ "E4_repair_reverted": {
+  "row_count": "0"
+ },
+ "E5_marker_row": {
+  "pending": [
+   "20260101000000",
+   "20260103000000"
+  ],
+  "text": [
+   "A new version of Supabase CLI is available: v2.121.0 (currently installed v2.104.0)",
+   "We recommend updating regularly for new features and bug fixes: https://supabase.com/docs/guides/cli/getting-started#updating-the-supabase-cli"
+  ]
+ }
+}

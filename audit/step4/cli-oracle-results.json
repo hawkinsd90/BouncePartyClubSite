@@ -1,0 +1,176 @@
+{
+ "generated_by": "scripts/dev/hosted-executor/cli-oracle.py",
+ "local_only": true,
+ "cli_version": "2.104.0",
+ "repository_files": 389,
+ "category_counts": {
+  "recorded": 57,
+  "weak-attestation": 9,
+  "blocked": 3,
+  "attestation": 46,
+  "history-only": 225,
+  "withheld-17": 17,
+  "bucket-sql": 2,
+  "excluded": 1,
+  "alias-covered": 1,
+  "executor-28": 28
+ },
+ "unrecordable_under_current_approvals": [
+  "20251001051901",
+  "20251001052039",
+  "20251001192425",
+  "20260125173238",
+  "20260126193205",
+  "20260224133344",
+  "20260224161311",
+  "20260224183629",
+  "20260224184535",
+  "20260305222010",
+  "20260311113547",
+  "20260315173745",
+  "20260611184401"
+ ],
+ "steps": [
+  {
+   "step": "A. today: 58-row ledger vs the repository files",
+   "first_message": "Remote migration versions not found in local migrations directory.",
+   "pending_count": 0,
+   "pending_never_run": [],
+   "remote_only_versions": [
+    "20260814002658"
+   ]
+  },
+  {
+   "step": "B. + a comment-only alias file for the remote-only version: a standard push would now run every unrecorded file",
+   "first_message": "Finished supabase db push.",
+   "pending_count": 332,
+   "pending_never_run": [
+    "20251001051901",
+    "20251001052039",
+    "20251001192425",
+    "20260125173238",
+    "20260126193205",
+    "20260224133344",
+    "20260224161311",
+    "20260224183629",
+    "20260224184535",
+    "20260305222010",
+    "20260311113547",
+    "20260315173745",
+    "20260611184401"
+   ],
+   "would_rerun_alias_covered_file": true
+  },
+  {
+   "step": "C. + Step 2 bookkeeping rows (history-only, owner-signed attestations, 2 bucket updates, alias-covered file)",
+   "first_message": "Finished supabase db push.",
+   "pending_count": 58,
+   "pending_never_run": [
+    "20251001051901",
+    "20251001052039",
+    "20251001192425",
+    "20260125173238",
+    "20260126193205",
+    "20260224133344",
+    "20260224161311",
+    "20260224183629",
+    "20260224184535",
+    "20260305222010",
+    "20260311113547",
+    "20260315173745",
+    "20260611184401"
+   ]
+  },
+  {
+   "step": "D. + the 28 executor files",
+   "first_message": "Finished supabase db push.",
+   "pending_count": 30,
+   "pending_never_run": [
+    "20251001051901",
+    "20251001052039",
+    "20251001192425",
+    "20260125173238",
+    "20260126193205",
+    "20260224133344",
+    "20260224161311",
+    "20260224183629",
+    "20260224184535",
+    "20260305222010",
+    "20260311113547",
+    "20260315173745",
+    "20260611184401"
+   ]
+  },
+  {
+   "step": "E. + the 17 withheld versions recorded after October",
+   "first_message": "Finished supabase db push.",
+   "pending_count": 13,
+   "pending_never_run": [
+    "20251001051901",
+    "20251001052039",
+    "20251001192425",
+    "20260125173238",
+    "20260126193205",
+    "20260224133344",
+    "20260224161311",
+    "20260224183629",
+    "20260224184535",
+    "20260305222010",
+    "20260311113547",
+    "20260315173745",
+    "20260611184401"
+   ],
+   "remaining_equals_unrecordable_set": true
+  },
+  {
+   "step": "F. + attestations for the remaining 13 (SIMULATION of a decision that has NOT been made)",
+   "first_message": "Remote database is up to date.",
+   "pending_count": 0,
+   "pending_never_run": []
+  },
+  {
+   "step": "G. a new future migration file",
+   "first_message": "Finished supabase db push.",
+   "pending_count": 1,
+   "pending_never_run": [],
+   "only_future_file": true
+  },
+  {
+   "step": "I. REAL push (scratch database): the future file",
+   "applied": [
+    "20261101120000"
+   ],
+   "ledger_delta": 1,
+   "ledger_row": "20261101120000|future_test_migration|1",
+   "message": "Finished supabase db push."
+  },
+  {
+   "step": "I2. dry run after the real push",
+   "first_message": "Remote database is up to date.",
+   "pending_count": 0,
+   "pending_never_run": []
+  },
+  {
+   "step": "J. REAL push: two new files created in reverse order",
+   "applied": [
+    "20261102120000",
+    "20261103120000"
+   ]
+  },
+  {
+   "step": "K. REAL push with a failing file followed by a good one",
+   "applied_before_failure": [
+    "20261104120000"
+   ],
+   "ledger_delta": 0,
+   "bad_recorded": "0",
+   "error_shown": true
+  },
+  {
+   "step": "H. one older unrecorded file without --include-all",
+   "first_message": "Found local migration files to be inserted before the last migration on remote database. | Rerun the command with --include-all flag to apply these migrations:",
+   "pending_count": null,
+   "pending_never_run": []
+  }
+ ]
+}

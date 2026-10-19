@@ -1,0 +1,587 @@
+{
+ "generated_by": "scripts/dev/hosted-executor/rehearse.cjs",
+ "package_sha256": "5d63e4af339b481e48dcf5ec60a5ded758eba9a3dea2404a1f40b2d0762b7be0",
+ "commit": "ecdda40cb2e858bb21469ce7fbc55fbfc5a05d6a",
+ "local_only": true,
+ "total": 96,
+ "passed": 96,
+ "failed": 0,
+ "results": [
+  {
+   "id": "S01a",
+   "label": "plan shows 28 remaining, observed base equals the approved export, containment in force",
+   "pass": true,
+   "detail": "{\"ok\":true,\"command\":\"plan\",\"package_sha256\":\"5d63e4af339b481e48dcf5ec60a5ded758eba9a3dea2404a1f40b2d0762b7be0\",\"steps_total\":28,\"steps_recorded\":0,\"remaining\":[\"20261007120000\",\"20261008120000\",\"20261009120000\",\"20261010110000\",\"20261010120000\",\"20261011120000\",\"20261012120000\",\"20261013120000\",\"20"
+  },
+  {
+   "id": "S01b",
+   "label": "full run executes all 28 in order and records 28 ledger rows (88 total)",
+   "pass": true,
+   "detail": "{\"ok\":true,\"command\":\"run\",\"run\":\"5daf1bd994ff\",\"executed\":[\"20261007120000\",\"20261008120000\",\"20261009120000\",\"20261010110000\",\"20261010120000\",\"20261011120000\",\"20261012120000\",\"20261013120000\",\"20261014120000\",\"20261015120000\",\"20261015123000\",\"20261016120000\",\"20261017120000\",\"20261018120000\",\"2"
+  },
+  {
+   "id": "S01c",
+   "label": "every package ledger row carries version, CLI-style name, marker and the exact SQL text",
+   "pass": true,
+   "detail": "28"
+  },
+  {
+   "id": "S01h",
+   "label": "the sanitized execution report records ledger identity before/after (60 -> 88 rows), 28 new versions, no pre-existing row modified, 28 steps with fingerprints and denied probes, and no SQL text or connection data",
+   "pass": true,
+   "detail": "{\"schema\":\"bpc-dev-executor-report/1\",\"generated_utc\":\"2026-10-18T19:09:59.745Z\",\"package_sha256\":\"5d63e4af339b481e48dcf5ec60a5ded758eba9a3dea2404a1f40b2d0762b7be0\",\"commit\":\"ecdda40cb2e858bb21469ce7f"
+  },
+  {
+   "id": "S01d",
+   "label": "verify: nothing missing and the final catalog fingerprint equals the rehearsed one",
+   "pass": true,
+   "detail": "{\"ok\":true,\"command\":\"verify\",\"missing\":[],\"fingerprint_matches_final\":true,\"audit_head\":\"e7484ed639a4938f6b903684b7816ffb968e48cc3619f66014182a1a1cd5288e\",\"audit_records\":60}\n"
+  },
+  {
+   "id": "S01e",
+   "label": "a second run executes nothing (previously recorded versions are detected, no duplicate rows)",
+   "pass": true,
+   "detail": "{\"ok\":true,\"command\":\"run\",\"run\":\"cc185b1689ad\",\"executed\":[],\"reconciled\":[],\"failed\":null,\"stopped_after\":null,\"ledger_rows_total\":88,\"base_unchanged\":true,\"audit_head\":\"55d7a2c17507cf330d82a723d6d561e9c948d4c0b84f8d4207de6c5088e75cdc\",\"audit_records\":62}\n"
+  },
+  {
+   "id": "S01f",
+   "label": "every step recorded a post-commit role probe: anon and authenticated denied on public.orders",
+   "pass": true,
+   "detail": ""
+  },
+  {
+   "id": "S01g",
+   "label": "the audit store holds no credentials or connection strings",
+   "pass": true,
+   "detail": ""
+  },
+  {
+   "id": "S02a",
+   "label": "process killed right after the commit of step 7: exit 9, 7 package rows in the ledger, no step_end for it",
+   "pass": true,
+   "detail": "67"
+  },
+  {
+   "id": "S02b",
+   "label": "restart reconciles the missing audit end record from the ledger and completes the remaining 21 steps",
+   "pass": true,
+   "detail": "{\"ok\":true,\"command\":\"run\",\"run\":\"c2daecaed77f\",\"executed\":[\"20261013120000\",\"20261014120000\",\"20261015120000\",\"20261015123000\",\"20261016120000\",\"20261017120000\",\"20261018120000\",\"20261018120100\",\"20261018120200\",\"20261019120000\",\"20261020120000\",\"20261021120000\",\"20261022120000\",\"20261023120000\",\"2"
+  },
+  {
+   "id": "S02c",
+   "label": "the audit store notes the incomplete prior run",
+   "pass": true,
+   "detail": ""
+  },
+  {
+   "id": "S03a",
+   "label": "psql killed during step 17 (client side): run stops as failed, no partial ledger row for that step",
+   "pass": true,
+   "detail": "{\"ok\":true,\"command\":\"run\",\"run\":\"ee491dd26a2e\",\"executed\":[\"20261007120000\",\"20261008120000\",\"20261009120000\",\"20261010110000\",\"20261010120000\",\"20261011120000\",\"20261012120000\",\"20261013120000\",\"20261014120000\",\"20261015120000\",\"20261015123000\",\"20261016120000\",\"20261017120000\",\"20261018120000\",\"2"
+  },
+  {
+   "id": "S03b",
+   "label": "a rerun after the interruption reaches the same final state with a verified fingerprint",
+   "pass": true,
+   "detail": "{\"ok\":true,\"command\":\"run\",\"run\":\"623073ef2d60\",\"executed\":[],\"reconciled\":[],\"failed\":null,\"stopped_after\":null,\"ledger_rows_total\":88,\"base_unchanged\":true,\"audit_head\":\"0bdaf6ded242633fa46c863bc00fc8a33cd0fefc5fd1a0995ed2c9e21e93aeb7\",\"audit_records\":60}\n88"
+  },
+  {
+   "id": "S04a",
+   "label": "a SQL failure inside a step rolls the whole step back: nothing recorded, catalog unchanged, run reported failed",
+   "pass": true,
+   "detail": "{\"ok\":false,\"command\":\"run\",\"run\":\"d9618e3903f5\",\"executed\":[],\"reconciled\":[],\"failed\":{\"version\":\"20261007120000\",\"error\":\"canceling statement due to statement timeout\",\"ledger_row_present\":false},\"stopped_after\":null,\"ledger_rows_total\":60,\"base_unchanged\":true,\"audit_head\":\"41cecc8ef9b24ff1a4e33"
+  },
+  {
+   "id": "S04b",
+   "label": "after fixing the cause the same run completes",
+   "pass": true,
+   "detail": "{\"ok\":true,\"command\":\"run\",\"run\":\"2f9b64adfb9e\",\"executed\":[\"20261007120000\",\"20261008120000\",\"20261009120000\",\"20261010110000\",\"20261010120000\",\"20261011120000\",\"20261012120000\",\"20261013120000\",\"20261014120000\",\"20261015120000\",\"20261015123000\",\"20261016120000\",\"20261017120000\",\"20261018120000\",\"2"
+  },
+  {
+   "id": "S05",
+   "label": "a package version missing from the middle of the recorded set is refused (recorded versions must be a prefix)",
+   "pass": true,
+   "detail": "{\"ok\":false,\"refused\":true,\"code\":\"ledger\",\"message\":\"recorded package versions are not a prefix of the package order\"}\n"
+  },
+  {
+   "id": "S06",
+   "label": "an unexpected extra ledger row (outside the approved export) is refused before any step",
+   "pass": true,
+   "detail": "{\"ok\":false,\"refused\":true,\"code\":\"ledger\",\"message\":\"the ledger outside the package (61 rows) differs from the approved export (60)\"}\n"
+  },
+  {
+   "id": "S07",
+   "label": "a wrong approved-export hash is refused",
+   "pass": true,
+   "detail": "{\"ok\":false,\"refused\":true,\"code\":\"ledger\",\"message\":\"the ledger outside the package (60 rows) differs from the approved export (60)\"}\n"
+  },
+  {
+   "id": "S07b",
+   "label": "a pre-existing foreign row for a package version is refused (not written by this executor)",
+   "pass": true,
+   "detail": "{\"ok\":false,\"refused\":true,\"code\":\"ledger\",\"message\":\"ledger row 20261007120000 was not written by this executor\"}\n"
+  },
+  {
+   "id": "S08a",
+   "label": "an unexpected function in the public schema stops the first step at the in-transaction pre-fingerprint; nothing recorded",
+   "pass": true,
+   "detail": "{\"ok\":false,\"command\":\"run\",\"run\":\"f4a504480b10\",\"executed\":[],\"reconciled\":[],\"failed\":{\"version\":\"20261007120000\",\"error\":\"BPC-EXECUTOR pre: catalog fingerprint mismatch for 20261007120000 (expected 07d2d5c96e142fef6a011bc1f9b30dec, observed 66f2d6ad6919cdb947d6de6f31357014), categories: {\\\"fn\\\": "
+  },
+  {
+   "id": "S08b",
+   "label": "a modified policy is refused the same way",
+   "pass": true,
+   "detail": "{\"ok\":false,\"command\":\"run\",\"run\":\"c89dc9d23efc\",\"executed\":[],\"reconciled\":[],\"failed\":{\"version\":\"20261007120000\",\"error\":\"BPC-EXECUTOR pre: catalog fingerprint mismatch for 20261007120000 (expected 07d2d5c96e142fef6a011bc1f9b30dec, observed f70b34a3b768f55e240d177952731436), categories: {\\\"fn\\\": "
+  },
+  {
+   "id": "S09",
+   "label": "a security-posture regression (anon granted USAGE on public) stops the first step; nothing recorded",
+   "pass": true,
+   "detail": "{\"ok\":false,\"command\":\"run\",\"run\":\"6a7cbcfbcf19\",\"executed\":[],\"reconciled\":[],\"failed\":{\"version\":\"20261007120000\",\"error\":\"BPC-EXECUTOR: schema containment is not in force\",\"ledger_row_present\":false},\"stopped_after\":null,\"ledger_rows_total\":60,\"base_unchanged\":true,\"audit_head\":\"d75fbdae2b593f076"
+  },
+  {
+   "id": "S10a",
+   "label": "a wrong expected post-state: step 3 executes, fails its postcondition and is rolled back; steps 1-2 stay recorded; nothing partial",
+   "pass": true,
+   "detail": "{\"ok\":false,\"command\":\"run\",\"run\":\"8c8cb0bb5cd0\",\"executed\":[\"20261007120000\",\"20261008120000\"],\"reconciled\":[],\"failed\":{\"version\":\"20261009120000\",\"error\":\"BPC-EXECUTOR post: catalog fingerprint mismatch for 20261009120000 (expected aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa, observed 709544044bb6a57794cb7d"
+  },
+  {
+   "id": "S10b",
+   "label": "no ledger row for the rolled-back step",
+   "pass": true,
+   "detail": ""
+  },
+  {
+   "id": "P01",
+   "label": "a wrong typed approval hash is refused",
+   "pass": true,
+   "detail": "{\"ok\":false,\"refused\":true,\"code\":\"approval\",\"message\":\"--approval-hash must equal the package document hash (typed approval)\"}\n"
+  },
+  {
+   "id": "P02",
+   "label": "a missing approval is refused (fail closed)",
+   "pass": true,
+   "detail": "{\"ok\":false,\"refused\":true,\"code\":\"refused\",\"message\":\"--approval-hash is required\"}\n"
+  },
+  {
+   "id": "P03",
+   "label": "a package edited without re-hashing is refused",
+   "pass": true,
+   "detail": "{\"ok\":false,\"refused\":true,\"code\":\"package-hash\",\"message\":\"package document hash does not match its content (modified package)\"}\n"
+  },
+  {
+   "id": "P04",
+   "label": "a re-hashed package whose file hash differs from the Git commit is refused",
+   "pass": true,
+   "detail": "{\"ok\":false,\"refused\":true,\"code\":\"hash\",\"message\":\"file 20261007120000_harden_payment_rpc_authorization.sql: content in the bound commit does not match the package hash\"}\n"
+  },
+  {
+   "id": "P05",
+   "label": "a blocked version in the package is refused",
+   "pass": true,
+   "detail": "{\"ok\":false,\"refused\":true,\"code\":\"deny\",\"message\":\"version 20260125173238 is withdrawn, blocked, excluded or never-execute\"}\n"
+  },
+  {
+   "id": "P06",
+   "label": "a withdrawn (Case 41) version in the package is refused",
+   "pass": true,
+   "detail": "{\"ok\":false,\"refused\":true,\"code\":\"deny\",\"message\":\"version 20260305203528 is withdrawn, blocked, excluded or never-execute\"}\n"
+  },
+  {
+   "id": "P07",
+   "label": "a demo-admin version in the package is refused",
+   "pass": true,
+   "detail": "{\"ok\":false,\"refused\":true,\"code\":\"deny\",\"message\":\"version 20251003170350 is withdrawn, blocked, excluded or never-execute\"}\n"
+  },
+  {
+   "id": "P08",
+   "label": "a excluded pricing version in the package is refused",
+   "pass": true,
+   "detail": "{\"ok\":false,\"refused\":true,\"code\":\"deny\",\"message\":\"version 20260611184401 is withdrawn, blocked, excluded or never-execute\"}\n"
+  },
+  {
+   "id": "P09",
+   "label": "an item removed from the sealed chain is refused (dependency or fingerprint chain)",
+   "pass": true,
+   "detail": "{\"ok\":false,\"refused\":true,\"code\":\"dependency\",\"message\":\"20261010120000 requires 20261010110000, which is not an earlier item\"}\n"
+  },
+  {
+   "id": "P10",
+   "label": "items out of version order are refused",
+   "pass": true,
+   "detail": "{\"ok\":false,\"refused\":true,\"code\":\"dependency\",\"message\":\"20261026120400 requires 20261026120300, which is not an earlier item\"}\n"
+  },
+  {
+   "id": "P11",
+   "label": "a prerequisite that is not an earlier item is refused",
+   "pass": true,
+   "detail": "{\"ok\":false,\"refused\":true,\"code\":\"dependency\",\"message\":\"20261011120000 requires 20299999999999, which is not an earlier item\"}\n"
+  },
+  {
+   "id": "P12",
+   "label": "transaction-control, SET ROLE, SET search_path and CONCURRENTLY statements in a migration file are detected; dollar-quoted bodies and comments are ignored",
+   "pass": true,
+   "detail": ""
+  },
+  {
+   "id": "P13",
+   "label": "none of the 28 files contains a forbidden statement (read from the bound commit)",
+   "pass": true,
+   "detail": ""
+  },
+  {
+   "id": "P14",
+   "label": "credential-style options are not accepted",
+   "pass": true,
+   "detail": "{\"ok\":false,\"refused\":true,\"code\":\"refused\",\"message\":\"option not accepted: --password (credentials never come from options)\"}\n"
+  },
+  {
+   "id": "P15",
+   "label": "a DATABASE_URL in the environment is refused for the local target",
+   "pass": true,
+   "detail": "{\"ok\":false,\"refused\":true,\"code\":\"hosted-guard\",\"message\":\"environment variable DATABASE_URL is set; this executor accepts no credentials or connection settings from the environment\"}\n"
+  },
+  {
+   "id": "P16",
+   "label": "a non-scratch database name is refused before connecting",
+   "pass": true,
+   "detail": "{\"ok\":false,\"refused\":true,\"code\":\"hosted-guard\",\"message\":\"database name must match ^bpc_exec_[a-z0-9_]{1,40}$ (disposable scratch databases only)\"}\n"
+  },
+  {
+   "id": "H01",
+   "label": "hosted target without an authorization document is refused",
+   "pass": true,
+   "detail": "{\"ok\":false,\"refused\":true,\"code\":\"authorization\",\"message\":\"--authorization is required for a hosted target\"}\n"
+  },
+  {
+   "id": "H02",
+   "label": "a valid authorization still refuses without the connection variable (and attempts no connection)",
+   "pass": true,
+   "detail": "{\"ok\":false,\"refused\":true,\"code\":\"hosted-guard\",\"message\":\"BPC_HOSTED_DEV_DATABASE_URL is not set\"}\n"
+  },
+  {
+   "id": "H03",
+   "label": "an authorization naming the Production project is refused",
+   "pass": true,
+   "detail": "{\"ok\":false,\"refused\":true,\"code\":\"hosted-guard\",\"message\":\"the authorization names the Production project\"}\n"
+  },
+  {
+   "id": "H04",
+   "label": "an expired authorization is refused",
+   "pass": true,
+   "detail": "{\"ok\":false,\"refused\":true,\"code\":\"authorization\",\"message\":\"the authorization has expired\"}\n"
+  },
+  {
+   "id": "H05",
+   "label": "an authorization for a different package is refused",
+   "pass": true,
+   "detail": "{\"ok\":false,\"refused\":true,\"code\":\"authorization\",\"message\":\"the authorization is for a different package\"}\n"
+  },
+  {
+   "id": "H06",
+   "label": "withheld October versions not released by the authorization are refused",
+   "pass": true,
+   "detail": "{\"ok\":false,\"refused\":true,\"code\":\"withheld\",\"message\":\"withheld October version 20261007120000 is not released by the authorization\"}\n"
+  },
+  {
+   "id": "H07",
+   "label": "a non-contiguous authorized set is refused",
+   "pass": true,
+   "detail": "{\"ok\":false,\"refused\":true,\"code\":\"authorization\",\"message\":\"authorized versions are not a contiguous run of the package\"}\n"
+  },
+  {
+   "id": "H08",
+   "label": "an authorization without a restore point is refused",
+   "pass": true,
+   "detail": "{\"ok\":false,\"refused\":true,\"code\":\"authorization\",\"message\":\"authorization lacks a restore point taken before approval\"}\n"
+  },
+  {
+   "id": "H09",
+   "label": "a mistyped approval hash is refused",
+   "pass": true,
+   "detail": "{\"ok\":false,\"refused\":true,\"code\":\"approval\",\"message\":\"--approval-hash must equal the authorization document hash (typed approval)\"}\n"
+  },
+  {
+   "id": "H10",
+   "label": "an authorization document is refused for the local target",
+   "pass": true,
+   "detail": "{\"ok\":false,\"refused\":true,\"code\":\"authorization\",\"message\":\"an authorization document is only valid for the hosted target\"}\n"
+  },
+  {
+   "id": "H11",
+   "label": "the hosted connection string must identify the Development project with sslmode=require; Production, foreign hosts and plain connections are refused",
+   "pass": true,
+   "detail": ""
+  },
+  {
+   "id": "V1a",
+   "label": "foreign row in the ledger: the unmutated script stops and records nothing",
+   "pass": true,
+   "detail": "psql:<stdin>:62: ERROR:  BPC-EXECUTOR: ledger outside the package differs from the approved export (61 rows, hash 2712285c67df61d854274ee213ab0a9943283cc0b863759303d6d5cbe1d9f2ae)\r"
+  },
+  {
+   "id": "V1-no-base-check",
+   "label": "foreign row in the ledger: with ONLY no-base-check removed",
+   "pass": true,
+   "detail": "still stopped (another layer catches it): psql:<stdin>:323: ERROR:  BPC-EXECUTOR: unexpected ledger count after 20261007120000\r"
+  },
+  {
+   "id": "V1-no-count-check",
+   "label": "foreign row in the ledger: with ONLY no-count-check removed",
+   "pass": true,
+   "detail": "still stopped (another layer catches it): psql:<stdin>:62: ERROR:  BPC-EXECUTOR: ledger outside the package differs from the approved export (61 rows, hash 271228"
+  },
+  {
+   "id": "V1z",
+   "label": "foreign row in the ledger: with ALL of [no-base-check, no-count-check] removed the violation is not caught",
+   "pass": true,
+   "detail": "{\"stopped\":false,\"recorded\":true,\"err\":\"\"}"
+  },
+  {
+   "id": "V2a",
+   "label": "unexpected function in the public schema: the unmutated script stops and records nothing",
+   "pass": true,
+   "detail": "psql:<stdin>:62: ERROR:  BPC-EXECUTOR pre: catalog fingerprint mismatch for 20261007120000 (expected 07d2d5c96e142fef6a011bc1f9b30dec, observed 66f2d6ad6919cdb947d6de6f31357014), categories: {\"fn\": \"625abccf03e8df5fe2405c360b2547e4/83\", \"bkt\": \"0bc770f2c5bb329f618516250c0cf124/9\", \"col\": \"4cd6a6546e"
+  },
+  {
+   "id": "V2-no-pre-fingerprint",
+   "label": "unexpected function in the public schema: with ONLY no-pre-fingerprint removed",
+   "pass": true,
+   "detail": "still stopped (another layer catches it): psql:<stdin>:215: ERROR:  BPC-EXECUTOR post: catalog fingerprint mismatch for 20261007120000 (expected 88d3b29c727a1e521"
+  },
+  {
+   "id": "V2-no-post-fingerprint",
+   "label": "unexpected function in the public schema: with ONLY no-post-fingerprint removed",
+   "pass": true,
+   "detail": "still stopped (another layer catches it): psql:<stdin>:62: ERROR:  BPC-EXECUTOR pre: catalog fingerprint mismatch for 20261007120000 (expected 07d2d5c96e142fef6a0"
+  },
+  {
+   "id": "V2z",
+   "label": "unexpected function in the public schema: with ALL of [no-pre-fingerprint, no-post-fingerprint] removed the violation is not caught",
+   "pass": true,
+   "detail": "{\"stopped\":false,\"recorded\":true,\"err\":\"\"}"
+  },
+  {
+   "id": "V3a",
+   "label": "anon holds USAGE on public (containment lost): the unmutated script stops and records nothing",
+   "pass": true,
+   "detail": "psql:<stdin>:62: ERROR:  BPC-EXECUTOR: schema containment is not in force\r"
+  },
+  {
+   "id": "V3-no-containment-check",
+   "label": "anon holds USAGE on public (containment lost): with ONLY no-containment-check removed",
+   "pass": true,
+   "detail": "still stopped (another layer catches it): psql:<stdin>:61: ERROR:  BPC-EXECUTOR pre: catalog fingerprint mismatch for 20261007120000 (expected 07d2d5c96e142fef6a0"
+  },
+  {
+   "id": "V3-no-pre-fingerprint",
+   "label": "anon holds USAGE on public (containment lost): with ONLY no-pre-fingerprint removed",
+   "pass": true,
+   "detail": "still stopped (another layer catches it): psql:<stdin>:61: ERROR:  BPC-EXECUTOR: schema containment is not in force\r"
+  },
+  {
+   "id": "V3-no-post-fingerprint",
+   "label": "anon holds USAGE on public (containment lost): with ONLY no-post-fingerprint removed",
+   "pass": true,
+   "detail": "still stopped (another layer catches it): psql:<stdin>:62: ERROR:  BPC-EXECUTOR: schema containment is not in force\r"
+  },
+  {
+   "id": "V3z",
+   "label": "anon holds USAGE on public (containment lost): with ALL of [no-containment-check, no-pre-fingerprint, no-post-fingerprint] removed the violation is not caught",
+   "pass": true,
+   "detail": "{\"stopped\":false,\"recorded\":true,\"err\":\"\"}"
+  },
+  {
+   "id": "V4a",
+   "label": "step 2 attempted while step 1 was never recorded: the unmutated script stops and records nothing",
+   "pass": true,
+   "detail": "psql:<stdin>:62: ERROR:  BPC-EXECUTOR: predecessor not recorded for 20261008120000\r"
+  },
+  {
+   "id": "V4-no-predecessor-check",
+   "label": "step 2 attempted while step 1 was never recorded: with ONLY no-predecessor-check removed",
+   "pass": true,
+   "detail": "still stopped (another layer catches it): psql:<stdin>:61: ERROR:  BPC-EXECUTOR: predecessor not recorded for 20261008120000\r"
+  },
+  {
+   "id": "V4-no-requires-check",
+   "label": "step 2 attempted while step 1 was never recorded: with ONLY no-requires-check removed",
+   "pass": true,
+   "detail": "still stopped (another layer catches it): psql:<stdin>:61: ERROR:  BPC-EXECUTOR: the earlier package steps are not all recorded by this executor\r"
+  },
+  {
+   "id": "V4-no-pre-fingerprint",
+   "label": "step 2 attempted while step 1 was never recorded: with ONLY no-pre-fingerprint removed",
+   "pass": true,
+   "detail": "still stopped (another layer catches it): psql:<stdin>:61: ERROR:  BPC-EXECUTOR: predecessor not recorded for 20261008120000\r"
+  },
+  {
+   "id": "V4-no-post-fingerprint",
+   "label": "step 2 attempted while step 1 was never recorded: with ONLY no-post-fingerprint removed",
+   "pass": true,
+   "detail": "still stopped (another layer catches it): psql:<stdin>:62: ERROR:  BPC-EXECUTOR: predecessor not recorded for 20261008120000\r"
+  },
+  {
+   "id": "V4-no-count-check",
+   "label": "step 2 attempted while step 1 was never recorded: with ONLY no-count-check removed",
+   "pass": true,
+   "detail": "still stopped (another layer catches it): psql:<stdin>:62: ERROR:  BPC-EXECUTOR: predecessor not recorded for 20261008120000\r"
+  },
+  {
+   "id": "V4z",
+   "label": "step 2 attempted while step 1 was never recorded: with ALL of [no-predecessor-check, no-requires-check, no-pre-fingerprint, no-post-fingerprint, no-count-check] removed the violation is not caught",
+   "pass": true,
+   "detail": "{\"stopped\":false,\"recorded\":true,\"err\":\"\"}"
+  },
+  {
+   "id": "V5a",
+   "label": "ledger row for the same version already present: the unmutated script stops and records nothing",
+   "pass": true,
+   "detail": "psql:<stdin>:62: ERROR:  BPC-EXECUTOR: version already recorded: 20261007120000\r"
+  },
+  {
+   "id": "V5-no-version-check",
+   "label": "ledger row for the same version already present: with ONLY no-version-check removed",
+   "pass": true,
+   "detail": "still stopped (another layer catches it): psql:<stdin>:61: ERROR:  BPC-EXECUTOR: a package version later than this step is already recorded\r"
+  },
+  {
+   "id": "V5z",
+   "label": "ledger row for the same version already present: with ALL of [no-version-check] removed the violation is not caught (primary key still rejects the duplicate)",
+   "pass": true,
+   "detail": "{\"stopped\":true,\"recorded\":false,\"err\":\"psql:<stdin>:61: ERROR:  BPC-EXECUTOR: a package version later than this step is already recorded\\r\"}"
+  },
+  {
+   "id": "V6a",
+   "label": "a trigger writes an extra ledger row at insert: the unmutated script stops and records nothing",
+   "pass": true,
+   "detail": "psql:<stdin>:324: ERROR:  BPC-EXECUTOR: unexpected ledger count after 20261007120000\r"
+  },
+  {
+   "id": "V6-no-count-check",
+   "label": "a trigger writes an extra ledger row at insert: with ONLY no-count-check removed",
+   "pass": true,
+   "detail": "PASSED THROUGH: this guard is the sole catcher"
+  },
+  {
+   "id": "V6z",
+   "label": "a trigger writes an extra ledger row at insert: with ALL of [no-count-check] removed the violation is not caught",
+   "pass": true,
+   "detail": "{\"stopped\":false,\"recorded\":true,\"err\":\"\"}"
+  },
+  {
+   "id": "E00",
+   "label": "hosted-like operator role created from the live capability observations (not superuser, BYPASSRLS, CREATEROLE, member of postgres and of anon/authenticated/service_role, DML on auth.users and storage tables by grant, no membership in supabase_* roles, no ownership of storage tables)",
+   "pass": true,
+   "detail": "psql:<stdin>:4: NOTICE:  role \"bpc_hostlike\" has already been granted membership in role \"postgres\" by role \"postgres\"\r\npsql:<stdin>:5: NOTICE:  role \"bpc_hostlike\" has already been granted membership in role \"anon\" by role \"postgres\"\r\npsql:<stdin>:5: NOTICE:  role \"bpc_hostlike\" has already been gr"
+  },
+  {
+   "id": "E01",
+   "label": "hosted-like operator: files that FAIL on a privilege/ownership error (hosted-only capability to verify before S5)",
+   "pass": true,
+   "detail": "20261014120000: psql:<stdin>:140: ERROR:  must be owner of relation objects\r || 20261015120000: psql:<stdin>:121: ERROR:  must be owner of relation objects\r || 20261015123000: psql:<stdin>:126: ERROR:  must be owner of relation objects"
+  },
+  {
+   "id": "G00",
+   "label": "after the 28 files the gate returns 20 rows, all true",
+   "pass": true,
+   "detail": "{\"ok\":true,\"command\":\"run\",\"run\":\"23f783ac4f59\",\"executed\":[\"20261007120000\",\"20261008120000\",\"20261009120000\",\"20261010110000\",\"20261010120000\",\"20261011120000\",\"20261012120000\",\"20261013120000\",\"20261014120000\",\"20261015120000\",\"20261015123000\",\"20261016120000\",\"20261017120000\",\"20261018120000\",\"2"
+  },
+  {
+   "id": "G-G01",
+   "label": "negative control: \"grant usage on schema public to anon\" turns gate G01 false",
+   "pass": true,
+   "detail": "[[\"G01 containment still in force before S11: anon and authenticated have no USAGE on public\",false],[\"G14 public schema ACL names only postgres and service_role\",false]]"
+  },
+  {
+   "id": "G-G02",
+   "label": "negative control: \"delete from supabase_migrations.schema_migrations where version = '202\" turns gate G02 false",
+   "pass": true,
+   "detail": "[[\"G02 the ledger holds exactly the 28 executor rows\",false]]"
+  },
+  {
+   "id": "G-G03",
+   "label": "negative control: \"create policy zz_anon on public.orders for select to anon using (true)\" turns gate G03 false",
+   "pass": true,
+   "detail": "[[\"G03 orders has no policy for anon or public (SEC-001/002/003)\",false]]"
+  },
+  {
+   "id": "G-G04",
+   "label": "negative control: \"create policy \"zz service role all\" on public.units for all to public \" turns gate G04 false",
+   "pass": true,
+   "detail": "[[\"G04 no policy named like \\\"service role\\\" applies to public, anon or authenticated\",false]]"
+  },
+  {
+   "id": "G-G05",
+   "label": "negative control: \"grant execute on function public.get_admin_analytics(timestamptz, time\" turns gate G05 false",
+   "pass": true,
+   "detail": "[[\"G05 anon-executable public functions equal the accepted allow-list (SEC-010)\",false]]"
+  },
+  {
+   "id": "G-G06",
+   "label": "negative control: \"grant select on public.orders to anon\" turns gate G06 false",
+   "pass": true,
+   "detail": "[[\"G06 anon table privileges equal the accepted allow-list (SEC-014/039)\",false],[\"G16 Step 3B 20261026120000: post_effect_present is true\",false]]"
+  },
+  {
+   "id": "G-G07",
+   "label": "negative control: \"grant usage on all sequences in schema public to anon\" turns gate G07 false",
+   "pass": true,
+   "detail": "[[\"G07 no sequence privilege for anon, no UPDATE for authenticated (SEC-014)\",false],[\"G16 Step 3B 20261026120000: post_effect_present is true\",false]]"
+  },
+  {
+   "id": "G-G08",
+   "label": "negative control: \"alter table public.units disable row level security\" turns gate G08 false",
+   "pass": true,
+   "detail": "[[\"G08 row level security is on for every public table\",false]]"
+  },
+  {
+   "id": "G-G09",
+   "label": "negative control: \"create function public.zz_definer() returns int language sql security \" turns gate G09 false",
+   "pass": true,
+   "detail": "[[\"G09 no SECURITY DEFINER function in public lacks a pinned search_path (SEC-037)\",false]]"
+  },
+  {
+   "id": "G-G10",
+   "label": "negative control: \"alter default privileges for role postgres in schema public grant sele\" turns gate G10 false",
+   "pass": true,
+   "detail": "[[\"G10 no default privilege entry in public or global names anon, authenticated or PUBLIC (SEC-015)\",false],[\"G16 Step 3B 20261026120400: post_effect_present is true\",false]]"
+  },
+  {
+   "id": "G-G11",
+   "label": "negative control: \"update storage.buckets set public = true where id = 'signed-waivers'\" turns gate G11 false",
+   "pass": true,
+   "detail": "[[\"G11 public buckets are exactly the marketing buckets; every other bucket is private (SEC-018/019)\",false]]"
+  },
+  {
+   "id": "G-G12",
+   "label": "negative control: \"create policy zz_obj on storage.objects for insert to anon with check \" turns gate G12 false",
+   "pass": true,
+   "detail": "[[\"G12 no storage.objects policy grants INSERT, UPDATE, DELETE or ALL to anon or public (SEC-018)\",false]]"
+  },
+  {
+   "id": "G-G13",
+   "label": "negative control: \"drop trigger trg_guard_booking_confirmation_columns on public.orders\" turns gate G13 false",
+   "pass": true,
+   "detail": "[[\"G13 the booking-confirmation guard trigger exists and is enabled on orders (SEC-047)\",false],[\"G16 Step 3B 20261026120300: post_effect_present is true\",false]]"
+  },
+  {
+   "id": "G-G14",
+   "label": "negative control: \"grant usage on schema public to authenticated\" turns gate G14 false",
+   "pass": true,
+   "detail": "[[\"G01 containment still in force before S11: anon and authenticated have no USAGE on public\",false],[\"G14 public schema ACL names only postgres and service_role\",false]]"
+  },
+  {
+   "id": "G-G15",
+   "label": "negative control: \"drop trigger on_auth_user_created on auth.users\" turns gate G15 false",
+   "pass": true,
+   "detail": "[[\"G15 the signup trigger exists on auth.users (20261016120000)\",false]]"
+  },
+  {
+   "id": "G-G16",
+   "label": "negative control: a missing Step 3B ledger row makes the ledger gate false",
+   "pass": true,
+   "detail": ""
+  }
+ ]
+}
