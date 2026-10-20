@@ -101,3 +101,13 @@ Authorization evidence: the owner selected the "Authorize AUTH-6B" button offere
 Nothing else ran: no migration SQL, no function invocation, no message, no push, no Netlify change, no Production access. The operator log entry is in `%USERPROFILE%\BPC-Operator-Log\s2-operator-log.jsonl` (hash chain starts here). **Reversal was not needed**; `REVERSAL B01` remains prepared and needs separate written authorization. Rollback fallback: the 12:06 UTC backup. The remaining S2 batches (200 history-only versions and 44 attestations) are unchanged and not authorized.
 **Consequence to remember:** version `20251002195907` is now recorded in Development's ledger as handled without having been executed; Supabase tooling treats it as applied.
 
+## 10. AUTH-7 result: batch B02 applied (2026-10-20 12:46 UTC)
+Authorization: the owner sent the one-line statement of `s2-wave1-approval-package.md` for B02 in full (210 characters, not truncated); its SHA-256 `3d0965c9abed5154ea72d454a0f9dfdcf4106d2d2eefacf5e9dd7f50d50459ab` equals the hash bound into the script comment.
+| Step | Result |
+|---|---|
+| E0 (12:45:57 UTC) | `HEAD` `ef569ff…`, remotes unchanged; template SHA-256 `090fe1be…a251` and filled script `d22908b9…5bd4` equal the prepared values; Development: ledger 59 rows `99f57ab9…1466`, none of the 12 versions recorded, 12 of 12 rules true (re-run at 12:3x and the script re-asserts each), orders 171, payments 185, balance due 1,344,396, payments sum 2,496,274, Storage 500 objects, `anon` no USAGE |
+| Apply | one connector `execute_sql` call, as `postgres`, one `DO` block with advisory lock and assertions; no error |
+| After (12:47:10 UTC) | ledger **71** rows, **SHA-256 `aaa094892be546bd80c565120d3e748ba6344ff2ce196a7d96e60c2c5668294d` = the predicted value**; 13 reconciliation rows (B01 + 12), 12 carry `batch=B02`, all `NOT EXECUTED`; newest version unchanged `20260929161925` |
+| Unchanged | schema fingerprint **11 of 11 equal**; orders 171, payments 185, units 16, pricing rules 1, balance due 1,344,396, deposits paid 856,550, tips 74,928, payments sum 2,496,274, auth users 9, `sms_conversations` 1,039, Storage 500 objects / 941,404,649 bytes / md5 `0260dd1c…`, containment false/false |
+No migration SQL ran, no function was invoked, no message was sent, no push, no Netlify change, no Production access. The operator log entry extends the hash chain (`s2-operator-log.jsonl`, 2 entries). `REVERSAL B02` was not needed and remains prepared. B03 to B08 and every other S2 batch remain unauthorized.
+
