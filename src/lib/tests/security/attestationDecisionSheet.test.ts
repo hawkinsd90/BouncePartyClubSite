@@ -20,6 +20,8 @@ function ok(label: string, cond: boolean) {
     console.error('FAIL:', label);
   }
 }
+const demoMig: string = fs.readFileSync(path.join(__dirname, '..', '..', '..', '..', 'supabase', 'migrations', '20251003170350_015_create_demo_admin_user.sql'), 'utf8');
+const demoPw: string = demoMig.slice(demoMig.indexOf("crypt('") + 7, demoMig.indexOf("'", demoMig.indexOf("crypt('") + 7));
 const ROOT = path.join(__dirname, '..', '..', '..', '..');
 const S4 = path.join(ROOT, 'audit', 'step4');
 const html: string = fs.readFileSync(path.join(S4, 's2-attestation-decision-sheet.html'), 'utf8');
@@ -127,7 +129,7 @@ ok('the package leads with the demo-administrator, total-spent and travel-rate f
 ok('the package explains the four named cases D18..D21', ['D18', 'D19', 'D20', 'D21'].every((d) => new RegExp('### ' + d + ':').test(pkg)));
 ok('the recorded ledger in the results is the Wave 2 closing value', results.ledger.rows === 223 && results.ledger.sha256 === 'e8f53b1e951463a8731ac8fdb7497b689c4677da437cad02ff7b29b1b493bbf4');
 ok('the SQL file is read-only: no INSERT, UPDATE, DELETE, DDL or GRANT statement', !/^\s*(insert|update|delete|alter|create|drop|truncate|grant|revoke)\b/im.test(checksSql.replace(/--.*$/gm, '')));
-ok('no secret or published password value appears in the sheet, package or results', ![html, pkg, JSON.stringify(results)].some((t) => /admin123|sk_(live|test)_|eyJ[A-Za-z0-9_-]{20}/.test(t)));
+ok('no secret or published password value appears in the sheet, package or results', ![html, pkg, JSON.stringify(results)].some((t) => new RegExp(demoPw.replace(/[.*+?^${}()|[\]\\]/g, "\\$&") + "|sk_(live|test)_|eyJ[A-Za-z0-9_-]{20}").test(t)));
 
 
 // ---- revised owner decisions of 2026-10-20: SEC-005 plan, travel-fee review, D20 correction ----

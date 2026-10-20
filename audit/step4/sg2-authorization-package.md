@@ -1,6 +1,6 @@
 # SG-2 (S3 + S4 + S4b): preparation status and consolidated authorization draft (2026-10-20)
 
-Status: **PREPARED AGAINST THE ACTUAL POST-S2 STATE. NOT AUTHORIZED. NOT EXECUTED.** AUTH-10 (S2) succeeded: the Development ledger is **303 rows, `b4f1f35ef890f200286199c84d0b3b76659453ba11ed20cac980b4bf3f828176`** (verified 2026-10-20). Order is the runbook's: S3, then S4, then S4b. Production is outside this package.
+Status: **AUTHORIZED BY THE OWNER (AUTH-11, the exact statement in section 4 item 6) AND EXECUTED ON 2026-10-20. Evidence: `sg2-execution-evidence.md`.** (Preparation status was: not authorized, not executed.) AUTH-10 (S2) succeeded: the Development ledger is **303 rows, `b4f1f35ef890f200286199c84d0b3b76659453ba11ed20cac980b4bf3f828176`** (verified 2026-10-20). Order is the runbook's: S3, then S4, then S4b. Production is outside this package.
 
 ## 0. Read-only preparation results (2026-10-20, after S2)
 

@@ -1,3 +1,4 @@
+-- NOTE: the published demo password is not repeated in this file; {{PUBLISHED_DEMO_PASSWORD}} stands for the value in the public migration file 20251003170350 (SEC-005).
 -- S2 attestation review: the read-only SQL run against Development (project srxunxiytojjsuhcmzjg) on 2026-10-20
 -- through the Supabase integration (role postgres). Every statement is a single SELECT. Nothing was written.
 -- Customer data: only counts, flags and masked values were selected; no secret value was selected (only booleans, lengths and md5s).
@@ -74,7 +75,7 @@ select jsonb_build_object(
  ) r;
 
 -- ===== Q3: templates (D18, D29 to D33), payment tracking (D19), total spent (D20), demo administrator (D21) =====
--- 'pw_is_admin123' and 'users_pw_admin123' compare the stored hash with the value published in the public migration file; no login was attempted.
+-- 'pw_is_published' and 'users_pw_published' compare the stored hash with the value published in the public migration file; no login was attempted.
 select jsonb_build_object(
  'sms_templates',(select jsonb_agg(jsonb_build_object('k',template_key,'name',template_name,'len',length(message_template),'md5',md5(message_template),'created',created_at,'updated',updated_at) order by template_key) from sms_message_templates),
  'email_templates',(select jsonb_agg(jsonb_build_object('n',template_name,'md5',md5(content_template),'subj_md5',md5(subject),'created',created_at,'updated',updated_at,'theme',theme,'cat',category) order by template_name) from email_templates),
@@ -108,19 +109,19 @@ select jsonb_build_object(
        'contacts_no_match',(select count(*) from contacts ct where not exists (select 1 from calc where calc.email=ct.email)),
        'contacts_no_match_nonzero',(select count(*) from contacts ct where not exists (select 1 from calc where calc.email=ct.email) and coalesce(ct.total_spent_cents,0)<>0)))),
  'd21', jsonb_build_object(
-   'admin_demo',(select jsonb_build_object('exists',true,'confirmed',email_confirmed_at is not null,'banned_until',banned_until,'last_sign_in',last_sign_in_at,'created',created_at,'updated',updated_at,'deleted_at',deleted_at,'pw_is_admin123',(encrypted_password = crypt('admin123', encrypted_password)),'role_col',role,'app_meta_role',raw_app_meta_data->>'role','is_sso',is_sso_user) from auth.users where lower(email)='admin@bouncepartyclub.com'),
+   'admin_demo',(select jsonb_build_object('exists',true,'confirmed',email_confirmed_at is not null,'banned_until',banned_until,'last_sign_in',last_sign_in_at,'created',created_at,'updated',updated_at,'deleted_at',deleted_at,'pw_is_published',(encrypted_password = crypt('{{PUBLISHED_DEMO_PASSWORD}}', encrypted_password)),'role_col',role,'app_meta_role',raw_app_meta_data->>'role','is_sso',is_sso_user) from auth.users where lower(email)='admin@bouncepartyclub.com'),
    'admin_demo_count',(select count(*) from auth.users where lower(email)='admin@bouncepartyclub.com'),
    'its_roles',(select jsonb_agg(ur.role) from user_roles ur join auth.users u on u.id=ur.user_id where lower(u.email)='admin@bouncepartyclub.com'),
    'its_identities',(select count(*) from auth.identities i join auth.users u on u.id=i.user_id where lower(u.email)='admin@bouncepartyclub.com'),
    'users_total',(select count(*) from auth.users),
-   'users_pw_admin123',(select count(*) from auth.users where encrypted_password is not null and encrypted_password = crypt('admin123', encrypted_password)),
+   'users_pw_published',(select count(*) from auth.users where encrypted_password is not null and encrypted_password = crypt('{{PUBLISHED_DEMO_PASSWORD}}', encrypted_password)),
    'users_last_sign_in_recent_30d',(select count(*) from auth.users where last_sign_in_at > now()-interval '30 days'),
    'roles_dist_master_users',(select count(*) from user_roles where role='master'))
  ) r;
 
 -- ===== Q4: second account with the published password (masked), SMS policies, D19 detail, D20 formula comparison =====
 select jsonb_build_object(
- 'second_admin123',(select jsonb_agg(jsonb_build_object('masked',left(u.email,2)||'***@'||split_part(u.email,'@',2),'roles',(select jsonb_agg(ur.role) from user_roles ur where ur.user_id=u.id),'last_sign_in',u.last_sign_in_at,'created',u.created_at,'app_meta_role',u.raw_app_meta_data->>'role')) from auth.users u where u.encrypted_password is not null and u.encrypted_password = crypt('admin123', u.encrypted_password)),
+ 'second_published',(select jsonb_agg(jsonb_build_object('masked',left(u.email,2)||'***@'||split_part(u.email,'@',2),'roles',(select jsonb_agg(ur.role) from user_roles ur where ur.user_id=u.id),'last_sign_in',u.last_sign_in_at,'created',u.created_at,'app_meta_role',u.raw_app_meta_data->>'role')) from auth.users u where u.encrypted_password is not null and u.encrypted_password = crypt('{{PUBLISHED_DEMO_PASSWORD}}', u.encrypted_password)),
  'weak_other_pw',(select count(*) from auth.users u where u.encrypted_password is not null and (u.encrypted_password = crypt('password', u.encrypted_password) or u.encrypted_password = crypt('admin', u.encrypted_password) or u.encrypted_password = crypt('Password1', u.encrypted_password))),
  'sms_policy_quals',(select jsonb_agg(jsonb_build_object('p',policyname,'qual',qual,'wc',with_check)) from pg_policies where tablename='sms_message_templates'),
  'd19_nondraft',(select jsonb_agg(jsonb_build_object('status',status,'created',created_at::date,'deposit_due',deposit_due_cents,'pays',(select count(*) from payments p where p.order_id=o.id),'pay_sum',(select coalesce(sum(amount_cents),0) from payments p where p.order_id=o.id))) from orders o where customer_selected_payment_cents is null and status<>'draft'),

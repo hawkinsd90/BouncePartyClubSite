@@ -100,5 +100,18 @@ ok('SG-2: the explicit verify_jwt of each of the 21 functions equals config.toml
 ok('SG-2: relative imports of the 21 bundles resolve inside the function folder or _shared', sg.functions.every((f: any) => filesOf(f.function).filter((p) => p.endsWith('.ts')).every((p) => { const t = read(path.join(FDIR, p)); const re = /(?:from|import)\s*\(?\s*["'](\.{1,2}\/[^"']+)["']/g; let m: any; while ((m = re.exec(t))) { const tgt = path.normalize(path.join(path.dirname(path.join(FDIR, p)), m[1])); if (!fs.existsSync(tgt)) return false; const top = path.relative(FDIR, tgt).split(path.sep)[0]; if (top !== f.function && top !== '_shared') return false; } return true; })));
 ok('SG-2: the release review exists and records no blocker', /NO RELEASE BLOCKER FOUND/.test(read(path.join(S4, 'sg2-release-review.md'))));
 
+// SG-3 preparation: the rendered scripts, the sealed package and the documented numbers agree
+const sg3 = JSON.parse(read(path.join(S4, 'sg3-package', 'package.json')));
+const sealed = JSON.parse(read(path.join(S4, 'executor', 'dev-package-oct-s3b.sealed.json')));
+const sg3Doc = read(path.join(S4, 'sg3-authorization-package.md'));
+ok('SG-3: 28 rendered scripts, in sealed order, each file equals its recorded hash', sg3.steps.length === 28 && sg3.steps.every((s: any, i: number) => s.version === sealed.items[i].version && s.step === i + 1 && shaf(path.join(S4, 'sg3-package', s.file)) === s.script_sha256));
+ok('SG-3: the scripts are bound to the sealed package, base ledger 305 and the sealed fingerprints', sg3.package_sha256 === sealed.document_sha256 && sg3.base_ledger.count === 305 && sg3.start_fp_all === sealed.start_state.fp_all && sg3.steps.every((s: any, i: number) => s.pre_fp_all === sealed.items[i].pre_fp_all && s.post_fp_all === sealed.items[i].post_fp_all && s.source_sha256_lf === sealed.items[i].sha256_lf));
+ok('SG-3: every rendered script carries the guards (pre and post blocks, containment, ledger count, rollback by exception)', sg3.steps.every((s: any) => { const t = read(path.join(S4, 'sg3-package', s.file)); return /BPC-EXECUTOR: wrong database/.test(t) && /\$bpcpost\$/.test(t) && /schema containment is not in force/.test(t) && new RegExp('unexpected ledger count after ' + s.version).test(t) && t.includes('(305 rows') === false; }));
+ok('SG-3: expected ledger count after step N is 305 + N and 333 after step 28', sg3.steps.every((s: any) => s.ledger_after === 305 + s.step) && sg3.steps[27].ledger_after === 333);
+ok('SG-3: the sealed package still has 23 withheld-gate and 5 step3b items and the deny list', sealed.items.filter((x: any) => x.class === 'withheld-gate').length === 23 && sealed.items.filter((x: any) => x.class === 'step3b').length === 5 && sealed.deny.includes('20251003170350'));
+ok('SG-3: the document states the base identity, the 333 target, the channel choice and that nothing is authorized', sg3Doc.includes('76025b5b681008ec5b0239c57be1f54fd7bbed3a3f70fa1384698afcc6476c59') && sg3Doc.includes('333') && /Channel A/.test(sg3Doc) && /NOT AUTHORIZED/.test(sg3Doc) && sg3Doc.includes(sealed.document_sha256));
+const sg2Ev = read(path.join(S4, 'sg2-execution-evidence.md'));
+ok('SG-2 evidence: ledger 305 and fingerprint bucket digest recorded, canary success recorded, no Production', sg2Ev.includes('72cafdaca438365b30b41db0e7269832cc6591837dc8ef5bb5c01c125e2dd008') && sg2Ev.includes('0bc770f2c5bb329f618516250c0cf124') && /BPC-CANARY-OK/.test(sg2Ev) && /Production was not contacted/.test(sg2Ev));
+
 console.log(`S2 consolidated package: ${passed} passed, ${failed} failed`);
 if (failed) process.exit(1);
