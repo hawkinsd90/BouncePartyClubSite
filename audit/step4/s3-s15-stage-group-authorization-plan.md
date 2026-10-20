@@ -39,3 +39,7 @@ Status: **PLANNING ONLY. NOTHING HERE IS AUTHORIZED OR EXECUTED.** The stage ord
 3. SG-3 after S4b passes.
 
 I will prepare the SG-2 package (exact SQL hashes, function list with `verify_jwt` values, the canary statement, expected results and stop conditions) as the next preparation step once you have decided AUTH-9 and the attestations, because its S3 versions (B23 and B24) and its pre-conditions use the ledger state those decisions produce.
+
+## 5. Status update 2026-10-20 (after the owner's 44 decisions)
+
+SG-1 is prepared for one approval: `s2-consolidated-authorization.md` (AUTH-10: 14 batches, 80 rows, 223 to 303). SG-2 is prepared from the predicted post-S2 state: `sg2-authorization-package.md` (AUTH-11 draft; S3 scripts, 21-function table, canary hash, owner checklist). Neither is authorized or executed.

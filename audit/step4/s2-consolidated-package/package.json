@@ -1,0 +1,375 @@
+{
+ "authorization": "AUTH-10",
+ "approval_text": "AUTH-10: apply S2 batches B13,B14,B15,B16,B17,B18,B19,B20,B21,B22,B31,B33,B37,B40 (80 versions: 44 attestations and 36 history-only) to Development in that order, one transaction each, per audit/step4/s2-consolidated-authorization.md. Start 223 rows SHA e8f53b1e, end 303 rows SHA b4f1f35e. Records only, no historical SQL runs. Stop on any failed check. Nothing else.",
+ "approval_sha256": "386ffca2d22e210c0b548f75babeb3068ea27eb0594e7e771f468bb66101f872",
+ "attestor": "Owner of Bounce Party Club LLC (account hawkinsd90), decisions supplied by owner chat message",
+ "attested_at": "2026-10-20T16:42:38Z",
+ "evidence_sha256": "d81ac30d59531fc8deef69e64b6700dbb8f17f6d230925c34c5eac801f8ff9a3",
+ "decision_record_sha256": "815a8df4ac3fee6d19bfac5a0fd39644828f6fe8ecd1c27aa5da374dff48861e",
+ "start": {
+  "count": 223,
+  "sha256": "e8f53b1e951463a8731ac8fdb7497b689c4677da437cad02ff7b29b1b493bbf4"
+ },
+ "order": [
+  "B13",
+  "B14",
+  "B15",
+  "B16",
+  "B17",
+  "B18",
+  "B19",
+  "B20",
+  "B21",
+  "B22",
+  "B31",
+  "B33",
+  "B37",
+  "B40"
+ ],
+ "batches": [
+  {
+   "reversal_sha256": "3638a5174cc8acd32da9da8acde30b8feda7b29fa8a4014264fd2b6d19fcb96f",
+   "batch": "B13",
+   "kind": "attestation",
+   "versions": [
+    "20251003152224",
+    "20251003183947",
+    "20251007210840",
+    "20251231171420",
+    "20260126184412",
+    "20260203053948",
+    "20260325231020"
+   ],
+   "ids": [
+    "D22",
+    "D23",
+    "D24",
+    "D25",
+    "D26",
+    "D27",
+    "D28"
+   ],
+   "template_sha256": "af87e404eace540cab2233a86704192e7fde612e5920392e4320329e6958165b",
+   "filled_sha256": "affc92228076a104c30a50a172c948a76981c4bfe41b1d8a20ff9513918bbf37",
+   "start_count": 223,
+   "end_count": 230,
+   "file": "B13_filled.sql"
+  },
+  {
+   "reversal_sha256": "aaebb1d57cad44b985bf38b495342272bcb58fba2cc4d07673436360e23e52ea",
+   "batch": "B14",
+   "kind": "attestation",
+   "versions": [
+    "20251003182356",
+    "20251008144308",
+    "20251205125907",
+    "20251216201450",
+    "20260126193254"
+   ],
+   "ids": [
+    "D18",
+    "D29",
+    "D30",
+    "D31",
+    "D32"
+   ],
+   "template_sha256": "006aaa9450d807354c153ce7f17060241d9df08d65e86eecf1cf2d042fc83d77",
+   "filled_sha256": "b4ede0e9d5fc16e0d901fa3eadfc7b0c0e81d17444d7a034ee9cb458eda99a6d",
+   "start_count": 230,
+   "end_count": 235,
+   "file": "B14_filled.sql"
+  },
+  {
+   "reversal_sha256": "59f2334616b79e49e6fe4e6ae25bb5585770f1a15bc6b22219ab1a21b04e0b80",
+   "batch": "B15",
+   "kind": "attestation",
+   "versions": [
+    "20251002180149",
+    "20251130231633",
+    "20251222014723",
+    "20251222020729",
+    "20260119195140",
+    "20260311121119"
+   ],
+   "ids": [
+    "D10",
+    "D11",
+    "D12",
+    "D13",
+    "D14",
+    "D15"
+   ],
+   "template_sha256": "0fed3da185fdb6bc6610bd40cbeecf32940a9988b7e3c5d47a43d53d8a79bcfe",
+   "filled_sha256": "9a464092b11d2a0c9fe409de82d00dcec64dbdab1f2f10fb66798524e41889ee",
+   "start_count": 235,
+   "end_count": 241,
+   "file": "B15_filled.sql"
+  },
+  {
+   "reversal_sha256": "fcd681d513716c47bd69e71a9b458901c720b58ccb3eebf22be52a8a06cd5953",
+   "batch": "B16",
+   "kind": "attestation",
+   "versions": [
+    "20251007220415",
+    "20251007221227",
+    "20251007221817",
+    "20251130191333",
+    "20260816221636",
+    "20260928172217"
+   ],
+   "ids": [
+    "D34",
+    "D35",
+    "D36",
+    "D37",
+    "D38",
+    "D39"
+   ],
+   "template_sha256": "546e257657e1c6df6b9ecbc21e36f541d71a0746a8a25304adb051dc1d1a0809",
+   "filled_sha256": "ceaf7fab3440a8473ec06345d4d1a15aed08040932ce6f54cb427ff03e18a236",
+   "start_count": 241,
+   "end_count": 247,
+   "file": "B16_filled.sql"
+  },
+  {
+   "reversal_sha256": "e92adea86ca08c6e561343f0d96bb27540915c3033719d02cbcd7bf2b9077357",
+   "batch": "B17",
+   "kind": "attestation",
+   "versions": [
+    "20251231174711",
+    "20260224165424",
+    "20260318191352",
+    "20260331151647",
+    "20260415234700"
+   ],
+   "ids": [
+    "D40",
+    "D41",
+    "D42",
+    "D43",
+    "D44"
+   ],
+   "template_sha256": "bc974be78c7064bb0f6c703834ec4bff2a60836ab508cca7a606c60bb8d0ec62",
+   "filled_sha256": "0d6ebcb7c429159327c25f7fb6d333afc09034349c5aac1ac63fe40b78bfbeb5",
+   "start_count": 247,
+   "end_count": 252,
+   "file": "B17_filled.sql"
+  },
+  {
+   "reversal_sha256": "832cea14b897a5352578ccb1f94f5298362ff1f8dd9c51a6fa41da1ab84696de",
+   "batch": "B18",
+   "kind": "attestation",
+   "versions": [
+    "20260324175546",
+    "20260324190039"
+   ],
+   "ids": [
+    "D16",
+    "D17"
+   ],
+   "template_sha256": "2a2637bd3c6e9c45f25ab732b8b3f0c37c53d1a86a30e439ff006dee4345880c",
+   "filled_sha256": "88d266b3dcfb735e000bb824c29f59cf125863640d2265b84606031980d2b82e",
+   "start_count": 252,
+   "end_count": 254,
+   "file": "B18_filled.sql"
+  },
+  {
+   "reversal_sha256": "816cc67e9417c1229bef402f3dbd4bcb295ff415f2130d780b2b61be8a932825",
+   "batch": "B19",
+   "kind": "attestation",
+   "versions": [
+    "20251209133113",
+    "20260120203953",
+    "20260125170305",
+    "20260302131311",
+    "20260305205811",
+    "20260311191611",
+    "20260314213726",
+    "20260314215031"
+   ],
+   "ids": [
+    "D01",
+    "D02",
+    "D03",
+    "D04",
+    "D19",
+    "D05",
+    "D06",
+    "D07"
+   ],
+   "template_sha256": "e1e1d0d3bfb703a6b6ab5fec3c41718c44dfe61b54eaaf70398e6f38860d20e6",
+   "filled_sha256": "325be23432fb7557f971d0659adf9416d128e2d673e1c03cc4a37265a517094e",
+   "start_count": 254,
+   "end_count": 262,
+   "file": "B19_filled.sql"
+  },
+  {
+   "reversal_sha256": "c90b7db643416a52e895f55ae2f1d3881bc3f23817904b3c11d4cd77813386b0",
+   "batch": "B20",
+   "kind": "attestation",
+   "versions": [
+    "20260323175236",
+    "20260326004004"
+   ],
+   "ids": [
+    "D08",
+    "D09"
+   ],
+   "template_sha256": "05e414da110efd57feeb50f91c398482b1c23af73ba56c1d2f25a30192b14487",
+   "filled_sha256": "d16062efebc50b85eb6722910c4d54ec7b20cab2adc59140f4a76a9a9cc1bea2",
+   "start_count": 262,
+   "end_count": 264,
+   "file": "B20_filled.sql"
+  },
+  {
+   "reversal_sha256": "2d00f457752aefd884d64182465ce708f78503fce02680686704407837978ecb",
+   "batch": "B21",
+   "kind": "attestation",
+   "versions": [
+    "20260323164559"
+   ],
+   "ids": [
+    "D20"
+   ],
+   "template_sha256": "23eee7b87fda5911dbb21de853c99847243a9b70b78f993cf3b3c474a2041727",
+   "filled_sha256": "90f4376f6bf9280e12cf9525120a4d8d7437c2a87d67b433eec1896c755a1548",
+   "start_count": 264,
+   "end_count": 265,
+   "file": "B21_filled.sql"
+  },
+  {
+   "reversal_sha256": "b7acd62790a0bf4921f2b1b2eaa0d38e0c6d60b9e5aa9d055f35d0b1f12019f4",
+   "batch": "B22",
+   "kind": "attestation",
+   "versions": [
+    "20251003170350"
+   ],
+   "ids": [
+    "D21"
+   ],
+   "template_sha256": "5e892ad7edcfd2b7ba999100ec11bff0b0cd1958dcc4eaa0d97f4cc2b2b73699",
+   "filled_sha256": "29d4b1119e9430553d3bb7eb8df8caacf37ab8a9bbce1d6471faf0a0b4d43a29",
+   "start_count": 265,
+   "end_count": 266,
+   "file": "B22_filled.sql"
+  },
+  {
+   "reversal_sha256": "cfe58a9d9d85750769692dae3beb7dcb958fae348f2034772568ecb6ccbc421c",
+   "batch": "B31",
+   "kind": "history-only",
+   "versions": [
+    "20251008141359",
+    "20251008153245",
+    "20251008170619",
+    "20251126190624",
+    "20251207183240",
+    "20251209115445",
+    "20251209163552",
+    "20251209163810",
+    "20251213205448",
+    "20251213222807",
+    "20251218153557",
+    "20251231174141"
+   ],
+   "ids": [],
+   "template_sha256": "c18946b99548f7c3bbbed0d4cde3d1404ba955c492bb63ae85aa27542fc54fe9",
+   "filled_sha256": "086b34196ded0529913b2d64fab26e60b483a67e1e588f32bacbfba3071dc34b",
+   "start_count": 266,
+   "end_count": 278,
+   "file": "B31_filled.sql"
+  },
+  {
+   "reversal_sha256": "427d02bc2d5796f7c401ff0817ae016ab434862170d31ae995b266164b4e4ada",
+   "batch": "B33",
+   "kind": "history-only",
+   "versions": [
+    "20260322210503",
+    "20260322224107",
+    "20260323035524",
+    "20260323155019",
+    "20260323155222",
+    "20260323163432",
+    "20260323200908",
+    "20260323210432",
+    "20260323210519",
+    "20260324175858",
+    "20260324191543",
+    "20260324193222"
+   ],
+   "ids": [],
+   "template_sha256": "c9740ecc795aefbcd058750dab7f0efe51be080ef4ba38417cee877921d93f5e",
+   "filled_sha256": "983e6c12a0ecf6a162773334cbec428b43cfa8e7ba64d0495ca58f3984555bb7",
+   "start_count": 278,
+   "end_count": 290,
+   "file": "B33_filled.sql"
+  },
+  {
+   "reversal_sha256": "93682ac03c92cc7d7994323cb92735ed1e678a1930d4dd62db06162004046391",
+   "batch": "B37",
+   "kind": "attestation",
+   "versions": [
+    "20251221225000"
+   ],
+   "ids": [
+    "D33"
+   ],
+   "template_sha256": "e7e4435cca810e31359d6f9a063b046787b7333a1daaa631e7df2e373716278a",
+   "filled_sha256": "503db8b0866416e64182232b668fa7e57a954f5fa743f53fc98c44defd063f5a",
+   "start_count": 290,
+   "end_count": 291,
+   "file": "B37_filled.sql"
+  },
+  {
+   "reversal_sha256": "7f3ce73f62e977d4ad0ffdb67e4a7c02e610485b9d0f0ae19e09d41454e99544",
+   "batch": "B40",
+   "kind": "history-only",
+   "versions": [
+    "20251002195922",
+    "20251003164124",
+    "20251007214737",
+    "20251007215413",
+    "20251007215603",
+    "20251207175802",
+    "20251221223055",
+    "20260322203342",
+    "20260322204401",
+    "20260322204444",
+    "20260322205212",
+    "20260322223521"
+   ],
+   "ids": [],
+   "template_sha256": "9e30cf82c47bdd1e2dbad3cb843cd1c30e894d01e464f46988496e70df787330",
+   "filled_sha256": "9f95bc42da6130a476bc0b156e0b1d2d3eec32b45855c2d9979545dd3362cd20",
+   "start_count": 291,
+   "end_count": 303,
+   "file": "B40_filled.sql"
+  }
+ ],
+ "total_new_rows": 80,
+ "rule_overrides": {
+  "20251002180149": {
+   "id": "D10",
+   "sql_sha256": "7af48e937d3a97e1fb58b1c8f5e7667012e7b77fbd30978c1919fc6f0de815df"
+  },
+  "20260305205811": {
+   "id": "D19",
+   "sql_sha256": "c70a69f2c610710c51b0977efe0213627017c745bccfb91738e7f0b283f95ac5"
+  },
+  "20260323175236": {
+   "id": "D08",
+   "sql_sha256": "8e55311859120364ca82992ef0b3502fff81334cc3ae86033f6b16506cbeeefc"
+  },
+  "20251231171420": {
+   "id": "D25",
+   "sql_sha256": "3e9b6f19d9ca182f1d82587c4db12c3059790e7143567a7645ab9f58e90fdd31"
+  },
+  "20260331151647": {
+   "id": "D43",
+   "sql_sha256": "208e984ee67828c16c323db0caf84765aab2e82824c556a8b97120626d0055e2"
+  },
+  "20260415234700": {
+   "id": "D44",
+   "sql_sha256": "342ee5bd8ef4541ef6643bb25734633bf8d2bf2f4155fbaf11fb3f003233ddc6"
+  }
+ }
+}

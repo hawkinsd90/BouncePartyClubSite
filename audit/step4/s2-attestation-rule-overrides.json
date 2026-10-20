@@ -1,0 +1,33 @@
+{
+  "_note": "Owner-attestation rules for the six versions whose original verification rule is FALSE in Development today by design (later edits or deliberate owner decisions). Each replacement asserts the exact evidence-backed state the owner attested, so the batch still aborts if that state is not what was reviewed. Read-only evaluation on 2026-10-20 returned TRUE for all six. Original rules stay in audit/development-verification-rules.json and are used for every other version.",
+  "20251002180149": {
+    "id": "D10",
+    "why": "Owner decision 2026-10-20: the stored 300 cents per mile is authoritative, the migration's 500 is obsolete. The original rule (no row matches id IS NOT NULL) can never be true while the table has a row.",
+    "sql": "SELECT (EXISTS (SELECT 1 FROM pricing_rules) AND NOT EXISTS (SELECT 1 FROM pricing_rules WHERE per_mile_after_base_cents IS DISTINCT FROM 300)) AS rule_ok"
+  },
+  "20260305205811": {
+    "id": "D19",
+    "why": "The back-fill applies to orders that existed at the migration time. The 22 NULL selections were all created after 2026-04-15 and stay unchanged by owner decision.",
+    "sql": "SELECT (EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema='public' AND table_name='orders' AND column_name='customer_selected_payment_cents') AND EXISTS (SELECT 1 FROM orders) AND NOT EXISTS (SELECT 1 FROM orders WHERE customer_selected_payment_cents IS NULL AND created_at < timestamptz '2026-03-05 20:58:11+00')) AS rule_ok"
+  },
+  "20260323175236": {
+    "id": "D08",
+    "why": "Secret-like change-log rows exist (stripe_secret_key, twilio_auth_token, stripe_publishable_key) and are all [REDACTED]. The original rule required that no such row exists at all.",
+    "sql": "SELECT (EXISTS (SELECT 1 FROM pg_proc WHERE pronamespace='public'::regnamespace AND proname='redact_sensitive_changelog_values') AND EXISTS (SELECT 1 FROM pg_trigger WHERE tgrelid = to_regclass('public.admin_settings_changelog') AND tgname='trg_redact_settings_changelog' AND NOT tgisinternal) AND EXISTS (SELECT 1 FROM admin_settings_changelog) AND NOT EXISTS (SELECT 1 FROM admin_settings_changelog WHERE (setting_key IN ('stripe_secret_key','twilio_auth_token','resend_api_key') OR setting_key ILIKE '%secret%' OR setting_key ILIKE '%\\_key' OR setting_key ILIKE '%token%' OR setting_key ILIKE '%password%') AND (COALESCE(old_value,'[REDACTED]') <> '[REDACTED]' OR COALESCE(new_value,'[REDACTED]') <> '[REDACTED]'))) AS rule_ok"
+  },
+  "20251231171420": {
+    "id": "D25",
+    "why": "business_website was deleted on purpose by D27 (version 20260203053948), so seven of the eight seeded keys exist and business_website must be absent.",
+    "sql": "SELECT ((SELECT count(*) FROM admin_settings WHERE key IN ('business_address','business_email','business_legal_entity','business_license_number','business_name','business_name_short','business_phone')) = 7 AND NOT EXISTS (SELECT 1 FROM admin_settings WHERE key = 'business_website')) AS rule_ok"
+  },
+  "20260331151647": {
+    "id": "D43",
+    "why": "The migration copies mode into visibility_mode where it is still dry. The consistent end state is no dry row whose mode differs (24 rows are dry and equal).",
+    "sql": "SELECT (EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema='public' AND table_name='unit_media' AND column_name='visibility_mode') AND EXISTS (SELECT 1 FROM unit_media) AND NOT EXISTS (SELECT 1 FROM unit_media WHERE visibility_mode = 'dry' AND mode IS NOT NULL AND mode <> 'dry')) AS rule_ok"
+  },
+  "20260415234700": {
+    "id": "D44",
+    "why": "The back-fill applies to links that existed at the migration time. Seven newer invoice links match the condition by design and are not relabelled (owner decision).",
+    "sql": "SELECT (EXISTS (SELECT 1 FROM invoice_links) AND NOT EXISTS (SELECT 1 FROM invoice_links WHERE link_type = 'invoice' AND deposit_cents = 0 AND customer_filled = true AND short_code IS NOT NULL AND created_at < timestamptz '2026-04-15 23:47:00+00')) AS rule_ok"
+  }
+}

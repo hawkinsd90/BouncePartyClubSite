@@ -1,0 +1,263 @@
+{
+ "approval_sha256": "727d45fc152c2c75fcc3ad89629c4f206ef2f0dce26d917a4133983d568a1977",
+ "batches": [
+  {
+   "batch": "B23",
+   "version": "20260325231044",
+   "file": "20260325231044_increase_carousel_media_file_size_limit.sql",
+   "template_sha256": "31967b23e835ee3c9cd8ebeebdee3e104c2b48d9379678b48c672981fd9fcacc",
+   "filled_sha256": "7e42564c76a1c96460eb31e5df7860c39983a88cd1f68c3881b5b25c806243f5",
+   "reversal_sha256": "a3db54fd94411df6ee63c06f18e4ddb5ad8daa99d779c626aa9a0f7ed4fff6f8",
+   "start_count": 303,
+   "end_count": 304,
+   "sql_sha256_lf": "a9fb2a5bb99bc7c16447726ceb2c8da193f797e283862845fef0764e19ec5a3b"
+  },
+  {
+   "batch": "B24",
+   "version": "20260517221038",
+   "file": "20260517221038_fix_public_assets_bucket_size_and_mime_types.sql",
+   "template_sha256": "ed412e5057db0246186959f03716ed9e2b8ec13f99b4847e2f429d3f2ec307ac",
+   "filled_sha256": "993a315a3a22cee8f5ffd4aa2dd87120a9e733678d6fdbdacd6a92a8100bc4a0",
+   "reversal_sha256": "da9af8b441a24dce7ea469acba2a204f3fc4a92d51b31d177e72dec3a73398a0",
+   "start_count": 304,
+   "end_count": 305,
+   "sql_sha256_lf": "d992706cc92545e689796e6a148b2a92a027c3f02b54de50b6aee2088c06eabe"
+  }
+ ],
+ "shared_sha256": "6ea09ce8866792de246deb0c58bf21e3a197398d60289c8bb0873481a54a1d85",
+ "shared_files": 54,
+ "functions": [
+  {
+   "function": "check-availability",
+   "files": 1,
+   "bundle_sha256": "9eeaf0f126edb3c16f80d8ee99649f9c73852ff6657c4e29a3b94c7598213260",
+   "hosted_version": "not deployed",
+   "hosted_verify_jwt": "",
+   "config_verify_jwt": "false",
+   "explicit_verify_jwt_at_deploy": "false",
+   "owner_release": "new function: confirm",
+   "new_function": true
+  },
+  {
+   "function": "complete-booking",
+   "files": 1,
+   "bundle_sha256": "11f497298c695272465f3f47ae8bc5fc7a365aa4de35b7072f171005c4013128",
+   "hosted_version": "not deployed",
+   "hosted_verify_jwt": "",
+   "config_verify_jwt": "false",
+   "explicit_verify_jwt_at_deploy": "false",
+   "owner_release": "new function: confirm",
+   "new_function": true
+  },
+  {
+   "function": "create-booking",
+   "files": 1,
+   "bundle_sha256": "48e0448f377a32b9621c3aa5b61a085ea5854bb69ee017a7b5a8b1f41cba3583",
+   "hosted_version": "not deployed",
+   "hosted_verify_jwt": "",
+   "config_verify_jwt": "false",
+   "explicit_verify_jwt_at_deploy": "false",
+   "owner_release": "new function: confirm",
+   "new_function": true
+  },
+  {
+   "function": "create-order-short-link",
+   "files": 1,
+   "bundle_sha256": "f630917122e82f6fa5093cdd6916beb3d09b0269a955042aa323415a98e9614f",
+   "hosted_version": "3",
+   "hosted_verify_jwt": "false",
+   "config_verify_jwt": "true",
+   "explicit_verify_jwt_at_deploy": "true",
+   "owner_release": "no",
+   "new_function": false
+  },
+  {
+   "function": "customer-cancel-order",
+   "files": 1,
+   "bundle_sha256": "97928ca738765b1203fc96ab71fb6bff15e691938990469a3c04863bfbaf8b89",
+   "hosted_version": "5",
+   "hosted_verify_jwt": "false",
+   "config_verify_jwt": "false",
+   "explicit_verify_jwt_at_deploy": "false",
+   "owner_release": "no (no difference from hosted)",
+   "new_function": false
+  },
+  {
+   "function": "customer-portal-action",
+   "files": 1,
+   "bundle_sha256": "c0c6668827cce77c55d3402b014038ef75654af37a4d1744d64f2b1ed4d8e9d1",
+   "hosted_version": "not deployed",
+   "hosted_verify_jwt": "",
+   "config_verify_jwt": "false",
+   "explicit_verify_jwt_at_deploy": "false",
+   "owner_release": "new function: confirm",
+   "new_function": true
+  },
+  {
+   "function": "customer-portal-data",
+   "files": 1,
+   "bundle_sha256": "2216ae7dc8ee0d5b68e236d57282d88b6fd8d6ec8d40a6327a1de46e2d635b26",
+   "hosted_version": "not deployed",
+   "hosted_verify_jwt": "",
+   "config_verify_jwt": "false",
+   "explicit_verify_jwt_at_deploy": "false",
+   "owner_release": "new function: confirm",
+   "new_function": true
+  },
+  {
+   "function": "generate-blank-waiver",
+   "files": 1,
+   "bundle_sha256": "333c707bfba90b8617f9886f717d9090ab34a2dc3ac30707bbae90c40777e88a",
+   "hosted_version": "18",
+   "hosted_verify_jwt": "false",
+   "config_verify_jwt": "false",
+   "explicit_verify_jwt_at_deploy": "false",
+   "owner_release": "no (no difference from hosted)",
+   "new_function": false
+  },
+  {
+   "function": "generate-signed-waiver",
+   "files": 1,
+   "bundle_sha256": "616cf7b933c482b96429a188f4fcc93bbefaae69973a6abe26260e2e36473dc1",
+   "hosted_version": "10",
+   "hosted_verify_jwt": "false",
+   "config_verify_jwt": "false",
+   "explicit_verify_jwt_at_deploy": "false",
+   "owner_release": "no (no difference from hosted)",
+   "new_function": false
+  },
+  {
+   "function": "get-payment-method",
+   "files": 1,
+   "bundle_sha256": "450dfa3991711880148b84b5b23174e1bf6a3aa244cfb7d80749d48ae94a0cf4",
+   "hosted_version": "4",
+   "hosted_verify_jwt": "false",
+   "config_verify_jwt": "true",
+   "explicit_verify_jwt_at_deploy": "true",
+   "owner_release": "no",
+   "new_function": false
+  },
+  {
+   "function": "get-session-metadata",
+   "files": 1,
+   "bundle_sha256": "cecc94b4fa47b37768474cb38f5730b253764ea1fa1aa3a55bafad8905c310d1",
+   "hosted_version": "4",
+   "hosted_verify_jwt": "false",
+   "config_verify_jwt": "true",
+   "explicit_verify_jwt_at_deploy": "true",
+   "owner_release": "no",
+   "new_function": false
+  },
+  {
+   "function": "get-waiver-status",
+   "files": 1,
+   "bundle_sha256": "c153cb7edc46b9f46afb65f4cd0d68861289ce6b91cd7d63eef5c1a79ef1eb6b",
+   "hosted_version": "12",
+   "hosted_verify_jwt": "false",
+   "config_verify_jwt": "false",
+   "explicit_verify_jwt_at_deploy": "false",
+   "owner_release": "no (no difference from hosted)",
+   "new_function": false
+  },
+  {
+   "function": "portal-link",
+   "files": 1,
+   "bundle_sha256": "b3b84e8de17ba9563db4a29ed06104e1e671c9665ae1bb2943e841b158a5bac6",
+   "hosted_version": "not deployed",
+   "hosted_verify_jwt": "",
+   "config_verify_jwt": "false",
+   "explicit_verify_jwt_at_deploy": "false",
+   "owner_release": "new function: confirm",
+   "new_function": true
+  },
+  {
+   "function": "record-site-event",
+   "files": 1,
+   "bundle_sha256": "a3c777298b0f7ab9859835a2adce1388bfb822be5c3cc6bdb5760b35d033ec1c",
+   "hosted_version": "not deployed",
+   "hosted_verify_jwt": "",
+   "config_verify_jwt": "false",
+   "explicit_verify_jwt_at_deploy": "false",
+   "owner_release": "new function: confirm",
+   "new_function": true
+  },
+  {
+   "function": "request-portal-link",
+   "files": 1,
+   "bundle_sha256": "00384d3187adf55dbef25262811fa2e8d8fd41f0cf6e6a791491f09b8a806d8d",
+   "hosted_version": "not deployed",
+   "hosted_verify_jwt": "",
+   "config_verify_jwt": "false",
+   "explicit_verify_jwt_at_deploy": "false",
+   "owner_release": "new function: confirm",
+   "new_function": true
+  },
+  {
+   "function": "resolve-link",
+   "files": 1,
+   "bundle_sha256": "3e738caa0c7ef8bbc1bf326fb36fe202d7f2f35376c82d54edb6c162a60394b5",
+   "hosted_version": "not deployed",
+   "hosted_verify_jwt": "",
+   "config_verify_jwt": "false",
+   "explicit_verify_jwt_at_deploy": "false",
+   "owner_release": "new function: confirm",
+   "new_function": true
+  },
+  {
+   "function": "save-signature",
+   "files": 1,
+   "bundle_sha256": "1f39df06787a99802a0a9e0598dd7544cba910fa8abb69050d117c4fa5b9b596",
+   "hosted_version": "4",
+   "hosted_verify_jwt": "false",
+   "config_verify_jwt": "false",
+   "explicit_verify_jwt_at_deploy": "false",
+   "owner_release": "no (no difference from hosted)",
+   "new_function": false
+  },
+  {
+   "function": "staff-order-save",
+   "files": 1,
+   "bundle_sha256": "00093de5eac6a5dfc68018c23ac23647207b6f7076d44595402a8315d9ffc9d5",
+   "hosted_version": "not deployed",
+   "hosted_verify_jwt": "",
+   "config_verify_jwt": "true",
+   "explicit_verify_jwt_at_deploy": "true",
+   "owner_release": "new function: confirm",
+   "new_function": true
+  },
+  {
+   "function": "stripe-refund",
+   "files": 1,
+   "bundle_sha256": "c08b51aa0738dd37a84fc8cc9184ffe9e5dac1d77631624a1423d3cd33253fdb",
+   "hosted_version": "10",
+   "hosted_verify_jwt": "true",
+   "config_verify_jwt": "true",
+   "explicit_verify_jwt_at_deploy": "true",
+   "owner_release": "no (no difference from hosted)",
+   "new_function": false
+  },
+  {
+   "function": "task-evidence",
+   "files": 1,
+   "bundle_sha256": "b9ea1430915b3538da0d6fcd80f0e718f29c5ef6b361190f45830337307c2a00",
+   "hosted_version": "not deployed",
+   "hosted_verify_jwt": "",
+   "config_verify_jwt": "true",
+   "explicit_verify_jwt_at_deploy": "true",
+   "owner_release": "new function: confirm",
+   "new_function": true
+  },
+  {
+   "function": "upload-physical-waiver",
+   "files": 1,
+   "bundle_sha256": "ea7deac1a3507a48540048659421bc3eea0a85fae1dc831b003e978f9efeb905",
+   "hosted_version": "6",
+   "hosted_verify_jwt": "false",
+   "config_verify_jwt": "true",
+   "explicit_verify_jwt_at_deploy": "true",
+   "owner_release": "yes (D-JWT-1)",
+   "new_function": false
+  }
+ ],
+ "canary_sha256_lf": "7bcd38d9e1c8cf105af7174448fd33c1ac3400baef65728e39096862d4e61dd4"
+}

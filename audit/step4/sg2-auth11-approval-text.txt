@@ -1,0 +1,1 @@
+AUTH-11: SG-2 per audit/step4/sg2-authorization-package.md. S3: apply B23 and B24 (bucket size limits, ledger rows executed, 303 to 305 rows). S4: deploy the 21 listed Edge Functions one at a time with the listed explicit verify_jwt values. S4b: send the G-16 canary once, expecting BPC-CANARY-OK. Stop on any failed check. Nothing else.
