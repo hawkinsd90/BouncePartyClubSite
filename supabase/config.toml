@@ -41,7 +41,7 @@ verify_jwt = false
 verify_jwt = false
 
 [functions.fix-payment-method]
-verify_jwt = false
+verify_jwt = true
 
 [functions.get-payment-method]
 verify_jwt = true

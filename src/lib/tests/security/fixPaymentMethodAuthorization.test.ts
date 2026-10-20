@@ -225,6 +225,12 @@ const body = { orderId: ORDER_A };
   }
   ok('source: no second client or ungated service-role use before the gate', (src.match(/createClient\(/g) || []).length === 1);
 
+  // The gateway setting must not be able to fall back to the weaker value on a normal deployment (the CLI follows config.toml).
+  const cfg: string = fs.readFileSync('supabase/config.toml', 'utf8');
+  const block = cfg.match(/\[functions\.fix-payment-method\]\s*\r?\nverify_jwt\s*=\s*(true|false)/);
+  ok('config.toml: fix-payment-method sets verify_jwt = true (gateway JWT required in addition to the role gate)', !!block && block[1] === 'true');
+  ok('config.toml: exactly one [functions.fix-payment-method] block', (cfg.match(/\[functions\.fix-payment-method\]/g) || []).length === 1);
+
   console.log(`fix-payment-method authorization: ${passed} passed, ${failed} failed`);
   if (failed) process.exit(1);
 })();

@@ -69,7 +69,7 @@
    "hosted_version_before": "3",
    "hosted_verify_jwt_before": "true",
    "explicit_verify_jwt": "true",
-   "config_verify_jwt": "false",
+   "config_verify_jwt": "true",
    "flip_false_to_true": false,
    "owner_release_needed": "yes (D-JWT-1)",
    "directory_sha256": "c8d8d62a865eacfaf3b3404915c1d04a1aec9325c09e1b9764196440608f8baf",
