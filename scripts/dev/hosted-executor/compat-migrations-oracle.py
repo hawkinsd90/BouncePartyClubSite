@@ -309,6 +309,48 @@ for shape, tpl in (("development_shape", "bpc_replay_e2i_devbase"), ("production
     S13[shape] = r13
 S["C13_C14_treatment_on_existing_databases"] = S13
 
+
+# C15 (Step 4B preparation): the comment-only alias file for 20260814002658 and the history-only record of the migration with version 20260814120000
+ALIAS_V, ORIG_V = "20260814002658", "20260814120000"
+ALIAS_FILE = [f for f in os.listdir(MIG) if f.startswith(ALIAS_V + "_")][0]
+ORIG_FILE = [f for f in os.listdir(MIG) if f.startswith(ORIG_V + "_")][0]
+alias_text = open(os.path.join(MIG, ALIAS_FILE), encoding="utf-8").read()
+code_only = re.sub(r"/\*.*?\*/", "", alias_text, flags=re.S).strip()
+r15 = {"alias_file": ALIAS_FILE, "alias_sha256_lf": hashlib.sha256(alias_text.replace(chr(13) + chr(10), chr(10)).encode("utf-8")).hexdigest(),
+       "alias_has_no_executable_text": code_only == "", "version_unique": len([f for f in os.listdir(MIG) if f.startswith(ALIAS_V + "_")]) == 1,
+       "sorts_before_original": ALIAS_V < ORIG_V}
+ORIG_MARKER = ("-- BPC-DEV-RECONCILIATION history-only NOT EXECUTED run={{RUN_ID}} basis=alias-covered: this migration was applied on Development under ledger version 20260814002658; "
+               "its SQL was not run here; recorded so that standard tooling does not run it a second time")
+r15["original_history_only_marker_template"] = ORIG_MARKER
+# running the alias file does nothing at all (schema hash unchanged) on both shapes
+for shape, tpl in (("development_shape", "bpc_replay_e2i_devbase"), ("production_shape", "bpc_replay_prodshape")):
+    nm = "bpc_replay_c47_a%s" % shape[0]; clone(tpl, nm); b0 = state(nm)
+    rc, _ = psql_file(nm, os.path.join(MIG, ALIAS_FILE))
+    r15[shape + "_alias_file_noop"] = {"exit": rc, "state_unchanged": state(nm) == b0}
+# Development shape, post-recovery except the original: the alias is already recorded, A, B and the original are the only pending files; recording the original without executing closes it
+dd = "bpc_replay_c47_o2"; clone("bpc_replay_e2i_devbase", dd)
+vs = [f[:14] for f in os.listdir(MIG) if f.endswith(".sql") and f[:14] not in (A_V, B_V, ORIG_V) and not f.startswith(STUB + "_")]
+psql(dd, "insert into supabase_migrations.schema_migrations(version,name,statements) values " + ",".join("('%s','synthetic','{synthetic recovered row}')" % v for v in vs) + " on conflict do nothing")
+alias_row = psql(dd, "select count(*) from supabase_migrations.schema_migrations where version='%s'" % ALIAS_V)
+w = cli_project("c47o2", dd)
+pend_before = pending_files(cli(w, dd, "db", "push", "--dry-run", "--include-all")); st_b = state(dd)
+for v, nme, mk in ((ORIG_V, ORIG_FILE[15:-4], ORIG_MARKER), (A_V, RECORD_NAMES[A_V], RECORD_MARKER), (B_V, RECORD_NAMES[B_V], RECORD_MARKER)):
+    psql(dd, "insert into supabase_migrations.schema_migrations(version,name,statements) values ('%s','%s',ARRAY['%s'])" % (v, nme, mk.replace("{{RUN_ID}}", "synthetic-run")))
+o15 = cli(w, dd, "db", "push", "--dry-run", "--include-all")
+r15["development_shape_record_only"] = {"alias_row_already_in_ledger": alias_row == "1", "pending_before": pend_before, "pending_after": pending_files(o15), "up_to_date": "up to date" in (o15.stdout + o15.stderr), "state_unchanged": state(dd) == st_b}
+shutil.rmtree(w, ignore_errors=True)
+# what executing the original on a Development-shaped database would do (the reason it is recorded, not run)
+ex = "bpc_replay_c47_ox"; clone("bpc_replay_e2i_devbase", ex); bx = state(ex)
+rcx, outx = psql_file(ex, os.path.join(MIG, ORIG_FILE))
+r15["development_shape_executing_the_original_would"] = {"exit": rcx, "schema_changed": state(ex) != bx, "first_error": next((l.strip() for l in outx.splitlines() if "ERROR" in l), "")[:160]}
+# Production shape: the alias file is pending (no row), the original is genuinely pending there; neither is executed by this work
+pw = "bpc_replay_c47_op"; clone("bpc_replay_prodshape", pw)
+wp = cli_project("c47op", pw)
+pp = pending_files(cli(wp, pw, "db", "push", "--dry-run", "--include-all"))
+r15["production_shape_alias_and_original_pending"] = {"alias_pending": ALIAS_V in pp, "original_pending": ORIG_V in pp}
+shutil.rmtree(wp, ignore_errors=True)
+S["C15_alias_and_original"] = r15
+
 for d in DBS: drop(d)
 with open(a.out, "w", encoding="utf-8") as fh:
     json.dump(res, fh, indent=1)

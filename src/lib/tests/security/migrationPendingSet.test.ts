@@ -139,14 +139,16 @@ if (fs.existsSync(`${PROT}/prod_catalog_history.json`) && fs.existsSync(`${PROT}
   ok('evidence: no findings in the repository or either history', loc.findings.length === 0 && P.findings.length === 0 && D.findings.length === 0);
   // Step 4A.7: the two declared local compatibility proposals add two repository versions, and two pending versions to each environment (they are older than both ledger heads)
   const compat47: string[] = JSON.parse(fs.readFileSync('audit/step4/compat-migrations.json', 'utf8')).files.map((x: any) => x.version);
-  ok('evidence: 391 repository versions (389 at Step 3B plus the two declared Step 4A.7 compatibility proposals)', loc.versions.length === 391 && compat47.length === 2 && compat47.every((v: string) => loc.versions.includes(v)));
+  const compatReg = JSON.parse(fs.readFileSync('audit/step4/compat-migrations.json', 'utf8'));
+  const laterVersions: string[] = loc.versions.filter((v: string) => v > compatReg.historical_horizon);
+  ok('evidence: 392 historical repository versions (389 at Step 3B plus the two compatibility proposals and the comment-only alias file) plus any ordinary migration after the horizon', loc.versions.length === 392 + laterVersions.length && compat47.length === 2 && compat47.every((v: string) => loc.versions.includes(v)) && loc.versions.includes('20260814002658'));
   ok('evidence: 277 Production and 58 Development recorded', P.recorded_count === 277 && D.recorded_count === 58);
-  ok('evidence: Production pending 114, Development pending 334 (112 and 332 before the two compatibility proposals; 107 and 327 before the 5 Step 3B migrations)', P.pending_count === 114 && D.pending_count === 334);
+  ok('evidence: pending counts are the historical figures plus the ordinary later migrations: Production 115 (114 plus the alias file, which Production lacks), Development 334 (the alias is already recorded there)', P.pending_count === 115 + laterVersions.length && D.pending_count === 334 + laterVersions.length);
   ok('evidence: Case 43 is not pending anywhere and not in the repository', !P.pending_versions.includes('20260407211122') && !D.pending_versions.includes('20260407211122') && !loc.versions.includes('20260407211122'));
   ok('evidence: cases 41 and 42 are withdrawn: not in the repository, not pending anywhere, no alias annotation', ['20260305203528', '20260407203226'].every((v: string) => !loc.versions.includes(v) && !P.pending_versions.includes(v) && !D.pending_versions.includes(v)) && P.alias_annotations.length === 0);
-  ok('evidence: Development 20260814120000 stays pending; 20260814002658 is recorded without a local file', D.pending_versions.includes('20260814120000') && same(D.recorded_without_local_file, ['20260814002658']));
+  ok('evidence: Development 20260814120000 stays pending until recorded; 20260814002658 now has a local file (comment-only alias), is recorded on Development and pending on Production', D.pending_versions.includes('20260814120000') && same(D.recorded_without_local_file, []) && !D.pending_versions.includes('20260814002658') && P.pending_versions.includes('20260814002658'));
   const octo = loc.versions.filter((v: string) => v >= '20261007000000' && v < '20261026000000');
-  const s3b = loc.versions.filter((v: string) => v >= '20261026000000');
+  const s3b = loc.versions.filter((v: string) => v >= '20261026000000' && v <= compatReg.historical_horizon);
   ok('evidence: the 23 October migrations are pending in both environments', octo.length === 23 && octo.every((v: string) => P.pending_versions.includes(v) && D.pending_versions.includes(v)));
   ok('evidence: the 5 Step 3B migrations are pending in both environments', s3b.length === 5 && s3b.every((v: string) => P.pending_versions.includes(v) && D.pending_versions.includes(v)));
   ok('evidence: Production recorded versions all have local files', P.recorded_without_local_file_count === 0);

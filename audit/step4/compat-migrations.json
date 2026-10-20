@@ -1,6 +1,6 @@
 {
  "schema": "bpc-compat-migrations/1",
- "status": "LOCAL PROPOSAL (Step 4A.7). Not authorized for any hosted database, not in the sealed 28-file package, not in the executor, not in the Step 2 manifests or deny list. Changing either file requires a new review and a new hash here. Revised in the Step 4A.7 review: file 20260615175815 now acts only when three independent tests agree (ledger, later-created tables, empty orders).",
+ "status": "LOCAL PROPOSAL (Step 4A.7). Not authorized for any hosted database, not in the sealed 28-file package, not in the executor, not in the Step 2 manifests or deny list. Changing either file requires a new review and a new hash here. Revised in the Step 4A.7 review: file 20260615175815 now acts only when three independent tests agree (ledger, later-created tables, empty orders). Step 4B preparation: the comment-only alias file for 20260814002658 was added and is declared in alias_files; historical_horizon and horizon_rule define how ordinary later migrations are treated.",
  "files": [
   {
    "version": "20260324175545",
@@ -11,6 +11,16 @@
    "version": "20260615175815",
    "filename": "20260615175815_compat_orders_realtime_before_duplicate_add.sql",
    "sha256_lf": "491a473c4a558883f86c18626770665654af9af220b0f2519ce20aa361929518"
+  }
+ ],
+ "historical_horizon": "20261026120400",
+ "horizon_rule": "Every migration with a version at or before the horizon is HISTORICAL: it must be one of the 389 files of the Step 2/3 inventory or one of the declared, hash-pinned files in this registry (files and alias_files). A file with a version after the horizon is an ordinary new migration: it is allowed without editing the inventory tests, provided its name is well-formed, it is not a manifest, withdrawn or denied version, and nothing historical is modified or deleted. The horizon is the last Step 3B version. Retiring the exact-inventory pins entirely is a separate step at R2.",
+ "alias_files": [
+  {
+   "version": "20260814002658",
+   "filename": "20260814002658_ledger_alias_of_20260814120000.sql",
+   "sha256_lf": "302fdcf8c1adac99bc011daa90686d2ed372370694bb627c2f547d54c393af5b",
+   "kind": "comment-only ledger alias of the migration with version 20260814120000; contains no SQL; Development already has a ledger row for this version; the migration with version 20260814120000 is to be recorded without executing on Development"
   }
  ]
 }

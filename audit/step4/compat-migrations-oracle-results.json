@@ -12,17 +12,17 @@
  },
  "scenarios": {
   "C1_without_compat_files": {
-   "files": 388,
+   "files": 389,
    "applied": 233,
    "ledger_rows": 232,
    "stopped_after": "20260324162302",
    "error": "ERROR: new row for relation \"user_roles\" violates check constraint \"user_roles_role_check\" (SQLSTATE 23514)"
   },
   "C2_with_both_compat_files": {
-   "files": 390,
-   "applied": 390,
+   "files": 391,
+   "applied": 391,
    "completed": true,
-   "ledger_rows": 390,
+   "ledger_rows": 391,
    "compat_rows_recorded": "20260324175545,20260615175815",
    "dry_run_after": "Remote database is up to date.",
    "final_state": {
@@ -332,6 +332,42 @@
      "user_roles_checks_unchanged": true,
      "up_to_date_afterwards": true
     }
+   }
+  },
+  "C15_alias_and_original": {
+   "alias_file": "20260814002658_ledger_alias_of_20260814120000.sql",
+   "alias_sha256_lf": "302fdcf8c1adac99bc011daa90686d2ed372370694bb627c2f547d54c393af5b",
+   "alias_has_no_executable_text": true,
+   "version_unique": true,
+   "sorts_before_original": true,
+   "original_history_only_marker_template": "-- BPC-DEV-RECONCILIATION history-only NOT EXECUTED run={{RUN_ID}} basis=alias-covered: this migration was applied on Development under ledger version 20260814002658; its SQL was not run here; recorded so that standard tooling does not run it a second time",
+   "development_shape_alias_file_noop": {
+    "exit": 0,
+    "state_unchanged": true
+   },
+   "production_shape_alias_file_noop": {
+    "exit": 0,
+    "state_unchanged": true
+   },
+   "development_shape_record_only": {
+    "alias_row_already_in_ledger": true,
+    "pending_before": [
+     "20260324175545",
+     "20260615175815",
+     "20260814120000"
+    ],
+    "pending_after": [],
+    "up_to_date": true,
+    "state_unchanged": true
+   },
+   "development_shape_executing_the_original_would": {
+    "exit": 0,
+    "schema_changed": false,
+    "first_error": ""
+   },
+   "production_shape_alias_and_original_pending": {
+    "alias_pending": true,
+    "original_pending": true
    }
   }
  },

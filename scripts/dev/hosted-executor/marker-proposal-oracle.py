@@ -75,7 +75,8 @@ def cli_pending(db):
     shutil.copy(os.path.join(REPO, "supabase", "config.toml"), os.path.join(work, "supabase", "config.toml"))
     for f in os.listdir(MIG):
         if f.endswith(".sql") and not f.startswith(("20260324175545_", "20260615175815_")): shutil.copy(os.path.join(MIG, f), os.path.join(mig, f))
-    open(os.path.join(mig, ALIAS + "_ledger_alias_of_20260814120000.sql"), "w", encoding="utf-8").write("-- comment-only alias file (test copy only)" + chr(10))
+    if not any(f.startswith(ALIAS + "_") for f in os.listdir(mig)):
+        open(os.path.join(mig, ALIAS + "_ledger_alias_of_20260814120000.sql"), "w", encoding="utf-8").write("-- comment-only alias file (test copy only)" + chr(10))
     url = "postgresql://postgres:postgres@127.0.0.1:54329/" + db
     r = run(["supabase", "db", "push", "--dry-run", "--include-all", "--db-url", url], cwd=work)
     shutil.rmtree(work, ignore_errors=True)

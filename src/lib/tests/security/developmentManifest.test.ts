@@ -49,8 +49,15 @@ const COMPAT_DOC = JSON.parse(fs.readFileSync(path.join(ROOT, 'audit', 'step4', 
 const COMPAT_FILES: string[] = COMPAT_DOC.files.map((x: any) => x.filename);
 const allSql = fs.readdirSync(path.join(ROOT, 'supabase', 'migrations')).filter((f: string) => f.endsWith('.sql'));
 // the two Step 4A.7 compatibility files are declared, hash-pinned local proposals; they are never manifest rows, so they are excluded from the Step 2 accounting only by name
-const active = allSql.filter((f: string) => !COMPAT_FILES.includes(f));
-ok('only the two declared, hash-pinned compatibility files exist beyond the Step 2 accounting, and no manifest row mentions them', allSql.length === active.length + COMPAT_FILES.length && COMPAT_FILES.length === 2 && COMPAT_DOC.files.every((x: any) => allSql.includes(x.filename) && require('crypto').createHash('sha256').update(fs.readFileSync(path.join(ROOT, 'supabase', 'migrations', x.filename), 'utf8').split(String.fromCharCode(13)).join('')).digest('hex') === x.sha256_lf) && rows.every((r: any) => !COMPAT_FILES.includes(r.filename_or_archived_source) && !COMPAT_DOC.files.some((x: any) => x.version === r.version)));
+const ALIAS_FILES: string[] = (COMPAT_DOC.alias_files || []).map((x: any) => x.filename);
+const DECLARED: string[] = COMPAT_FILES.concat(ALIAS_FILES);
+const HORIZON: string = COMPAT_DOC.historical_horizon;
+const sha = (f: string) => require('crypto').createHash('sha256').update(fs.readFileSync(path.join(ROOT, 'supabase', 'migrations', f), 'utf8').split(String.fromCharCode(13)).join('')).digest('hex');
+// historical = at or before the horizon (the last Step 3B version) and not a declared, hash-pinned exception; later = ordinary new migrations
+const active = allSql.filter((f: string) => !DECLARED.includes(f) && f.slice(0, 14) <= HORIZON);
+const later = allSql.filter((f: string) => f.slice(0, 14) > HORIZON);
+ok('beyond the Step 2 accounting only the declared, hash-pinned files (two compatibility files and the comment-only alias file) exist at or before the horizon; an unreviewed historical-dated file is rejected here; no manifest row names them', HORIZON === '20261026120400' && allSql.length === active.length + DECLARED.length + later.length && COMPAT_FILES.length === 2 && ALIAS_FILES.length === 1 && COMPAT_DOC.files.concat(COMPAT_DOC.alias_files).every((x: any) => allSql.includes(x.filename) && sha(x.filename) === x.sha256_lf) && rows.every((r) => !DECLARED.includes(r.filename_or_archived_source)) && COMPAT_DOC.files.every((x: any) => !rows.some((r) => r.version === x.version)));
+ok('ordinary new migrations (versions after the horizon) are allowed without editing the inventory: well-formed names, unique versions, none is a manifest, withdrawn or denied version', later.every((f: string) => /^\d{14}_[a-z0-9_]+\.sql$/.test(f) && !rows.some((r) => r.version === f.slice(0, 14))) && new Set(allSql.map((f: string) => f.slice(0, 14))).size === allSql.length);
 ok('every active migration file appears exactly once in the manifest', active.every((f: string) => rows.filter((r) => r.filename_or_archived_source === f).length === 1) && active.length === 389);
 ok('exactly 389 rows point at an active file, 3 at the archive, 1 is ledger-only', rows.filter((r) => active.includes(r.filename_or_archived_source)).length === 389
   && rows.filter((r) => r.filename_or_archived_source.startsWith('audit/evidence/withdrawn-migrations/')).length === 3 && rows.filter((r) => r.filename_or_archived_source.startsWith('ledger-only')).length === 1);

@@ -39,7 +39,12 @@ ok('executable set equals the rehearsed E2C manifest (58) and the nine omissions
   && e2c.filter((r) => r.proposed_action !== 'execute').map((r) => r.version).sort().join() === disp('History-only').map((r) => r.version).sort().join());
 const COMPAT_DOC = JSON.parse(fs.readFileSync(path.join(ROOT, 'audit', 'step4', 'compat-migrations.json'), 'utf8'));
 const COMPAT_FILES: string[] = COMPAT_DOC.files.map((x: any) => x.filename);
-const active = fs.readdirSync(path.join(ROOT, 'supabase', 'migrations')).filter((f: string) => f.endsWith('.sql') && !COMPAT_FILES.includes(f));
+const ALIAS_FILES: string[] = (COMPAT_DOC.alias_files || []).map((x: any) => x.filename);
+const HORIZON: string = COMPAT_DOC.historical_horizon;
+const allSqlP: string[] = fs.readdirSync(path.join(ROOT, 'supabase', 'migrations')).filter((f: string) => f.endsWith('.sql'));
+// historical = at or before the horizon and not a declared, hash-pinned exception; anything after the horizon is an ordinary new migration
+const active = allSqlP.filter((f: string) => !COMPAT_FILES.includes(f) && !ALIAS_FILES.includes(f) && f.slice(0, 14) <= HORIZON);
+ok('ordinary new migrations (after the horizon) are not Production manifest rows, and every file at or before the horizon is accounted for', allSqlP.filter((f: string) => f.slice(0, 14) > HORIZON).every((f: string) => !rows.some((r) => r.version === f.slice(0, 14))) && allSqlP.length === active.length + COMPAT_FILES.length + ALIAS_FILES.length + allSqlP.filter((f: string) => f.slice(0, 14) > HORIZON).length);
 ok('every one of the 389 active files appears exactly once; the 3 archived originals are the withdrawn rows', active.length === 389 && active.every((f: string) => rows.filter((r) => r.filename_or_archived_source === f).length === 1)
   && disp('Withdrawn').every((r) => r.filename_or_archived_source.startsWith('audit/evidence/withdrawn-migrations/') && fs.existsSync(path.join(ROOT, r.filename_or_archived_source))));
 const W = ['20260305203528', '20260407203226', '20260407211122'];

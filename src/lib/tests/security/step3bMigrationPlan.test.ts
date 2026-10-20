@@ -40,7 +40,11 @@ const migrations: string[] = fs.readdirSync(path.join(ROOT, 'supabase', 'migrati
 // ---------------------------------------------------------------------------------------------------------------------
 // STATIC
 // ---------------------------------------------------------------------------------------------------------------------
-ok('exactly the five Step 3B migrations follow the last October file', migrations.slice(migrations.findIndex((f) => f.startsWith(LAST_OCTOBER)) + 1).map((f) => f.slice(0, 14)).join() === VERSIONS.join());
+const COMPAT_DOC_3B = JSON.parse(fs.readFileSync(path.join(ROOT, 'audit', 'step4', 'compat-migrations.json'), 'utf8'));
+const HORIZON_3B: string = COMPAT_DOC_3B.historical_horizon;
+const historicalMigs = migrations.filter((f) => f.slice(0, 14) <= HORIZON_3B);
+ok('exactly the five Step 3B migrations follow the last October file (ordinary migrations after the horizon are not historical and are checked separately)', HORIZON_3B === VERSIONS[VERSIONS.length - 1] && historicalMigs.slice(historicalMigs.findIndex((f) => f.startsWith(LAST_OCTOBER)) + 1).map((f) => f.slice(0, 14)).join() === VERSIONS.join());
+ok('ordinary new migrations after the horizon are strictly later than the last Step 3B version and keep the repository naming convention', migrations.filter((f) => f.slice(0, 14) > HORIZON_3B).every((f) => /^\d{14}_[a-z0-9_]+\.sql$/.test(f) && f.slice(0, 14) > VERSIONS[VERSIONS.length - 1]));
 ok('they are named with the repository convention and are not doubly suffixed', migrations.filter((f) => f >= '20261026').every((f) => /^\d{14}_[a-z0-9_]+\.sql$/.test(f)));
 ok('rules exist for exactly those five versions', Object.keys(rules).filter((k) => !k.startsWith('_')).join() === VERSIONS.join());
 const sqlRules: Array<[string, string, string]> = [];
@@ -73,9 +77,11 @@ ok('the accepted Step 2 checkpoint commit is present in this repository (a shall
   // Step 4A.7: two declared, hash-pinned compatibility proposals (audit/step4/compat-migrations.json) are the only other additions
   const compatDoc = JSON.parse(fs.readFileSync(path.join(ROOT, 'audit', 'step4', 'compat-migrations.json'), 'utf8'));
   const compatNames: string[] = compatDoc.files.map((x: any) => x.filename);
-  const added = migrations.filter((f) => !atCheckpoint.includes(f) && !compatNames.includes(f)).map((f) => f.slice(0, 14));
+  const aliasNames: string[] = (compatDoc.alias_files || []).map((x: any) => x.filename);
+  const declaredNames: string[] = compatNames.concat(aliasNames);
+  const added = migrations.filter((f) => !atCheckpoint.includes(f) && !declaredNames.includes(f) && f.slice(0, 14) <= HORIZON_3B).map((f) => f.slice(0, 14));
   ok(`exactly the five Step 3B files are new relative to the Step 2 checkpoint (${added.join(', ')})`, atCheckpoint.length === 384 && added.join() === VERSIONS.join());
-  ok('the only other additions are the two declared compatibility files, each unchanged from its pinned hash and absent from the checkpoint', compatNames.length === 2 && compatNames.every((f) => migrations.includes(f) && !atCheckpoint.includes(f)) && compatDoc.files.every((x: any) => require('crypto').createHash('sha256').update(fs.readFileSync(path.join(ROOT, 'supabase', 'migrations', x.filename), 'utf8').split(String.fromCharCode(13)).join('')).digest('hex') === x.sha256_lf));
+  ok('the only other historical-dated additions are the declared files (two compatibility files and the comment-only alias file), each unchanged from its pinned hash and absent from the checkpoint', compatNames.length === 2 && aliasNames.length === 1 && declaredNames.every((f) => migrations.includes(f) && !atCheckpoint.includes(f)) && compatDoc.files.concat(compatDoc.alias_files).every((x: any) => require('crypto').createHash('sha256').update(fs.readFileSync(path.join(ROOT, 'supabase', 'migrations', x.filename), 'utf8').split(String.fromCharCode(13)).join('')).digest('hex') === x.sha256_lf));
 }
 
 const dev: any[] = parseCsv(fs.readFileSync(path.join(ROOT, 'audit', 'development-migration-manifest.csv'), 'utf8'));
