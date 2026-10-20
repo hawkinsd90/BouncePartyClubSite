@@ -326,11 +326,11 @@ Registry and pinned hashes: `audit/step4/compat-migrations.json`. Evidence: `com
 | Production's separate ledger | **Production's integration (Deploy ON, branching ON) reads the same files from `main`.** Once these files reach `main`, Production sees two pending versions older than its head and its automatic deployment will refuse until they are recorded there. Do **not** merge them to `main` before a separate, approved Production decision records them. Production is unchanged by this package |
 
 ### 4.4 Ordering relative to the other work (Development)
-1. Controls and backup (D-02, Bolt, Deploy OFF), Git, authorizations.
+1. Controls and backup (D-02, Deploy OFF), Git, authorizations.
 2. Step 2 bookkeeping and bucket updates (S2, S3), including the attestation row for `20260324175546`.
 3. Guarded functions, canary, the 23 October files and the 5 Step 3B files via the **unchanged** sealed package.
 4. Deferred bookkeeping (S8); containment release (S11); testing after S12.
-5. **Alias reconciliation first** (O1 file and the O2 row for `20260814120000`), **then** the 13 markers (section 2), whose approved base count and hash are taken after the alias rows exist; the marker block refuses to run before the sealed package and the alias rows.
+5. **Alias reconciliation first** (O1: the comment-only file `20260814002658_ledger_alias_of_20260814120000.sql` is now prepared in the repository, and Development already has its ledger row; O2: the history-only row for `20260814120000`), **then** the 13 markers (section 2), whose approved base count and hash are taken after the alias rows exist; the marker block refuses to run before the sealed package and the alias rows.
 6. The two compatibility versions are **recorded without executing** (section 4.5), with the 13 markers' hosted procedure or in a separate authorized step; B's SQL is never run on a hosted database. The ordinary push is not needed for them.
 7. Deploy to production ON only after the canary; new migrations stamped later than `20261026120400`.
 Final expected Development ledger: 392 versions (389 files + alias file + 2 compatibility files), 392 rows, CLI "up to date".
@@ -360,7 +360,7 @@ The first is the least risky way to support normal operation: the hosted procedu
 The clear separation: recording needs no guard; the guard only matters if the recommended procedure is bypassed.
 
 ## 5. Remaining Development release gates (unchanged by this package)
-D-02 execution and restore proof, G-20 (Bolt), D-03b (Deploy OFF), G-22 push scope, G-14/G-15/G-17/G-18/G-19, G-16 canary, G-04-G-06, D-JWT-1, G-21 (this package), and a separate owner decision for the compatibility migrations (G-21 text). Netlify stays ON; no isolated SMS/e-mail/frontend fix; no functional testing before the full coordinated deployment completes.
+D-02 execution and restore proof, D-03b (Deploy OFF), G-22 push scope, G-14/G-15/G-17/G-18/G-19, G-16 canary, G-04-G-06, D-JWT-1, G-21 (this package), and a separate owner decision for the compatibility migrations (G-21 text). Netlify stays ON; no isolated SMS/e-mail/frontend fix; no functional testing before the full coordinated deployment completes.
 
 ## 6. What the owner would be approving, and what not
 Approve or reject: (a) each of the 13 attestations and its marker class; (b) the marker SQL shape (section 2); (c) the four deny-list exceptions (#2, #4, #10, #13); (d) compatibility migrations A and B as repository files, with the Production consequence in 4.3. This package approves nothing; execution of any of it needs separate hosted authorization.

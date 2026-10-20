@@ -50,7 +50,7 @@ Columns: **R** required for the Development rollout, **A** required for recovery
 | `audit/step4/provider-safety-checklist.md` | provider configuration and validation | yes | no | no | no | test | 1 |
 | `audit/step4/sec005-demo-account-owner-procedure.md` | demo-account procedure | yes | yes | no | no | none | 1 |
 | `audit/step4/git-remote-reconciliation.md` | Git state and options | yes | no | no | no | test | 1 |
-| `audit/step4/bolt-access-control.md` | Bolt freeze procedure | yes | no | no | no | none | 1 |
+| `audit/step4/bolt-access-control.md` | background note on Bolt (not a requirement; owner decision, Step 4B AUTH-1) | yes | no | no | no | none | 1 |
 | `audit/step4/rollback-and-recovery-plan.md` | failure responses | yes | yes | no | no | none | 1 |
 | `audit/step4/thirteen-migration-review.md` | independent review of the 13 unresolved historical migrations | yes | yes | no | no | none | 1 |
 | `audit/step4/exclusion-alternatives-oracle.json` | real-CLI evidence for exclusion alternatives | no | yes | no | yes (the script, scratch DB) | recovery plan, review | 3 |
@@ -82,6 +82,9 @@ New: `supabase/migrations/20260324175545_compat_replace_legacy_user_roles_check.
 
 ## 4d. Step 4A.8 (local commits approved)
 The Step 4A.7 files above are committed as two local commits (A: compatibility migrations, their registry, oracle and the four inventory tests; B: attestation package, marker proposal, owner attestation review, oracles' evidence, documents and the executor test). New in Step 4A.8: `audit/step4/owner-attestation-review.md` (the 13 individual attestation blocks for owner review, markers copied from the SQL) and a status record in `step4a-readiness-report.md` section 11. Commit hashes are in the Step 4A.8 report. Nothing is pushed.
+
+## 4e. Step 4B preparation (uncommitted)
+New: `supabase/migrations/20260814002658_ledger_alias_of_20260814120000.sql` (comment-only alias), `audit/step4/step4b-first-authorization-package.md`. Modified: `audit/step4/compat-migrations.json` (horizon rule and the alias entry), `audit/step4/compat-migrations-oracle-results.json`, `audit/step4/marker-proposal-oracle-results.json`, the two oracle scripts, the five inventory-pin tests (`developmentManifest`, `productionManifest`, `step3bMigrationPlan`, `migrationPendingSet`, `payments/paymentOperations`), `devMigrationExecutor.test.ts`, and the Step 4 documents. Not touched: the 389 historical migrations, the sealed package, the executor, the manifests, the deny list and the two compatibility migrations.
 
 ## 5. Freeze rules after committing
 1. The 28 migration files, `fingerprint.cjs`, the sealed package and the template state are **frozen**; any change means a new seal, a new package hash, new authorizations and a new rehearsal.

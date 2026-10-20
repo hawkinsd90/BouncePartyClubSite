@@ -63,7 +63,7 @@ So after recovery the standard push does only what a developer expects: new file
 | O2 | File `20260814120000` has no ledger row (only its alias) | CLI would execute it again | add a ledger row `history-only NOT EXECUTED (recorded as alias 20260814002658)` through the Step 2 bookkeeping design. This amends the Step 2 manifest line "Already recorded, no change" and needs a new Step 2 decision | G-21 |
 | O3 | 13 files cannot be recorded (3 blocked, 1 excluded, 9 weak-rule) and the Step 2 plan says they "stay pending" | the CLI executes pending files, including `update_pricing_rules` and balance-fix data scripts | each needs an **owner-signed attestation row** that says exactly what it is: `attestation NOT EXECUTED`, scope, `not_proven`, evidence hash. For the 3 blocked and the 9 weak ones that requires new read-only evidence first (Step 2 rule), and the owner accepting the stated limits. No row may say "executed" | G-21 |
 | O4 | New migrations stamped earlier than `20261026120400` | the 28 files carry October 2026 versions; today is 2026-10-19; a new file stamped now is "older than the last remote" and is refused without `--include-all` | stamp every new migration later than `20261026120400` (for example `20261027000000` or later) until the real clock passes it | procedure |
-| O5 | Bolt (the original builder) can push to GitHub and applies SQL through Supabase's MCP `apply_migration`, which stamps its **own** timestamp as the version and writes no matching file | that is how the alias rows and mixed names in the Development ledger arose; every such call recreates O1 | Bolt must not touch the database or Git while recovery runs, and afterwards must not apply migrations (see `bolt-access-control.md`) | G-20 |
+| O5 | Bolt (the original builder) can push to GitHub and applies SQL through Supabase's MCP `apply_migration`, which stamps its **own** timestamp as the version and writes no matching file | that is how the alias rows and mixed names in the Development ledger arose; every such call recreates O1 | Going forward new migrations are files only (no `apply_migration`, no dashboard SQL for schema changes). No Bolt freeze is required (owner decision, Step 4B AUTH-1); Git state and the migration fingerprints are verified immediately before each authorized stage | none (G-20 removed) |
 | O6 | `config.toml` drives function deployment | with "Deploy to production" on, every push deploys the 52 functions declared there, with their `verify_jwt` values, including stubs and the 21 flips nobody approved | align `config.toml` to the approved JWT matrix and the owner's deploy decisions in a reviewed commit **before** re-enabling the integration | G-24 |
 | O7 | Integration behavior beyond the pre-check is unproven | its toggles are unreadable; the check run name suggests branching/preview behavior | owner reads the toggles; prove with a canary push (section 7) | G-25 |
 
@@ -82,7 +82,7 @@ Why attestation rather than moving the 13 files out of the directory: the same r
 ## 6. Temporary recovery to standard deployment: the sequence
 | Step | Action | Hosted mutation | Gate |
 |---|---|---|---|
-| T0 | Bolt access frozen; Supabase "Deploy to production" and "Automatic branching" OFF for the Development project; backup per `backup-options-comparison.md`; Git reconciled (`git-remote-reconciliation.md`) | owner toggles | G-20, D-03b, D-02, G-22 |
+| T0 | Supabase "Deploy to production" and "Automatic branching" OFF for the Development project; backup per `backup-options-comparison.md`; Git reconciled (`git-remote-reconciliation.md`) | owner toggles | D-03b, D-02, G-22 |
 | T1 | Step 2 bookkeeping part 1 (S2) and the two bucket updates (S3) | ledger rows, 2 bucket rows | G-07, G-08 |
 | T2 | Guarded Edge deployments (S1, S4, S6), canary (S4b), October (S5), Step 3B (S7) via the sealed executor | executor | existing |
 | T3 | Bookkeeping part 2 (S8): the 25 deferred history-only, 2 deferred attestations, the 17 withheld | ledger rows | existing |
@@ -109,4 +109,113 @@ All must hold on hosted Development, evidenced by read-only output kept with the
 4. `supabase db push --dry-run --include-all` (CLI) prints "Remote database is up to date".
 5. The final catalog fingerprint equals the sealed end state; the 20-check S11 gate is true (after S11, only the schema-ACL category differs by the S11 effect).
 6. `config.toml` equals the approved Edge Function and JWT decisions.
-7. Bolt access is revoked or restricted so that it cannot apply migrations or push to `Dev`.
+7. Immediately before each authorized stage, Git state (`git ls-remote`) and the ledger and schema fingerprints are verified; no restriction of any tool is required.
+
+
+---
+
+## 9. End state, operating model and retirement of the recovery controls (Step 4A.9)
+
+**Owner decision recorded (2026-10-19): a permanent deny list, a permanent custom executor and recurring historical attestations are rejected.** They are temporary controls for one historical recovery. Nothing here deletes, disables or weakens any of them; retiring a control is not deleting its evidence.
+
+### 9.1 Finding
+The existing plan does return Bounce Party Club to ordinary automatic Supabase migrations without a permanent dependency on the deny list or the custom executor. Evidence: the Supabase CLI and the GitHub integration never read `audit/development-execution-deny.json`, the manifests, the sealed package or the executor; the repository has no CI workflow or git hook (`.github` does not exist; `package.json` scripts are `build`, `lint` and `preview`); Netlify runs `vite build`. These controls matter only in two places: the one-time recovery, and the manual security-acceptance runs (`scripts/dev/security-scratch.cjs accept`).
+**One real exception, found by probe:** the acceptance suite contains tests that pin the exact migration file set. In a throwaway worktree, adding a single ordinary future migration (`select 1;`) made these fail: `developmentManifest` (1), `productionManifest` (1), `step3bMigrationPlan` (2), `migrationPendingSet` (3) and one assertion in `payments/paymentOperations.test.ts` ("the migration sorts after the previous newest migration"); the rest of the suite passed. They are recovery-era inventory pins, not security checks, and they must be relaxed or archived when recovery ends (R2 below), otherwise every future migration would trip them. They do not affect any deployment.
+
+### 9.2 Temporary versus permanent
+| Component | Class | After recovery |
+|---|---|---|
+| Step 2 deny list (`audit/development-execution-deny.json`) | temporary control | stops being evaluated at R2; file kept as evidence |
+| Step 2 manifests, execution manifest, approval package, reconciliation matrix | temporary control, permanent evidence | archived; no longer gate anything |
+| Sealed 28-file package and hosted exact-version executor (`scripts/dev/hosted-executor/`) | temporary; evidence | unused after R1; marked recovery-only (R4); never needed for ordinary migrations |
+| Step 2 local executor and rehearsal evidence | temporary; evidence | archived |
+| Marker SQL, the 13 + 46 attestations, alias rows, compatibility rows | one-time | the hosted rows persist forever; the SQL is never rerun |
+| S11 containment release and the 20-check gate | one-time | containment released once; the 20 checks may stay as an optional postcondition test |
+| Hosted ledger rows (58 existing + bookkeeping + 28 + markers + compat) | permanent | never deleted or edited; the standard tooling depends on them |
+| Inventory-pin tests (the five files listed in 9.1) | temporary | relaxed to "historical set immutable, additions allowed", or archived (R2) |
+| Security regression tests over migrations (grants, policies, RLS, function access, replay safety, evidence access, payment RPCs) | optional CI | keep; they check new migrations, not history |
+| Notification outbound guard, Development containment, Stripe-test and recipient rules | permanent product controls | unrelated to migration history |
+| Backups (D-02) | one-time for this recovery, routine decision afterwards | per owner |
+
+### 9.3 What must remain after recovery
+Only ordinary rules: never edit a migration file once it has been applied anywhere; no SQL outside migration files on a connected project (no connector or dashboard SQL for schema changes); every new version later than the newest recorded version (`20261026120400` until the real clock passes it); no `migration repair` as routine work; change-specific owner approval for destructive or financially significant migrations (this is not a historical attestation). The ledger rows and the archived evidence stay.
+
+### 9.4 Retirement plan and exit criteria
+| Phase | Earliest safe point | Objective exit criteria | Effect |
+|---|---|---|---|
+| R0 | now | none | nothing is retired; nothing is deleted |
+| R1: stop using the executor for Development | after S12 | all 28 package versions recorded as executed; S11 gate (20 checks) true; end-state fingerprint equals the sealed value; the 13 markers (or the owner's changed set), the alias file and row, and the two compatibility rows recorded; ledger versions equal repository versions; `db push --dry-run --include-all` prints "up to date" | the executor is never run again for Development |
+| R2: stop evaluating the deny list and inventory pins | after the acceptance test in 9.7 items 6-11 pass (canary applied once by the integration, repeat is a no-op) and one genuine new migration has gone through the normal path | the deny list no longer gates any command; the five pin test files are relaxed or archived; all other acceptance tests still pass with an ordinary new migration added | normal deployment has no deny-list or executor step |
+| R3: Production | only after Production's own reconciliation and authorized release | Production's ledger equals the files on `main` (see 9.5) | Production joins the same workflow |
+| R4: prevent accidental reuse | with R1 | recovery-only banners in `scripts/dev/hosted-executor/README.md` and the runbook; no routine command refers to the executor; it already refuses to run without a signed authorization bound to the package hash and the base-ledger hash, which no longer match after recovery | accidental rerun is refused |
+| R5: archive | with R2 | keep `audit/` evidence and the sealed package in Git (a local tag such as `bpc-recovery-evidence` is proposed, not created); keep the executor and oracles recovery-only | audit and rollback evidence stays available |
+**When the archived tools become relevant again:** only if a database's ledger and schema diverge so that the standard tooling cannot proceed (for example a restore to an older backup, or another out-of-band migration tool). Then the lessons and the oracles apply, with new evidence and new approval.
+
+### 9.5 Reconciled end state
+**Development**, all true and evidenced read-only before R1: (E1) every file version in `supabase/migrations` has a ledger row that truthfully says executed, history-only or NOT EXECUTED (bypassed); (E2) no row claims execution that did not happen; (E3) the 3 withdrawn versions are in neither the directory nor the ledger; (E4) the 13 historical bypasses are recorded after the owner decides them; (E5) the two compatibility versions are recorded **without executing** (never executed on an existing hosted database); (E6) the alias requirements are closed: a comment-only file for the remote-only version `20260814002658` (**not yet created**: one more repository change, needed before the ledger can match the files) and a history-only row for `20260814120000`; (E7) the 28 sealed-package versions executed in the approved order; (E8) the 20-check S11 gate and the sealed end-state fingerprint hold; (E9) no demo or seed migration executed on the existing database (`20251003170350` is an attestation only); (E10) the dry run lists nothing, and a genuinely new migration runs once. "Up to date" alone proves only E1 and E10; E2 to E9 come from the evidence above.
+**Versions outside the 13 that would otherwise still block automatic deployment** (matrix of 393 rows, the 13 removed leaves 380): 59 already recorded (including the alias-covered file), 3 withdrawn (not in the directory), 225 history-only candidates, 46 attestation candidates, 2 bucket-limit SQL, 28 sealed-package SQL and 17 withheld rows. Every one is covered by the approved Step 2 plan and the sealed package (batches S2, S3, S5-S8), so none needs a new design. They are one-time approvals taken at the actual reconciliation stage, not now: batch approvals for the history-only rows, and the Step 2 per-version attestations (presented in groups) for the 46, in the same way as for the 13. None recurs.
+**Production** is a separate reconciliation, only when its rollout is authorized: its ledger has 277 rows against fewer files on `main`, 110 pending versions, its own integration (Deploy ON, branching ON), baseline versions `20251001051901`, `20251001052039` and `20251001192425` unrecorded, and the two compatibility versions to be recorded. It needs its own read-only comparison (the CLI oracle against a Production-shaped ledger exists), its own plan and its own approvals; the Development package and executor are not reused. The compatibility files must not reach `main` before Production has recorded them.
+
+### 9.6 Fresh databases
+- **Local replay result:** with the two compatibility files, all 390 files replay on the plain-PostgreSQL stub (the pg_net file `20260323201502` skipped).
+- **Representativeness:** the stub lacks pg_net, vault and the real Supabase auth/storage/realtime shapes, and the Docker engine is not running here, so this does not prove that a new hosted project initializes; the faithful test is `supabase db reset` on the local stack or a throwaway hosted project or branch, both of which need authorization (an image download, or a cost of about USD 0.01344 per hour for a branch). the calendar-sync migrations (`20260323201502`, `20260323201532`) read the URL and key from database settings or `admin_settings`, not from literals; the e-mail hook migrations that also use pg_net were not reviewed here; hosted behavior is unverified.
+- **What a fresh build contains (counts from the replay):** reference data the application needs: `admin_settings` 31, `email_templates` 6, `sms_message_templates` 13, `pricing_rules` 1, `notification_system_status` 2, `product_categories` 5, `product_pricing` 2 (apparent reference data; the owner confirms). Sample or demo content: `units` 8, `unit_media` 8, `google_reviews` 1, `hero_carousel_images` 3, and a catalogue seed (`inventory_products` 2, `product_bundles` 3, `product_bundle_components` 6) for the owner to classify. **A demo identity: one `auth.users` row for the historical demo master account** (created by `20251003170350`, e-mail confirmed, password set, role `master`), plus `user_roles` 2 (`master` and `customer`), `customers`, `contacts` and `customer_profiles` 1 each, and 4 changelog rows (3 settings, 1 permission). No migration after it disables it; the SEC-005 owner procedure covers only the existing Development and Production accounts.
+- **Verdict:** acceptable as a local-test artifact; **not acceptable for a real-use environment** until the demo identity and sample content are handled. It is **not** a blocker for Step 4B or for ordinary migrations on the existing databases.
+- **Minimum safe separation, without a new executor or directory:** no rewrite of history now. For any new BPC environment before a baseline exists, create it from a dump or restore of the reconciled Development schema plus reference data (the D-02 style `pg_dump -Fc`), or run the migrations and then complete a short written checklist before use: disable and then remove the demo master, remove sample content the owner names, and confirm the reference tables. Acceptance criteria for a new environment: (N1) no `auth.users` row that came from a migration; (N2) no `master` role without an owner-chosen account; (N3) sample units, media, reviews and carousel rows absent or explicitly accepted; (N4) reference tables populated; (N5) the dry run lists nothing; (N6) notification secrets absent until the outbound guard is confirmed. A canonical baseline (one schema file plus later files) is the proper fix and is a **separate modernization project**, scheduled after Production is reconciled; it is not needed to restore normal migrations.
+
+### 9.7 Acceptance test for restoring automatic migrations on the Development integration
+| # | Check | Local (disposable PostgreSQL, real CLI) | Needs a controlled, authorized hosted test |
+|---|---|---|---|
+| 1 | Historical recovery is finished | rehearsed in the scratch template | R1 criteria above, evidenced read-only |
+| 2 | No unexpected missing versions | CLI oracle stage F | `supabase migration list` / ledger export equals file versions (392 with the alias file and compat files) |
+| 3 | No denied SQL eligible | oracle: the 13 and denied versions not pending once recorded | dry run on Development lists none of them |
+| 4 | Schema postconditions | S11 20 checks and fingerprint on the scratch template | same checks, read-only, on Development |
+| 5 | Compat versions represented without executing | tested on both shapes (C13) | the two rows exist; dry run does not list them |
+| 6 | Dry run lists only new versions | oracle steps G and I | dry run lists exactly the canary |
+| 7 | A test migration is applied once by the standard mechanism | real push on scratch (step I) | the integration applies the canary after "Deploy to production" is turned ON (G-25) |
+| 8 | Repeat deployment does not rerun it | steps I2 and K | a second push or re-run adds no row |
+| 9 | Expected schema change present | scratch catalog read | read-only catalog check of the canary (a catalog-only `COMMENT ON` an existing table is proposed) |
+| 10 | A failing migration is visible and skips nothing | step K: a failing file records nothing and the later file does not apply | observe on the first real failure; a deliberate hosted failure is optional and needs its own authorization |
+| 11 | The integration works after restoration | cannot be tested locally | GitHub check green and a Supabase deployment log for the canary |
+| 12 | Rollback and recovery understood | documented | forward-fix migration; D-02 backup; "Deploy to production" OFF |
+Nothing here enables an integration or pushes a branch; items 1-6 can be rehearsed locally, 7-11 need the authorized Step 4B steps.
+
+### 9.8 Permanent operating model after recovery
+- **New migration:** Claude adds one new file with a version later than the newest recorded version, additive and idempotent where possible, following the project's security rules (RLS, grants, function access); runs the local checks (the security regression tests and a dry run on a disposable database); describes any destructive or financial effect for change-specific approval. No historical attestation, deny-list check or executor is involved.
+- **Development:** a push to `Dev` is applied once, in order, by the Development integration; Netlify publishes the site as it does now.
+- **Testing before `main`:** the owner tests the Development site after each coordinated deployment (the Stripe-test, recipient-limited provider checks stay as already decided).
+- **Production:** merging to `main` lets Production's integration apply the new versions, but only after Production's history is reconciled and the release is authorized.
+- **Ordinary rollback:** write a forward-fix migration with a later version; restore from backup only for data loss; never edit a ledger row by hand.
+- **Exceptional recovery:** the archived tools, as in 9.4, with new evidence and approval.
+
+### 9.9 Comparison with the Step 4B plan
+- **Already correct:** the executor is declared temporary and retired in T10; S15 restores standard deployment; ordinary future migrations are files only, later-stamped, with no `apply_migration`; markers are bounded to this recovery; Production is separate.
+- **Implied permanence to fix in wording:** the deny list is described as a "fail-closed deny list for the Development execution package" but nothing says when it stops gating; the pin tests are described as invariants; the compatibility registry has no retirement note. R1, R2 and R4 above supply the missing exits.
+- **Missing exit criteria (added here):** R1 to R5; the new-environment checklist; the point that the pin tests must be relaxed when the alias file (or any ordinary migration) is added.
+- **One-time requirements that remain genuine:** the 13 attestations, the 46 grouped attestations, the history-only batch approvals, the alias file and row, and the two compatibility rows, each once per database. The integration restoration (G-25) is sufficient once the acceptance test in 9.7 is its exit.
+- **Smallest changes before Step 4B:** (1) accept these retirement criteria; (2) decide who prepares the comment-only alias file `20260814002658` (a repository change that will also need the pin tests relaxed or the registry extended); (3) record the new-environment rule. Nothing else, and no new architecture.
+
+
+### 9.10 Owner acceptance of R0-R5 and status (Step 4B preparation, 2026-10-19)
+The owner accepted the R0-R5 retirement plan **in principle**: the historical deny list and the custom executor are temporary recovery controls and must stop being required for routine migrations after the documented verification gates pass. **No hosted condition below is marked satisfied; each needs actual verification.**
+| Phase | Owner decision | Status | Exit condition (exact; evidence still required) |
+|---|---|---|---|
+| R0 | accepted | in effect: nothing retired, disabled or deleted | n/a |
+| R1: stop using the executor for Development | accepted in principle | **NOT satisfied** | (a) all required historical versions reconciled; (b) the sealed package executed and verified; (c) database security postconditions passed (S11 gate, fingerprint); (d) no dangerous historical migration pending; (e) standard CLI migration state reconciled (`db push --dry-run --include-all` says up to date, ledger versions equal file versions) |
+| R2: stop evaluating the deny list and the exact-inventory pins | accepted in principle | **NOT satisfied** | (f) one normal new migration applied by the Development Supabase GitHub integration; (g) a repeated deployment does not rerun it; (h) the normal workflow succeeds without invoking the historical executor or consulting a temporary deny list |
+| R3: Production | separate | not started | Production reconciled and release authorized |
+| R4: prevent reuse | accepted | not started (activates with R1) | recovery-only banners; the executor already refuses without a signed authorization bound to the base-ledger hash |
+| R5: archive | accepted | not started (activates with R2) | evidence stays in Git; a local tag is proposed, not created |
+Historical evidence stays archived in every case; retiring a control never deletes it.
+
+### 9.11 The inventory pins: the correction made now and the activation point for the rest
+Before this correction, five test files failed on any ordinary new migration (9.1). They now use a **horizon rule** recorded in `audit/step4/compat-migrations.json` (`historical_horizon` = `20261026120400`, the last Step 3B version): a file at or before the horizon must be one of the 389 inventory files or a declared, hash-pinned exception (the two compatibility files and the comment-only alias file); a file after the horizon is an ordinary new migration, allowed without editing the inventory when its name is well-formed, its version is unique and later than the horizon, and it is not a manifest, withdrawn or denied version. Preserved: an unreviewed historical-dated file, a modified or deleted historical migration, a modified sealed-package or pinned compatibility file, a badly named or duplicate-version migration all still fail (probes in a disposable worktree). The sealed package and the executor tests are unchanged. **Activation point for retiring the exact-inventory pins entirely: R2.** Until then they stay as recovery protections; weakening them earlier is not proposed.
+
+### 9.12 The alias file and the original contact-inquiries migration
+- **File:** `supabase/migrations/20260814002658_ledger_alias_of_20260814120000.sql`, comment-only (no table, trigger, function, policy, grant or data statement); it names the original only by version, and the original migration file is unmodified. The version is unique and sorts before `20260814120000`.
+- **Development:** the ledger already has a row for `20260814002658`, so nothing is recorded for the alias file. The migration with version `20260814120000` has no row and is recorded **without executing** (a history-only row; template in `compat-migrations-oracle-results.json` C15), because its effects already exist under the alias version. Tested (C15): running that migration on a Development-shaped replay is itself a no-op (exit 0, schema unchanged), so it is not dangerous; recording it without executing is the truthful, least-action representation (it claims no execution), and executing it would be an acceptable alternative only if the owner prefers. Neither version can run SQL by accident: the alias runs nothing, and the original is recorded.
+- **Production:** the ledger has no row for the alias version; the file is a harmless no-op there, to be recorded or applied in Production's own reconciliation before the file reaches `main`. Production's migration `20260814120000` is genuinely pending (never applied there) and runs for real in Production's own release.
+- **No hosted record was created.**
+
+### 9.13 New-environment prohibition
+A newly initialized BPC database must not be exposed to real customers until its demo master account, migration-generated sample content, security controls and outbound notification settings pass the acceptance criteria N1 to N6 in 9.6. This is separate from the Development recovery and does not block Step 4B. No historical migration file is modified; the historical demo credential is neither used nor repeated.

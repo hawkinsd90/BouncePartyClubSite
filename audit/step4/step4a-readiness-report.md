@@ -103,7 +103,7 @@ With containment on (`anon`/`authenticated` without USAGE on `public`), every on
 - **Expected pre-deployment state (not a defect):** the Development `send-sms-notification` (v6, 2026-07-01) and `send-email` (v7) are the older versions because the corrected, guarded code is committed locally and not yet deployed. They deploy inside the coordinated rollout (S1, before any operation that could send a message); no isolated hotfix, no testing before S12. Stripe keys in `admin_settings` are test-class. See `provider-safety-checklist.md`.
 - **Standard migrations (decision 3):** the real Supabase CLI, run against local scratch databases, reproduces the integration's failure (one remote-only version, `20260814002658`) and shows that fixing only that would make a standard push **execute 332 files including 13 that must never run**. Ordinary deployment can resume only after every file has an honest ledger row (including `NOT EXECUTED` attestation rows for those 13, needing a new owner decision, G-21). `standard-migration-recovery-plan.md`, `cli-oracle-results.json`.
 - **Git:** local `Dev` is `0ea1ffe` (the owner's committed social-preview change, out of scope), 104 ahead and 1 behind `origin/Dev` (`aeb708e`); a clean merge exists; nothing in the package is stale. `git-remote-reconciliation.md`.
-- **Bolt** can push to `Dev` and apply SQL through Supabase's MCP; gate G-20. `bolt-access-control.md`.
+- **Bolt** (background only): it can push to `Dev` and apply SQL through Supabase's MCP, but the owner removed any Bolt freeze requirement (Step 4B AUTH-1); Git state and fingerprints are verified before each authorized stage. `bolt-access-control.md` is a background note.
 - **Gates:** 31 in `owner-gates-register.csv` with decision timing and class.
 - **Backups:** `backup-options-comparison.md` (recommendation: managed-backup check + verified manual dump, no PITR; D-02 stays BLOCKED).
 
@@ -125,3 +125,30 @@ Recorded decisions and states; **no hosted execution gate is marked passed**.
 | Backups | combined approach approved (D-02 strategy approved); backup execution and restore proof **pending** |
 | Supabase automatic Development migration deployment | must stay **controlled** during historical recovery (Deploy to production OFF for Development before the first push) |
 | Production | requires separate approval and is not changed |
+
+
+---
+
+## 12. Step 4A.9 decision record (2026-10-19)
+| Item | Status |
+|---|---|
+| Permanent deny list, permanent custom executor, recurring historical attestations | **rejected by the owner**; they are temporary recovery controls (`standard-migration-recovery-plan.md` section 9) |
+| Retirement of the executor and the deny list | planned in phases R1 to R5 with objective exit criteria; **nothing is retired, disabled or deleted yet** |
+| The 13 attestations | paused by the owner pending assurance of a normal end state; one-time approvals taken at the actual reconciliation stage, together with the 46 grouped attestations and the history-only batches |
+| Fresh databases | acceptable as a local-test artifact; a new real-use environment needs the new-environment checklist (a fresh build contains a demo master account and sample content); a canonical baseline is a separate modernization project, not a blocker |
+| Ordinary new migration vs the acceptance suite | five test files pin the exact migration set and fail on any new migration; they are relaxed or archived at R2, not now |
+| Hosted execution gates | none marked passed |
+
+
+---
+
+## 13. Step 4B preparation record (2026-10-19)
+| Item | Status |
+|---|---|
+| R0-R5 retirement plan | accepted by the owner **in principle**; R1 and R2 exit conditions are **not satisfied** and are listed in `standard-migration-recovery-plan.md` section 9.10; nothing is retired, disabled or deleted |
+| Comment-only alias file `20260814002658_ledger_alias_of_20260814120000.sql` | prepared by Claude (owner decision); no hosted record created; Development already has the row for that version; the original `20260814120000` is to be recorded without executing; Production handles both in its own reconciliation |
+| Exact-inventory pin tests | corrected locally with a horizon rule so an ordinary later-versioned migration needs no inventory edit; unreviewed, modified, deleted, duplicate-version or badly named migrations still fail; further retirement of the pins activates at R2 |
+| First operational authorization package | `step4b-first-authorization-package.md`; only AUTH-1 (a read-only verification session) is requested; nothing authorized |
+| Fresh databases | a newly initialized BPC database must not be exposed to real customers until the demo master, sample content, security controls and outbound notification settings pass N1-N6 |
+| Historical approvals | one-time, taken at their stages (13 paused; 46 grouped; history-only batches; alias row; compatibility rows) |
+| Hosted execution gates | none marked passed |

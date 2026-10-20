@@ -1,4 +1,6 @@
-# Bolt access control (gate G-20)
+# Bolt background note (gate G-20 REMOVED by owner decision, Step 4B AUTH-1)
+
+> **Not a requirement.** The owner decided that Bolt is used only when the owner actively starts work. No freeze, disconnection, disabling or restriction of Bolt is a deployment gate, prerequisite, checklist item or requested owner action. The text below is background evidence only, and its "Owner actions" section is **not requested**. This does not authorize external code changes during the rollout: Git state and migration fingerprints are verified immediately before any authorized deployment, whatever the cause of a change. Do not revisit this unless there is new, concrete evidence of unauthorized changes.
 
 Nothing here was changed. Evidence is the owner's description, the owner's saved Bolt answer, Git history and the hosted ledger.
 
@@ -11,7 +13,7 @@ Bolt's own answer (provided by the owner) says that in a Bolt project migrations
 | Rewriting files such as `index.html` | it has re-added third-party content before; the owner has since committed the site's own social-preview image (`0ea1ffe`), which is outside this plan |
 | Evidence it has done these things | ledger rows with Bolt-style names (for example `add_tables_chairs_inventory_schema.sql` as a name, versions that match no file); `a02ecd7` (stray Vite file, 2026-07-09); `aeb708e` (2026-10-19) |
 
-## 2. Owner actions (read first, change only with your decision; gate G-20)
+## 2. Possible owner actions (NOT REQUESTED; background only)
 1. **Bolt, project settings:** open the Supabase integration and write down which Supabase project(s) are connected; open the GitHub/Git sync and write down which repository and branch it pushes to.
 2. **During the rollout:** disconnect Bolt's Supabase connection (or point it at a throwaway project) and pause or disconnect its GitHub sync. If you want to keep Bolt for design work, have it push to a separate branch (for example `bolt-work`), never to `Dev` or `main`, and merge by pull request.
 3. **GitHub** (`hawkinsd90/BouncePartyClubSite` > Settings): Applications (installed and authorized apps) > review the Bolt / StackBlitz authorization and restrict or revoke it; Branches > add a protection rule for `Dev` and `main` (require a pull request or restrict who can push; block force pushes). The repository is public, so branch protection is available.

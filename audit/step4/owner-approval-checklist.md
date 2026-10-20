@@ -28,11 +28,11 @@ Legend: **S0** approvals and restore point; **S1** notification containment; **S
 | D-JWT-1 | Edge Function verify_jwt decisions | Decide each row of edge-function-jwt-compatibility-matrix.csv: 17 deploy at true, 3 at false (required), 5 not deployed (preserve) | S1,S4,S6 | Deploys later | OPEN |
 | G-18 | Commit and package freeze | Approve the commit sequence in package-freeze-and-commit-sequence.md; commit only after approval; do not edit the 28 files | S0 | No (local commits) | OPEN |
 | G-19 | Stub functions with repository changes (fix-payment-method, backfill-payment-methods) | Decide deploy or leave the stubs | S6 | Deploy later if chosen | OPEN |
-| G-20 | Bolt access freeze | Read which Supabase project(s) and branch Bolt is connected to; disconnect or restrict Bolt during the recovery; add branch protection on Dev and main | S0,S9 | YES (settings in Bolt, GitHub, Supabase | OPEN |
+| G-20 | Bolt access freeze (REMOVED by owner decision, Step 4B AUTH-1) | None. No freeze, disconnection, disabling or restriction of Bolt is requested, and none is a prerequisite or checklist item | none | No | REMOVED BY OWNER |
 | G-21 | Close the standard-migration obstacles | Decide: (a) comment-only alias file for 20260814002658, (b) ledger row for 20260814120000, (c) owner-signed attestation rows for the 13 after new read-only evidence | S15 | YES later (ledger rows) + local commits | OPEN. Proposal to record all 13 as NOT EXECUTED is NOT approved. Step 4A.5 read-only Development evidence is in thirteen-migration-review.md sections 8-12: none of the 13 is S1; 9 would be harmful to execute |
 | G-22 | Reconcile origin/Dev (aeb708e) | Choose R1 merge (recommended) or R3 force push; confirm whether the stray vite timestamp file should stay deleted | S0,S9 | No for R1 (local merge) | OPEN |
 | G-24 | Align config.toml with the approved function decisions | Make config.toml equal the approved JWT matrix (reviewed commit) before the integration is re-enabled | S15 | No (a commit) | OPEN |
-| G-25 | Re-enable Supabase automatic deployment (after proof) | Read the toggles; approve the dry run against Development (hosted connection, no write); approve the canary push; then switch Deploy to production ON | S15 | YES (owner toggle | OPEN |
+| G-25 | Re-enable Supabase automatic deployment (after proof) | Read the toggles; approve the dry run against Development (hosted connection, no write); approve the canary push; then switch Deploy to production ON | S15 | YES (owner toggle | OPEN. Owner decision |
 
 ## B. Requires a controlled Step 4B action (after approval of the runbook stage)
 
@@ -55,7 +55,6 @@ Legend: **S0** approvals and restore point; **S1** notification containment; **S
 | D-03a | Supabase and Netlify settings inspection | Requires read-only verification | ANSWERED for Supabase and for Netlify build/env |
 | G-14 | Deployment window and on-call | Pending owner authorization | OPEN |
 | G-18 | Commit and package freeze | Pending owner authorization | OPEN |
-| G-20 | Bolt access freeze | Pending owner authorization | OPEN |
 | G-22 | Reconcile origin/Dev (aeb708e) | Pending owner authorization | OPEN |
 
 ### Before the stage that needs it
@@ -77,7 +76,7 @@ Legend: **S0** approvals and restore point; **S1** notification containment; **S
 | G-19 | Stub functions with repository changes (fix-payment-method, backfill-payment-methods) | Pending owner authorization | OPEN |
 | G-21 | Close the standard-migration obstacles | Deferred until after the Development deployment | OPEN. Proposal to record all 13 as NOT EXECUTED is NOT appro |
 | G-24 | Align config.toml with the approved function decisions | Deferred until after the Development deployment | OPEN |
-| G-25 | Re-enable Supabase automatic deployment (after proof) | Deferred until after the Development deployment | OPEN |
+| G-25 | Re-enable Supabase automatic deployment (after proof) | Deferred until after the Development deployment | OPEN. Owner decision |
 
 ### Later (after the rollout or only needed late)
 
@@ -106,7 +105,7 @@ S0 gates: D-02 (or an explicit owner statement that Development has no data wort
 
 | Stage | Gates that must be PASS before it starts |
 |---|---|
-| S0 | D-02, D-03a, G-14, G-18, G-20, G-22 |
+| S0 | D-02, D-03a, G-14, G-18, G-22 |
 | S1 | G-01, G-02, G-03, D-JWT-1 |
 | S2 | G-07 |
 | S3 | G-08 |
@@ -115,6 +114,6 @@ S0 gates: D-02 (or an explicit owner statement that Development has no data wort
 | S5 | D-02, G-07, G-16, G-17 |
 | S6 | G-05, G-06, D-JWT-1, G-19 |
 | S7 | G-04, G-17 |
-| S9 | D-03a, D-03b, G-15, G-20, G-22 |
+| S9 | D-03a, D-03b, G-15, G-22 |
 | S11 | G-03 |
 | S15 | G-21, G-24, G-25 |
