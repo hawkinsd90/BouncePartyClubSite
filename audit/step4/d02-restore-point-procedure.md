@@ -31,14 +31,14 @@ Read from the files: they change `storage.buckets.public` for 5 buckets, insert 
    Store the files encrypted outside Git (they contain customer data copied from Production). Record the SHA-256 list and the UTC time. `supabase db dump` only reads.
 4. **Prove recoverability locally (no hosted change).** Restore the schema and data dumps into a scratch local database (`pg_restore`/`psql` into a `bpc_*` scratch database), then compare: the ledger export (version, name, md5(statements)) with the pre-rollout export; table row counts for `orders`, `payments`, `customers`, `order_items`; and the executor's fingerprint (`captureFingerprint` equals the sealed start fingerprint after the two S3 bucket updates). Keep the comparison output.
 5. **Ledger consistency record.** Before S5 save the ledger export (Q01) and its SHA-256. After any restore the ledger, schema, buckets and function versions can disagree: compare the post-restore ledger export with this file and resume only from the earliest stage whose evidence no longer holds (`rollback-and-recovery-plan.md`).
-6. **Development-only data.** The restore discards everything written after the restore point. Before S5 the owner states whether Development holds data that exists nowhere else (test orders, test users, uploaded test media). If yes, list the tables and include them in the dump; for Storage objects, list counts per bucket (`SELECT bucket_id, count(*) FROM storage.objects GROUP BY 1`, read-only) and copy irreplaceable files separately.
+6. **Development business data (owner rule: ZERO unexpected loss).** A restore discards everything written after the restore point, so a restore is a last resort and never silently accepted. Take the dump immediately before the first stage that needs it, so the window is minutes; before S5 list any Development data that exists nowhere else and include those tables; for Storage objects (Option A, inventory only) record counts per bucket (`SELECT bucket_id, count(*) FROM storage.objects GROUP BY 1`, read-only). If a restore would discard anything, stop and let the owner decide with the evidence in front of them.
 7. **Optional rehearsal of a real restore.** If the plan allows "restore to a new project", restoring the newest backup into a **new, separate** project and running the read-only fingerprint query there proves the backup is usable without touching the Development project. This costs money and creates a project; it is the owner's call.
 8. **Authorization input.** The hosted authorization document (`audit/step4/executor/README.md`) requires `restore_point {id, taken_at_utc}` taken before `approved_at`; use the PITR timestamp or the manual dump's UTC time.
 
 ## Stop conditions
 - No PITR, no backup newer than 12 hours, and no manual dump with a local restore proof: **D-02 stays blocked; do not start S5.**
 - The local restore proof shows a ledger or fingerprint difference: stop and investigate before any rollout.
-- The owner cannot state what Development-only data may be lost.
+- Any step would discard or alter existing Development business data without the owner's explicit, informed decision at that moment.
 
 ## What this does not claim
 It does not claim that a restore of this project has been tested, that the Pro plan's backups actually ran, or that PITR is on. Those are unknown until the owner reads the dashboard.
@@ -77,10 +77,10 @@ It does not claim that a restore of this project has been tested, that the Pro p
 - **A. Restore to a new project (preferred if the plan allows it; costs money).** Restore the newest backup into a new, separate project. In that project run, read-only, (i) `SELECT count(*), max(version) FROM supabase_migrations.schema_migrations` (expect 58 rows and max `20260929161925` if the backup predates S2) and (ii) the fingerprint statement `READ_ONLY_STATEMENT` from `scripts/dev/hosted-executor/lib/fingerprint.cjs` and compare it with the sealed start fingerprint (before S3 only the `bkt` category differs). Then delete the extra project.
 - **B. Logical dump and local restore (free).** `supabase db dump` (schema, data, roles) with checksums, restored into a **local** scratch database, then the same two checks. This proves your dump, not the platform backup.
 - **PASS:** the newest scheduled backup is under 12 hours old (or PITR is enabled with a recovery window covering the rollout), AND validation A or B reproduced the 58-row ledger and the expected fingerprint, AND the owner has stated what Development-only data would be lost.
-- **FAIL / stay blocked:** no backup under 12 hours and no PITR; or validation not done; or the ledger or fingerprint differs; or the owner cannot state what data may be lost.
+- **FAIL / stay blocked:** no backup under 12 hours and no PITR; or validation not done; or the ledger or fingerprint differs; or any existing Development business data would be lost without an explicit owner decision.
 
 ### Development-only data and migration history
-- A restore discards everything written to Development after the backup, including test orders and users. State before S5 whether any such data matters; if yes, dump those tables first (`d02` step 3 above).
+- A restore discards everything written to Development after the backup, including test orders and users. The owner requirement is zero unexpected loss: take a fresh dump immediately before the stage that could need it and include every table that holds business data (`d02` step 3 above).
 - The ledger is restored with the database, so history cannot end up ahead of the schema. Edge Functions can (see above).
 - Protect the evidence: save the ledger export (version, name, md5(statements)) and its SHA-256 at the time of the restore point.
 
@@ -114,7 +114,7 @@ Decision 2: no method chosen. The full comparison of Supabase managed backups, a
 | 3 | Where the encrypted dump is stored and who can read it | it contains copied customer data and password hashes |
 | 4 | The local restore proof and its pass criteria (below) | gate before the first hosted change |
 | 5 | The Storage accounting choice (inventory only, or a byte copy) | see below |
-| 6 | What Development-only data may be lost on a restore | defines the loss tolerance |
+| 6 | (decided 2026-10-20) zero unexpected loss of Development business data | no loss tolerance is pre-accepted |
 | 7 | Starting Step 4B itself | not requested |
 
 ### Step 1: managed backup check (owner, dashboard, text notes only)
@@ -147,7 +147,7 @@ If `pg_dump` is refused on a platform-owned schema, do not widen privileges. Fal
 
 ### Step 3: local restore verification (no hosted change)
 1. Use the scratch PostgreSQL cluster (roles `anon`, `authenticated`, `service_role`, `authenticator`, `supabase_admin`, `supabase_auth_admin`, `supabase_storage_admin` must exist, as in the Step 4 scratch template).
-2. `createdb bpc_restore_verify`, then decrypt a **copy** of the encrypted file and run `pg_restore --exit-on-error --dbname=bpc_restore_verify dev-pre-rollout.dump`. Restoring with `--no-owner` is not accepted for the proof: the earlier local rehearsal showed it changes the schema-owner category.
+2. `createdb bpc_restore_verify`, then decrypt a **copy** of the encrypted file and run `pg_restore --exit-on-error --dbname=bpc_restore_verify dev-pre-rollout.dump`. Restoring with `--no-owner` is not accepted for the proof: the earlier local rehearsal showed it changes the schema-owner category. (Superseded for the real dump by the AUTH-3 run of 2026-10-20: `--exit-on-error` would stop at the first platform-object error, so errors are classified instead; see `auth3-backup-execution-checklist.md` section 13.)
 3. Compare to the hosted values captured before the dump.
 
 ### Success criteria (all must hold)

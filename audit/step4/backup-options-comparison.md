@@ -52,7 +52,7 @@ supabase db dump --db-url "$DEV_DB_URL" -f auth_data.sql --use-copy --data-only 
 # or one custom-format file for the local restore proof: pg_dump "$DEV_DB_URL" -Fc -f dev.dump
 sha256sum *.sql dev.dump > backup.sha256
 ```
-Local restore proof: create a scratch database, `pg_restore --exit-on-error` the custom dump (roles `supabase_*` must exist locally, as they do in the scratch cluster), then compare the ledger export and the read-only fingerprint statement with the pre-rollout values.
+Local restore proof: create a scratch database, `pg_restore` the custom dump (without `--exit-on-error`: the 2026-10-20 run showed 14 expected platform errors, so errors are classified instead) (roles `supabase_*` must exist locally, as they do in the scratch cluster), then compare the ledger export and the read-only fingerprint statement with the pre-rollout values.
 
 ## 5. What the owner must approve
 1. The method: D without PITR (or name another).

@@ -1,0 +1,611 @@
+{
+  "schema": "bpc-auth1-development-baseline/1",
+  "captured_utc": "2026-10-20 00:22 to 00:45 (database clock); 2026-10-19 local",
+  "project": "srxunxiytojjsuhcmzjg",
+  "scope": "Development only; Production was not queried",
+  "session": {
+    "database": "postgres",
+    "server_version": "17.6",
+    "search_path": "\"$user\", public, extensions",
+    "transaction_read_only": "off (the connector session is NOT intrinsically read-only; only reviewed SELECT/catalog statements were sent)",
+    "role": "postgres"
+  },
+  "ledger": {
+    "rows": 58,
+    "min": "20251001051900",
+    "max": "20260929161925",
+    "versions_md5": "093346c640a120a00b8cb32f5a5b0454",
+    "version_name_md5": "70154db57cc5e8f86a008571ee02ade9",
+    "ledger_sha256_with_statement_md5": "ca686c2d620154142ad9d9908c5c093a16a709df35c1c6860ed65c8bef24b999",
+    "equals_step2_capture_versions": true,
+    "recorded_of_the_13": [],
+    "compat_A_B_recorded": [],
+    "october_and_step3b_recorded": 0,
+    "alias_row": "20260814002658 (name 20260814120000_create_contact_inquiries.sql)",
+    "original_20260814120000_recorded": false,
+    "withdrawn_or_demo_recorded": 0
+  },
+  "schema_fingerprint": {
+    "method": "scripts/dev/hosted-executor/lib/fingerprint.cjs DIGEST_ROWS sent as one SELECT without SET LOCAL; deparse depends on the session search_path, so the comparison template was evaluated under the same search_path",
+    "hosted": {
+      "bkt": "7d8cac3a2d8a98fbc072faf098e2e6a8/9",
+      "col": "a63239ea41b73fbf623f1b880d0eb81f/804",
+      "con": "3ab6496d29d53c1212302b4f98699288/235",
+      "ext": "5f40a3530e1529c59fb348330da48166/4",
+      "fn": "3a11af85b0f081a4f046a6caf9759e03/82",
+      "idx": "b39885721fde7082a29b87c4c83e7e78/237",
+      "nsp": "c20defe70c890e78740f5ce01383369c/2",
+      "pol": "8ee2e2c1e5c04257398cc445fb3d3530/228",
+      "pub": "350879c0d50bb01486e966315ae4189d/8",
+      "rel": "e3bdf39959f00d4b1647080da0ab493b/69",
+      "trg": "f729c8fe14404bc4272a79c1f181800a/37"
+    },
+    "equals_local_development_baseline_template": "bpc_replay_e2i_devbase: all 11 categories equal",
+    "differs_from_sealed_start_state": "bkt only (0bc770f2c5bb329f618516250c0cf124/9 in the sealed start state, which is the state AFTER the S3 bucket-limit updates; expected)"
+  },
+  "schema_facts": {
+    "public_base_tables": 67,
+    "public_policies": 222,
+    "public_functions": 82,
+    "public_security_definer_functions": 68,
+    "functions_executable_by_anon": 75,
+    "public_schema_usage": "anon=false, authenticated=false, service_role=true",
+    "public_schema_owner": "postgres",
+    "auth_user_triggers": 0,
+    "signup_function_present": true,
+    "event_triggers": 6,
+    "realtime": "supabase_realtime owner=postgres members=orders; supabase_realtime_messages_publication owner=supabase_admin",
+    "storage": "storage.objects and storage.buckets are owned by supabase_storage_admin; postgres is NOT a member; 6 policies on storage.objects",
+    "pricing_rules_columns": 26,
+    "orders_columns": 113
+  },
+  "data_aggregates": {
+    "orders": 171,
+    "orders_sum_balance_due_cents": 1344396,
+    "orders_sum_deposit_paid_cents": 856550,
+    "orders_sum_tip_cents": 74928,
+    "pricing_rules": 1,
+    "payments": 185,
+    "payments_sum_amount_cents": 2496274,
+    "payments_by_status": "succeeded=185",
+    "auth_users": 9,
+    "customers": 123,
+    "customer_profiles": 6,
+    "user_roles": 9,
+    "units": 16,
+    "unit_media": 35,
+    "admin_settings": 37,
+    "stripe_webhook_events": 0,
+    "nonempty_public_tables": 47,
+    "public_tables": 67,
+    "total_public_rows": 5074
+  },
+  "storage": {
+    "objects": 500,
+    "bytes": 941404649,
+    "buckets_total": 9,
+    "buckets_with_objects": 8,
+    "metadata_md5": "0260dd1cb6d342f37301be6813be3bf7",
+    "per_bucket": [
+      {
+        "bucket": "carousel-media",
+        "public": true,
+        "limit": null,
+        "objects": 5,
+        "bytes": 7164172,
+        "md5": "c2e2156fcb9b2515c2d5719742bf4388"
+      },
+      {
+        "bucket": "event-essentials-media",
+        "public": true,
+        "limit": 10485760,
+        "objects": 4,
+        "bytes": 1071678,
+        "md5": "b1579cb58e709da72f42d65ab2f06ed4"
+      },
+      {
+        "bucket": "lot-pictures",
+        "public": false,
+        "limit": 10485760,
+        "objects": 27,
+        "bytes": 63185969,
+        "md5": "8cce3f939f94edea2aa129d0e3580042"
+      },
+      {
+        "bucket": "order-pictures",
+        "public": true,
+        "limit": 10485760,
+        "objects": 3,
+        "bytes": 1775975,
+        "md5": "113094baab437c81930e67d3d6c9e576"
+      },
+      {
+        "bucket": "physical-waivers",
+        "public": false,
+        "limit": 20971520,
+        "objects": 0,
+        "bytes": 0,
+        "md5": "d41d8cd98f00b204e9800998ecf8427e"
+      },
+      {
+        "bucket": "public-assets",
+        "public": false,
+        "limit": null,
+        "objects": 246,
+        "bytes": 234241070,
+        "md5": "2c9fb27c4f19bf32237770d2abd1f774"
+      },
+      {
+        "bucket": "signatures",
+        "public": false,
+        "limit": 2097152,
+        "objects": 83,
+        "bytes": 3064967,
+        "md5": "ed879d6ec4dff025faad293a2ced030d"
+      },
+      {
+        "bucket": "signed-waivers",
+        "public": false,
+        "limit": 10485760,
+        "objects": 83,
+        "bytes": 522028548,
+        "md5": "2872d6a65e6b3972c9c337cc5191b9f4"
+      },
+      {
+        "bucket": "unit-images",
+        "public": true,
+        "limit": null,
+        "objects": 49,
+        "bytes": 108872270,
+        "md5": "d9bb5f420d665c8225194d4794cd7a8f"
+      }
+    ],
+    "note": "Only metadata rows were read; object names were hashed inside the database and never printed; no object was downloaded or opened."
+  },
+  "edge_functions": {
+    "count": 42,
+    "verify_jwt_true": 16,
+    "canonical_slug_version_jwt_md5": "b2d734d68eb8c480456fbf236e60a025",
+    "functions": [
+      {
+        "slug": "auth-email-hook",
+        "version": 3,
+        "verify_jwt": true,
+        "updated_at_ms": 1780602979798
+      },
+      {
+        "slug": "backfill-oauth-customers",
+        "version": 3,
+        "verify_jwt": true,
+        "updated_at_ms": 1780602985535
+      },
+      {
+        "slug": "backfill-payment-methods",
+        "version": 3,
+        "verify_jwt": true,
+        "updated_at_ms": 1780602990320
+      },
+      {
+        "slug": "calculate-route-mileage",
+        "version": 4,
+        "verify_jwt": true,
+        "updated_at_ms": 1781031468954
+      },
+      {
+        "slug": "charge-deposit",
+        "version": 14,
+        "verify_jwt": false,
+        "updated_at_ms": 1792159507138
+      },
+      {
+        "slug": "checkout-bridge",
+        "version": 3,
+        "verify_jwt": true,
+        "updated_at_ms": 1780603004899
+      },
+      {
+        "slug": "create-admin-user",
+        "version": 4,
+        "verify_jwt": false,
+        "updated_at_ms": 1792159509120
+      },
+      {
+        "slug": "customer-balance-payment",
+        "version": 5,
+        "verify_jwt": false,
+        "updated_at_ms": 1792159513174
+      },
+      {
+        "slug": "customer-cancel-order",
+        "version": 5,
+        "verify_jwt": false,
+        "updated_at_ms": 1792159515202
+      },
+      {
+        "slug": "fix-payment-method",
+        "version": 3,
+        "verify_jwt": true,
+        "updated_at_ms": 1780603021204
+      },
+      {
+        "slug": "generate-signed-waiver",
+        "version": 10,
+        "verify_jwt": false,
+        "updated_at_ms": 1792159519629
+      },
+      {
+        "slug": "get-payment-method",
+        "version": 4,
+        "verify_jwt": false,
+        "updated_at_ms": 1782853737982
+      },
+      {
+        "slug": "get-session-metadata",
+        "version": 4,
+        "verify_jwt": false,
+        "updated_at_ms": 1782853739939
+      },
+      {
+        "slug": "get-stripe-publishable-key",
+        "version": 3,
+        "verify_jwt": true,
+        "updated_at_ms": 1780603039627
+      },
+      {
+        "slug": "get-user-info",
+        "version": 3,
+        "verify_jwt": true,
+        "updated_at_ms": 1780603043368
+      },
+      {
+        "slug": "get-waiver-status",
+        "version": 12,
+        "verify_jwt": false,
+        "updated_at_ms": 1792159521694
+      },
+      {
+        "slug": "order-lifecycle",
+        "version": 5,
+        "verify_jwt": false,
+        "updated_at_ms": 1792159523761
+      },
+      {
+        "slug": "promote-media",
+        "version": 4,
+        "verify_jwt": false,
+        "updated_at_ms": 1782853743003
+      },
+      {
+        "slug": "reconcile-balance-payment",
+        "version": 4,
+        "verify_jwt": false,
+        "updated_at_ms": 1782853745108
+      },
+      {
+        "slug": "record-cash-payment",
+        "version": 4,
+        "verify_jwt": false,
+        "updated_at_ms": 1782853746773
+      },
+      {
+        "slug": "record-check-payment",
+        "version": 4,
+        "verify_jwt": false,
+        "updated_at_ms": 1782853748373
+      },
+      {
+        "slug": "record-consent",
+        "version": 3,
+        "verify_jwt": true,
+        "updated_at_ms": 1780603068907
+      },
+      {
+        "slug": "save-payment-method-from-session",
+        "version": 5,
+        "verify_jwt": false,
+        "updated_at_ms": 1792159525881
+      },
+      {
+        "slug": "save-pending-consent",
+        "version": 3,
+        "verify_jwt": true,
+        "updated_at_ms": 1780603076459
+      },
+      {
+        "slug": "save-signature",
+        "version": 4,
+        "verify_jwt": false,
+        "updated_at_ms": 1792159527946
+      },
+      {
+        "slug": "save-signup-address",
+        "version": 3,
+        "verify_jwt": true,
+        "updated_at_ms": 1780603084613
+      },
+      {
+        "slug": "send-email",
+        "version": 7,
+        "verify_jwt": false,
+        "updated_at_ms": 1786669355036
+      },
+      {
+        "slug": "send-error-notification",
+        "version": 3,
+        "verify_jwt": true,
+        "updated_at_ms": 1780603093812
+      },
+      {
+        "slug": "send-invoice",
+        "version": 4,
+        "verify_jwt": false,
+        "updated_at_ms": 1792159532074
+      },
+      {
+        "slug": "send-sms-notification",
+        "version": 6,
+        "verify_jwt": false,
+        "updated_at_ms": 1782869386142
+      },
+      {
+        "slug": "stripe-charge",
+        "version": 4,
+        "verify_jwt": false,
+        "updated_at_ms": 1782853754687
+      },
+      {
+        "slug": "stripe-checkout",
+        "version": 5,
+        "verify_jwt": false,
+        "updated_at_ms": 1792159534076
+      },
+      {
+        "slug": "stripe-refund",
+        "version": 10,
+        "verify_jwt": true,
+        "updated_at_ms": 1783034245717
+      },
+      {
+        "slug": "stripe-webhook",
+        "version": 4,
+        "verify_jwt": false,
+        "updated_at_ms": 1782853767615
+      },
+      {
+        "slug": "sync-google-calendar",
+        "version": 3,
+        "verify_jwt": true,
+        "updated_at_ms": 1780603119397
+      },
+      {
+        "slug": "twilio-status-callback",
+        "version": 3,
+        "verify_jwt": true,
+        "updated_at_ms": 1780603122572
+      },
+      {
+        "slug": "twilio-webhook",
+        "version": 3,
+        "verify_jwt": true,
+        "updated_at_ms": 1780603125748
+      },
+      {
+        "slug": "generate-blank-waiver",
+        "version": 18,
+        "verify_jwt": false,
+        "updated_at_ms": 1792159517318
+      },
+      {
+        "slug": "upload-physical-waiver",
+        "version": 6,
+        "verify_jwt": false,
+        "updated_at_ms": 1782746846785
+      },
+      {
+        "slug": "send-booking-confirmation",
+        "version": 3,
+        "verify_jwt": false,
+        "updated_at_ms": 1792159530025
+      },
+      {
+        "slug": "create-order-short-link",
+        "version": 3,
+        "verify_jwt": false,
+        "updated_at_ms": 1792159511124
+      },
+      {
+        "slug": "submit-contact-inquiry",
+        "version": 11,
+        "verify_jwt": false,
+        "updated_at_ms": 1786708241777
+      }
+    ],
+    "relays": "send-email v7 (2026-08-14) and send-sms-notification v6 (2026-07-01) are the old pre-guard versions: EXPECTED until stage S1",
+    "bundle_hashes": "ezbr_sha256 values were returned by the connector and are to be captured again at the P0/S1 preflight; they are not transcribed here"
+  },
+  "configuration": {
+    "supabase_branch_record": {
+      "name": "Dev",
+      "git_branch": "Dev",
+      "is_default": true,
+      "persistent": false,
+      "status": "MIGRATIONS_FAILED",
+      "updated_at": "2026-06-02T17:01:14Z",
+      "note": "the status was last updated on 2026-06-02 and is not interpreted as the current state of the integration"
+    },
+    "supabase_project": {
+      "status": "ACTIVE_HEALTHY",
+      "region": "us-east-1",
+      "database_version": "17.6.1.127"
+    },
+    "netlify": {
+      "site": "bouncepartyclubdev",
+      "url": "https://dev.bouncepartyclub.com",
+      "current_deploy": "6ad6164006e80bd67c7754ed",
+      "state": "ready",
+      "context": "production",
+      "branch": "Dev",
+      "commit_ref": "aeb708ed9d5f0fbc2b146a52d378babd07024b30",
+      "published_at": "2026-10-19T13:08:39Z",
+      "framework": "vite",
+      "second_site": "bouncepartyclub (main), current deploy 6abae90b66ec75000855d8cb ready"
+    },
+    "unverified": [
+      "Supabase Development integration: 'Deploy to production' toggle (owner reported ON)",
+      "Supabase Development integration: 'Automatic branching' toggle (owner reported OFF)",
+      "GitHub integration connection and its branch setting beyond the branch record",
+      "Netlify continuous-deployment toggle itself (its behavior is evidenced by the 2026-10-19 deploy of commit aeb708e)",
+      "Managed-backup list, retention, restore availability, compute size and PITR state (AUTH-2C)"
+    ]
+  },
+  "limitations": [
+    "The connector session is not database-enforced read-only; no read-only role was available without changing configuration.",
+    "Fingerprint digests depend on the session search_path; equality was shown against a local template evaluated under the same search_path.",
+    "The statement-inclusive ledger hash is the value to bind into the S0 authorization; the local template's rows carry synthetic statement text, so only the version/name hashes are comparable to it."
+  ],
+  "auth2": {
+    "date": "2026-10-20",
+    "status": "PARTIAL (qualified): Deploy OFF and backup listing owner-evidenced; branch-record change unresolved; Netlify builds-active, PITR and compute size UNVERIFIED",
+    "completed": [
+      "local state verified (Dev 4c86d3a, 113 ahead/0 behind, origin/Dev aeb708e unchanged)",
+      "Development project identity and Pro plan confirmed",
+      "Netlify site/branch/latest deploy re-read, unchanged",
+      "WAL archiving health read (single SELECT)"
+    ],
+    "owner_dashboard_needed": [
+      "Supabase GitHub integration: repository, branch, Deploy to production, Automatic branching, connection status",
+      "Netlify continuous-deployment/build state and any site-level lock",
+      "Managed backup list (UTC timestamps, type, status, restore availability, retention), compute size, PITR state",
+      "owner confirmation that Deploy to production is OFF (after the owner changes it)"
+    ],
+    "wal_archiving": {
+      "archive_mode": "on",
+      "wal_level": "logical",
+      "archived_count": 5270,
+      "failed_count": 0,
+      "last_archived_utc": "2026-10-20 00:43:52",
+      "read_at_utc": "2026-10-20 00:55:45",
+      "replication_slots": 0,
+      "note": "supporting evidence only; not a listed, completed or restorable backup"
+    },
+    "organization_plan": "pro",
+    "d03b": "Deploy to production OFF and Automatic branching OFF owner-evidenced; connected; branch before Dev; branch AFTER the change UNRESOLVED (branch record now main/empty; not corrected)",
+    "d03a": "repository and continuous deployment from Git evidenced by screenshot; builds-active toggle UNVERIFIED; continuous deployment stays ON",
+    "backup_levels": {
+      "listed": "yes (owner screenshot)",
+      "completed": "listed with timestamps; no error shown",
+      "restorable": "Restore offered; not tested",
+      "restore_tested": "no"
+    },
+    "production_touched": false,
+    "hosted_mutations": 0,
+    "owner_screenshots_2026_10_20": {
+      "supabase_dev_integration": {
+        "repository": "hawkinsd90/BouncePartyClubSite",
+        "working_directory": ".",
+        "connected": true,
+        "deploy_to_production": "OFF (saved: Production branch settings successfully updated)",
+        "automatic_branching": "OFF",
+        "configured_branch_before": "Dev",
+        "configured_branch_after": "UNRESOLVED (breadcrumb shows main)"
+      },
+      "supabase_production": {
+        "deploy_to_production": "ON",
+        "automatic_branching": "ON",
+        "touched": false
+      },
+      "managed_backups": {
+        "listed": 7,
+        "type": "daily physical",
+        "span": "2026-10-13 to 2026-10-19",
+        "latest_utc": "2026-10-19 10:56:30",
+        "restore_offered": true,
+        "storage_objects_included": false,
+        "restore_tested": false
+      },
+      "netlify": {
+        "site": "bouncepartyclubdev",
+        "repository": "github.com/hawkinsd90/BouncePartyClubSite",
+        "continuous_deployment": "from Git (screenshot)",
+        "builds_active": "UNVERIFIED"
+      }
+    },
+    "branch_record_finding": {
+      "before": {
+        "name": "Dev",
+        "git_branch": "Dev",
+        "updated": "2026-06-02"
+      },
+      "after": {
+        "name": "main",
+        "git_branch": "",
+        "updated": "2026-10-20T01:27:01Z"
+      },
+      "corrected": false,
+      "status": "UNRESOLVED"
+    },
+    "d02": "seven daily physical managed backups listed (latest 2026-10-19 10:56:30 UTC), Restore offered, Storage bytes excluded; restore NOT tested; manual encrypted dump pending (AUTH-3); PITR and compute size UNVERIFIED",
+    "fresh_read_2026_10_20_0130Z": {
+      "ledger_rows": 58,
+      "ledger_sha256": "ca686c2d620154142ad9d9908c5c093a16a709df35c1c6860ed65c8bef24b999",
+      "storage_objects": 500,
+      "orders": 171,
+      "payments": 185,
+      "db_bytes": 28183699,
+      "extensions": 5,
+      "roles": 16
+    },
+    "github_panels_followup": {
+      "development": {
+        "deploy_to_production": "OFF",
+        "production_branch_field": "greyed, blank",
+        "automatic_branching": "OFF"
+      },
+      "production": {
+        "deploy_to_production": "ON",
+        "production_branch": "main",
+        "automatic_branching": "ON",
+        "touched": false
+      },
+      "breadcrumb_main_is_default_branch_label": true,
+      "stored_branch_after_save": "UNKNOWN (not shown as Dev); not corrected"
+    }
+  },
+  "auth3": {
+    "date": "2026-10-20",
+    "executed_utc": "2026-10-20T02:45Z",
+    "backup_folder": "C:\\Users\\vikki\\BPC-Backups\\dev-20261020T0245Z",
+    "encryption": "GnuPG 2.4.8 symmetric AES-256 (integrity checked); no plaintext dump on disk",
+    "dev_dump_gpg": {
+      "bytes": 1018157,
+      "sha256": "BBD648375A6D51BC5C4B518E0BBC24566B8F79E039783CA13AFF3AFC6AA3832A"
+    },
+    "roles_txt_gpg_sha256": "8FCB9562A91336AE07AD9BDAD5F95911013A37DEC8359DD9ACA93621399A1913",
+    "plaintext_dump_sha256": "623ec4a5a0cc36090a2a45a9f4920a21d38f9b081e0cd603bac93facb1e6dafa",
+    "passphrase": "saved by the owner in Bitwarden; temporary key folder removed; never recorded",
+    "retention": "rollout and testing end plus 30 days",
+    "second_encrypted_copy": "recommended, NOT confirmed",
+    "storage": "Option A inventory only; 500 objects, 941,404,649 bytes, 9 buckets; object bytes NOT backed up",
+    "owner_data_rule": "ZERO unexpected loss of existing Development business data",
+    "first_restore": {
+      "pg_restore_exit": 1,
+      "errors": 14,
+      "content_differences": 98,
+      "cause": "local time zone versus UTC in the comparison",
+      "classification": "not a pass"
+    },
+    "final_restore_utc_normalized": {
+      "application_and_business_data": "PASS",
+      "authentication_data": "PASS",
+      "migration_history": "PASS (58 rows, original SHA-256)",
+      "schema_fingerprints": "PASS (11/11)",
+      "storage_metadata": "PASS (bytes not backed up)",
+      "containment": "PASS",
+      "extensions": "PARTIAL (supabase_vault absent locally)",
+      "local_postgresql_restore": "PARTIAL (14 vault/event-trigger platform errors)",
+      "full_managed_supabase_equivalence": "NOT PROVEN"
+    },
+    "hosted_mutations": 0,
+    "production_touched": false
+  }
+}
