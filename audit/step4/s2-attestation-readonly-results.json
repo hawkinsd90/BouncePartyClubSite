@@ -1,0 +1,39 @@
+{
+  "captured_utc": "2026-10-20",
+  "project": "srxunxiytojjsuhcmzjg",
+  "note": "Key results of the read-only queries Q1 to Q6 in s2-attestation-readonly-checks.sql. Secret values and customer rows were never selected. Production was not contacted.",
+  "ledger": { "rows": 223, "sha256": "e8f53b1e951463a8731ac8fdb7497b689c4677da437cad02ff7b29b1b493bbf4" },
+  "Q1": {
+    "d01": { "payments": 185, "status": { "succeeded": 185 }, "succeeded_without_paid_at": 0, "failed_without_failed_at": 0, "columns": ["failed_at", "paid_at", "updated_at"], "triggers": ["payments_updated_at_trigger", "update_payments_updated_at"] },
+    "d02_d03": { "orders": 171, "orders_min_created": "2026-04-02T04:00:07Z", "orders_max_created": "2026-10-15T15:44:37Z", "orders_before_2026_01_19": 0, "orders_with_tax": 0, "auto_reason_rows": 0, "tax_waived_true": 0 },
+    "d04": { "user_id_column": true, "unique_index": true, "policies": 2, "customers": 123, "linked": 9, "email_matches_unlinked": 0, "dangling_links": 0 },
+    "d05": { "check": "draft, sent, partial, paid, cancelled", "invoices": { "paid": 14, "partial": 68 }, "paid_but_partial": 0 },
+    "d06_d07": { "addresses": 165, "null_keys": 0, "duplicate_groups": 0, "key_mismatch_with_D07_formula": 0, "zip_with_space": 0, "with_coordinates": 164, "orders_with_missing_address": 0, "unique_index": true }
+  },
+  "Q2": {
+    "d08": { "changelog_rows": 23, "secret_like_rows": 6, "not_redacted": 0, "trigger": "trg_redact_settings_changelog", "function": { "security_definer": true, "search_path": "public" } },
+    "d09": { "orders_with_saved_card": 0, "missing_last4_or_brand": 0, "payments_with_last4": 162 },
+    "pricing_rules": { "per_mile_after_base_cents": 300, "included_city_list_json": ["Detroit"], "included_cities": ["Detroit"], "base_radius_miles": 20, "deposit_per_unit_cents": 5000, "deposit_percentage": 0.25, "generator_price_cents": 7500, "generator_fee_single_cents": 9500, "generator_fee_multiple_cents": 7500, "same_day_pickup_fee_cents": 10000, "apply_taxes_by_default": false, "updated_at": "2025-10-16T07:20:17Z" },
+    "d16_d17": { "roles": { "master": 5, "customer": 4 }, "non_lower_case_roles": 0, "get_user_role_lowercases": true }
+  },
+  "Q3_Q4": {
+    "sms_templates": { "count": 13, "test_message_present": false, "unchanged_from_migration": ["order_rejected", "payment_reminder", "booking_received_admin", "eta_sms", "arrived_sms", "dropoff_done_sms", "order_cancelled_admin", "pictures_reminder"], "edited_since": ["order_confirmation", "order_approved", "delivery_notification", "pickup_thanks_sms"], "added_later": ["lot_pictures_uploaded_admin"], "policy_qualifiers": "update and select both 'true' for authenticated" },
+    "email_templates": { "count": 6, "unchanged_from_migration": ["booking_confirmation_admin", "error_notification", "order_rejection", "payment_receipt"], "edited_since": ["booking_confirmation_customer"], "added_later": ["pickup_complete"] },
+    "d19": { "orders": 171, "selected_set": 149, "selected_null": 22, "null_by_status": { "draft": 14, "cancelled": 3, "completed": 4, "in_progress": 1 }, "null_with_deposit_due_gt_0": 14, "null_created_between": ["2026-04-15", "2026-08-27"], "orders_before_migration": 0, "selected_type": { "deposit": 110, "full": 26, "custom": 10, "balance": 3, "null": 22 } },
+    "d20": { "contacts": 95, "contacts_with_orders": 92, "match_migration_formula": 52, "mismatch": 40, "stored_zero_but_orders": 38, "stored_lower": 39, "stored_higher": 1, "sum_stored_cents": 1004616, "sum_calculated_cents": 1958043, "completed_count_mismatch": 0, "trigger": "AFTER INSERT OR UPDATE OF status ON orders", "function_has_new_formula": true },
+    "d21": { "account_exists": true, "confirmed": true, "banned": false, "deleted": false, "role": "master", "last_sign_in": "2026-07-18", "password_matches_published_value": true, "accounts_with_published_password": 2, "second_account": "ad***@offline4ever.com, no roles, never signed in", "users_total": 9, "master_role_rows": 5, "same_address_is_business_email": true }
+  },
+  "Q5_Q6": {
+    "settings": "All D22 to D28 and D29 keys present; secret keys present and non-empty (values not read); stripe publishable key prefix pk_test_; admin_email and admin_phone equal the migration values; business_website absent; instagram_url edited to https; business_address and business_email edited since the seed",
+    "d34_d35": { "payment_pending": 0, "null_or_empty_status": 0, "statuses": { "draft": 48, "cancelled": 31, "completed": 46, "confirmed": 4, "in_progress": 42 } },
+    "d36": { "deposit_required": { "true": 163, "false": 8 }, "nulls": 0 },
+    "d37": { "event_end_date_not_null": true, "pickup_preference_not_null": true, "check": "same_day, next_day", "end_before_start": 0, "pickup": { "next_day": 146, "same_day": 25 } },
+    "d38": { "not_null": true, "default": "false", "all_false": true, "service_role_update": true },
+    "d39": { "target_order_flagged": { "required": true, "county": "Wayne" }, "flagged_total": 2 },
+    "d40": { "tables": 2, "functions": 3, "status_rows": { "email": true, "sms": true }, "failures": 0, "open_policies": ["INSERT notification_failures (public, true)", "UPDATE notification_system_status (public, true)"], "anon_can_execute_functions": true, "anon_table_privileges": "insert and select" },
+    "d41": { "types_not_null": true, "old_type_column": false, "units": 16 },
+    "d42": { "water_slides": 3, "matching_backfill_condition": 0 },
+    "d43": { "rows": 35, "visibility": { "dry": 24, "water": 7, "both": 4 }, "rerun_would_change": 0 },
+    "d44": { "links": 285, "portal_shortlink": 247, "invoice": 38, "backfill_candidates": 7, "candidates_created_after_migration": 7, "shortlinks_created_before_migration": 0 }
+  }
+}
