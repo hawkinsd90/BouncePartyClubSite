@@ -68,3 +68,14 @@ Stop conditions: ledger count or SHA differs before a batch or after it; any rul
 ## 7. Explicitly not authorized by AUTH-10
 
 Running any historical migration SQL; D20 durable correction (S12b); changing Auth accounts or bans; Storage or Edge Function changes; Git push; Production; provider messages; S3 and later stages (see `sg2-authorization-package.md`).
+
+## 8. Addendum 2026-10-20: targeted D08 check requested by the owner (read-only; package unchanged)
+
+Result of the read-only query on Development `admin_settings_changelog` (23 rows), grouped by key:
+
+- Keys the migration's predicate covers (`stripe_secret_key`, `twilio_auth_token`, `resend_api_key`, and any key matching `%secret%`, `%_key`, `%token%`, `%password%`): rows exist for `stripe_secret_key` (2), `stripe_publishable_key` (3, covered by `%_key`) and `twilio_auth_token` (1) = 6 rows, 12 values. **All 12 are exactly `[REDACTED]`; 0 are NULL; 0 hold any other text.** `resend_api_key` has no change-log row.
+- Secret-bearing keys currently in `admin_settings` (`stripe_secret_key`, `stripe_publishable_key`, `twilio_auth_token`, `resend_api_key`, `google_oauth_client_secret`) are all inside the predicate; `google_oauth_client_secret` and `resend_api_key` simply have no change-log rows.
+- Not covered by the predicate and stored in clear: `twilio_account_sid` (2 rows; an account identifier that the migration did not treat as secret), `supabase_url`, addresses, URLs, phone number, page flags. This matches the migration's own definition and is not a rule defect.
+- NULL values: none in either column, so the question of NULL as "redacted" does not arise today. The rule's `COALESCE(x,'[REDACTED]') <> '[REDACTED]'` is logically identical to `x IS NOT NULL AND x <> '[REDACTED]'`: it **permits** a NULL (absence of a prior value, legitimate for an insert) and rejects any non-NULL value that is not `[REDACTED]`. It does not describe NULLs as redacted anywhere; the attestation scope text for D08 says only that the state matches the intended outcome.
+
+Conclusion: the D08 replacement rule is safe as written. The package, rule hash, markers, scripts and approval hash are **unchanged** (B20 filled script `d16062ef…`, statement SHA-256 `386ffca2…f872`). Residual, not a blocker: the rule would also pass if no covered row existed (the function and trigger existence checks and the 12 observed values make that moot today).
