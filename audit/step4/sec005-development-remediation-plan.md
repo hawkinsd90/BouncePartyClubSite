@@ -104,3 +104,7 @@ The owner wants both accounts disabled **indefinitely** unless a legitimate busi
 - **Rule for the future:** the passwords must be rotated (section 5) **before** either account is ever unbanned. Unbanning without rotating re-opens a MASTER login with a public password.
 - **Gate status:** after the extension is verified, SEC-005 / G-03 for Development is **contained** (accounts disabled, alternate masters verified), **not permanently remediated** (passwords not rotated; Production unexamined). It becomes remediated for Development only when both passwords are rotated or the accounts are retired by an approved method, and for the whole product only when Production is handled.
 
+
+## 12. Deadline-bound follow-up (recorded 2026-10-20, owner directive)
+
+Status stays **CONTAINED, NOT PERMANENTLY REMEDIATED**. Bans expire **2026-11-13** (15:16:05 and 15:16:16 UTC). Before then the owner confirms a secure password rotation for both accounts or extended bans. Before either account is unbanned, its password must be replaced and session risks addressed. No ban is extended and no Auth account changed by Claude. Unrelated S2 to S15 work proceeds; the item is revisited at S13 (password-reset test) and in the final acceptance checklist. See `s2-final-owner-decision-request.md` section 6.

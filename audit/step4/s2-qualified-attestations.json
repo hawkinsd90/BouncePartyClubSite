@@ -1,0 +1,12 @@
+{
+ "D20": {
+  "scope": "The historical migration's updated function exists in Development. Its historical SQL execution is not proven. Current derived customer statistics are stale. The durable correction is pending at stage S12b. This attestation does not claim that current statistics are correct.",
+  "not_proven": "Historical SQL execution of this migration, and correctness of current derived customer statistics (contacts.total_spent_cents and total_bookings), which stay stale until S12b.",
+  "sha256": "28d222463b445da011a4828029f10187ba23d152f1bcbf16d740be387edb07ec"
+ },
+ "D21": {
+  "scope": "The historical account exists. Both accounts that share the public password are currently banned. Neither password has been rotated. The bans expire on 2026-11-13. Credential remediation remains required. No historical migration SQL will execute.",
+  "not_proven": "Credential remediation. Passwords are not rotated, the bans are time-limited to 2026-11-13, and Production has not been examined (SEC-005 stays CONTAINED, NOT PERMANENTLY REMEDIATED).",
+  "sha256": "bf040e876d534c49ed2828cc9d63c5bca2520cc49b79234eb7a896304ce4850f"
+ }
+}
