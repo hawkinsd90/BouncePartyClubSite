@@ -193,3 +193,7 @@ Full detail, evidence and the stage-by-stage CLI oracle results: `standard-migra
 
 ## Order differences from the brief's starting framework
 Notification containment (S1) is before everything; hosted preflight (P0) includes function-source reading; retirements are in S4 because `20261013120000` revokes the RPC they call; the Netlify/Git push is deliberately late (S9) because 11 new functions must exist first. The brief's "remaining application changes" after migrations is S6 (Edge) and S9 (frontend).
+
+
+## Canonical fingerprint methodology (recorded 2026-10-20, after S2 B07)
+Every hosted fingerprint comparison runs `READ_ONLY_STATEMENT` of `scripts/dev/hosted-executor/lib/fingerprint.cjs` with the canonical session search path `"$user", public, extensions` (the path the AUTH-1 baseline was captured with), i.e. `SET LOCAL search_path = "$user", public, extensions;` in the same call. Do not use `pg_catalog`: the hosted connector began honouring `SET LOCAL` after B06, and under `pg_catalog` the col, con, fn, pol and trg digests (which embed rendered object names) differ from the baseline with identical row counts although the schema is unchanged. This was proven read-only after B07 (all 11 categories equal under the canonical path). The baseline hashes are not altered and no new fingerprint system exists. See `s2-authorization-package.md` section 11.
