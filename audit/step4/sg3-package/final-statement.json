@@ -1,0 +1,15 @@
+{
+ "restore_point_id": "dev-20261020T1942Z",
+ "statement": "AUTH-12: SG-3 per audit/step4/sg3-authorization-package.md (sealed package 5d63e4af, scripts manifest f65ef81e, S6 manifest 974932c7), Channel A (connector). Restore point: dev-20261020T1942Z. Step-12 checkpoint: Option B. S5: release and execute October steps 1 to 23, one transaction each. S6: set the two Edge Function secrets SITE_URL and RETURN_ORIGINS to https://dev.bouncepartyclub.com (no other secret) and deploy the 21 listed Edge Functions, including fix-payment-method and backfill-payment-methods, with the listed explicit verify_jwt values, releasing the 9 false-to-true flips. S7: execute steps 24 to 28. Ledger 305 to 333. Stop on any failed check. No push, no Twilio or other provider change, nothing else.",
+ "statement_sha256": "47442efea4be7a47b2d8585274f2cb96814cc0f271504b1249b835250391780b",
+ "template_sha256": "6b3052145cd6b94843ceee8fbe88646fd0c96dc345a5286932772ae80bcbfb95",
+ "verified": {
+  "ledger": "305|20260929161925|72cafdaca438365b30b41db0e7269832cc6591837dc8ef5bb5c01c125e2dd008",
+  "dump_gpg_sha256": "10AD145D0EBFBA105459B95438EDFE614BDEDCFC801DE901D30B1EF78193E992",
+  "roles_gpg_sha256": "9E58D0B399A51004B4D6FF01B3397511E940F663647E03BDF09E5D7F70034575",
+  "plaintext_dump_sha256": "3ec66375edea96a196b9f33429fc2624a380cef0fa7eac3d32a2c6d55c8d58be",
+  "bytes": 1038226,
+  "taken_utc": "2026-10-20T19:42Z",
+  "restore_proof_utc": "2026-10-20T19:53:59Z"
+ }
+}
