@@ -337,5 +337,37 @@
       "root_cause": "update_contact_stats_trigger (AFTER UPDATE on orders) runs update_contact_stats() after the D20 trigger and overwrites it",
       "scratch_test": "passed on a throwaway local database"
     }
+  },
+  "containment_check_2026_10_20": {
+    "checked_utc": "2026-10-20T14:48Z",
+    "project": "srxunxiytojjsuhcmzjg",
+    "database": "postgres",
+    "public_schema_acl": "postgres and service_role only",
+    "anon_usage_public": false,
+    "authenticated_usage_public": false,
+    "service_role_usage_public": true,
+    "postgres_errors_13_30_to_14_48": {
+      "permission denied for schema public": 281,
+      "other": "6 column-name errors from this review's own read-only drafts"
+    },
+    "gateway": {
+      "anon_requests": "401",
+      "token_bearing_requests_for_master_user_id": "403",
+      "auth_health": 200,
+      "token_refresh": 200
+    },
+    "alternate_master": {
+      "user_id": "bc6ed893-3cc7-4204-aad8-6216f6847b22",
+      "provider": "google",
+      "role": "master",
+      "banned": false,
+      "deleted": false,
+      "distinct_from_compromised": true,
+      "last_sign_in": "2026-10-16",
+      "refresh_event": "2026-10-20T14:44:10Z (existing session; not a fresh sign-in)",
+      "sessions": 16
+    },
+    "other_active_masters_excluding_demo": 2,
+    "prerequisite": "fresh Development sign-in and dashboard access still to be shown by the owner"
   }
 }

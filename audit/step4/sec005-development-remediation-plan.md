@@ -1,6 +1,23 @@
 # SEC-005 Development remediation plan: two accounts share the published password (2026-10-20)
 
-Status: **PLAN FOR OWNER AUTHORIZATION. NOTHING WAS CHANGED.** No account was banned, reset, modified or deleted; the published password was never used to sign in (hash comparisons inside read-only queries only); Production was not contacted. The website's password-reset page has failed before, so **nothing here depends on the public reset workflow** (see section 8).
+Status: **PLAN FOR OWNER AUTHORIZATION (revised 2026-10-20 for the intentional schema containment). NOTHING WAS CHANGED.** No account was banned, reset, modified or deleted; the published password was never used to sign in (hash comparisons inside read-only queries only); Production was not contacted. The website's password-reset page has failed before, so **nothing here depends on the public reset workflow** (see section 8).
+
+## 0. Why the Development website cannot be used to prove access right now (checked read-only, 2026-10-20 14:48 UTC)
+The Development site loads but every data request fails. This is **exactly what the intentional containment predicts**, not a separate fault:
+- `anon` and `authenticated` have no USAGE on schema `public` (`has_schema_privilege` false for both; the schema's ACL lists only `postgres` and `service_role`); `service_role` keeps USAGE and CREATE. Table-level grants and 222 row-level policies still exist, but cannot be reached without schema USAGE.
+- The Postgres log for 13:30 to 14:48 UTC contains 281 errors, **all** `permission denied for schema public`. The only other errors in that window are six column-name mistakes in my own read-only queries (no effect).
+- The API gateway log shows the same split: requests without a user token (public pages: reviews, carousel, business settings) return **401**; requests carrying the master's token (`user_roles?user_id=eq.<id>`, `customers?user_id=eq.<id>`) return **403**. Both are PostgREST's answer to a permission-denied error for the `anon` and `authenticated` roles.
+- Authentication itself is healthy: `auth/v1/health` returns 200 and the only token call in the window (a refresh for the Google master at 14:44:10 UTC) returned 200. No second authentication or configuration problem is evident. Nothing was changed; the Admin UI test waits for the planned controlled access restoration.
+
+## 0.1 Containment-compatible proof of alternate MASTER access (replaces "open the Permissions page")
+| Step | Check | Status 2026-10-20 |
+|---|---|---|
+| A | The owner signs in to **Development** with the Google master (`ha***@gmail.com`, user id `bc6ed893-3cc7-4204-aad8-6216f6847b22`) | **Not yet shown.** The 14:44:10 event is a **token refresh of an old session** (created 2026-10-16); `last_sign_in_at` is still 2026-10-16. An existing browser session does not count. **Owner action needed: sign out of the Development site, then sign in with Google again.** The application will still show 403 errors afterwards; that is expected. |
+| B | The session belongs to the **Development** Auth project | Shown for the refresh: the project's own Auth log (`srxunxiytojjsuhcmzjg`) recorded it for that user id, and the request URL in the gateway log is the Development project. Repeat for the fresh sign-in (a `login` event and a new session row). |
+| C | Privileged read-only check that this user id has an active `master` role in `public.user_roles` | **Done:** one role row, `master`; the id in the Auth log equals the account's id. |
+| D | Distinct from both compromised accounts, not banned, not deleted | **Done:** different user id from `admin@bouncepartyclub.com` and from the offline4ever account; `banned_until` null, `deleted_at` null, e-mail confirmed, provider google. A second independent master (`hw***@gmail.com`, e-mail sign-in, 2026-08-01) is also active. |
+| E | The owner can open the Development **Supabase dashboard** (Authentication > Users) as an independent recovery path | **Owner confirmation needed** (the dashboard is independent of the website and of the containment). |
+After A the check is: `last_sign_in_at` for that id is newer than 2026-10-20 14:44, a new row exists in `auth.sessions`, and the Auth log shows a `login` for it. Then the prerequisite is met.
 
 ## 1. Evidence (read-only, Development, 2026-10-20; e-mail addresses masked)
 | | Demo master | Second account |
@@ -28,14 +45,14 @@ Tables that reference `auth.users`: `customers.user_id` and `customer_profiles.u
 ## 3. Sessions and tokens (what a ban or a password change does not do)
 - A ban stops the account from signing in and from **refreshing** its session; an access token already issued stays valid until it expires (the JWT lifetime in dashboard > Authentication; 1 hour is the usual default). The demo account has 4 live sessions.
 - The application authorizes admin actions from the `user_roles` table using `auth.uid()`, so a still-valid token can act as master until it expires. The window is at most the JWT lifetime after the ban.
-- A password change does **not** by itself end other sessions (not verified for this project; treat it as not ending them). Ending them needs the session rows deleted (section 6, owner or authorized Claude).
-- Therefore: **ban first, wait one JWT lifetime, then confirm sessions are 0 or delete them.** After any later unban the old password would work again, so **rotate before any unban.**
+- A password change does **not** by itself end other sessions (not verified for this project; treat it as not ending them). Ending them has no verified supported write (section 6); a ban stops refreshing instead.
+- Therefore: **ban first, wait one JWT lifetime, then confirm read-only that the accounts are banned and no longer refresh.** After any later unban the old password would work again, so **rotate before any unban.**
 
 ## 4. Exact owner procedure (dashboard; no password ever typed into chat, SQL or a file)
-1. **Prove alternate access.** In a private browser window sign in to the Development site as `ha***@gmail.com` with Google (or `hw***@gmail.com` with its own password), open the admin area and a master-only tab (Permissions). If it does not work, **stop**; nothing else is changed. Optionally repeat with the second master.
+1. **Prove alternate access (containment-compatible; section 0.1).** Sign out of the Development site, sign in again with the Google master, and confirm you can open the Development Supabase dashboard (Authentication > Users). Tell me; I verify read-only that a fresh Development sign-in and session exist for that user id with the `master` role. The admin pages are expected to show 403 errors until access is restored. If the sign-in or the dashboard does not work, **stop**; nothing else is changed.
 2. Supabase dashboard > project `srxunxiytojjsuhcmzjg` (Development; check the name; never the Production project) > Authentication > Users.
 3. Find the second account (`ad***@offline4ever.com`) > menu > **Ban user** (long duration). Find `admin@bouncepartyclub.com` > **Ban user** (long duration). Do not use "Send password recovery", "Send magic link" or "Delete user".
-4. Wait one JWT lifetime. Then run the read-only checks in section 7 (the dashboard SQL editor, or ask me to run them). If any session remains, use section 6.
+4. Wait one JWT lifetime. Then run the read-only checks in section 7 (the dashboard SQL editor, or ask me to run them). Session rows may remain; they cannot be refreshed once the user is banned (section 6).
 5. Record date, who, and the check output in the operator log.
 
 Preserved by this procedure: customers, contacts, orders, order references, audit history (changelog rows), the master role row, `business_email` and all notification settings. Nothing is deleted. Reversal: remove the ban in the dashboard (do this only after rotating the password).
@@ -50,7 +67,7 @@ select (select count(*) from public.orders o join public.customers c on c.id = o
        (select count(*) from public.contacts where email ilike 'ad%@offline4ever.com') as contacts,
        (select count(*) from public.user_roles where user_id = '<second user id>') as roles;
 ```
-Ending sessions (hosted write; owner in the dashboard SQL editor, or Claude only after a separate authorization): `delete from auth.sessions where user_id in ('<demo user id>', '<second user id>');` (refresh tokens follow their sessions). It changes no other table.
+Ending sessions: **no supported session-revocation procedure has been verified for this project, so none is proposed as a write.** Do not delete rows from the managed `auth` tables by hand. A banned user cannot refresh a session, so after the ban and one token lifetime the existing sessions are unusable even if their rows remain; the proof is read-only: banned state, and no further `token_refreshed` events for those two user ids in the Auth log. If you want the rows gone, check the dashboard for a per-user sign-out action first; anything else needs a separate explicit authorization after the method is confirmed supported.
 
 ## 7. Read-only verification after the action (no password involved)
 ```sql
@@ -60,11 +77,11 @@ select lower(u.email) like 'admin@%' as is_demo, u.banned_until is not null and 
        (select count(*) from public.user_roles r where r.user_id = u.id) as role_rows
 from auth.users u where lower(u.email) = 'admin@bouncepartyclub.com' or u.email ilike 'ad%@offline4ever.com';
 ```
-PASS: both rows banned = true, sessions 0, active tokens 0, and the demo master's role row is still there (audit continuity). Note that a **ban leaves the stored password unchanged**, so `step3b-credential-check.sql` check 1 stays true after a ban; that is expected until the password is rotated.
+PASS: both rows banned = true, no refresh activity for either user id in the Auth log after one token lifetime (session rows may remain; they cannot be refreshed), and the demo master's role row is still there (audit continuity). Session rows reaching 0 is a bonus, not a requirement. Note that a **ban leaves the stored password unchanged**, so `step3b-credential-check.sql` check 1 stays true after a ban; that is expected until the password is rotated.
 
 ## 8. Website password-reset defect (open; not fixed; not relied on)
 Reported behaviour: the website reset flow failed. Not diagnosed here. Candidates to test at S13 (unverified hypotheses): the reset page reads the recovery token only from the URL hash (`type=recovery` in `src/pages/ResetPassword.tsx`) while newer Supabase flows can return a `?code=` query; the Development site URL may be missing from the Auth redirect allow-list; the reset e-mail may not be delivered (custom auth e-mail hook or provider). **Acceptance test to add to the S13 integration matrix:** a synthetic customer requests a reset on the Development site, receives the e-mail (approved recipients only), opens the link, sets a new password, signs in with it, and the old password stops working. Until then the defect stays open.
 
 ## 9. Authorization options (nothing happens until you answer)
 - **A (recommended, no Claude write):** you do sections 4.1 to 4.3 yourself, then ask me to run the section 7 and 6 read-only checks.
-- **B (Claude performs the ban):** only after you tell me you completed section 4.1; scope: ban the two accounts and delete their sessions, nothing else. The supported method is the dashboard; an SQL update of `auth.users.banned_until` is not verified to be permitted for the integration role, so I would not attempt it without your explicit authorization of that method.
+- **B (Claude performs the ban): not available through a supported method.** The Supabase integration available to me offers SQL, migration, function and log tools only; it has no Authentication-admin operation. Banning by writing `auth.users.banned_until` or deleting `auth.sessions` rows would be improvising writes against managed Auth tables, which is excluded. So the ban itself is **your dashboard action** (section 4, steps 2 and 3); I do the surrounding verification: before (prerequisite 0.1) and after (section 7), read-only. Preserved by this: both Auth users, customer links, orders, contacts, audit trails, `business_email` and every legitimate master account.
