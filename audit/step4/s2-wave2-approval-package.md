@@ -1,6 +1,6 @@
 # S2 wave 2: the remaining dependency-safe history-only batches, one group authorization (AUTH-9)
 
-Status: **PREPARED FOR OWNER DECISION. NOT AUTHORIZED. NOTHING HAS BEEN EXECUTED.** Development's ledger is 141 rows, SHA-256 `97797bb27b3fa497314b4deaa47ee4961501539f34dbbc0293218ee2826c5b9e` (after B01 to B08; commit `cdfb4202`). This package covers every S2 history-only batch that is eligible now: **11 batches, 82 versions**. It adds no strategy and asks for nothing outside S2.
+Status: **AUTH-9 EXECUTED 2026-10-20: all eleven batches applied; ledger 223 rows, SHA-256 `e8f53b1e…` as predicted (`s2-authorization-package.md` section 12).** The text below is the package as it was authorized.
 
 ## 1. The one decision requested
 Send the statement in section 2. It authorizes executing exactly the prepared scripts below, in the order listed, each as its own transaction, continuing automatically while every check passes and stopping at the first failure (no retry, no reversal). It excludes the 44 attestation versions, the 13 disputed versions, the S3 versions (B23, B24), batches B31, B33 and B40 (blocked behind attestations), any migration SQL, any Production access, any push.
