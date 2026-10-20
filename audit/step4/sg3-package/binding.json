@@ -1,0 +1,19 @@
+{
+ "schema": "bpc-sg3-binding/1",
+ "statement_template": "AUTH-12: SG-3 per audit/step4/sg3-authorization-package.md (sealed package 5d63e4af, scripts manifest f65ef81e, S6 manifest 566ad359), connector channel. Restore point: {RESTORE_POINT_ID}. Step-12 checkpoint: option {A_OR_B}. S5: release and execute October steps 1 to 23, one transaction each. S6: set SITE_URL and RETURN_ORIGINS to https://dev.bouncepartyclub.com and deploy the 21 listed Edge Functions with the listed explicit verify_jwt values, releasing the 9 false-to-true flips. S7: execute steps 24 to 28. Ledger 305 to 333. Stop on any failed check. No push, nothing else.",
+ "statement_template_sha256": "4eb0cbd837f45e46fa623d40144bfd3611f99a2a4202fbc98253001f933c430b",
+ "placeholders": [
+  "{RESTORE_POINT_ID}",
+  "{A_OR_B}"
+ ],
+ "sealed_package_sha256": "5d63e4af339b481e48dcf5ec60a5ded758eba9a3dea2404a1f40b2d0762b7be0",
+ "scripts_manifest_sha256": "f65ef81e5fa699191593ca2bf6cc0ca4bc4c1741d9490811062588cc8485f4dc",
+ "s6_manifest_sha256": "566ad359f690ba02c609eff8f6c05814f77f84193e0bf0c90a397313c3c1ac17",
+ "base_ledger": {
+  "rows": 305,
+  "sha256": "72cafdaca438365b30b41db0e7269832cc6591837dc8ef5bb5c01c125e2dd008",
+  "outside_package_version_list_sha256": "76025b5b681008ec5b0239c57be1f54fd7bbed3a3f70fa1384698afcc6476c59"
+ },
+ "target_ledger_rows": 333,
+ "note": "The hash binds the template text. The two placeholders are filled by the owner; execution verifies that the received statement equals the template with only those two values substituted."
+}
