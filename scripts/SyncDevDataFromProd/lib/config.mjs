@@ -120,6 +120,10 @@ export const REVIEWED_TRIGGERS = {
   'orders.trigger_auto_create_task_status': 'would create tasks; tasks are imported from Production',
   'orders.trigger_update_contact_stats': 'would recompute contact statistics; contacts are imported with theirs',
   'orders.update_contact_stats_trigger': 'would recompute contact statistics; contacts are imported with theirs',
+  // D20 durable statistics correction (prepared, not yet applied to Development): the one statistics mechanism after the obsolete trigger above is removed. Listed in advance so the refresh never stops on them; remove the line above when D20 has been applied.
+  'order_custom_fees.trigger_update_contact_stats_order_fees': 'would recompute contact statistics; contacts are imported with theirs',
+  'order_discounts.trigger_update_contact_stats_order_discounts': 'would recompute contact statistics; contacts are imported with theirs',
+  'contacts.trigger_update_contact_stats_new_contact': 'would recompute the statistics of an inserted contact; contacts are imported with theirs',
   'orders.validate_status_transition': 'validates a status CHANGE; an INSERT of finished history must not be re-validated',
   'payments.payments_updated_at_trigger': 'timestamp on UPDATE',
   'payments.update_payments_updated_at': 'timestamp on UPDATE',

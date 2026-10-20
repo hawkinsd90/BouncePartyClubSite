@@ -1,6 +1,6 @@
 # D20: stale contact spending totals: verified cause and a minimal correction plan (2026-10-20)
 
-Status: **PLAN FOR SEPARATE AUTHORIZATION. NOTHING WAS CHANGED.** No contact, order, payment, invoice or deposit was modified; the historical migration was not rerun. The correction touches only the statistics columns of `public.contacts`.
+Status: **SUPERSEDED by `d20-durable-correction-plan.md` (one package: trigger removal, coverage and repair). Part 1 below must NOT be run alone.** PLAN FOR SEPARATE AUTHORIZATION. NOTHING WAS CHANGED. No contact, order, payment, invoice or deposit was modified; the historical migration was not rerun. The correction touches only the statistics columns of `public.contacts`.
 
 ## 1. What was verified (read-only)
 - Contacts: 95; 92 have orders (matched by e-mail through `customers`); 3 do not (one of them shows 4 bookings and 0 spent, and cannot be checked from orders; left alone).

@@ -1,3 +1,4 @@
+-- SUPERSEDED by d20-durable-contact-statistics-correction.sql: do NOT run this file alone (the obsolete trigger would overwrite the repair on the next order update).
 -- D20 PART 1: correct the stale contact statistics in DEVELOPMENT ONLY (project srxunxiytojjsuhcmzjg). PREPARED, NOT AUTHORIZED, NOT EXECUTED.
 -- Touches only public.contacts (statistics columns). Never touches orders, payments, invoices, deposits, order items or amounts.
 -- The authoritative order total is the application's own definition (src/lib/pricing/orderMoney.ts composeOrderTotal):

@@ -158,3 +158,6 @@ The Development site's 403 errors were checked and are consistent with the conta
 
 ### 13.3 SEC-005 bans verified (2026-10-20 15:16 UTC, read-only)
 The owner banned the two compromised Development accounts in the dashboard; both are banned until 2026-11-13 (time-limited), not deleted, with Auth records, role row, customer links, contacts and the business-email setting intact; legitimate masters untouched; ledger unchanged. Extend the ban or rotate the passwords before 2026-11-13. See `sec005-development-remediation-plan.md` section 10.
+
+### 13.4 D20 durable package, D21 contained, bans pending extension (2026-10-20, read-only)
+D20: one durable correction (one statistics mechanism, triggers for every input, obsolete writer removed, 57 contacts repaired) was prepared and tested on synthetic data (55 checks, including failure and rollback cases); because it changes `fn` and `trg` it is placed at S12b, after the sealed executor stages (`d20-durable-correction-plan.md`). The Production-to-Development refresh tool now lists the new triggers as reviewed. D21: both accounts remain banned until 2026-11-13; the owner will extend the bans; D21 is now NEEDS OWNER REVIEW (contained, not remediated). Counts: 42 ATTEST, 2 NEEDS OWNER REVIEW (D20, D21), 0 REJECT. Development unchanged: ledger 223 rows `e8f53b1e…`, legacy trigger still present.
