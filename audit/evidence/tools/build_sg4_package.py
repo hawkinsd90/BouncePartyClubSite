@@ -29,6 +29,12 @@ rows_s2 = list(csv.DictReader(open(os.path.join(S4, "s2-reconciliation-manifest.
 H = [r["version"] for r in rows_s2 if "deferred history-only (S8)" in r["group"]]
 ATT = [r["version"] for r in rows_s2 if "deferred attestation (S8)" in r["group"]]
 assert len(W) == 17 and len(H) == 24 and len(ATT) == 2, (len(W), len(H), len(ATT))
+# live-evidence exclusions: the effect the migration describes is NOT present on Development today, so a "history-only, effect present" record would be untrue
+EXCLUDED = {
+    "20260324051459": "supabase_realtime publishes only public.orders today (payments, task_status, order_signatures, order_lot_pictures are not published); the portal refresh uses broadcast signals. Owner decision needed: record as not executed (superseded by the broadcast design) or execute.",
+    "20260324154955": "order_pictures is not in the supabase_realtime publication today. Same owner decision as 20260324051459.",
+}
+W = [v for v in W if v not in EXCLUDED]
 man = {r["version"]: r for r in csv.DictReader(open(os.path.join(AUDIT, "development-migration-manifest.csv"), encoding="utf-8"))}
 ledger_lines = open(os.path.join(WORK, "ledger333.lines"), encoding="utf-8", newline="").read().split("\n")
 assert len(ledger_lines) == 333 and sha("\n".join(ledger_lines)) == "3221ec481f7b3a621fb9a9903374e24b609f1b9d69b9aca35e85b0c06b1ffd29"
@@ -50,6 +56,19 @@ def atom_for(v, kind, obj):
         return f"EXISTS (SELECT 1 FROM pg_trigger WHERE tgrelid = 'auth.users'::regclass AND tgname={lit(n)} AND NOT tgisinternal)"
     return ra.atom(kind, obj)
 
+
+PUB5 = "('orders','payments','task_status','order_signatures','order_lot_pictures')"
+USAGE = "has_schema_privilege('anon','public','USAGE') AND has_schema_privilege('authenticated','public','USAGE')"
+EVIDENCE = {
+    "20251129190039": [("policy 'Anyone can upload public assets' no longer exists on storage.objects; October 20261014120000 (recorded) resets every storage policy on public-assets",
+                        "NOT EXISTS (SELECT 1 FROM pg_policies WHERE schemaname='storage' AND tablename='objects' AND policyname='Anyone can upload public assets')", ["20261014120000"])],
+    "20260324142355": [("signatures bucket is private today; October 20261014120000 (recorded) sets it private", "EXISTS (SELECT 1 FROM storage.buckets WHERE id='signatures' AND public = false)", ["20261014120000"])],
+    "20260324150838": [("order-pictures bucket is private today; October 20261015120000 (recorded) sets it private", "EXISTS (SELECT 1 FROM storage.buckets WHERE id='order-pictures' AND public = false)", ["20261015120000"])],
+    "20251207185927": [("policy 'Master and admin can manage all roles' does not exist on user_roles", "NOT EXISTS (SELECT 1 FROM pg_policies WHERE schemaname='public' AND tablename='user_roles' AND policyname='Master and admin can manage all roles')", []),
+                       ("anon and authenticated hold USAGE on schema public (true only after the S11 end state)", USAGE, [])],
+    "20251207163822": [("anon and authenticated hold USAGE on schema public (true only after the S11 end state)", USAGE, [])],
+}
+DEFER_ROOTS = {"20251207185927", "20251207163822"}  # their GRANT USAGE effect exists only after S11: recorded in batch S8B
 
 live_ok = {(a["v"], a["k"], a["o"]): a["ok"] for a in atoms_live}
 rules = {}
@@ -76,6 +95,21 @@ for v in W + H:
         ok = True if o.startswith("auth.users.") else live_ok.get((v, k, o))
         assert ok in (True,), f"live atom not true for {v} {k} {o}: {ok}"
         atoms.append(a)
+    n_live = len(atoms)
+    for desc, sqlx, needs in EVIDENCE.get(v, []):
+        atoms.append(sqlx + (f" AND (SELECT count(*) FROM supabase_migrations.schema_migrations WHERE version = ANY(ARRAY[{','.join(lit(x) for x in needs)}])) = {len(needs)}" if needs else ""))
+        noted.append("specific evidence rule: " + desc)
+    sup = {b.strip() for r in e2a if r["version"] == v for b in (r["by"] or "").split(";") if b.strip() and b.strip() != v}
+    recorded_sup = sorted(x for x in sup if x in led)
+    if recorded_sup:
+        atoms.append(f"(SELECT count(*) FROM supabase_migrations.schema_migrations WHERE version = ANY(ARRAY[{','.join(lit(x) for x in recorded_sup)}])) = {len(recorded_sup)}")
+        noted.append("superseding versions already recorded: " + ",".join(recorded_sup))
+    if n_live == 0 and v not in EVIDENCE:
+        tabs = sorted({r["object"].split(".", 1)[0] for r in e2a if r["version"] == v and r["kind"] == "policy" and not r["object"].startswith("storage.") and r["status"] in ("PRESENT", "SUPERSEDED")})
+        for tb in tabs:
+            atoms.append(f"to_regclass('public.{tb}') IS NOT NULL AND " + ra.atom("rls", tb))
+        if tabs:
+            noted.append("tables whose policies this version set still exist with RLS on: " + ",".join(tabs))
     expr = "(" + " AND ".join(f"({a})" for a in atoms) + ")" if atoms else "(true)"
     rules[v] = expr
     stat = {}
@@ -141,9 +175,22 @@ def predicted(rows_added, batch_of):
     return len(ls), sha("\n".join(ls))
 
 
-batch_of = {v: "S8" for v in order}
-cntA, shaA = predicted(order, batch_of)
-start = {"S8": (333, "3221ec481f7b3a621fb9a9903374e24b609f1b9d69b9aca35e85b0c06b1ffd29")}
+DEFER = {v for v in order if v in DEFER_ROOTS or any(q in DEFER_ROOTS for q in pred[v])}
+changed = True
+while changed:
+    changed = False
+    for v in order:
+        if v not in DEFER and any(q in DEFER for q in pred[v]):
+            DEFER.add(v)
+            changed = True
+orderA = [v for v in order if v not in DEFER]
+orderB = [v for v in order if v in DEFER]
+for v in orderA:
+    assert not any(q in DEFER for q in pred[v])
+batch_of = {**{v: "S8A" for v in orderA}, **{v: "S8B" for v in orderB}}
+cntMid, shaMid = predicted(orderA, batch_of)
+cntA, shaA = predicted(orderA + orderB, batch_of)
+start = {"S8A": (333, "3221ec481f7b3a621fb9a9903374e24b609f1b9d69b9aca35e85b0c06b1ffd29"), "S8B": (cntMid, shaMid)}
 
 
 def batch_script(batch, order):
@@ -154,7 +201,8 @@ def batch_script(batch, order):
          "  IF current_database() <> 'postgres' OR current_user <> 'postgres' THEN RAISE EXCEPTION 'wrong database or role'; END IF;",
          f"  IF (SELECT count(*) FROM supabase_migrations.schema_migrations) <> {n0} THEN RAISE EXCEPTION 'ledger count differs from the pre-batch export'; END IF;",
          f"  IF {LEDGER_SHA_EXPR} <> {lit(sha0)} THEN RAISE EXCEPTION 'ledger content differs from the pre-batch export'; END IF;",
-         "  IF has_schema_privilege('anon', 'public', 'USAGE') OR has_schema_privilege('authenticated', 'public', 'USAGE') THEN RAISE EXCEPTION 'schema containment is not in force'; END IF;"]
+         ("  IF has_schema_privilege('anon', 'public', 'USAGE') OR has_schema_privilege('authenticated', 'public', 'USAGE') THEN RAISE EXCEPTION 'schema containment is not in force'; END IF;" if batch == "S8A"
+          else "  IF NOT (has_schema_privilege('anon', 'public', 'USAGE') AND has_schema_privilege('authenticated', 'public', 'USAGE')) THEN RAISE EXCEPTION 'S11 end state is not in force (USAGE on public expected)'; END IF;")]
     for i, v in enumerate(order, 1):
         L += block(v, i, batch)
     L += [f"  IF (SELECT count(*) FROM supabase_migrations.schema_migrations) <> {n0} + {len(order)} THEN RAISE EXCEPTION 'unexpected ledger count after the batch'; END IF;", "END $bpc$;"]
@@ -174,18 +222,26 @@ def reversal(batch, order):
 
 
 os.makedirs(OUT, exist_ok=True)
-files = {"S8.sql": batch_script("S8", order), "S8_reversal.sql": reversal("S8", order)}
+for old in os.listdir(OUT):
+    os.remove(os.path.join(OUT, old))
+files = {}
+for b, od in (("S8A", orderA), ("S8B", orderB)):
+    files[b + ".sql"] = batch_script(b, od)
+    files[b + "_reversal.sql"] = reversal(b, od)
 for fn, txt in files.items():
     open(os.path.join(OUT, fn), "w", encoding="utf-8", newline=chr(10)).write(txt)
 pkg = {
     "stage": "SG-4 (runbook S8 / recovery plan T3)",
     "channel": "supabase db query --linked -f <absolute path> (byte-exact, one transaction per file, verified for SG-3 steps 26-28)",
-    "start": {"count": 333, "sha256": start["S8"][1]},
+    "start": {"count": 333, "sha256": start["S8A"][1]},
+    "after_S8A": {"count": cntMid, "sha256": shaMid},
     "end": {"count": cntA, "sha256": shaA},
-    "order": order,
+    "order_S8A": orderA, "order_S8B": orderB,
+    "S8B_runs_after": "S11 (USAGE on schema public held by anon and authenticated)",
     "excluded_attestations_need_owner_decision": ATT,
+    "excluded_by_live_evidence": EXCLUDED,
     "scripts": {fn: sha(txt.encode()) for fn, txt in sorted(files.items())},
-    "per_version": {v: {**report[v], "name": name_of(v), "rule_sha256": sha(rules[v]), "predecessors": pred[v], "group": "withheld" if v in W else "deferred"} for v in order},
+    "per_version": {v: {**report[v], "batch": batch_of[v], "name": name_of(v), "rule_sha256": sha(rules[v]), "predecessors": pred[v], "group": "withheld" if v in W else "deferred"} for v in orderA + orderB},
 }
 open(os.path.join(OUT, "package.json"), "w", encoding="utf-8", newline=chr(10)).write(json.dumps(pkg, indent=1) + chr(10))
-print("S8", len(order), "end", cntA, shaA[:8])
+print("S8A", len(orderA), "S8B", len(orderB), "mid", cntMid, shaMid[:8], "end", cntA, shaA[:8])
