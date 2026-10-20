@@ -85,6 +85,7 @@ Each stage: **Pre** (predecessors/gates), **Action** (exact proposed operation),
 - **Stop:** any rule false, hash mismatch, count mismatch, unrequested statement.
 - **Recover:** batch is atomic; do not resend after a dropped connection (inspect first). Reversal script only with separate owner approval; deleting a ledger row never undoes SQL.
 - **Owner:** per batch.
+- **Exact S2 manifest and first steps (2026-10-20):** `s2-reconciliation-manifest.csv` (245 S2 operations: canary B01, 200 history-only, 44 attestations needing signatures; the 13 disputed, S3 SQL and the 24+2 deferred versions are not S2). First authorizations: AUTH-6A (fresh restore point) then AUTH-6B (canary B01 only), see `s2-authorization-package.md`.
 
 ## S3. Storage decision and the two bucket-limit updates (SEC-021)
 - **Pre:** S2 (as ordered), owner decision on bucket limits.
