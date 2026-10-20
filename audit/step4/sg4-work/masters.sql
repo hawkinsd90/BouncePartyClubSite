@@ -1,0 +1,1 @@
+select (select count(*) from public.user_roles r join auth.users u on u.id=r.user_id where lower(r.role)='master' and (u.banned_until is null or u.banned_until<now()) and u.deleted_at is null) active_masters, (select count(*) from auth.users where banned_until>now()) banned, (select count(*) from auth.users) users;

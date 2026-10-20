@@ -1,0 +1,2984 @@
+[
+{
+"k": "col",
+"o": "admin_settings.created_at",
+"ok": true,
+"v": "20251002210020"
+},
+{
+"k": "col",
+"o": "admin_settings.description",
+"ok": true,
+"v": "20251002210020"
+},
+{
+"k": "col",
+"o": "admin_settings.id",
+"ok": true,
+"v": "20251002210020"
+},
+{
+"k": "col",
+"o": "admin_settings.key",
+"ok": true,
+"v": "20251002210020"
+},
+{
+"k": "col",
+"o": "admin_settings.updated_at",
+"ok": true,
+"v": "20251002210020"
+},
+{
+"k": "col",
+"o": "admin_settings.value",
+"ok": true,
+"v": "20251002210020"
+},
+{
+"k": "rls",
+"o": "admin_settings",
+"ok": true,
+"v": "20251002210020"
+},
+{
+"k": "table",
+"o": "admin_settings",
+"ok": true,
+"v": "20251002210020"
+},
+{
+"k": "col",
+"o": "sms_conversations.created_at",
+"ok": true,
+"v": "20251003111105"
+},
+{
+"k": "col",
+"o": "sms_conversations.direction",
+"ok": true,
+"v": "20251003111105"
+},
+{
+"k": "col",
+"o": "sms_conversations.from_phone",
+"ok": true,
+"v": "20251003111105"
+},
+{
+"k": "col",
+"o": "sms_conversations.id",
+"ok": true,
+"v": "20251003111105"
+},
+{
+"k": "col",
+"o": "sms_conversations.message_body",
+"ok": true,
+"v": "20251003111105"
+},
+{
+"k": "col",
+"o": "sms_conversations.order_id",
+"ok": true,
+"v": "20251003111105"
+},
+{
+"k": "col",
+"o": "sms_conversations.status",
+"ok": true,
+"v": "20251003111105"
+},
+{
+"k": "col",
+"o": "sms_conversations.to_phone",
+"ok": true,
+"v": "20251003111105"
+},
+{
+"k": "col",
+"o": "sms_conversations.twilio_message_sid",
+"ok": true,
+"v": "20251003111105"
+},
+{
+"k": "index",
+"o": "idx_sms_conversations_created_at",
+"ok": true,
+"v": "20251003111105"
+},
+{
+"k": "index",
+"o": "idx_sms_conversations_from_phone",
+"ok": true,
+"v": "20251003111105"
+},
+{
+"k": "index",
+"o": "idx_sms_conversations_order_id",
+"ok": true,
+"v": "20251003111105"
+},
+{
+"k": "policy",
+"o": "sms_conversations.Service role can insert SMS conversations",
+"ok": true,
+"v": "20251003111105"
+},
+{
+"k": "rls",
+"o": "sms_conversations",
+"ok": true,
+"v": "20251003111105"
+},
+{
+"k": "table",
+"o": "sms_conversations",
+"ok": true,
+"v": "20251003111105"
+},
+{
+"k": "col",
+"o": "contacts.created_at",
+"ok": true,
+"v": "20251003122900"
+},
+{
+"k": "col",
+"o": "contacts.customer_id",
+"ok": true,
+"v": "20251003122900"
+},
+{
+"k": "col",
+"o": "contacts.email",
+"ok": true,
+"v": "20251003122900"
+},
+{
+"k": "col",
+"o": "contacts.first_name",
+"ok": true,
+"v": "20251003122900"
+},
+{
+"k": "col",
+"o": "contacts.id",
+"ok": true,
+"v": "20251003122900"
+},
+{
+"k": "col",
+"o": "contacts.last_contact_date",
+"ok": true,
+"v": "20251003122900"
+},
+{
+"k": "col",
+"o": "contacts.last_name",
+"ok": true,
+"v": "20251003122900"
+},
+{
+"k": "col",
+"o": "contacts.opt_in_email",
+"ok": true,
+"v": "20251003122900"
+},
+{
+"k": "col",
+"o": "contacts.opt_in_sms",
+"ok": true,
+"v": "20251003122900"
+},
+{
+"k": "col",
+"o": "contacts.phone",
+"ok": true,
+"v": "20251003122900"
+},
+{
+"k": "col",
+"o": "contacts.source",
+"ok": true,
+"v": "20251003122900"
+},
+{
+"k": "col",
+"o": "contacts.tags",
+"ok": true,
+"v": "20251003122900"
+},
+{
+"k": "col",
+"o": "contacts.total_bookings",
+"ok": true,
+"v": "20251003122900"
+},
+{
+"k": "col",
+"o": "contacts.total_spent_cents",
+"ok": true,
+"v": "20251003122900"
+},
+{
+"k": "col",
+"o": "contacts.updated_at",
+"ok": true,
+"v": "20251003122900"
+},
+{
+"k": "col",
+"o": "invoices.created_at",
+"ok": true,
+"v": "20251003122900"
+},
+{
+"k": "col",
+"o": "invoices.customer_id",
+"ok": true,
+"v": "20251003122900"
+},
+{
+"k": "col",
+"o": "invoices.due_date",
+"ok": true,
+"v": "20251003122900"
+},
+{
+"k": "col",
+"o": "invoices.id",
+"ok": true,
+"v": "20251003122900"
+},
+{
+"k": "col",
+"o": "invoices.invoice_date",
+"ok": true,
+"v": "20251003122900"
+},
+{
+"k": "col",
+"o": "invoices.invoice_number",
+"ok": true,
+"v": "20251003122900"
+},
+{
+"k": "col",
+"o": "invoices.notes",
+"ok": true,
+"v": "20251003122900"
+},
+{
+"k": "col",
+"o": "invoices.order_id",
+"ok": true,
+"v": "20251003122900"
+},
+{
+"k": "col",
+"o": "invoices.paid_amount_cents",
+"ok": true,
+"v": "20251003122900"
+},
+{
+"k": "col",
+"o": "invoices.payment_method",
+"ok": true,
+"v": "20251003122900"
+},
+{
+"k": "col",
+"o": "invoices.pdf_url",
+"ok": true,
+"v": "20251003122900"
+},
+{
+"k": "col",
+"o": "invoices.same_day_pickup_fee_cents",
+"ok": true,
+"v": "20251003122900"
+},
+{
+"k": "col",
+"o": "invoices.status",
+"ok": true,
+"v": "20251003122900"
+},
+{
+"k": "col",
+"o": "invoices.subtotal_cents",
+"ok": true,
+"v": "20251003122900"
+},
+{
+"k": "col",
+"o": "invoices.surface_fee_cents",
+"ok": true,
+"v": "20251003122900"
+},
+{
+"k": "col",
+"o": "invoices.tax_cents",
+"ok": true,
+"v": "20251003122900"
+},
+{
+"k": "col",
+"o": "invoices.total_cents",
+"ok": true,
+"v": "20251003122900"
+},
+{
+"k": "col",
+"o": "invoices.travel_fee_cents",
+"ok": true,
+"v": "20251003122900"
+},
+{
+"k": "col",
+"o": "invoices.updated_at",
+"ok": true,
+"v": "20251003122900"
+},
+{
+"k": "function",
+"o": "update_updated_at_column",
+"ok": true,
+"v": "20251003122900"
+},
+{
+"k": "index",
+"o": "idx_contacts_customer_id",
+"ok": true,
+"v": "20251003122900"
+},
+{
+"k": "index",
+"o": "idx_contacts_email",
+"ok": true,
+"v": "20251003122900"
+},
+{
+"k": "index",
+"o": "idx_contacts_phone",
+"ok": true,
+"v": "20251003122900"
+},
+{
+"k": "index",
+"o": "idx_invoices_customer_id",
+"ok": true,
+"v": "20251003122900"
+},
+{
+"k": "index",
+"o": "idx_invoices_invoice_number",
+"ok": true,
+"v": "20251003122900"
+},
+{
+"k": "index",
+"o": "idx_invoices_order_id",
+"ok": true,
+"v": "20251003122900"
+},
+{
+"k": "policy",
+"o": "contacts.Service role can manage contacts",
+"ok": false,
+"v": "20251003122900"
+},
+{
+"k": "policy",
+"o": "invoices.Service role can manage invoices",
+"ok": true,
+"v": "20251003122900"
+},
+{
+"k": "rls",
+"o": "contacts",
+"ok": true,
+"v": "20251003122900"
+},
+{
+"k": "rls",
+"o": "invoices",
+"ok": true,
+"v": "20251003122900"
+},
+{
+"k": "table",
+"o": "contacts",
+"ok": true,
+"v": "20251003122900"
+},
+{
+"k": "table",
+"o": "invoices",
+"ok": true,
+"v": "20251003122900"
+},
+{
+"k": "trigger",
+"o": "contacts.update_contacts_updated_at",
+"ok": true,
+"v": "20251003122900"
+},
+{
+"k": "trigger",
+"o": "invoices.update_invoices_updated_at",
+"ok": true,
+"v": "20251003122900"
+},
+{
+"k": "trigger",
+"o": "orders.update_contact_stats_trigger",
+"ok": true,
+"v": "20251003122900"
+},
+{
+"k": "policy",
+"o": "admin_settings.Admin users can insert settings",
+"ok": false,
+"v": "20251003200318"
+},
+{
+"k": "policy",
+"o": "admin_settings.Admin users can read settings",
+"ok": false,
+"v": "20251003200318"
+},
+{
+"k": "policy",
+"o": "admin_settings.Admin users can update settings",
+"ok": false,
+"v": "20251003200318"
+},
+{
+"k": "policy",
+"o": "user_roles.Admins can delete roles",
+"ok": false,
+"v": "20251003200318"
+},
+{
+"k": "policy",
+"o": "user_roles.Admins can insert roles",
+"ok": false,
+"v": "20251003200318"
+},
+{
+"k": "policy",
+"o": "user_roles.Admins can update roles",
+"ok": false,
+"v": "20251003200318"
+},
+{
+"k": "policy",
+"o": "user_roles.Users can read own role",
+"ok": true,
+"v": "20251003200318"
+},
+{
+"k": "col",
+"o": "admin_settings_changelog.change_description",
+"ok": true,
+"v": "20251008153325"
+},
+{
+"k": "col",
+"o": "admin_settings_changelog.changed_by",
+"ok": true,
+"v": "20251008153325"
+},
+{
+"k": "col",
+"o": "admin_settings_changelog.created_at",
+"ok": true,
+"v": "20251008153325"
+},
+{
+"k": "col",
+"o": "admin_settings_changelog.id",
+"ok": true,
+"v": "20251008153325"
+},
+{
+"k": "col",
+"o": "admin_settings_changelog.new_value",
+"ok": true,
+"v": "20251008153325"
+},
+{
+"k": "col",
+"o": "admin_settings_changelog.old_value",
+"ok": true,
+"v": "20251008153325"
+},
+{
+"k": "col",
+"o": "admin_settings_changelog.setting_key",
+"ok": true,
+"v": "20251008153325"
+},
+{
+"k": "col",
+"o": "order_notes.created_at",
+"ok": true,
+"v": "20251008153325"
+},
+{
+"k": "col",
+"o": "order_notes.id",
+"ok": true,
+"v": "20251008153325"
+},
+{
+"k": "col",
+"o": "order_notes.note",
+"ok": true,
+"v": "20251008153325"
+},
+{
+"k": "col",
+"o": "order_notes.order_id",
+"ok": true,
+"v": "20251008153325"
+},
+{
+"k": "col",
+"o": "order_notes.user_id",
+"ok": true,
+"v": "20251008153325"
+},
+{
+"k": "col",
+"o": "order_refunds.amount_cents",
+"ok": true,
+"v": "20251008153325"
+},
+{
+"k": "col",
+"o": "order_refunds.created_at",
+"ok": true,
+"v": "20251008153325"
+},
+{
+"k": "col",
+"o": "order_refunds.id",
+"ok": true,
+"v": "20251008153325"
+},
+{
+"k": "col",
+"o": "order_refunds.order_id",
+"ok": true,
+"v": "20251008153325"
+},
+{
+"k": "col",
+"o": "order_refunds.reason",
+"ok": true,
+"v": "20251008153325"
+},
+{
+"k": "col",
+"o": "order_refunds.refunded_by",
+"ok": true,
+"v": "20251008153325"
+},
+{
+"k": "col",
+"o": "order_refunds.status",
+"ok": true,
+"v": "20251008153325"
+},
+{
+"k": "col",
+"o": "order_refunds.stripe_refund_id",
+"ok": true,
+"v": "20251008153325"
+},
+{
+"k": "col",
+"o": "order_workflow_events.created_at",
+"ok": true,
+"v": "20251008153325"
+},
+{
+"k": "col",
+"o": "order_workflow_events.eta",
+"ok": true,
+"v": "20251008153325"
+},
+{
+"k": "col",
+"o": "order_workflow_events.event_type",
+"ok": true,
+"v": "20251008153325"
+},
+{
+"k": "col",
+"o": "order_workflow_events.id",
+"ok": true,
+"v": "20251008153325"
+},
+{
+"k": "col",
+"o": "order_workflow_events.latitude",
+"ok": true,
+"v": "20251008153325"
+},
+{
+"k": "col",
+"o": "order_workflow_events.longitude",
+"ok": true,
+"v": "20251008153325"
+},
+{
+"k": "col",
+"o": "order_workflow_events.notes",
+"ok": true,
+"v": "20251008153325"
+},
+{
+"k": "col",
+"o": "order_workflow_events.order_id",
+"ok": true,
+"v": "20251008153325"
+},
+{
+"k": "col",
+"o": "order_workflow_events.user_id",
+"ok": true,
+"v": "20251008153325"
+},
+{
+"k": "col",
+"o": "orders.current_eta",
+"ok": true,
+"v": "20251008153325"
+},
+{
+"k": "col",
+"o": "orders.waiver_signature_data",
+"ok": true,
+"v": "20251008153325"
+},
+{
+"k": "col",
+"o": "orders.waiver_signed_at",
+"ok": true,
+"v": "20251008153325"
+},
+{
+"k": "col",
+"o": "orders.workflow_status",
+"ok": true,
+"v": "20251008153325"
+},
+{
+"k": "index",
+"o": "idx_customers_email",
+"ok": true,
+"v": "20251008153325"
+},
+{
+"k": "index",
+"o": "idx_customers_phone",
+"ok": true,
+"v": "20251008153325"
+},
+{
+"k": "index",
+"o": "idx_order_notes_order_id",
+"ok": true,
+"v": "20251008153325"
+},
+{
+"k": "index",
+"o": "idx_order_workflow_events_order_id",
+"ok": true,
+"v": "20251008153325"
+},
+{
+"k": "index",
+"o": "idx_orders_status",
+"ok": true,
+"v": "20251008153325"
+},
+{
+"k": "index",
+"o": "idx_orders_workflow_status",
+"ok": true,
+"v": "20251008153325"
+},
+{
+"k": "rls",
+"o": "admin_settings_changelog",
+"ok": true,
+"v": "20251008153325"
+},
+{
+"k": "rls",
+"o": "order_notes",
+"ok": true,
+"v": "20251008153325"
+},
+{
+"k": "rls",
+"o": "order_refunds",
+"ok": true,
+"v": "20251008153325"
+},
+{
+"k": "rls",
+"o": "order_workflow_events",
+"ok": true,
+"v": "20251008153325"
+},
+{
+"k": "table",
+"o": "admin_settings_changelog",
+"ok": true,
+"v": "20251008153325"
+},
+{
+"k": "table",
+"o": "order_notes",
+"ok": true,
+"v": "20251008153325"
+},
+{
+"k": "table",
+"o": "order_refunds",
+"ok": true,
+"v": "20251008153325"
+},
+{
+"k": "table",
+"o": "order_workflow_events",
+"ok": true,
+"v": "20251008153325"
+},
+{
+"k": "trigger",
+"o": "admin_settings.trigger_log_admin_settings_change",
+"ok": true,
+"v": "20251008153325"
+},
+{
+"k": "col",
+"o": "order_changelog.change_type",
+"ok": true,
+"v": "20251008155607"
+},
+{
+"k": "col",
+"o": "order_changelog.created_at",
+"ok": true,
+"v": "20251008155607"
+},
+{
+"k": "col",
+"o": "order_changelog.field_changed",
+"ok": true,
+"v": "20251008155607"
+},
+{
+"k": "col",
+"o": "order_changelog.id",
+"ok": true,
+"v": "20251008155607"
+},
+{
+"k": "col",
+"o": "order_changelog.new_value",
+"ok": true,
+"v": "20251008155607"
+},
+{
+"k": "col",
+"o": "order_changelog.old_value",
+"ok": true,
+"v": "20251008155607"
+},
+{
+"k": "col",
+"o": "order_changelog.order_id",
+"ok": true,
+"v": "20251008155607"
+},
+{
+"k": "col",
+"o": "order_changelog.user_id",
+"ok": true,
+"v": "20251008155607"
+},
+{
+"k": "index",
+"o": "idx_order_changelog_created_at",
+"ok": true,
+"v": "20251008155607"
+},
+{
+"k": "index",
+"o": "idx_order_changelog_order_id",
+"ok": true,
+"v": "20251008155607"
+},
+{
+"k": "policy",
+"o": "order_changelog.Authenticated users can view order changelog",
+"ok": false,
+"v": "20251008155607"
+},
+{
+"k": "rls",
+"o": "order_changelog",
+"ok": true,
+"v": "20251008155607"
+},
+{
+"k": "table",
+"o": "order_changelog",
+"ok": true,
+"v": "20251008155607"
+},
+{
+"k": "bucket",
+"o": "unit-images",
+"ok": true,
+"v": "20251008190000"
+},
+{
+"k": "bucket",
+"o": "public-assets",
+"ok": true,
+"v": "20251129190013"
+},
+{
+"k": "policy",
+"o": "storage.objects.Authenticated users can delete public assets",
+"ok": false,
+"v": "20251129190013"
+},
+{
+"k": "policy",
+"o": "storage.objects.Authenticated users can update public assets",
+"ok": false,
+"v": "20251129190013"
+},
+{
+"k": "policy",
+"o": "storage.objects.Authenticated users can upload public assets",
+"ok": false,
+"v": "20251129190013"
+},
+{
+"k": "policy",
+"o": "storage.objects.Public assets are publicly accessible",
+"ok": false,
+"v": "20251129190013"
+},
+{
+"k": "policy",
+"o": "storage.objects.Authenticated users can upload public assets",
+"ok": false,
+"v": "20251129190039"
+},
+{
+"k": "bucket",
+"o": "signatures",
+"ok": true,
+"v": "20251202171808"
+},
+{
+"k": "bucket",
+"o": "signed-waivers",
+"ok": true,
+"v": "20251202171808"
+},
+{
+"k": "col",
+"o": "consent_records.consent_text",
+"ok": true,
+"v": "20251202171808"
+},
+{
+"k": "col",
+"o": "consent_records.consent_type",
+"ok": true,
+"v": "20251202171808"
+},
+{
+"k": "col",
+"o": "consent_records.consent_version",
+"ok": true,
+"v": "20251202171808"
+},
+{
+"k": "col",
+"o": "consent_records.consented",
+"ok": true,
+"v": "20251202171808"
+},
+{
+"k": "col",
+"o": "consent_records.consented_at",
+"ok": true,
+"v": "20251202171808"
+},
+{
+"k": "col",
+"o": "consent_records.created_at",
+"ok": true,
+"v": "20251202171808"
+},
+{
+"k": "col",
+"o": "consent_records.customer_id",
+"ok": true,
+"v": "20251202171808"
+},
+{
+"k": "col",
+"o": "consent_records.id",
+"ok": true,
+"v": "20251202171808"
+},
+{
+"k": "col",
+"o": "consent_records.ip_address",
+"ok": true,
+"v": "20251202171808"
+},
+{
+"k": "col",
+"o": "consent_records.order_id",
+"ok": true,
+"v": "20251202171808"
+},
+{
+"k": "col",
+"o": "consent_records.user_agent",
+"ok": true,
+"v": "20251202171808"
+},
+{
+"k": "col",
+"o": "order_signatures.created_at",
+"ok": true,
+"v": "20251202171808"
+},
+{
+"k": "col",
+"o": "order_signatures.customer_id",
+"ok": true,
+"v": "20251202171808"
+},
+{
+"k": "col",
+"o": "order_signatures.device_info",
+"ok": true,
+"v": "20251202171808"
+},
+{
+"k": "col",
+"o": "order_signatures.electronic_consent_given",
+"ok": true,
+"v": "20251202171808"
+},
+{
+"k": "col",
+"o": "order_signatures.electronic_consent_text",
+"ok": true,
+"v": "20251202171808"
+},
+{
+"k": "col",
+"o": "order_signatures.id",
+"ok": true,
+"v": "20251202171808"
+},
+{
+"k": "col",
+"o": "order_signatures.initials_data",
+"ok": true,
+"v": "20251202171808"
+},
+{
+"k": "col",
+"o": "order_signatures.ip_address",
+"ok": true,
+"v": "20251202171808"
+},
+{
+"k": "col",
+"o": "order_signatures.order_id",
+"ok": true,
+"v": "20251202171808"
+},
+{
+"k": "col",
+"o": "order_signatures.pdf_generated_at",
+"ok": true,
+"v": "20251202171808"
+},
+{
+"k": "col",
+"o": "order_signatures.pdf_url",
+"ok": true,
+"v": "20251202171808"
+},
+{
+"k": "col",
+"o": "order_signatures.signature_image_url",
+"ok": true,
+"v": "20251202171808"
+},
+{
+"k": "col",
+"o": "order_signatures.signed_at",
+"ok": true,
+"v": "20251202171808"
+},
+{
+"k": "col",
+"o": "order_signatures.signer_email",
+"ok": true,
+"v": "20251202171808"
+},
+{
+"k": "col",
+"o": "order_signatures.signer_name",
+"ok": true,
+"v": "20251202171808"
+},
+{
+"k": "col",
+"o": "order_signatures.typed_name",
+"ok": true,
+"v": "20251202171808"
+},
+{
+"k": "col",
+"o": "order_signatures.updated_at",
+"ok": true,
+"v": "20251202171808"
+},
+{
+"k": "col",
+"o": "order_signatures.user_agent",
+"ok": true,
+"v": "20251202171808"
+},
+{
+"k": "col",
+"o": "order_signatures.waiver_text_snapshot",
+"ok": true,
+"v": "20251202171808"
+},
+{
+"k": "col",
+"o": "order_signatures.waiver_version",
+"ok": true,
+"v": "20251202171808"
+},
+{
+"k": "col",
+"o": "orders.card_on_file_consent",
+"ok": true,
+"v": "20251202171808"
+},
+{
+"k": "col",
+"o": "orders.e_signature_consent",
+"ok": true,
+"v": "20251202171808"
+},
+{
+"k": "col",
+"o": "orders.signature_id",
+"ok": true,
+"v": "20251202171808"
+},
+{
+"k": "col",
+"o": "orders.signed_waiver_url",
+"ok": true,
+"v": "20251202171808"
+},
+{
+"k": "col",
+"o": "orders.sms_consent",
+"ok": true,
+"v": "20251202171808"
+},
+{
+"k": "index",
+"o": "idx_consent_records_customer_id",
+"ok": true,
+"v": "20251202171808"
+},
+{
+"k": "index",
+"o": "idx_consent_records_order_id",
+"ok": true,
+"v": "20251202171808"
+},
+{
+"k": "index",
+"o": "idx_consent_records_type",
+"ok": true,
+"v": "20251202171808"
+},
+{
+"k": "index",
+"o": "idx_order_signatures_customer_id",
+"ok": true,
+"v": "20251202171808"
+},
+{
+"k": "index",
+"o": "idx_order_signatures_order_id",
+"ok": true,
+"v": "20251202171808"
+},
+{
+"k": "index",
+"o": "idx_order_signatures_signed_at",
+"ok": true,
+"v": "20251202171808"
+},
+{
+"k": "policy",
+"o": "consent_records.Anonymous can create consent records",
+"ok": false,
+"v": "20251202171808"
+},
+{
+"k": "policy",
+"o": "consent_records.Users can view own consent records",
+"ok": false,
+"v": "20251202171808"
+},
+{
+"k": "policy",
+"o": "order_signatures.Admins can update signatures",
+"ok": false,
+"v": "20251202171808"
+},
+{
+"k": "policy",
+"o": "order_signatures.Admins can view all signatures",
+"ok": false,
+"v": "20251202171808"
+},
+{
+"k": "policy",
+"o": "order_signatures.Anonymous can create signatures",
+"ok": false,
+"v": "20251202171808"
+},
+{
+"k": "rls",
+"o": "consent_records",
+"ok": true,
+"v": "20251202171808"
+},
+{
+"k": "rls",
+"o": "order_signatures",
+"ok": true,
+"v": "20251202171808"
+},
+{
+"k": "table",
+"o": "consent_records",
+"ok": true,
+"v": "20251202171808"
+},
+{
+"k": "table",
+"o": "order_signatures",
+"ok": true,
+"v": "20251202171808"
+},
+{
+"k": "col",
+"o": "invoice_links.created_at",
+"ok": true,
+"v": "20251203125006"
+},
+{
+"k": "col",
+"o": "invoice_links.customer_filled",
+"ok": true,
+"v": "20251203125006"
+},
+{
+"k": "col",
+"o": "invoice_links.deposit_cents",
+"ok": true,
+"v": "20251203125006"
+},
+{
+"k": "col",
+"o": "invoice_links.expires_at",
+"ok": true,
+"v": "20251203125006"
+},
+{
+"k": "col",
+"o": "invoice_links.id",
+"ok": true,
+"v": "20251203125006"
+},
+{
+"k": "col",
+"o": "invoice_links.link_token",
+"ok": true,
+"v": "20251203125006"
+},
+{
+"k": "col",
+"o": "invoice_links.order_id",
+"ok": true,
+"v": "20251203125006"
+},
+{
+"k": "col",
+"o": "invoice_links.updated_at",
+"ok": true,
+"v": "20251203125006"
+},
+{
+"k": "col",
+"o": "orders.invoice_accepted_at",
+"ok": true,
+"v": "20251203125006"
+},
+{
+"k": "col",
+"o": "orders.invoice_sent_at",
+"ok": true,
+"v": "20251203125006"
+},
+{
+"k": "function",
+"o": "update_invoice_links_updated_at",
+"ok": true,
+"v": "20251203125006"
+},
+{
+"k": "index",
+"o": "invoice_links_expires_at_idx",
+"ok": true,
+"v": "20251203125006"
+},
+{
+"k": "index",
+"o": "invoice_links_link_token_idx",
+"ok": true,
+"v": "20251203125006"
+},
+{
+"k": "index",
+"o": "invoice_links_order_id_idx",
+"ok": true,
+"v": "20251203125006"
+},
+{
+"k": "policy",
+"o": "invoice_links.Anyone can update invoice link with valid token",
+"ok": false,
+"v": "20251203125006"
+},
+{
+"k": "policy",
+"o": "invoice_links.Anyone can view invoice link with valid token",
+"ok": false,
+"v": "20251203125006"
+},
+{
+"k": "rls",
+"o": "invoice_links",
+"ok": true,
+"v": "20251203125006"
+},
+{
+"k": "table",
+"o": "invoice_links",
+"ok": true,
+"v": "20251203125006"
+},
+{
+"k": "trigger",
+"o": "invoice_links.update_invoice_links_timestamp",
+"ok": true,
+"v": "20251203125006"
+},
+{
+"k": "col",
+"o": "task_status.arrived_time",
+"ok": true,
+"v": "20251205115557"
+},
+{
+"k": "col",
+"o": "task_status.completed_time",
+"ok": true,
+"v": "20251205115557"
+},
+{
+"k": "col",
+"o": "task_status.created_at",
+"ok": true,
+"v": "20251205115557"
+},
+{
+"k": "col",
+"o": "task_status.damage_images",
+"ok": true,
+"v": "20251205115557"
+},
+{
+"k": "col",
+"o": "task_status.delivery_images",
+"ok": true,
+"v": "20251205115557"
+},
+{
+"k": "col",
+"o": "task_status.en_route_time",
+"ok": true,
+"v": "20251205115557"
+},
+{
+"k": "col",
+"o": "task_status.eta_sent",
+"ok": true,
+"v": "20251205115557"
+},
+{
+"k": "col",
+"o": "task_status.id",
+"ok": true,
+"v": "20251205115557"
+},
+{
+"k": "col",
+"o": "task_status.notes",
+"ok": true,
+"v": "20251205115557"
+},
+{
+"k": "col",
+"o": "task_status.order_id",
+"ok": true,
+"v": "20251205115557"
+},
+{
+"k": "col",
+"o": "task_status.payment_reminder_sent",
+"ok": true,
+"v": "20251205115557"
+},
+{
+"k": "col",
+"o": "task_status.sort_order",
+"ok": true,
+"v": "20251205115557"
+},
+{
+"k": "col",
+"o": "task_status.status",
+"ok": true,
+"v": "20251205115557"
+},
+{
+"k": "col",
+"o": "task_status.task_date",
+"ok": true,
+"v": "20251205115557"
+},
+{
+"k": "col",
+"o": "task_status.task_type",
+"ok": true,
+"v": "20251205115557"
+},
+{
+"k": "col",
+"o": "task_status.updated_at",
+"ok": true,
+"v": "20251205115557"
+},
+{
+"k": "col",
+"o": "task_status.waiver_reminder_sent",
+"ok": true,
+"v": "20251205115557"
+},
+{
+"k": "index",
+"o": "idx_task_status_order_id",
+"ok": true,
+"v": "20251205115557"
+},
+{
+"k": "index",
+"o": "idx_task_status_sort_order",
+"ok": true,
+"v": "20251205115557"
+},
+{
+"k": "index",
+"o": "idx_task_status_task_date",
+"ok": true,
+"v": "20251205115557"
+},
+{
+"k": "rls",
+"o": "task_status",
+"ok": true,
+"v": "20251205115557"
+},
+{
+"k": "table",
+"o": "task_status",
+"ok": true,
+"v": "20251205115557"
+},
+{
+"k": "col",
+"o": "hero_carousel_images.created_at",
+"ok": true,
+"v": "20251207160232"
+},
+{
+"k": "col",
+"o": "hero_carousel_images.description",
+"ok": true,
+"v": "20251207160232"
+},
+{
+"k": "col",
+"o": "hero_carousel_images.display_order",
+"ok": true,
+"v": "20251207160232"
+},
+{
+"k": "col",
+"o": "hero_carousel_images.id",
+"ok": true,
+"v": "20251207160232"
+},
+{
+"k": "col",
+"o": "hero_carousel_images.image_url",
+"ok": true,
+"v": "20251207160232"
+},
+{
+"k": "col",
+"o": "hero_carousel_images.is_active",
+"ok": true,
+"v": "20251207160232"
+},
+{
+"k": "col",
+"o": "hero_carousel_images.title",
+"ok": true,
+"v": "20251207160232"
+},
+{
+"k": "col",
+"o": "hero_carousel_images.updated_at",
+"ok": true,
+"v": "20251207160232"
+},
+{
+"k": "function",
+"o": "update_hero_carousel_updated_at",
+"ok": true,
+"v": "20251207160232"
+},
+{
+"k": "policy",
+"o": "hero_carousel_images.Anyone can view active carousel images",
+"ok": true,
+"v": "20251207160232"
+},
+{
+"k": "rls",
+"o": "hero_carousel_images",
+"ok": true,
+"v": "20251207160232"
+},
+{
+"k": "table",
+"o": "hero_carousel_images",
+"ok": true,
+"v": "20251207160232"
+},
+{
+"k": "trigger",
+"o": "hero_carousel_images.hero_carousel_updated_at",
+"ok": true,
+"v": "20251207160232"
+},
+{
+"k": "policy",
+"o": "storage.objects.Admins can delete carousel media",
+"ok": false,
+"v": "20251207161003"
+},
+{
+"k": "policy",
+"o": "storage.objects.Admins can update carousel media",
+"ok": false,
+"v": "20251207161003"
+},
+{
+"k": "policy",
+"o": "storage.objects.Admins can upload carousel media",
+"ok": false,
+"v": "20251207161003"
+},
+{
+"k": "policy",
+"o": "storage.objects.Anyone can view carousel media",
+"ok": false,
+"v": "20251207161003"
+},
+{
+"k": "col",
+"o": "customer_profiles.contact_id",
+"ok": true,
+"v": "20251207163822"
+},
+{
+"k": "col",
+"o": "customer_profiles.created_at",
+"ok": true,
+"v": "20251207163822"
+},
+{
+"k": "col",
+"o": "customer_profiles.email_notifications",
+"ok": true,
+"v": "20251207163822"
+},
+{
+"k": "col",
+"o": "customer_profiles.id",
+"ok": true,
+"v": "20251207163822"
+},
+{
+"k": "col",
+"o": "customer_profiles.phone",
+"ok": true,
+"v": "20251207163822"
+},
+{
+"k": "col",
+"o": "customer_profiles.sms_notifications",
+"ok": true,
+"v": "20251207163822"
+},
+{
+"k": "col",
+"o": "customer_profiles.updated_at",
+"ok": true,
+"v": "20251207163822"
+},
+{
+"k": "col",
+"o": "customer_profiles.user_id",
+"ok": true,
+"v": "20251207163822"
+},
+{
+"k": "constraint",
+"o": "user_roles.user_roles_role_check",
+"ok": true,
+"v": "20251207163822"
+},
+{
+"k": "grant",
+"o": "FUNCTION:assign_user_role:authenticated:EXECUTE",
+"ok": false,
+"v": "20251207163822"
+},
+{
+"k": "grant",
+"o": "FUNCTION:get_user_highest_role:authenticated:EXECUTE",
+"ok": false,
+"v": "20251207163822"
+},
+{
+"k": "grant",
+"o": "FUNCTION:remove_user_role:authenticated:EXECUTE",
+"ok": false,
+"v": "20251207163822"
+},
+{
+"k": "grant",
+"o": "FUNCTION:user_has_role:authenticated:EXECUTE",
+"ok": false,
+"v": "20251207163822"
+},
+{
+"k": "grant",
+"o": "TABLE:customer_profiles:authenticated:SELECT",
+"ok": true,
+"v": "20251207163822"
+},
+{
+"k": "grant",
+"o": "TABLE:customer_profiles:authenticated:UPDATE",
+"ok": false,
+"v": "20251207163822"
+},
+{
+"k": "index",
+"o": "idx_customer_profiles_contact_id",
+"ok": true,
+"v": "20251207163822"
+},
+{
+"k": "index",
+"o": "idx_customer_profiles_user_id",
+"ok": true,
+"v": "20251207163822"
+},
+{
+"k": "policy",
+"o": "orders.Customers can view own orders",
+"ok": false,
+"v": "20251207163822"
+},
+{
+"k": "rls",
+"o": "customer_profiles",
+"ok": true,
+"v": "20251207163822"
+},
+{
+"k": "table",
+"o": "customer_profiles",
+"ok": true,
+"v": "20251207163822"
+},
+{
+"k": "trigger",
+"o": "auth.users.on_auth_user_created",
+"ok": false,
+"v": "20251207163822"
+},
+{
+"k": "policy",
+"o": "storage.objects.Admins can delete carousel media",
+"ok": false,
+"v": "20251207175214"
+},
+{
+"k": "policy",
+"o": "storage.objects.Admins can update carousel media",
+"ok": false,
+"v": "20251207175214"
+},
+{
+"k": "policy",
+"o": "storage.objects.Admins can upload carousel media",
+"ok": false,
+"v": "20251207175214"
+},
+{
+"k": "function",
+"o": "is_admin",
+"ok": true,
+"v": "20251207184549"
+},
+{
+"k": "grant",
+"o": "FUNCTION:get_user_role:anon:EXECUTE",
+"ok": false,
+"v": "20251207184549"
+},
+{
+"k": "grant",
+"o": "FUNCTION:get_user_role:authenticated:EXECUTE",
+"ok": true,
+"v": "20251207184549"
+},
+{
+"k": "grant",
+"o": "FUNCTION:is_admin:anon:EXECUTE",
+"ok": false,
+"v": "20251207184549"
+},
+{
+"k": "grant",
+"o": "FUNCTION:is_admin:authenticated:EXECUTE",
+"ok": true,
+"v": "20251207184549"
+},
+{
+"k": "policy",
+"o": "user_roles.Admins can delete roles",
+"ok": false,
+"v": "20251207184549"
+},
+{
+"k": "policy",
+"o": "user_roles.Admins can insert roles",
+"ok": false,
+"v": "20251207184549"
+},
+{
+"k": "policy",
+"o": "user_roles.Admins can update roles",
+"ok": false,
+"v": "20251207184549"
+},
+{
+"k": "policy",
+"o": "user_roles.Master and admin can manage all roles",
+"ok": false,
+"v": "20251207185927"
+},
+{
+"k": "grant",
+"o": "FUNCTION:auto_assign_customer_role:postgres:EXECUTE",
+"ok": true,
+"v": "20251208125821"
+},
+{
+"k": "grant",
+"o": "FUNCTION:auto_assign_customer_role:service_role:EXECUTE",
+"ok": true,
+"v": "20251208125821"
+},
+{
+"k": "trigger",
+"o": "auth.users.on_auth_user_created",
+"ok": false,
+"v": "20251208125821"
+},
+{
+"k": "grant",
+"o": "FUNCTION:auto_assign_customer_role:postgres:EXECUTE",
+"ok": true,
+"v": "20251208130034"
+},
+{
+"k": "grant",
+"o": "FUNCTION:auto_assign_customer_role:service_role:EXECUTE",
+"ok": true,
+"v": "20251208130034"
+},
+{
+"k": "trigger",
+"o": "auth.users.on_auth_user_created",
+"ok": false,
+"v": "20251208130034"
+},
+{
+"k": "col",
+"o": "auth_trigger_logs.created_at",
+"ok": true,
+"v": "20251208130213"
+},
+{
+"k": "col",
+"o": "auth_trigger_logs.id",
+"ok": true,
+"v": "20251208130213"
+},
+{
+"k": "col",
+"o": "auth_trigger_logs.message",
+"ok": true,
+"v": "20251208130213"
+},
+{
+"k": "col",
+"o": "auth_trigger_logs.metadata",
+"ok": true,
+"v": "20251208130213"
+},
+{
+"k": "col",
+"o": "auth_trigger_logs.status",
+"ok": true,
+"v": "20251208130213"
+},
+{
+"k": "col",
+"o": "auth_trigger_logs.step",
+"ok": true,
+"v": "20251208130213"
+},
+{
+"k": "col",
+"o": "auth_trigger_logs.user_email",
+"ok": true,
+"v": "20251208130213"
+},
+{
+"k": "col",
+"o": "auth_trigger_logs.user_id",
+"ok": true,
+"v": "20251208130213"
+},
+{
+"k": "grant",
+"o": "FUNCTION:auto_assign_customer_role:postgres:EXECUTE",
+"ok": true,
+"v": "20251208130213"
+},
+{
+"k": "grant",
+"o": "FUNCTION:auto_assign_customer_role:service_role:EXECUTE",
+"ok": true,
+"v": "20251208130213"
+},
+{
+"k": "grant",
+"o": "FUNCTION:get_user_creation_logs:authenticated:EXECUTE",
+"ok": false,
+"v": "20251208130213"
+},
+{
+"k": "grant",
+"o": "TABLE:auth_trigger_logs:authenticated:SELECT",
+"ok": true,
+"v": "20251208130213"
+},
+{
+"k": "index",
+"o": "idx_auth_trigger_logs_created_at",
+"ok": true,
+"v": "20251208130213"
+},
+{
+"k": "index",
+"o": "idx_auth_trigger_logs_status",
+"ok": true,
+"v": "20251208130213"
+},
+{
+"k": "index",
+"o": "idx_auth_trigger_logs_user_id",
+"ok": true,
+"v": "20251208130213"
+},
+{
+"k": "rls",
+"o": "auth_trigger_logs",
+"ok": true,
+"v": "20251208130213"
+},
+{
+"k": "table",
+"o": "auth_trigger_logs",
+"ok": true,
+"v": "20251208130213"
+},
+{
+"k": "trigger",
+"o": "auth.users.on_auth_user_created",
+"ok": false,
+"v": "20251208130213"
+},
+{
+"k": "col",
+"o": "customers.default_address_id",
+"ok": true,
+"v": "20251208143543"
+},
+{
+"k": "col",
+"o": "customers.oauth_profile_data",
+"ok": true,
+"v": "20251208143543"
+},
+{
+"k": "col",
+"o": "customers.oauth_provider",
+"ok": true,
+"v": "20251208143543"
+},
+{
+"k": "grant",
+"o": "FUNCTION:auto_assign_customer_role:postgres:EXECUTE",
+"ok": true,
+"v": "20251208143543"
+},
+{
+"k": "grant",
+"o": "FUNCTION:auto_assign_customer_role:service_role:EXECUTE",
+"ok": true,
+"v": "20251208143543"
+},
+{
+"k": "grant",
+"o": "FUNCTION:get_user_order_prefill:authenticated:EXECUTE",
+"ok": true,
+"v": "20251208143543"
+},
+{
+"k": "trigger",
+"o": "auth.users.on_auth_user_created",
+"ok": false,
+"v": "20251208143543"
+},
+{
+"k": "policy",
+"o": "consent_records.Users can view own consent records",
+"ok": false,
+"v": "20251209124058"
+},
+{
+"k": "policy",
+"o": "contacts.Admin users can insert contacts",
+"ok": false,
+"v": "20251209124058"
+},
+{
+"k": "policy",
+"o": "contacts.Admin users can read all contacts",
+"ok": false,
+"v": "20251209124058"
+},
+{
+"k": "policy",
+"o": "contacts.Admin users can update contacts",
+"ok": false,
+"v": "20251209124058"
+},
+{
+"k": "policy",
+"o": "crew_location_history.Admins can view all location history",
+"ok": false,
+"v": "20251209124058"
+},
+{
+"k": "policy",
+"o": "customer_profiles.Users can update own profile",
+"ok": true,
+"v": "20251209124058"
+},
+{
+"k": "policy",
+"o": "customer_profiles.Users can view own profile",
+"ok": true,
+"v": "20251209124058"
+},
+{
+"k": "policy",
+"o": "invoice_links.Admins can manage invoice links",
+"ok": false,
+"v": "20251209124058"
+},
+{
+"k": "policy",
+"o": "invoices.Admin users can insert invoices",
+"ok": false,
+"v": "20251209124058"
+},
+{
+"k": "policy",
+"o": "invoices.Admin users can read all invoices",
+"ok": false,
+"v": "20251209124058"
+},
+{
+"k": "policy",
+"o": "invoices.Admin users can update invoices",
+"ok": false,
+"v": "20251209124058"
+},
+{
+"k": "policy",
+"o": "order_changelog.Authenticated users can create changelog entries",
+"ok": false,
+"v": "20251209124058"
+},
+{
+"k": "policy",
+"o": "order_signatures.Admins can update signatures",
+"ok": false,
+"v": "20251209124058"
+},
+{
+"k": "policy",
+"o": "order_signatures.Admins can view all signatures",
+"ok": false,
+"v": "20251209124058"
+},
+{
+"k": "policy",
+"o": "order_signatures.Users can create own signatures",
+"ok": false,
+"v": "20251209124058"
+},
+{
+"k": "policy",
+"o": "orders.Customers can view own orders",
+"ok": false,
+"v": "20251209124058"
+},
+{
+"k": "policy",
+"o": "payments.Users can view own order payments",
+"ok": false,
+"v": "20251209124058"
+},
+{
+"k": "policy",
+"o": "sms_conversations.Admin users can insert SMS conversations",
+"ok": false,
+"v": "20251209124058"
+},
+{
+"k": "policy",
+"o": "sms_conversations.Admin users can read SMS conversations",
+"ok": false,
+"v": "20251209124058"
+},
+{
+"k": "policy",
+"o": "task_status.Admins can delete task statuses",
+"ok": false,
+"v": "20251209124058"
+},
+{
+"k": "policy",
+"o": "task_status.Admins can insert task statuses",
+"ok": false,
+"v": "20251209124058"
+},
+{
+"k": "policy",
+"o": "task_status.Admins can update task statuses",
+"ok": false,
+"v": "20251209124058"
+},
+{
+"k": "policy",
+"o": "task_status.Admins can view all task statuses",
+"ok": false,
+"v": "20251209124058"
+},
+{
+"k": "policy",
+"o": "task_status.Admins can delete task statuses",
+"ok": false,
+"v": "20251214230102"
+},
+{
+"k": "policy",
+"o": "task_status.Admins can insert task statuses",
+"ok": false,
+"v": "20251214230102"
+},
+{
+"k": "policy",
+"o": "task_status.Admins can update task statuses",
+"ok": false,
+"v": "20251214230102"
+},
+{
+"k": "policy",
+"o": "task_status.Admins can view all task statuses",
+"ok": false,
+"v": "20251214230102"
+},
+{
+"k": "col",
+"o": "customer_profiles.display_name",
+"ok": false,
+"v": "20251229223230"
+},
+{
+"k": "col",
+"o": "customer_profiles.first_name",
+"ok": true,
+"v": "20251229223230"
+},
+{
+"k": "col",
+"o": "customer_profiles.last_name",
+"ok": true,
+"v": "20251229223230"
+},
+{
+"k": "grant",
+"o": "FUNCTION:auto_assign_customer_role:postgres:EXECUTE",
+"ok": true,
+"v": "20251229223230"
+},
+{
+"k": "grant",
+"o": "FUNCTION:auto_assign_customer_role:service_role:EXECUTE",
+"ok": true,
+"v": "20251229223230"
+},
+{
+"k": "trigger",
+"o": "auth.users.on_auth_user_created",
+"ok": false,
+"v": "20251229223230"
+},
+{
+"k": "policy",
+"o": "hero_carousel_images.Public can view active carousel images",
+"ok": true,
+"v": "20251230184205"
+},
+{
+"k": "policy",
+"o": "storage.objects.Admins can delete carousel media",
+"ok": false,
+"v": "20251230184228"
+},
+{
+"k": "policy",
+"o": "storage.objects.Admins can update carousel media",
+"ok": false,
+"v": "20251230184228"
+},
+{
+"k": "policy",
+"o": "storage.objects.Admins can upload carousel media",
+"ok": false,
+"v": "20251230184228"
+},
+{
+"k": "policy",
+"o": "storage.objects.Anyone can view carousel media",
+"ok": false,
+"v": "20251230184228"
+},
+{
+"k": "bucket",
+"o": "order-pictures",
+"ok": true,
+"v": "20251231161729"
+},
+{
+"k": "col",
+"o": "order_pictures.created_at",
+"ok": true,
+"v": "20251231161729"
+},
+{
+"k": "col",
+"o": "order_pictures.file_name",
+"ok": true,
+"v": "20251231161729"
+},
+{
+"k": "col",
+"o": "order_pictures.file_path",
+"ok": true,
+"v": "20251231161729"
+},
+{
+"k": "col",
+"o": "order_pictures.file_size",
+"ok": true,
+"v": "20251231161729"
+},
+{
+"k": "col",
+"o": "order_pictures.id",
+"ok": true,
+"v": "20251231161729"
+},
+{
+"k": "col",
+"o": "order_pictures.mime_type",
+"ok": true,
+"v": "20251231161729"
+},
+{
+"k": "col",
+"o": "order_pictures.notes",
+"ok": true,
+"v": "20251231161729"
+},
+{
+"k": "col",
+"o": "order_pictures.order_id",
+"ok": true,
+"v": "20251231161729"
+},
+{
+"k": "col",
+"o": "order_pictures.uploaded_at",
+"ok": true,
+"v": "20251231161729"
+},
+{
+"k": "col",
+"o": "order_pictures.uploaded_by",
+"ok": true,
+"v": "20251231161729"
+},
+{
+"k": "index",
+"o": "idx_order_pictures_order_id",
+"ok": true,
+"v": "20251231161729"
+},
+{
+"k": "index",
+"o": "idx_order_pictures_uploaded_at",
+"ok": true,
+"v": "20251231161729"
+},
+{
+"k": "policy",
+"o": "order_pictures.Anyone can upload order pictures",
+"ok": false,
+"v": "20251231161729"
+},
+{
+"k": "rls",
+"o": "order_pictures",
+"ok": true,
+"v": "20251231161729"
+},
+{
+"k": "table",
+"o": "order_pictures",
+"ok": true,
+"v": "20251231161729"
+},
+{
+"k": "policy",
+"o": "order_lot_pictures.Customers can delete lot pictures from their orders",
+"ok": false,
+"v": "20260305010355"
+},
+{
+"k": "col",
+"o": "transaction_receipts.admin_notified_at",
+"ok": true,
+"v": "20260311105210"
+},
+{
+"k": "col",
+"o": "transaction_receipts.amount_cents",
+"ok": true,
+"v": "20260311105210"
+},
+{
+"k": "col",
+"o": "transaction_receipts.created_at",
+"ok": true,
+"v": "20260311105210"
+},
+{
+"k": "col",
+"o": "transaction_receipts.customer_id",
+"ok": true,
+"v": "20260311105210"
+},
+{
+"k": "col",
+"o": "transaction_receipts.id",
+"ok": true,
+"v": "20260311105210"
+},
+{
+"k": "col",
+"o": "transaction_receipts.notes",
+"ok": true,
+"v": "20260311105210"
+},
+{
+"k": "col",
+"o": "transaction_receipts.order_id",
+"ok": true,
+"v": "20260311105210"
+},
+{
+"k": "col",
+"o": "transaction_receipts.payment_id",
+"ok": true,
+"v": "20260311105210"
+},
+{
+"k": "col",
+"o": "transaction_receipts.payment_method",
+"ok": true,
+"v": "20260311105210"
+},
+{
+"k": "col",
+"o": "transaction_receipts.payment_method_brand",
+"ok": true,
+"v": "20260311105210"
+},
+{
+"k": "col",
+"o": "transaction_receipts.receipt_number",
+"ok": true,
+"v": "20260311105210"
+},
+{
+"k": "col",
+"o": "transaction_receipts.receipt_sent_to_admin",
+"ok": true,
+"v": "20260311105210"
+},
+{
+"k": "col",
+"o": "transaction_receipts.stripe_charge_id",
+"ok": true,
+"v": "20260311105210"
+},
+{
+"k": "col",
+"o": "transaction_receipts.stripe_payment_intent_id",
+"ok": true,
+"v": "20260311105210"
+},
+{
+"k": "col",
+"o": "transaction_receipts.transaction_date",
+"ok": true,
+"v": "20260311105210"
+},
+{
+"k": "col",
+"o": "transaction_receipts.transaction_type",
+"ok": true,
+"v": "20260311105210"
+},
+{
+"k": "col",
+"o": "transaction_receipts.updated_at",
+"ok": true,
+"v": "20260311105210"
+},
+{
+"k": "function",
+"o": "generate_receipt_number",
+"ok": true,
+"v": "20260311105210"
+},
+{
+"k": "function",
+"o": "update_transaction_receipts_updated_at",
+"ok": true,
+"v": "20260311105210"
+},
+{
+"k": "index",
+"o": "idx_transaction_receipts_customer_id",
+"ok": true,
+"v": "20260311105210"
+},
+{
+"k": "index",
+"o": "idx_transaction_receipts_order_id",
+"ok": true,
+"v": "20260311105210"
+},
+{
+"k": "index",
+"o": "idx_transaction_receipts_payment_id",
+"ok": true,
+"v": "20260311105210"
+},
+{
+"k": "index",
+"o": "idx_transaction_receipts_receipt_number",
+"ok": true,
+"v": "20260311105210"
+},
+{
+"k": "index",
+"o": "idx_transaction_receipts_transaction_date",
+"ok": true,
+"v": "20260311105210"
+},
+{
+"k": "policy",
+"o": "transaction_receipts.Customers can view their own transaction receipts",
+"ok": false,
+"v": "20260311105210"
+},
+{
+"k": "policy",
+"o": "transaction_receipts.System can insert transaction receipts",
+"ok": false,
+"v": "20260311105210"
+},
+{
+"k": "rls",
+"o": "transaction_receipts",
+"ok": true,
+"v": "20260311105210"
+},
+{
+"k": "table",
+"o": "transaction_receipts",
+"ok": true,
+"v": "20260311105210"
+},
+{
+"k": "trigger",
+"o": "transaction_receipts.update_transaction_receipts_timestamp",
+"ok": true,
+"v": "20260311105210"
+},
+{
+"k": "col",
+"o": "payments.currency",
+"ok": true,
+"v": "20260311111714"
+},
+{
+"k": "col",
+"o": "payments.refunded_payment_id",
+"ok": true,
+"v": "20260311111714"
+},
+{
+"k": "col",
+"o": "payments.stripe_fee_amount",
+"ok": true,
+"v": "20260311111714"
+},
+{
+"k": "col",
+"o": "payments.stripe_net_amount",
+"ok": true,
+"v": "20260311111714"
+},
+{
+"k": "col",
+"o": "stripe_webhook_events.created_at",
+"ok": true,
+"v": "20260311111714"
+},
+{
+"k": "col",
+"o": "stripe_webhook_events.event_type",
+"ok": true,
+"v": "20260311111714"
+},
+{
+"k": "col",
+"o": "stripe_webhook_events.id",
+"ok": true,
+"v": "20260311111714"
+},
+{
+"k": "col",
+"o": "stripe_webhook_events.payload",
+"ok": true,
+"v": "20260311111714"
+},
+{
+"k": "col",
+"o": "stripe_webhook_events.processed_at",
+"ok": true,
+"v": "20260311111714"
+},
+{
+"k": "col",
+"o": "stripe_webhook_events.stripe_event_id",
+"ok": true,
+"v": "20260311111714"
+},
+{
+"k": "col",
+"o": "transaction_receipts.receipt_group_id",
+"ok": true,
+"v": "20260311111714"
+},
+{
+"k": "function",
+"o": "generate_receipt_group_id",
+"ok": true,
+"v": "20260311111714"
+},
+{
+"k": "index",
+"o": "idx_payments_created",
+"ok": true,
+"v": "20260311111714"
+},
+{
+"k": "index",
+"o": "idx_payments_ledger_sequence",
+"ok": true,
+"v": "20260311111714"
+},
+{
+"k": "index",
+"o": "idx_payments_refunded",
+"ok": true,
+"v": "20260311111714"
+},
+{
+"k": "index",
+"o": "idx_receipts_group",
+"ok": true,
+"v": "20260311111714"
+},
+{
+"k": "index",
+"o": "idx_webhook_events_stripe_id",
+"ok": true,
+"v": "20260311111714"
+},
+{
+"k": "index",
+"o": "idx_webhook_events_type",
+"ok": true,
+"v": "20260311111714"
+},
+{
+"k": "policy",
+"o": "stripe_webhook_events.System can insert webhook events",
+"ok": false,
+"v": "20260311111714"
+},
+{
+"k": "rls",
+"o": "stripe_webhook_events",
+"ok": true,
+"v": "20260311111714"
+},
+{
+"k": "table",
+"o": "stripe_webhook_events",
+"ok": true,
+"v": "20260311111714"
+},
+{
+"k": "col",
+"o": "user_consent_log.consent_type",
+"ok": true,
+"v": "20260317175547"
+},
+{
+"k": "col",
+"o": "user_consent_log.consented",
+"ok": true,
+"v": "20260317175547"
+},
+{
+"k": "col",
+"o": "user_consent_log.created_at",
+"ok": true,
+"v": "20260317175547"
+},
+{
+"k": "col",
+"o": "user_consent_log.customer_id",
+"ok": true,
+"v": "20260317175547"
+},
+{
+"k": "col",
+"o": "user_consent_log.id",
+"ok": true,
+"v": "20260317175547"
+},
+{
+"k": "col",
+"o": "user_consent_log.ip_hint",
+"ok": true,
+"v": "20260317175547"
+},
+{
+"k": "col",
+"o": "user_consent_log.policy_version",
+"ok": true,
+"v": "20260317175547"
+},
+{
+"k": "col",
+"o": "user_consent_log.source",
+"ok": true,
+"v": "20260317175547"
+},
+{
+"k": "col",
+"o": "user_consent_log.user_agent_hint",
+"ok": true,
+"v": "20260317175547"
+},
+{
+"k": "col",
+"o": "user_consent_log.user_id",
+"ok": true,
+"v": "20260317175547"
+},
+{
+"k": "index",
+"o": "idx_user_consent_log_customer_id",
+"ok": true,
+"v": "20260317175547"
+},
+{
+"k": "index",
+"o": "idx_user_consent_log_type_version",
+"ok": true,
+"v": "20260317175547"
+},
+{
+"k": "index",
+"o": "idx_user_consent_log_user_id",
+"ok": true,
+"v": "20260317175547"
+},
+{
+"k": "policy",
+"o": "user_consent_log.Users can view their own consent records",
+"ok": true,
+"v": "20260317175547"
+},
+{
+"k": "rls",
+"o": "user_consent_log",
+"ok": true,
+"v": "20260317175547"
+},
+{
+"k": "table",
+"o": "user_consent_log",
+"ok": true,
+"v": "20260317175547"
+},
+{
+"k": "policy",
+"o": "storage.objects.Admin can delete unit images",
+"ok": false,
+"v": "20260323175233"
+},
+{
+"k": "policy",
+"o": "storage.objects.Admin can update unit images",
+"ok": false,
+"v": "20260323175233"
+},
+{
+"k": "policy",
+"o": "storage.objects.Admin can upload unit images",
+"ok": false,
+"v": "20260323175233"
+},
+{
+"k": "policy",
+"o": "storage.objects.Authenticated users can delete unit images",
+"ok": false,
+"v": "20260323175233"
+},
+{
+"k": "policy",
+"o": "storage.objects.Authenticated users can update unit images",
+"ok": false,
+"v": "20260323175233"
+},
+{
+"k": "policy",
+"o": "storage.objects.Authenticated users can upload unit images",
+"ok": false,
+"v": "20260323175233"
+},
+{
+"k": "trigger",
+"o": "orders.trg_auto_sync_google_calendar",
+"ok": false,
+"v": "20260323201502"
+},
+{
+"k": "bucket",
+"o": "signed-waivers",
+"ok": true,
+"v": "20260324012349"
+},
+{
+"k": "policy",
+"o": "admin_settings_changelog.Admins can insert changelog",
+"ok": true,
+"v": "20260324180043"
+},
+{
+"k": "policy",
+"o": "admin_settings_changelog.Admins can view changelog",
+"ok": true,
+"v": "20260324180043"
+},
+{
+"k": "policy",
+"o": "admin_settings.Admins can delete settings",
+"ok": true,
+"v": "20260324180043"
+},
+{
+"k": "policy",
+"o": "admin_settings.Admins can insert settings",
+"ok": true,
+"v": "20260324180043"
+},
+{
+"k": "policy",
+"o": "admin_settings.Admins can update settings",
+"ok": true,
+"v": "20260324180043"
+},
+{
+"k": "policy",
+"o": "admin_settings.Admins can view all settings",
+"ok": true,
+"v": "20260324180043"
+},
+{
+"k": "policy",
+"o": "auth_trigger_logs.Admins can view auth logs",
+"ok": true,
+"v": "20260324180043"
+},
+{
+"k": "policy",
+"o": "consent_records.Users can create own consent records",
+"ok": false,
+"v": "20260324180043"
+},
+{
+"k": "policy",
+"o": "crew_location_history.Authenticated crew and admins can log location",
+"ok": false,
+"v": "20260324180043"
+},
+{
+"k": "policy",
+"o": "customer_profiles.Admins can view all profiles",
+"ok": true,
+"v": "20260324180043"
+},
+{
+"k": "policy",
+"o": "hero_carousel_images.Admins can delete carousel images",
+"ok": true,
+"v": "20260324180043"
+},
+{
+"k": "policy",
+"o": "hero_carousel_images.Admins can insert carousel images",
+"ok": true,
+"v": "20260324180043"
+},
+{
+"k": "policy",
+"o": "hero_carousel_images.Admins can update carousel images",
+"ok": true,
+"v": "20260324180043"
+},
+{
+"k": "policy",
+"o": "hero_carousel_images.Admins can view all carousel images",
+"ok": true,
+"v": "20260324180043"
+},
+{
+"k": "policy",
+"o": "invoices.Admins can insert invoices",
+"ok": true,
+"v": "20260324180043"
+},
+{
+"k": "policy",
+"o": "invoices.Admins can update invoices",
+"ok": true,
+"v": "20260324180043"
+},
+{
+"k": "policy",
+"o": "invoices.Admins can view all invoices",
+"ok": true,
+"v": "20260324180043"
+},
+{
+"k": "policy",
+"o": "order_discounts.Admins can manage discounts",
+"ok": false,
+"v": "20260324180043"
+},
+{
+"k": "policy",
+"o": "order_lot_pictures.Admins can delete any lot pictures",
+"ok": false,
+"v": "20260324180043"
+},
+{
+"k": "policy",
+"o": "order_notes.Admins can manage order notes",
+"ok": true,
+"v": "20260324180043"
+},
+{
+"k": "policy",
+"o": "order_pictures.Admins can delete order pictures",
+"ok": false,
+"v": "20260324180043"
+},
+{
+"k": "policy",
+"o": "order_pictures.Admins can view all order pictures",
+"ok": false,
+"v": "20260324180043"
+},
+{
+"k": "policy",
+"o": "order_refunds.Admins can manage refunds",
+"ok": false,
+"v": "20260324180043"
+},
+{
+"k": "policy",
+"o": "order_workflow_events.Admins and crew can manage workflow events",
+"ok": true,
+"v": "20260324180043"
+},
+{
+"k": "policy",
+"o": "saved_discount_templates.Admins can manage discount templates",
+"ok": true,
+"v": "20260324180043"
+},
+{
+"k": "policy",
+"o": "saved_fee_templates.Admins can manage fee templates",
+"ok": true,
+"v": "20260324180043"
+},
+{
+"k": "policy",
+"o": "sms_conversations.Admins can insert conversations",
+"ok": true,
+"v": "20260324180043"
+},
+{
+"k": "policy",
+"o": "sms_conversations.Admins can view conversations",
+"ok": true,
+"v": "20260324180043"
+},
+{
+"k": "policy",
+"o": "storage.objects.Admin can delete unit images",
+"ok": false,
+"v": "20260324180043"
+},
+{
+"k": "policy",
+"o": "storage.objects.Admin can update unit images",
+"ok": false,
+"v": "20260324180043"
+},
+{
+"k": "policy",
+"o": "storage.objects.Admin can upload unit images",
+"ok": false,
+"v": "20260324180043"
+},
+{
+"k": "policy",
+"o": "storage.objects.Admins can delete carousel media",
+"ok": false,
+"v": "20260324180043"
+},
+{
+"k": "policy",
+"o": "storage.objects.Admins can delete order pictures storage",
+"ok": false,
+"v": "20260324180043"
+},
+{
+"k": "policy",
+"o": "storage.objects.Admins can update carousel media",
+"ok": false,
+"v": "20260324180043"
+},
+{
+"k": "policy",
+"o": "storage.objects.Admins can update order pictures storage",
+"ok": false,
+"v": "20260324180043"
+},
+{
+"k": "policy",
+"o": "storage.objects.Admins can upload carousel media",
+"ok": false,
+"v": "20260324180043"
+},
+{
+"k": "policy",
+"o": "storage.objects.Admins can view all order pictures storage",
+"ok": false,
+"v": "20260324180043"
+},
+{
+"k": "policy",
+"o": "stripe_webhook_events.Admin users can view webhook events",
+"ok": true,
+"v": "20260324180043"
+},
+{
+"k": "policy",
+"o": "task_status.Admin users can delete task statuses",
+"ok": false,
+"v": "20260324180043"
+},
+{
+"k": "policy",
+"o": "task_status.Admin users can insert task statuses",
+"ok": false,
+"v": "20260324180043"
+},
+{
+"k": "policy",
+"o": "task_status.Admin users can update task statuses",
+"ok": false,
+"v": "20260324180043"
+},
+{
+"k": "policy",
+"o": "task_status.Admin users can view all task statuses",
+"ok": false,
+"v": "20260324180043"
+},
+{
+"k": "policy",
+"o": "transaction_receipts.Admin users can insert transaction receipts",
+"ok": false,
+"v": "20260324180043"
+},
+{
+"k": "policy",
+"o": "transaction_receipts.Admin users can view all transaction receipts",
+"ok": false,
+"v": "20260324180043"
+},
+{
+"k": "policy",
+"o": "user_consent_log.Admins can view all consent records",
+"ok": true,
+"v": "20260324180043"
+}
+]

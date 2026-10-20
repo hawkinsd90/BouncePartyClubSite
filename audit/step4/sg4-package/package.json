@@ -1,0 +1,756 @@
+{
+ "stage": "SG-4 (runbook S8 / recovery plan T3)",
+ "channel": "supabase db query --linked -f <absolute path> (byte-exact, one transaction per file, verified for SG-3 steps 26-28)",
+ "start": {
+  "count": 333,
+  "sha256": "3221ec481f7b3a621fb9a9903374e24b609f1b9d69b9aca35e85b0c06b1ffd29"
+ },
+ "end": {
+  "count": 374,
+  "sha256": "0a91980959223b67f4377ead695e4643fca7e10b0309ec9cd38b4f6f5ed12fdb"
+ },
+ "order": [
+  "20251129190039",
+  "20251129190013",
+  "20251207185927",
+  "20251207184549",
+  "20251003200318",
+  "20251229223230",
+  "20251208143543",
+  "20260323201502",
+  "20260324012349",
+  "20260324051459",
+  "20260324142355",
+  "20260324150838",
+  "20260324154955",
+  "20260324180043",
+  "20251008153325",
+  "20251207172335",
+  "20251208130213",
+  "20251208130034",
+  "20251208125821",
+  "20251213223934",
+  "20251214230102",
+  "20251209124058",
+  "20251003111105",
+  "20251003122900",
+  "20251008155607",
+  "20251202171808",
+  "20251203125006",
+  "20251205115557",
+  "20251207163822",
+  "20251230184205",
+  "20251230184228",
+  "20251207175214",
+  "20251207161003",
+  "20251231161729",
+  "20260305010355",
+  "20260311105210",
+  "20260311111714",
+  "20260317175547",
+  "20260322203356",
+  "20260323175233",
+  "20251008190000"
+ ],
+ "excluded_attestations_need_owner_decision": [
+  "20251002210020",
+  "20251207160232"
+ ],
+ "scripts": {
+  "S8.sql": "399025eb45434682bcd67136210f5f7e563e6d4ce002ddf75f210e94a08444de",
+  "S8_reversal.sql": "e78d6a5377fc262a1fc405012def68788297cca88449057a8e923b414d43d700"
+ },
+ "per_version": {
+  "20251129190039": {
+   "atoms_checked": 0,
+   "policies_skipped_reset_by_october": 1,
+   "grants_skipped_revoked_by_october": 0,
+   "stage_b_status_counts": {
+    "PRESENT": 1,
+    "ABSENT": 1
+   },
+   "exceptions": [],
+   "name": "allow_anon_upload_public_assets",
+   "rule_sha256": "1375625452d1e0973d4f12c284f976e484e98b89cce3f0f5e5021526dd791a55",
+   "predecessors": [],
+   "group": "withheld"
+  },
+  "20251129190013": {
+   "atoms_checked": 1,
+   "policies_skipped_reset_by_october": 4,
+   "grants_skipped_revoked_by_october": 0,
+   "stage_b_status_counts": {
+    "PRESENT": 5,
+    "ABSENT": 3,
+    "SUPERSEDED": 1
+   },
+   "exceptions": [],
+   "name": "setup_public_assets_storage",
+   "rule_sha256": "de0557d23e52863094b6a87a525d73bf544323d01880afbaea24cef5f1bcf109",
+   "predecessors": [
+    "20251129190039"
+   ],
+   "group": "withheld"
+  },
+  "20251207185927": {
+   "atoms_checked": 0,
+   "policies_skipped_reset_by_october": 1,
+   "grants_skipped_revoked_by_october": 0,
+   "stage_b_status_counts": {
+    "PRESENT": 1,
+    "UNPROVABLE": 1
+   },
+   "exceptions": [],
+   "name": "remove_circular_policy_completely",
+   "rule_sha256": "1375625452d1e0973d4f12c284f976e484e98b89cce3f0f5e5021526dd791a55",
+   "predecessors": [],
+   "group": "withheld"
+  },
+  "20251207184549": {
+   "atoms_checked": 1,
+   "policies_skipped_reset_by_october": 3,
+   "grants_skipped_revoked_by_october": 4,
+   "stage_b_status_counts": {
+    "ABSENT": 2,
+    "PRESENT": 8,
+    "SUPERSEDED": 3
+   },
+   "exceptions": [],
+   "name": "fix_circular_rls_dependency",
+   "rule_sha256": "7fe9a5fd4e134234fb98037f9e1fefdc6cc41f3009cc49ab6a5cd9766f20a356",
+   "predecessors": [
+    "20251207185927",
+    "20251221234856",
+    "20260324175546"
+   ],
+   "group": "withheld"
+  },
+  "20251003200318": {
+   "atoms_checked": 0,
+   "policies_skipped_reset_by_october": 7,
+   "grants_skipped_revoked_by_october": 0,
+   "stage_b_status_counts": {
+    "SUPERSEDED": 9,
+    "PRESENT": 7
+   },
+   "exceptions": [],
+   "name": "018_fix_infinite_recursion_in_admin_check",
+   "rule_sha256": "1375625452d1e0973d4f12c284f976e484e98b89cce3f0f5e5021526dd791a55",
+   "predecessors": [
+    "20251207184549",
+    "20251209124118"
+   ],
+   "group": "deferred"
+  },
+  "20251229223230": {
+   "atoms_checked": 3,
+   "policies_skipped_reset_by_october": 0,
+   "grants_skipped_revoked_by_october": 2,
+   "stage_b_status_counts": {
+    "PRESENT": 6,
+    "SUPERSEDED": 2,
+    "ABSENT": 1,
+    "UNPROVABLE": 1
+   },
+   "exceptions": [
+    "col customer_profiles.display_name: renamed to first_name/last_name by that very migration; absent by design"
+   ],
+   "name": "update_customer_profiles_names",
+   "rule_sha256": "3ee27ea2f8be97e18c20992287c54013dceff57807833ee3355f6570b072fed7",
+   "predecessors": [
+    "20260324230943"
+   ],
+   "group": "withheld"
+  },
+  "20251208143543": {
+   "atoms_checked": 4,
+   "policies_skipped_reset_by_october": 0,
+   "grants_skipped_revoked_by_october": 3,
+   "stage_b_status_counts": {
+    "SUPERSEDED": 4,
+    "PRESENT": 7
+   },
+   "exceptions": [],
+   "name": "add_oauth_profile_data",
+   "rule_sha256": "e40aabf393722c7cd72efd9638766e10fe33cc24950d108bb653558b1717f2a2",
+   "predecessors": [
+    "20251229223230",
+    "20260317003321",
+    "20260324230943"
+   ],
+   "group": "deferred"
+  },
+  "20260323201502": {
+   "atoms_checked": 0,
+   "policies_skipped_reset_by_october": 0,
+   "grants_skipped_revoked_by_october": 0,
+   "stage_b_status_counts": {
+    "ABSENT": 1,
+    "SUPERSEDED": 3,
+    "PRESENT": 1
+   },
+   "exceptions": [
+    "trigger orders.trg_auto_sync_google_calendar: dropped by recorded migration 20260323204632 (disabled until credentials are ready)"
+   ],
+   "name": "add_google_calendar_auto_sync_trigger",
+   "rule_sha256": "1375625452d1e0973d4f12c284f976e484e98b89cce3f0f5e5021526dd791a55",
+   "predecessors": [
+    "20260323201532",
+    "20260323204632"
+   ],
+   "group": "withheld"
+  },
+  "20260324012349": {
+   "atoms_checked": 1,
+   "policies_skipped_reset_by_october": 0,
+   "grants_skipped_revoked_by_october": 0,
+   "stage_b_status_counts": {
+    "PRESENT": 1,
+    "ABSENT": 2
+   },
+   "exceptions": [],
+   "name": "create_signed_waivers_storage_bucket",
+   "rule_sha256": "11e86165e07c3d50ed4e35a0d6288af449f7a597fdb0ffb14aa0b498a8499a22",
+   "predecessors": [],
+   "group": "withheld"
+  },
+  "20260324051459": {
+   "atoms_checked": 0,
+   "policies_skipped_reset_by_october": 0,
+   "grants_skipped_revoked_by_october": 0,
+   "stage_b_status_counts": {
+    "UNPROVABLE": 1
+   },
+   "exceptions": [],
+   "name": "add_tables_to_realtime_publication",
+   "rule_sha256": "1375625452d1e0973d4f12c284f976e484e98b89cce3f0f5e5021526dd791a55",
+   "predecessors": [],
+   "group": "withheld"
+  },
+  "20260324142355": {
+   "atoms_checked": 0,
+   "policies_skipped_reset_by_october": 0,
+   "grants_skipped_revoked_by_october": 0,
+   "stage_b_status_counts": {
+    "UNPROVABLE": 1
+   },
+   "exceptions": [],
+   "name": "make_signatures_bucket_public",
+   "rule_sha256": "1375625452d1e0973d4f12c284f976e484e98b89cce3f0f5e5021526dd791a55",
+   "predecessors": [],
+   "group": "withheld"
+  },
+  "20260324150838": {
+   "atoms_checked": 0,
+   "policies_skipped_reset_by_october": 0,
+   "grants_skipped_revoked_by_october": 0,
+   "stage_b_status_counts": {
+    "UNPROVABLE": 1
+   },
+   "exceptions": [],
+   "name": "make_order_pictures_bucket_public",
+   "rule_sha256": "1375625452d1e0973d4f12c284f976e484e98b89cce3f0f5e5021526dd791a55",
+   "predecessors": [],
+   "group": "withheld"
+  },
+  "20260324154955": {
+   "atoms_checked": 0,
+   "policies_skipped_reset_by_october": 0,
+   "grants_skipped_revoked_by_october": 0,
+   "stage_b_status_counts": {
+    "UNPROVABLE": 1
+   },
+   "exceptions": [],
+   "name": "add_order_pictures_to_realtime_publication",
+   "rule_sha256": "1375625452d1e0973d4f12c284f976e484e98b89cce3f0f5e5021526dd791a55",
+   "predecessors": [],
+   "group": "withheld"
+  },
+  "20260324180043": {
+   "atoms_checked": 0,
+   "policies_skipped_reset_by_october": 45,
+   "grants_skipped_revoked_by_october": 0,
+   "stage_b_status_counts": {
+    "SUPERSEDED": 36,
+    "PRESENT": 45,
+    "ABSENT": 9
+   },
+   "exceptions": [],
+   "name": "fix_all_rls_policies_lowercase_roles",
+   "rule_sha256": "1375625452d1e0973d4f12c284f976e484e98b89cce3f0f5e5021526dd791a55",
+   "predecessors": [],
+   "group": "withheld"
+  },
+  "20251008153325": {
+   "atoms_checked": 48,
+   "policies_skipped_reset_by_october": 0,
+   "grants_skipped_revoked_by_october": 0,
+   "stage_b_status_counts": {
+    "NOOP": 1,
+    "PRESENT": 61,
+    "SUPERSEDED": 7
+   },
+   "exceptions": [],
+   "name": "033_add_order_workflow_and_features",
+   "rule_sha256": "f33c8fb45a5c0f58adcd0384fb7976a214244f9889005d741b9b5705229a71e5",
+   "predecessors": [
+    "20251209115445",
+    "20260324180043"
+   ],
+   "group": "deferred"
+  },
+  "20251207172335": {
+   "atoms_checked": 0,
+   "policies_skipped_reset_by_october": 0,
+   "grants_skipped_revoked_by_october": 0,
+   "stage_b_status_counts": {
+    "SUPERSEDED": 8
+   },
+   "exceptions": [],
+   "name": "fix_carousel_rls_for_master",
+   "rule_sha256": "1375625452d1e0973d4f12c284f976e484e98b89cce3f0f5e5021526dd791a55",
+   "predecessors": [
+    "20260324180043"
+   ],
+   "group": "deferred"
+  },
+  "20251208130213": {
+   "atoms_checked": 14,
+   "policies_skipped_reset_by_october": 0,
+   "grants_skipped_revoked_by_october": 4,
+   "stage_b_status_counts": {
+    "SUPERSEDED": 5,
+    "PRESENT": 20
+   },
+   "exceptions": [],
+   "name": "add_user_creation_logging",
+   "rule_sha256": "605b72effa6a6d61f669b8db898399f981cbc58bf6e8f88791a3bd35b4a821d2",
+   "predecessors": [
+    "20251208143543",
+    "20251209115445",
+    "20260324180043",
+    "20260324230943"
+   ],
+   "group": "deferred"
+  },
+  "20251208130034": {
+   "atoms_checked": 1,
+   "policies_skipped_reset_by_october": 0,
+   "grants_skipped_revoked_by_october": 2,
+   "stage_b_status_counts": {
+    "SUPERSEDED": 3,
+    "PRESENT": 3
+   },
+   "exceptions": [],
+   "name": "link_existing_orders_on_signup",
+   "rule_sha256": "5c1dd4a3e9b87ab12ec400facb311d15982d64598161ad311afa0c4ab60bdabd",
+   "predecessors": [
+    "20251208130213",
+    "20260324230943"
+   ],
+   "group": "deferred"
+  },
+  "20251208125821": {
+   "atoms_checked": 1,
+   "policies_skipped_reset_by_october": 0,
+   "grants_skipped_revoked_by_october": 2,
+   "stage_b_status_counts": {
+    "SUPERSEDED": 3,
+    "PRESENT": 3
+   },
+   "exceptions": [],
+   "name": "fix_oauth_user_creation",
+   "rule_sha256": "5c1dd4a3e9b87ab12ec400facb311d15982d64598161ad311afa0c4ab60bdabd",
+   "predecessors": [
+    "20251208130034",
+    "20260324230943"
+   ],
+   "group": "deferred"
+  },
+  "20251213223934": {
+   "atoms_checked": 0,
+   "policies_skipped_reset_by_october": 0,
+   "grants_skipped_revoked_by_october": 0,
+   "stage_b_status_counts": {
+    "SUPERSEDED": 2
+   },
+   "exceptions": [],
+   "name": "fix_consent_policy_for_admins",
+   "rule_sha256": "1375625452d1e0973d4f12c284f976e484e98b89cce3f0f5e5021526dd791a55",
+   "predecessors": [
+    "20260324180043"
+   ],
+   "group": "deferred"
+  },
+  "20251214230102": {
+   "atoms_checked": 0,
+   "policies_skipped_reset_by_october": 4,
+   "grants_skipped_revoked_by_october": 0,
+   "stage_b_status_counts": {
+    "PRESENT": 4,
+    "SUPERSEDED": 4
+   },
+   "exceptions": [],
+   "name": "fix_task_status_rls_policies",
+   "rule_sha256": "1375625452d1e0973d4f12c284f976e484e98b89cce3f0f5e5021526dd791a55",
+   "predecessors": [
+    "20260324180043"
+   ],
+   "group": "deferred"
+  },
+  "20251209124058": {
+   "atoms_checked": 0,
+   "policies_skipped_reset_by_october": 23,
+   "grants_skipped_revoked_by_october": 0,
+   "stage_b_status_counts": {
+    "PRESENT": 23,
+    "SUPERSEDED": 81
+   },
+   "exceptions": [],
+   "name": "20251209000001_optimize_rls_auth_performance",
+   "rule_sha256": "1375625452d1e0973d4f12c284f976e484e98b89cce3f0f5e5021526dd791a55",
+   "predecessors": [
+    "20251209124118",
+    "20251214230102",
+    "20251221234856",
+    "20260324135229",
+    "20260324175947",
+    "20260324180043",
+    "20260409155123"
+   ],
+   "group": "deferred"
+  },
+  "20251003111105": {
+   "atoms_checked": 14,
+   "policies_skipped_reset_by_october": 1,
+   "grants_skipped_revoked_by_october": 0,
+   "stage_b_status_counts": {
+    "PRESENT": 18,
+    "SUPERSEDED": 2
+   },
+   "exceptions": [],
+   "name": "009_add_sms_conversations",
+   "rule_sha256": "d34b80541a6db393f237a4e75c4e90b5221d4fb236bda386f03426bf86e25deb",
+   "predecessors": [
+    "20251209124058"
+   ],
+   "group": "deferred"
+  },
+  "20251003122900": {
+   "atoms_checked": 48,
+   "policies_skipped_reset_by_october": 2,
+   "grants_skipped_revoked_by_october": 0,
+   "stage_b_status_counts": {
+    "PRESENT": 58,
+    "SUPERSEDED": 8
+   },
+   "exceptions": [],
+   "name": "010_add_contacts_and_invoices",
+   "rule_sha256": "b7962144e75f4cb463a891a5983421c95aa25079bbe1b519036a1c8a594e47bb",
+   "predecessors": [
+    "20251209115445",
+    "20251209124058",
+    "20251209160751"
+   ],
+   "group": "deferred"
+  },
+  "20251008155607": {
+   "atoms_checked": 12,
+   "policies_skipped_reset_by_october": 1,
+   "grants_skipped_revoked_by_october": 0,
+   "stage_b_status_counts": {
+    "PRESENT": 16,
+    "SUPERSEDED": 1
+   },
+   "exceptions": [],
+   "name": "034_add_order_changelog",
+   "rule_sha256": "4aee54611dbb5793f3db1c37af9e34ad3d25cc8d365f7d043764793e114f8b80",
+   "predecessors": [
+    "20251209124058"
+   ],
+   "group": "deferred"
+  },
+  "20251202171808": {
+   "atoms_checked": 48,
+   "policies_skipped_reset_by_october": 5,
+   "grants_skipped_revoked_by_october": 0,
+   "stage_b_status_counts": {
+    "NOOP": 1,
+    "PRESENT": 59,
+    "UNMATCHED": 1,
+    "SUPERSEDED": 5,
+    "ABSENT": 8
+   },
+   "exceptions": [],
+   "name": "20251202000000_create_order_signatures_system",
+   "rule_sha256": "149a90694f96e64418204c01afcca5281935d8671e9d05fb1fd8cbdc99938331",
+   "predecessors": [
+    "20251209115445",
+    "20251209124058",
+    "20260324135229",
+    "20260324180043"
+   ],
+   "group": "withheld"
+  },
+  "20251203125006": {
+   "atoms_checked": 17,
+   "policies_skipped_reset_by_october": 2,
+   "grants_skipped_revoked_by_october": 0,
+   "stage_b_status_counts": {
+    "NOOP": 3,
+    "PRESENT": 22,
+    "SUPERSEDED": 1
+   },
+   "exceptions": [],
+   "name": "20251203000000_add_invoice_links_system",
+   "rule_sha256": "8062b044f3009d3ca22bc5e571a239198bdf1656cc049435200baf1e55bcbe67",
+   "predecessors": [
+    "20251209124058"
+   ],
+   "group": "deferred"
+  },
+  "20251205115557": {
+   "atoms_checked": 22,
+   "policies_skipped_reset_by_october": 0,
+   "grants_skipped_revoked_by_october": 0,
+   "stage_b_status_counts": {
+    "PRESENT": 26,
+    "SUPERSEDED": 4
+   },
+   "exceptions": [],
+   "name": "add_task_management_system",
+   "rule_sha256": "8b7eb389763019c6f1ba032c25ca5596d521a18534490a8acb522c39e27a1c03",
+   "predecessors": [
+    "20251209124058"
+   ],
+   "group": "deferred"
+  },
+  "20251207163822": {
+   "atoms_checked": 14,
+   "policies_skipped_reset_by_october": 1,
+   "grants_skipped_revoked_by_october": 6,
+   "stage_b_status_counts": {
+    "UNPROVABLE": 2,
+    "PRESENT": 25,
+    "ABSENT": 1,
+    "SUPERSEDED": 11
+   },
+   "exceptions": [],
+   "name": "add_role_hierarchy_and_oauth",
+   "rule_sha256": "d0b56bf293d6747b44578864da0480f89ed1a9da4f01ec1bd2404056117e3dfe",
+   "predecessors": [
+    "20251208125821",
+    "20251209115445",
+    "20251209124058",
+    "20251229223230",
+    "20260324180043",
+    "20260324230943"
+   ],
+   "group": "withheld"
+  },
+  "20251230184205": {
+   "atoms_checked": 0,
+   "policies_skipped_reset_by_october": 1,
+   "grants_skipped_revoked_by_october": 0,
+   "stage_b_status_counts": {
+    "SUPERSEDED": 9,
+    "PRESENT": 1
+   },
+   "exceptions": [],
+   "name": "fix_carousel_rls_policies",
+   "rule_sha256": "1375625452d1e0973d4f12c284f976e484e98b89cce3f0f5e5021526dd791a55",
+   "predecessors": [
+    "20260324180043"
+   ],
+   "group": "deferred"
+  },
+  "20251230184228": {
+   "atoms_checked": 0,
+   "policies_skipped_reset_by_october": 4,
+   "grants_skipped_revoked_by_october": 0,
+   "stage_b_status_counts": {
+    "PRESENT": 4,
+    "ABSENT": 1,
+    "SUPERSEDED": 3
+   },
+   "exceptions": [],
+   "name": "fix_carousel_storage_policies",
+   "rule_sha256": "1375625452d1e0973d4f12c284f976e484e98b89cce3f0f5e5021526dd791a55",
+   "predecessors": [
+    "20260324180043"
+   ],
+   "group": "withheld"
+  },
+  "20251207175214": {
+   "atoms_checked": 0,
+   "policies_skipped_reset_by_october": 3,
+   "grants_skipped_revoked_by_october": 0,
+   "stage_b_status_counts": {
+    "SUPERSEDED": 34,
+    "PRESENT": 3
+   },
+   "exceptions": [],
+   "name": "fix_all_admin_policies_for_master_corrected",
+   "rule_sha256": "1375625452d1e0973d4f12c284f976e484e98b89cce3f0f5e5021526dd791a55",
+   "predecessors": [
+    "20251207184549",
+    "20251230184228",
+    "20260324175947",
+    "20260324180043"
+   ],
+   "group": "deferred"
+  },
+  "20251207161003": {
+   "atoms_checked": 0,
+   "policies_skipped_reset_by_october": 4,
+   "grants_skipped_revoked_by_october": 0,
+   "stage_b_status_counts": {
+    "PRESENT": 4,
+    "SUPERSEDED": 4
+   },
+   "exceptions": [],
+   "name": "add_carousel_storage_policies",
+   "rule_sha256": "1375625452d1e0973d4f12c284f976e484e98b89cce3f0f5e5021526dd791a55",
+   "predecessors": [
+    "20251207175214",
+    "20251230184228"
+   ],
+   "group": "deferred"
+  },
+  "20251231161729": {
+   "atoms_checked": 15,
+   "policies_skipped_reset_by_october": 1,
+   "grants_skipped_revoked_by_october": 0,
+   "stage_b_status_counts": {
+    "PRESENT": 19,
+    "SUPERSEDED": 6,
+    "ABSENT": 2
+   },
+   "exceptions": [],
+   "name": "create_order_pictures_system",
+   "rule_sha256": "a519d6b6bb62de2798a4de3c828065a4b3b8ef6aa758bfc36099217036bcaced",
+   "predecessors": [
+    "20260324150819",
+    "20260324180043"
+   ],
+   "group": "withheld"
+  },
+  "20260305010355": {
+   "atoms_checked": 0,
+   "policies_skipped_reset_by_october": 1,
+   "grants_skipped_revoked_by_october": 0,
+   "stage_b_status_counts": {
+    "PRESENT": 1,
+    "SUPERSEDED": 1
+   },
+   "exceptions": [],
+   "name": "add_delete_policy_lot_pictures",
+   "rule_sha256": "1375625452d1e0973d4f12c284f976e484e98b89cce3f0f5e5021526dd791a55",
+   "predecessors": [
+    "20260324180043"
+   ],
+   "group": "deferred"
+  },
+  "20260311105210": {
+   "atoms_checked": 27,
+   "policies_skipped_reset_by_october": 2,
+   "grants_skipped_revoked_by_october": 0,
+   "stage_b_status_counts": {
+    "PRESENT": 35,
+    "SUPERSEDED": 2
+   },
+   "exceptions": [],
+   "name": "create_transaction_receipts",
+   "rule_sha256": "befa84525e5361cedf1bc1a2badcd78e1fd51a04fbe99aaae54c00c82785ad05",
+   "predecessors": [
+    "20260324180043"
+   ],
+   "group": "deferred"
+  },
+  "20260311111714": {
+   "atoms_checked": 20,
+   "policies_skipped_reset_by_october": 1,
+   "grants_skipped_revoked_by_october": 0,
+   "stage_b_status_counts": {
+    "NOOP": 2,
+    "PRESENT": 23,
+    "SUPERSEDED": 2,
+    "UNMATCHED": 1,
+    "NONMATERIAL": 6
+   },
+   "exceptions": [],
+   "name": "upgrade_transaction_receipts_enterprise_safety",
+   "rule_sha256": "15884ffac94597a30063a82e747ea719975ee987b7cee65385befbd35612c0fb",
+   "predecessors": [
+    "20260311202123",
+    "20260324180043"
+   ],
+   "group": "deferred"
+  },
+  "20260317175547": {
+   "atoms_checked": 15,
+   "policies_skipped_reset_by_october": 1,
+   "grants_skipped_revoked_by_october": 0,
+   "stage_b_status_counts": {
+    "PRESENT": 20,
+    "SUPERSEDED": 3
+   },
+   "exceptions": [],
+   "name": "create_user_consent_log",
+   "rule_sha256": "ceaf0463aa3c30fda7d1b60a10bf6ffa9b39ab3f58e76741ecee51990cb04773",
+   "predecessors": [
+    "20260317181119",
+    "20260324180043"
+   ],
+   "group": "deferred"
+  },
+  "20260322203356": {
+   "atoms_checked": 0,
+   "policies_skipped_reset_by_october": 0,
+   "grants_skipped_revoked_by_october": 0,
+   "stage_b_status_counts": {
+    "SUPERSEDED": 1
+   },
+   "exceptions": [],
+   "name": "fix_crew_location_history_authenticated_insert_policy",
+   "rule_sha256": "1375625452d1e0973d4f12c284f976e484e98b89cce3f0f5e5021526dd791a55",
+   "predecessors": [
+    "20260324180043"
+   ],
+   "group": "deferred"
+  },
+  "20260323175233": {
+   "atoms_checked": 0,
+   "policies_skipped_reset_by_october": 6,
+   "grants_skipped_revoked_by_october": 0,
+   "stage_b_status_counts": {
+    "PRESENT": 6,
+    "SUPERSEDED": 3
+   },
+   "exceptions": [],
+   "name": "20260323_security_tighten_unit_images_storage_admin_only",
+   "rule_sha256": "1375625452d1e0973d4f12c284f976e484e98b89cce3f0f5e5021526dd791a55",
+   "predecessors": [
+    "20260324180043"
+   ],
+   "group": "deferred"
+  },
+  "20251008190000": {
+   "atoms_checked": 1,
+   "policies_skipped_reset_by_october": 0,
+   "grants_skipped_revoked_by_october": 0,
+   "stage_b_status_counts": {
+    "PRESENT": 1,
+    "ABSENT": 1,
+    "SUPERSEDED": 3
+   },
+   "exceptions": [],
+   "name": "037_setup_unit_images_storage",
+   "rule_sha256": "30048b680b74bd473c62875041653cc9305aa137b717ca560971e2e981328a04",
+   "predecessors": [
+    "20260323175233"
+   ],
+   "group": "withheld"
+  }
+ }
+}
