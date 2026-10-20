@@ -49,3 +49,14 @@ I prepared one `DO` block: replace that phrase in `statements[2]` of the step-24
 
 * `SITE_URL` and `RETURN_ORIGINS` (both `https://dev.bouncepartyclub.com`): the connector secret request was declined and is **not** set. Owner action: Supabase dashboard > project `srxunxiytojjsuhcmzjg` > Edge Functions > Secrets, add those two names with that value, nothing else. Until then `request-portal-link` falls back to the Production site address in links.
 * `stripe-webhook`: by source (`index.ts` line 31) it reads `STRIPE_WEBHOOK_SECRET` from the environment and returns HTTP 500 before touching anything when it is absent. The unsigned test returned 500 "Webhook secret not configured": fail-closed, no side effect, **not a passing webhook test**. No Stripe call was made. Secret values cannot be listed by tooling. Owner action (separate authorization, not requested here): set the Development webhook signing secret from the Stripe test-mode endpoint. Must be resolved before any webhook or payment acceptance test.
+
+## Addendum: owner decision and step 25 (2026-10-20)
+
+Owner decision: step 24 disclosed exception accepted (comment-only; ledger row not mutated). Permanent hashes: stored `bd497a27114ad713e3de0cfa6909f4d5828b6574840eaf118bfb15f8c354f7cd`, sealed `00df3c9b0d6f0e7aca0352a9dcce93f8a9b5d4b2739e8c7eaa40a85274df5d58`. They do not match and are not reported as matching.
+
+Step 25 (`20261026120100`) then executed: ledger 330, one row, in-transaction pre/post fingerprint (`430bd39c...` to `34b4b370caa86c94146a6865a4d7b3fc`) and `step3b-post-effect-present` checks passed. Its stored-text check **failed again**:
+
+* stored sha256 `5ebd577a0a50d622e8a2cb4fcd5997f755ae6af891f691fdcaab4d3e3a5f7d63`, sealed `7bd96faee726c178b62b4453e7c46f681b47809510ecffaa21edfa4b9e4cefe5`
+* line-by-line (36 lines): exactly one line differs, sealed line 70 of the file: sealed `audit/security/step3b-verification-rules.json`, stored `audit/step3b-verification-rules.json` (I dropped `security/` while pasting). Block comment, not executed.
+
+Same cause as step 24: my manual copying of the sealed text through the connector. The step-24 exception was granted for step 24 only, so execution stopped here (steps 26 to 28 not run).
