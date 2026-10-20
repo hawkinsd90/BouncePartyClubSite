@@ -85,5 +85,20 @@ ok('SG-2: the only function needing a D-JWT-1 owner release is upload-physical-w
 ok('SG-2: canary hash equals the committed canary file and the document lists the order S3, S4, S4b', sg.canary_sha256_lf === sha(Buffer.from(lf(read(path.join(S4, 'g16-storage-canary.sql'))))) && /## 1\. S3/.test(sgDoc) && /## 2\. S4/.test(sgDoc) && /## 3\. S4b/.test(sgDoc));
 ok('SG-2 scripts hashes equal their files', sg.batches.every((b: any) => shaf(path.join(S4, 'sg2-package', b.batch + '_filled.sql')) === b.filled_sha256));
 
+// SG-2 release review: the deployable bundles still hash to the package, imports resolve and verify_jwt matches config.toml
+const FDIR = path.join(ROOT, 'supabase', 'functions');
+const filesOf = (d: string): string[] => {
+  const out: string[] = [];
+  const walk = (p: string) => { for (const e of fs.readdirSync(p, { withFileTypes: true })) { const q = path.join(p, e.name); if (e.isDirectory()) walk(q); else out.push(path.relative(FDIR, q)); } };
+  walk(path.join(FDIR, d));
+  return out;
+};
+const treeHash = (paths: string[]) => { const h = crypto.createHash('sha256'); for (const p of [...paths].sort()) { h.update(p.split(path.sep).join('/')); h.update(Buffer.from([0])); h.update(lf(fs.readFileSync(path.join(FDIR, p), 'utf8'))); h.update(Buffer.from([0])); } return h.digest('hex'); };
+ok('SG-2: every function bundle hash and the shared tree hash still equal the package', sg.functions.every((f: any) => treeHash(filesOf(f.function)) === f.bundle_sha256) && treeHash(filesOf('_shared')) === sg.shared_sha256);
+const cfgToml = read(path.join(ROOT, 'supabase', 'config.toml'));
+ok('SG-2: the explicit verify_jwt of each of the 21 functions equals config.toml', sg.functions.every((f: any) => new RegExp('\\[functions\\.' + f.function + '\\]\\s*\\r?\\nverify_jwt\\s*=\\s*' + f.explicit_verify_jwt_at_deploy).test(cfgToml)));
+ok('SG-2: relative imports of the 21 bundles resolve inside the function folder or _shared', sg.functions.every((f: any) => filesOf(f.function).filter((p) => p.endsWith('.ts')).every((p) => { const t = read(path.join(FDIR, p)); const re = /(?:from|import)\s*\(?\s*["'](\.{1,2}\/[^"']+)["']/g; let m: any; while ((m = re.exec(t))) { const tgt = path.normalize(path.join(path.dirname(path.join(FDIR, p)), m[1])); if (!fs.existsSync(tgt)) return false; const top = path.relative(FDIR, tgt).split(path.sep)[0]; if (top !== f.function && top !== '_shared') return false; } return true; })));
+ok('SG-2: the release review exists and records no blocker', /NO RELEASE BLOCKER FOUND/.test(read(path.join(S4, 'sg2-release-review.md'))));
+
 console.log(`S2 consolidated package: ${passed} passed, ${failed} failed`);
 if (failed) process.exit(1);
