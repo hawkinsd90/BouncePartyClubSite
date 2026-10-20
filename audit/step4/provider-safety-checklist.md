@@ -44,3 +44,22 @@ What the plan keeps is the **ordering rule** inside that single rollout: the not
 
 ## 5. Evidence to retain (no secrets)
 Function version numbers and `ezbr_sha256` before and after, the `list_edge_functions` output, the Stripe test-mode event ids, the Twilio message SID prefix and status, the Resend message id, screenshots of the three console checks with values hidden.
+
+## 6. Status after S0, P0 and the S1 decisions (2026-10-20)
+Distinguishes owner confirmation from independent verification. A live provider credential is **not** permission to send: no message of any kind is sent during preparation or by deployment.
+| # | Item | Status | Basis |
+|---|---|---|---|
+| C1 | Stripe secret key | PARTIAL | `admin_settings` secret and publishable keys classify `test` (names, lengths and prefix class only, read 2026-10-20); the Edge secret and the Stripe dashboard are owner checks before S13 |
+| C2 | Frontend publishable key | UNVERIFIED | Netlify environment variables, before S13 |
+| C3 | Stripe webhook | UNVERIFIED | Stripe dashboard, before S13 |
+| C4 | Copied Production ids | documented | expected to fail with test keys; never switch to live keys |
+| C5 | Twilio | **OWNER-CONFIRMED: Development uses LIVE credentials (not a sandbox)**; not independently verified through Twilio | the guard is mandatory: only `+17343588854` can receive; no customer-directed test; no unguarded fallback; no automatic test after deployment; any SMS test needs a separate authorization with an owner-controlled recipient and test event |
+| C6 | Twilio callback URLs | UNVERIFIED | before S13; `twilio-webhook` can reply with TwiML to an inbound text outside the relay guard, and today the gateway refuses Twilio's unauthenticated webhook (hosted `verify_jwt` true); review the number's webhook target before any change to that function |
+| C7 | Resend | **OWNER-CONFIRMED**: domain verified, Development key has sending permission, recent activity checked; not independently verified through Resend | the e-mail guard is mandatory: only the three approved inboxes can receive |
+| C8 | `SITE_URL`, `RETURN_ORIGINS` | UNVERIFIED | values are not readable; names only; verified behaviorally at S13 |
+| C9 | Maps key | UNVERIFIED | before S13 |
+| C10 | `pg_net` and HTTP triggers | VERIFIED (2026-10-20) | `pg_net` absent; no database function references a function URL or the relays |
+| G-02 | Four destinations | **APPROVED (owner)** | SMS `+17343588854`; e-mail `hawkinsd90@gmail.com`, `deveehawk@gmail.com`, `neverforgetthevibes@gmail.com`; constants in `outbound-guard.ts`; unchanged |
+| D-JWT-1 | Relay `verify_jwt` | **APPROVED (owner)**: `true` for both | hosted change not yet authorized; legacy JWT keys stay; no `sb_secret` replacement without a separate review |
+Execution plan, rollback and stop conditions: `auth5-s1-authorization-package.md`.
+

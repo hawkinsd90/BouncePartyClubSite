@@ -24,8 +24,8 @@ Legend: **S0** approvals and restore point; **S1** notification containment; **S
 | G-11 | SEC-048 dependency updates | Approve a separate patch change: npm update react-router-dom; run build, typecheck and a browser pass | none (before the frontend release to Production) | No | OPEN |
 | G-12 | send-booking-confirmation (hosted-only function) | Read its source (read-only) and decide retire or keep | none (S14) | Retiring is a deploy (later) | OPEN |
 | G-13 | send-error-notification target | Leave until after the rollout | none | No | OPEN |
-| G-14 | Deployment window and on-call | Name the window (start/end) and the person reachable throughout | S0 | No | OPEN |
-| D-JWT-1 | Edge Function verify_jwt decisions | Decide each row of edge-function-jwt-compatibility-matrix.csv: 17 deploy at true, 3 at false (required), 5 not deployed (preserve) | S1,S4,S6 | Deploys later | OPEN |
+| G-14 | Deployment window and on-call | Name the window (start/end) and the person reachable throughout | S0 | No | OPEN | AUTH-4: rollout window STARTED 2026-10-19 23:59 EDT |
+| D-JWT-1 | Edge Function verify_jwt decisions | Decide each row of edge-function-jwt-compatibility-matrix.csv: 17 deploy at true, 3 at false (required), 5 not deployed (preserve) | S1,S4,S6 | Deploys later | OPEN | AUTH-4 P0: hosted send-email v7 and send-sms-notification v6 are verify_jwt false; the repository matrix recommends true for both; the choice is NOT made silently and remains the owner's decision before S1 | PRE-S1 ASSESSMENT: verify_jwt true is compatible with every legitimate caller of send-email and send-sms-notification |
 | G-18 | Commit and package freeze | Approve the commit sequence in package-freeze-and-commit-sequence.md; commit only after approval; do not edit the 28 files | S0 | No (local commits) | OPEN | Local commits COMPLETED: 7adcf75 and 0fc95c2 |
 | G-19 | Stub functions with repository changes (fix-payment-method, backfill-payment-methods) | Decide deploy or leave the stubs | S6 | Deploy later if chosen | OPEN |
 | G-20 | Bolt access freeze (REMOVED by owner decision, Step 4B AUTH-1) | None. No freeze, disconnection, disabling or restriction of Bolt is requested, and none is a prerequisite or checklist item | none | No | REMOVED BY OWNER |
@@ -53,7 +53,7 @@ Legend: **S0** approvals and restore point; **S1** notification containment; **S
 |---|---|---|---|
 | D-02 | Development restore point | Strategy approved | STRATEGY APPROVED - EXECUTION AND RESTORE VERIFICATION PENDI |
 | D-03a | Supabase and Netlify settings inspection | Requires read-only verification | ANSWERED for Supabase and for Netlify build/env |
-| G-14 | Deployment window and on-call | Pending owner authorization | OPEN |
+| G-14 | Deployment window and on-call | Pending owner authorization | OPEN | AUTH-4: rollout window STARTED 2026-10-19 23:59 EDT |
 | G-18 | Commit and package freeze | Pending owner authorization | OPEN | Local commits COMPLETED: 7adcf75 and 0fc95c2 |
 | G-22 | Reconcile origin/Dev (aeb708e) | Pending owner authorization | OPEN |
 
@@ -72,7 +72,7 @@ Legend: **S0** approvals and restore point; **S1** notification containment; **S
 | G-15 | Git push scope | Pending owner authorization | OPEN |
 | G-16 | Storage-policy capability canary | Requires controlled hosted execution | OPEN |
 | G-17 | Hosted authorization documents | Pending owner authorization | OPEN |
-| D-JWT-1 | Edge Function verify_jwt decisions | Pending owner authorization | OPEN |
+| D-JWT-1 | Edge Function verify_jwt decisions | Pending owner authorization | OPEN | AUTH-4 P0: hosted send-email v7 and send-sms-notifica |
 | G-19 | Stub functions with repository changes (fix-payment-method, backfill-payment-methods) | Pending owner authorization | OPEN |
 | G-21 | Close the standard-migration obstacles | Deferred until after the Development deployment | OPEN. Proposal to record all 13 as NOT EXECUTED is NOT appro |
 | G-24 | Align config.toml with the approved function decisions | Deferred until after the Development deployment | OPEN |
