@@ -1,0 +1,10 @@
+{
+  "captured": "2026-10-20, read-only, immediately before step 12 (20261016120000), after steps 1 to 11 verified (ledger 316, all 11 stored SQL hashes equal the sealed sha256_lf values)",
+  "rows_to_be_deleted_by_step_12": [
+    { "id": "09a71dda-1e39-42a9-9e78-a606968c6557", "role": "master", "user_id": "baa7b068-da1f-45a3-b376-822e816657ad", "created_at": "2025-12-07T18:37:01.156493+00:00" },
+    { "id": "82fcc6a3-3aee-4c25-be61-4336c5c8a0da", "role": "master", "user_id": "baa7b068-da1f-45a3-b376-822e81665780", "created_at": "2025-12-07T19:48:17.625144+00:00" }
+  ],
+  "user_roles_count_before": 9,
+  "expected_user_roles_count_after": 7,
+  "baseline_before_step_12": { "orders": 171, "payments": 185, "storage_objects": 500 }
+}
