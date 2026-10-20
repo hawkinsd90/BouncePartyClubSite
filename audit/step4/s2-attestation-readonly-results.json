@@ -369,5 +369,27 @@
     },
     "other_active_masters_excluding_demo": 2,
     "prerequisite": "fresh Development sign-in and dashboard access still to be shown by the owner"
+  },
+  "sec005_prerequisite_2026_10_20": {
+    "verified_utc": "2026-10-20T14:56Z",
+    "fresh_login_utc": "2026-10-20T14:54:48Z",
+    "method": "google oauth via dev.bouncepartyclub.com, Development Auth log login event plus new auth.sessions row",
+    "user_id": "bc6ed893-3cc7-4204-aad8-6216f6847b22",
+    "role": "master",
+    "banned": false,
+    "deleted": false,
+    "dashboard_access": "confirmed by the owner",
+    "targets": {
+      "demo_master": {
+        "id": "baa7b068-da1f-45a3-b376-822e8166570d",
+        "banned": false,
+        "sessions": 4
+      },
+      "second_account": {
+        "id": "c9e6a72d-246e-476a-8dd7-6d1e53bbd298",
+        "banned": false,
+        "sessions": 0
+      }
+    }
   }
 }
