@@ -1,6 +1,6 @@
 # AUTH-10: consolidated S2 hosted-write authorization (80 ledger rows), prepared 2026-10-20
 
-Status: **READY FOR OWNER APPROVAL. NOT AUTHORIZED. NOT EXECUTED.** No hosted write, Auth change, Storage change, Git push or Production access happened while preparing it. Hosted activity so far was read-only SQL on Development (`srxunxiytojjsuhcmzjg`).
+Status: **AUTHORIZED BY THE OWNER (AUTH-10, exact statement below) AND EXECUTED ON 2026-10-20: ledger 223 to 303 rows, SHA-256 `b4f1f35e…` as predicted. Evidence: `s2-auth10-execution-evidence.md`.** (Original preparation status: ready for owner approval, not authorized, not executed.) No hosted write, Auth change, Storage change, Git push or Production access happened while preparing it. Hosted activity so far was read-only SQL on Development (`srxunxiytojjsuhcmzjg`).
 
 ## 1. The statement to send (exact; SHA-256 `386ffca2d22e210c0b548f75babeb3068ea27eb0594e7e771f468bb66101f872`, file `s2-auth10-approval-text.txt`)
 

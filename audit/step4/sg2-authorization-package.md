@@ -1,6 +1,14 @@
 # SG-2 (S3 + S4 + S4b): preparation status and consolidated authorization draft (2026-10-20)
 
-Status: **PREPARED FROM THE PREDICTED POST-S2 STATE. NOT AUTHORIZED. NOT EXECUTED.** SG-2 starts only after AUTH-10 (S2) succeeded: ledger **303 rows, `b4f1f35ef890f200286199c84d0b3b76659453ba11ed20cac980b4bf3f828176`**. Order is the runbook's: S3, then S4, then S4b. Production is outside this package.
+Status: **PREPARED AGAINST THE ACTUAL POST-S2 STATE. NOT AUTHORIZED. NOT EXECUTED.** AUTH-10 (S2) succeeded: the Development ledger is **303 rows, `b4f1f35ef890f200286199c84d0b3b76659453ba11ed20cac980b4bf3f828176`** (verified 2026-10-20). Order is the runbook's: S3, then S4, then S4b. Production is outside this package.
+
+## 0. Read-only preparation results (2026-10-20, after S2)
+
+- **Ledger prediction after S3** (run read-only on the real 303-row ledger with the two `executed` rows added): after B23 **304 rows `3c31b2a2cc1933212c1aa448033d383312324c795b0d8bba747821d5642e203a`**; after B24 **305 rows `72cafdaca438365b30b41db0e7269832cc6591837dc8ef5bb5c01c125e2dd008`**. Neither version exists in the ledger today.
+- **Bucket preflight:** `carousel-media` and `public-assets` both have `file_size_limit` NULL and `allowed_mime_types` NULL (the values the reversal scripts restore). `storage.objects` has the same 6 policies (digest `b9eed816057e02092ab2eb4f563f3b6d`).
+- **Triggers on `storage.buckets` (the runbook asked to read them first):** five, all platform-owned (`supabase_storage_admin`): `enforce_bucket_name_length_trigger` (fires on INSERT or UPDATE OF `name` only), `protect_bucket_control_insert` (INSERT), `protect_bucket_control_update` and `protect_bucket_control_update_role` (fire only on UPDATE OF the two lifecycle columns), `protect_buckets_delete` (DELETE). **None fires for an UPDATE of `file_size_limit` or `allowed_mime_types`, so they do not block S3.**
+- **Hosted Edge Functions (read-only list):** all 10 hosted S4 functions have exactly the versions and `verify_jwt` values in the matrix (customer-cancel-order v5/false, create-order-short-link v3/false, generate-blank-waiver v18/false, generate-signed-waiver v10/false, get-payment-method v4/false, get-session-metadata v4/false, get-waiver-status v12/false, save-signature v4/false, stripe-refund v10/true, upload-physical-waiver v6/false). The 11 new functions are not deployed. The S1 relays are unchanged (send-email v8 `38d67a82…`, send-sms-notification v7 `2fceff7f…`). No drift since the P0 comparison. A byte-level source comparison of the 10 hosted bundles against the P0 copies is still to be done immediately before deployment.
+- **Caller check:** no file under `src/`, `supabase/functions/` or `supabase/migrations/` invokes `get-session-metadata`, `get-payment-method` or `create-order-short-link` (only tests and the executor mention them). The hosted-log check could not be run: the log-query tool here does not expose resolvable function-log tables. The Supabase dashboard (Logs, Edge Functions) answers it in a minute; it is the basis for owner item 4, not a technical prerequisite of S4.
 
 ## 1. S3: the two bucket-limit updates (SEC-021) — scripts ready
 
@@ -58,9 +66,9 @@ Bundle hashes are over the function directory plus nothing else; the shared help
 
 ## 5. Preparation still open for SG-2 (not blockers for AUTH-10)
 
-- Run `predict_after_s3.sql` and record the post-S3 ledger hash (needs S2 done).
+- Post-S3 ledger prediction: done (section 0).
 - Read-only P0 re-comparison of the hosted sources for the 10 hosted functions just before deployment (state may have moved since P0).
-- Read-only hosted-log caller check for the three retirement-candidate functions (item 4).
+- Hosted-log caller evidence for the three functions (owner item 4; dashboard, optional).
 These need S2 to be done or a few read-only calls; none needs new analysis.
 
 ## 6. After SG-2
