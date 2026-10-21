@@ -1,0 +1,4 @@
+-- Rollback for auth14-media-url-rewrite.sql: restores only the rows whose URL now starts with the Development host AND whose path was in the pre-change capture.
+-- The pre-change capture of (id,url) for the 38 rows is taken read-only into C:\Users\vikki\BPC-Operator-Log\auth14-before-capture.json before execution.
+UPDATE public.unit_media SET url = replace(url, 'https://srxunxiytojjsuhcmzjg.supabase.co', 'https://qaagfafagdpgzcijnfbw.supabase.co') WHERE url LIKE 'https://srxunxiytojjsuhcmzjg.supabase.co/storage/v1/object/public/unit-images/%';
+UPDATE public.hero_carousel_images SET image_url = replace(image_url, 'https://srxunxiytojjsuhcmzjg.supabase.co', 'https://qaagfafagdpgzcijnfbw.supabase.co') WHERE image_url LIKE 'https://srxunxiytojjsuhcmzjg.supabase.co/storage/v1/object/public/carousel-media/%';
