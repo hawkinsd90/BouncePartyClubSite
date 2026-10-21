@@ -50,7 +50,9 @@ Deno.serve(async (req: Request) => {
     }
 
     try {
-      event = stripe.webhooks.constructEvent(body, signature, webhookSecret);
+      // The Supabase (Deno) runtime resolves the Stripe SDK's SubtleCrypto build, whose synchronous constructEvent always throws;
+      // verification must be asynchronous with an explicit SubtleCrypto provider.
+      event = await stripe.webhooks.constructEventAsync(body, signature, webhookSecret, undefined, Stripe.createSubtleCryptoProvider());
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : "Unknown error";
       console.error("[WEBHOOK] Signature verification failed:", message);

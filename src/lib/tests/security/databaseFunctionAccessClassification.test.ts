@@ -136,7 +136,7 @@ const sql = stripSql(raw);
   const hook = ['stripe', 'webhook', 'events'].join('_');
   ok('source: the Stripe webhook event table is touched only by the webhook idempotency module', refs(hook).join() === 'supabase/functions/_shared/payments/webhook-idempotency.ts');
   const wh = read('supabase/functions/stripe-webhook/index.ts');
-  ok('source: the webhook handler passes a service-role client to the idempotency module', /createClient\(\s*Deno\.env\.get\(["']SUPABASE_URL["']\)[^)]*SUPABASE_SERVICE_ROLE_KEY/.test(wh) && /beginWebhookProcessing\(\s*supabaseClient/.test(wh));
+  ok('source: the webhook handler passes a service-role client to the idempotency module', /createClient\(\s*Deno\.env\.get\(["']SUPABASE_URL["']\)[^)]*SUPABASE_SERVICE_ROLE_KEY/.test(wh) && /beginWebhookProcessing\(\s*supabaseClient/.test(wh) && /await stripe\.webhooks\.constructEventAsync\([^)]*createSubtleCryptoProvider\(\)\)/.test(wh) && !/webhooks\.constructEvent\(/.test(wh));
   ok('source: the idempotency module skips an event whose stored status is succeeded (why anonymous inserts had to go)', /existing\.status === 'succeeded'[\s\S]*?shouldProcess: false/.test(read('supabase/functions/_shared/payments/webhook-idempotency.ts')));
 }
 
