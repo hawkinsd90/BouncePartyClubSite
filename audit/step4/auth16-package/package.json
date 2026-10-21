@@ -1,0 +1,69 @@
+{
+ "stage": "AUTH-16 (ledger markers: 2 qualified attestations, 2 deliberately-not-executed dispositions)",
+ "channel": "supabase db query --linked -f <absolute path> (byte-exact, one transaction)",
+ "start": {
+  "count": 372,
+  "sha256": "1dd1460ed16934cedba0bfa64e4db15f91268bdd9e87de1c59d0b5b0756b56ed"
+ },
+ "end_predicted": {
+  "count": 376,
+  "sha256": "eea22f7960f9a2478e99a652afcb12db08a386af6af3b741181ee49dc860f4d0"
+ },
+ "evidence_sha256": "6692883f4ebfdc2b80ca76b57e81b5306c104239978a971ac2b0ba41a0c200c7",
+ "scripts": {
+  "AUTH16.sql": "223e2d8618eed9c26abe101df44d11df204676aaca065d8c872e49c97de3149d",
+  "AUTH16_reversal.sql": "647accb2875ba311b4679045f5b22ba69b357fc89912d488d6ff8f587e83f906"
+ },
+ "versions": [
+  {
+   "version": "20251002210020",
+   "name": "008_add_admin_settings",
+   "state": "effects-present-execution-unproven",
+   "file": "20251002210020_008_add_admin_settings.sql",
+   "file_sha256": "1be19867dc5ba5e600d5a04c1d372a784d1143722195328581b29327471fe74b",
+   "scope_sha256": "be0bd9d183c036f90b65d0bfaed774a7297dea0a4fd615b77fb2ba7dbaaba732",
+   "marker_sha256": "a0217036a58bf2aaec5bb41cdc3086623a8268f64695bed105ecbe7c3df32a48",
+   "predecessors": [
+    "20251003200318"
+   ],
+   "scope_text": "The Development database currently contains the admin_settings table with RLS enabled and the admin_notification_phone setting present. The owner confirms that its existing value is intentional and must be preserved. The historical migration's original ADMIN policies have been superseded by subsequent policies. Execution of the historical SQL is not proven. This attestation records the observed current-state outcome only and does not authorize executing the original SQL, recreating superseded policies, or modifying the setting."
+  },
+  {
+   "version": "20251207160232",
+   "name": "add_hero_carousel_system",
+   "state": "effects-present-execution-unproven",
+   "file": "20251207160232_add_hero_carousel_system.sql",
+   "file_sha256": "42abe93bfa173c9b332a9bf18735e0abffc55c5ba96b67fececb250b3bdc1d86",
+   "scope_sha256": "faf472b06cbb17d3aa626781853d919fa291017725fb7132737425b56b92505e",
+   "marker_sha256": "356b1661aa0d60458a153f55fc297aba0a5465f5e0b044feb11735ff74a059b4",
+   "predecessors": [
+    "20260324180043"
+   ],
+   "scope_text": "The Development database currently contains the hero_carousel_images table, RLS and the hero_carousel_updated_at trigger. Three current carousel records exist: Birthday Parties, School Events and Community Events. The owner confirms these are the intended current slides and should be preserved. Their images do not match the historical migration's original Pexels seed images, and original seed execution is not proven. Existing policies have been revised by subsequent migrations. This attestation records the observed current-state outcome only and does not authorize executing historical SQL, inserting sample slides, changing images or replacing current carousel content."
+  },
+  {
+   "version": "20260324051459",
+   "name": "add_tables_to_realtime_publication",
+   "state": "deliberately-not-executed",
+   "file": "20260324051459_add_tables_to_realtime_publication.sql",
+   "file_sha256": "b91664177686fb03c774c0efc07e6c9236a0ceb0bda3c0dbd9b09db7d8415bbd",
+   "scope_sha256": "ee7ea145620176a84dece85fabf1a215a047edc6ca5cb21de3569ec609b49987",
+   "marker_sha256": "36520a61971b91d6de4eb351ab4b8090b0bdd8752093f2b8ef06e88bfbc4fc63",
+   "predecessors": [],
+   "scope_text": "Disclosed: the supabase_realtime publication currently contains only public.orders; the publication membership this migration would add (payments, task_status, order_signatures, order_lot_pictures) is ABSENT, so no effect of this migration is claimed present. Owner disposition: deliberately not executed; the original SQL is not run and no table is added to the publication by this record. Any future realtime need for task_status or order_lot_pictures requires a separate, narrowly scoped functional migration."
+  },
+  {
+   "version": "20260324154955",
+   "name": "add_order_pictures_to_realtime_publication",
+   "state": "deliberately-not-executed",
+   "file": "20260324154955_add_order_pictures_to_realtime_publication.sql",
+   "file_sha256": "9fed5ab4c75b4441ae28ce3ba473fc574b34a996bc1c0127d5c71c23360d506c",
+   "scope_sha256": "1174654eebcba1f681cb6535adb15d46d160e293df18791b0a700055278bce74",
+   "marker_sha256": "2e84ed5a760ac81c30975cd602a61559ce9d008d32284d3497cf99ea14d5e476",
+   "predecessors": [],
+   "scope_text": "Disclosed: order_pictures is NOT in the supabase_realtime publication, so the historical effect is ABSENT and no effect is claimed present. Owner disposition: deliberately not executed; the original SQL is not run and no table is added to the publication by this record. No current application subscriber justifies the historical publication change."
+  }
+ ],
+ "source_of_decision": "owner decision in the Claude Code chat message headed 'TWO QUALIFIED HISTORICAL ATTESTATIONS AND TWO REALTIME DISPOSITIONS' (owner of Bounce Party Club LLC); no handwritten signature exists or is claimed",
+ "attested_at": "not recorded by the chat record (execution time is in the operator log entry for this run)"
+}

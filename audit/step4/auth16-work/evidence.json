@@ -1,0 +1,54 @@
+{
+    "ledger_count": 372,
+    "admin_settings": {
+        "rls": true,
+        "table": true,
+        "policies": [
+            "Admins can delete settings",
+            "Admins can insert settings",
+            "Admins can update settings",
+            "Admins can view all settings"
+        ],
+        "admin_notification_phone_length": 12,
+        "admin_notification_phone_present": true
+    },
+    "hero_carousel_images": {
+        "rls": true,
+        "rows": [
+            {
+                "id": "f59a63a4-334e-4e48-94dc-e45878786b2e",
+                "title": "School Events",
+                "is_active": true,
+                "display_order": 2,
+                "image_url_sha256": "0fda2af928f254b1a5d4121cdeb7fb65f0ca92804309b1f8d51e3654831149b2"
+            },
+            {
+                "id": "44bc302c-e7f6-4b37-a688-4a58778a4368",
+                "title": "Birthday Parties",
+                "is_active": true,
+                "display_order": 3,
+                "image_url_sha256": "4e06603b9224e6ef6c4b4132e1fb643672562a238b3665f009a87fa814b471f9"
+            },
+            {
+                "id": "04ef3b66-a62e-4341-9b86-6a9bbae6d801",
+                "title": "Community Events",
+                "is_active": true,
+                "display_order": 5,
+                "image_url_sha256": "5839a09e9d7de1147f7f817d34eb3302b5758aca148b5a7aea996122c7b49f51"
+            }
+        ],
+        "table": true,
+        "row_count": 3,
+        "pexels_seed_urls_present": false,
+        "trigger_hero_carousel_updated_at": true
+    },
+    "predecessors_recorded": [
+        "20251003200318",
+        "20260324180043"
+    ],
+    "versions_already_recorded": [
+    ],
+    "realtime_publication_supabase_realtime": [
+        "public.orders"
+    ]
+}
