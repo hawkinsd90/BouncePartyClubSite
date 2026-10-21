@@ -15,6 +15,7 @@ import {
 import { evaluateCustomerConfirmation } from "../_shared/orders/lifecycle-outcome.ts";
 import { storedOrderTotalCents } from "../_shared/booking/orderMoney.ts";
 import { getOrCreatePortalLink } from "../_shared/portal-link.ts";
+import { getSiteOrigin } from "../_shared/siteOrigin.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -512,7 +513,7 @@ async function sendAdminPendingReviewAlert(
       ? `${address.line1}, ${address.city}, ${address.state}`
       : "Unknown address";
 
-    const portalLink = `https://bouncepartyclub.com/admin?tab=pending`;
+    const portalLink = `${getSiteOrigin()}/admin?tab=pending`;
 
     const emailHtml = `<!DOCTYPE html>
 <html>
@@ -624,7 +625,7 @@ async function sendAdminConfirmedAlert(
       ? `${address.line1}, ${address.city}, ${address.state}`
       : "Unknown address";
 
-    const portalLink = `https://bouncepartyclub.com/admin?tab=orders&orderId=${order.id}`;
+    const portalLink = `${getSiteOrigin()}/admin?tab=orders&orderId=${order.id}`;
 
     const emailHtml = `<!DOCTYPE html>
 <html>

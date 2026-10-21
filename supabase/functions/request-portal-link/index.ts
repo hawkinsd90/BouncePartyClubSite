@@ -2,6 +2,7 @@ import "jsr:@supabase/functions-js@2/edge-runtime.d.ts";
 import { createClient } from "npm:@supabase/supabase-js@2.57.4";
 import { getOrCreatePortalLink, shortPortalUrl } from "../_shared/portal-link.ts";
 import { checkRateLimit, getIdentifier } from "../_shared/rate-limit.ts";
+import { getSiteOrigin } from "../_shared/siteOrigin.ts";
 
 // "Send me a secure link" for customers holding an old UUID-only link.
 //
@@ -74,7 +75,7 @@ Deno.serve(async (req: Request) => {
     const link = await getOrCreatePortalLink(supabase, orderId);
     if (!link.ok) return generic();
 
-    const origin = Deno.env.get("SITE_URL") || "https://bouncepartyclub.com";
+    const origin = getSiteOrigin();
     const url = shortPortalUrl(origin, link.link.shortCode);
     const headers = { Authorization: `Bearer ${serviceKey}`, "Content-Type": "application/json" };
 

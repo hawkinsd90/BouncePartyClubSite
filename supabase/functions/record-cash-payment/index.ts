@@ -21,6 +21,7 @@ import { formatOrderId } from "../_shared/format-order-id.ts";
 import { logTransaction } from "../_shared/transaction-logger.ts";
 import { formatCurrency, DEFAULT_PHONE } from "../_shared/fmt.ts";
 import { buildPaymentReceiptEmail } from "../_shared/payments/payment-receipt-email.ts";
+import { ORDER_ITEM_COLUMNS } from "../_shared/payments/order-item-label.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -172,7 +173,7 @@ Deno.serve(async (req: Request) => {
           *,
           customers (first_name, last_name, email, phone),
           addresses (line1, city, state, zip),
-          order_items (qty, wet_or_dry, unit_price_cents, units (name)),
+          order_items (${ORDER_ITEM_COLUMNS}),
           order_custom_fees (name, amount_cents),
           order_discounts (name, amount_cents)
         `)

@@ -23,6 +23,8 @@ import * as outcomeHelpers from '../../../../supabase/functions/_shared/orders/l
 import * as bookingProofHelpers from '../../../../supabase/functions/_shared/booking/bookingProof';
 import * as returnOriginHelpers from '../../../../supabase/functions/_shared/booking/returnOrigin';
 import * as paymentOperationHelpers from '../../../../supabase/functions/_shared/payments/payment-operations';
+import * as itemLabelHelpers from '../../../../supabase/functions/_shared/payments/order-item-label';
+import * as siteOriginHelpers from '../../../../supabase/functions/_shared/siteOrigin';
 
 let passed = 0;
 let failed = 0;
@@ -336,6 +338,9 @@ function loadHandler(fnDir: string, w: World): (req: Request) => Promise<Respons
     ...bookingProofHelpers,
     ...returnOriginHelpers,
     ...paymentOperationHelpers,
+    ...itemLabelHelpers,
+    getSiteOrigin: () => siteOriginHelpers.getSiteOrigin({ get: (k: string) => env[k] }),
+    configuredOrigins: () => siteOriginHelpers.configuredOrigins({ get: (k: string) => env[k] }),
     corsHeaders: { 'Access-Control-Allow-Origin': '*' },
     checkRateLimit: async () => ({ allowed: true }),
     createRateLimitResponse: () => new Response('rate limited', { status: 429 }),

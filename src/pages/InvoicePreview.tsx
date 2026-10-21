@@ -144,7 +144,7 @@ export function InvoicePreview() {
     };
 
     orderItems = cart;
-    orderSummary = buildOrderSummary(priceBreakdown, cart, quoteData, 0);
+    orderSummary = buildOrderSummary(priceBreakdown, cart, quoteData, 0, data.unifiedTotals ?? null);
   } else {
     eventData = data.orderData;
     orderItems = data.orderItems;

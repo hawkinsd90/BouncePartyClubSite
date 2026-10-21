@@ -38,6 +38,7 @@ interface SimpleInvoiceDisplayProps {
     bundle_id?: string | null;
     item_name?: string | null;
     product_name?: string | null;
+    bundle_name?: string | null;
     pricing_context?: string | null;
     component_snapshot?: any;
   }>;
@@ -175,7 +176,7 @@ export function SimpleInvoiceDisplay({
             const isEE = !item.unit_id && !item.units && (item.product_id || item.bundle_id);
             const isPackage = isEE && !!item.bundle_id;
             const displayName = isEE
-              ? (item.item_name || item.product_name || 'Event Essential')
+              ? (item.item_name || item.product_name || item.bundle_name || 'Event Essential')
               : (item.units?.name || item.unit_name || 'Unknown Unit');
             return (
             <div

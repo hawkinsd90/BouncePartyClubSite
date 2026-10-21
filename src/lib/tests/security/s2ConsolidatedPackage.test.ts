@@ -93,7 +93,6 @@ const filesOf = (d: string): string[] => {
   walk(path.join(FDIR, d));
   return out;
 };
-const treeHash = (paths: string[]) => { const h = crypto.createHash('sha256'); for (const p of [...paths].sort()) { h.update(p.split(path.sep).join('/')); h.update(Buffer.from([0])); h.update(lf(fs.readFileSync(path.join(FDIR, p), 'utf8'))); h.update(Buffer.from([0])); } return h.digest('hex'); };
 // The package records what was deployed to Development (AUTH-11). The working tree has moved on since (the pre-Production fixes edit
 // the same functions and _shared files on purpose, and the consolidated Dev deployment will supersede the package), so the bundle hashes
 // are checked against the files AS THEY WERE in the commit that recorded the package. That still proves the package describes the code it

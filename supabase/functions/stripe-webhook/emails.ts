@@ -1,5 +1,7 @@
 import { formatCurrency, DEFAULT_PHONE } from "../_shared/fmt.ts";
 import { buildPortalUrl } from "../_shared/portal-link.ts";
+import { orderItemName } from "../_shared/payments/order-item-label.ts";
+import { getSiteOrigin } from "../_shared/siteOrigin.ts";
 import { receiptOrderFigures, receiptDiscountAmount, receiptExtraFeeRowsHtml } from "../_shared/payments/receipt-order-totals.ts";
 
 export async function sendCheckoutBalanceReceiptEmail(
@@ -34,7 +36,7 @@ export async function sendCheckoutBalanceReceiptEmail(
 
   const items: any[] = Array.isArray(order?.order_items) ? order.order_items : [];
   const itemsHtml = items.map((item: any) => {
-    const unitName = item.units?.name || "Item";
+    const unitName = orderItemName(item);
     const qty = item.qty || 1;
     const price = item.unit_price_cents || 0;
     return `<tr><td style="padding:4px 0;color:#374151;font-size:14px;">${qty}x ${unitName}</td><td style="padding:4px 0;text-align:right;color:#374151;font-size:14px;">${fmt(price * qty)}</td></tr>`;
@@ -75,7 +77,8 @@ export async function sendCheckoutBalanceReceiptEmail(
   const paymentDate = new Date().toLocaleDateString("en-US", {
     month: "short", day: "numeric", year: "numeric", hour: "numeric", minute: "2-digit",
   });
-  const portalUrl = (await buildPortalUrl(supabaseClient, orderId, "https://bouncepartyclub.com")) ?? "https://bouncepartyclub.com";
+  const siteOrigin = getSiteOrigin();
+  const portalUrl = (await buildPortalUrl(supabaseClient, orderId, siteOrigin)) ?? siteOrigin;
 
   const receiptHtml = `<!DOCTYPE html>
 <html>
@@ -201,7 +204,7 @@ export async function sendDepositReceiptEmail(
 
   const items: any[] = Array.isArray(order?.order_items) ? order.order_items : [];
   const itemsHtml = items.map((item: any) => {
-    const unitName = item.units?.name || "Item";
+    const unitName = orderItemName(item);
     const qty = item.qty || 1;
     const price = item.unit_price_cents || 0;
     return `<tr><td style="padding:4px 0;color:#374151;font-size:14px;">${qty}x ${unitName}</td><td style="padding:4px 0;text-align:right;color:#374151;font-size:14px;">${fmt(price * qty)}</td></tr>`;
@@ -235,7 +238,8 @@ export async function sendDepositReceiptEmail(
   const paymentDate = new Date().toLocaleDateString("en-US", {
     month: "short", day: "numeric", year: "numeric", hour: "numeric", minute: "2-digit",
   });
-  const portalUrl = (await buildPortalUrl(supabaseClient, orderId, "https://bouncepartyclub.com")) ?? "https://bouncepartyclub.com";
+  const siteOrigin = getSiteOrigin();
+  const portalUrl = (await buildPortalUrl(supabaseClient, orderId, siteOrigin)) ?? siteOrigin;
 
   const receiptHtml = `<!DOCTYPE html>
 <html>

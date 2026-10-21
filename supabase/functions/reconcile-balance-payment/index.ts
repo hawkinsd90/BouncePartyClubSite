@@ -25,6 +25,8 @@ import { buildPortalUrl } from "../_shared/portal-link.ts";
 import { receiptOrderFigures, receiptDiscountAmount, receiptExtraFeeRowsHtml } from "../_shared/payments/receipt-order-totals.ts";
 import { finalizeOperation } from "../_shared/payments/payment-operations.ts";
 import { formatCurrency, formatPaymentMethodLabel } from "../_shared/fmt.ts";
+import { orderItemName, ORDER_ITEM_COLUMNS } from "../_shared/payments/order-item-label.ts";
+import { getSiteOrigin } from "../_shared/siteOrigin.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -240,12 +242,12 @@ Deno.serve(async (req: Request) => {
       .select(`
         customer_id, event_date,
         subtotal_cents, travel_fee_cents, surface_fee_cents,
-        same_day_pickup_fee_cents, generator_fee_cents, tax_cents,
+        same_day_pickup_fee_cents, same_day_weekday_delivery_fee_cents, generator_fee_cents, setup_fee_cents, tax_cents,
         travel_fee_waived, surface_fee_waived, same_day_pickup_fee_waived,
         generator_fee_waived, tax_waived,
         deposit_paid_cents, balance_due_cents,
         addresses(line1, city, state, zip),
-        order_items(qty, unit_price_cents, units(name)),
+        order_items(${ORDER_ITEM_COLUMNS}),
         customers(email, first_name, last_name)
       `)
       .eq("id", orderId)
@@ -313,7 +315,7 @@ Deno.serve(async (req: Request) => {
 
         const items: any[] = Array.isArray(currentOrder?.order_items) ? currentOrder.order_items : [];
         const itemsHtml = items.map((item: any) => {
-          const unitName = item.units?.name || "Item";
+          const unitName = orderItemName(item);
           const qty = item.qty || 1;
           const price = item.unit_price_cents || 0;
           return `<tr><td style="padding:4px 0;color:#374151;font-size:14px;">${qty}x ${unitName}</td><td style="padding:4px 0;text-align:right;color:#374151;font-size:14px;">${fmt(price * qty)}</td></tr>`;
@@ -353,7 +355,8 @@ Deno.serve(async (req: Request) => {
         const paymentDate = new Date().toLocaleDateString("en-US", {
           month: "short", day: "numeric", year: "numeric", hour: "numeric", minute: "2-digit",
         });
-        const portalUrl = (await buildPortalUrl(supabaseClient, orderId, "https://bouncepartyclub.com")) ?? "https://bouncepartyclub.com";
+        const siteOrigin = getSiteOrigin();
+        const portalUrl = (await buildPortalUrl(supabaseClient, orderId, siteOrigin)) ?? siteOrigin;
 
         const receiptHtml = `<!DOCTYPE html>
 <html>

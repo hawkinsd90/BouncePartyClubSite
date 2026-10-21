@@ -45,3 +45,11 @@ export function resolveReturnOrigin(candidates: unknown[], configured: unknown[]
   const fallback = toOrigin(configured[0]);
   return fallback && fallback.startsWith("https://") ? fallback : DEFAULT_RETURN_ORIGIN;
 }
+
+// The origin (scheme + host) of a configured site URL, or null when it is not a usable one. https only, plus loopback http for local
+// development; a path, query, credentials or any other scheme makes it unusable. Used for SITE_URL.
+export function siteOriginFrom(value: unknown): string | null {
+  const o = toOrigin(typeof value === "string" ? value.trim() : value);
+  if (!o) return null;
+  return o.startsWith("https://") || isLoopback(o) ? o : null;
+}

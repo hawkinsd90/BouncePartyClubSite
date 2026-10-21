@@ -15,6 +15,8 @@ const ts = require('typescript');
 import * as authHelpers from '../../../../supabase/functions/_shared/auth';
 import * as pl from '../../../../supabase/functions/_shared/portal-link';
 import * as tokenLib from '../../portal/portalToken';
+import * as siteOriginHelpers from '../../../../supabase/functions/_shared/siteOrigin';
+import * as returnOriginHelpers from '../../../../supabase/functions/_shared/booking/returnOrigin';
 
 let passed = 0;
 let failed = 0;
@@ -221,6 +223,10 @@ function load(fnDir: string, h: Harness, over: Record<string, unknown> = {}, rat
     },
     ...authHelpers,
     ...pl,
+    // The shared site-origin helpers, bound to the harness environment (a stand-in for Deno.env).
+    getSiteOrigin: () => siteOriginHelpers.getSiteOrigin({ get: (k: string) => env[k] }),
+    configuredOrigins: () => siteOriginHelpers.configuredOrigins({ get: (k: string) => env[k] }),
+    resolveReturnOrigin: returnOriginHelpers.resolveReturnOrigin,
     checkRateLimit: async (endpoint: string, id: string, cfg?: any) => {
       h.rateCalls.push({ endpoint, id, cfg });
       const denied = !rate.allowed && (!rate.only || rate.only === endpoint);
@@ -725,7 +731,7 @@ async function call(handler: (r: Request) => Promise<Response>, bearer: string |
     const s = read(file);
     ok(`${file}: customer receipt link comes from the shared helper`, (s.match(/buildPortalUrl\(/g) ?? []).length === expectedCalls);
     ok(`${file}: no hard-coded customer-portal/<uuid> credential remains`, !/bouncepartyclub\.com\/customer-portal\/\$\{/.test(s));
-    ok(`${file}: if no link can be issued the fallback is the site root, never a UUID URL`, /\?\? "https:\/\/bouncepartyclub\.com"/.test(s));
+    ok(`${file}: if no link can be issued the fallback is the configured site root (shared helper), never a UUID URL`, /\?\? siteOrigin\b/.test(s) || /\?\? getSiteOrigin\(\)/.test(s));
   }
   const lifecycle = read('supabase/functions/order-lifecycle/index.ts');
   ok('order-lifecycle: the canonical portal link is issued when the booking enters pending review (Stripe-session proof required)', /getOrCreatePortalLink\(supabase, orderId\)/.test(lifecycle) && /accept: action === "enter_pending_review"\s*\? \["stripe_session"\]/.test(lifecycle));

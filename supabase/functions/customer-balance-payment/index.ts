@@ -23,6 +23,9 @@ import Stripe from "npm:stripe@20.0.0";
 import { createClient } from "npm:@supabase/supabase-js@2.57.4";
 import { validatePaymentMethod } from "../_shared/payments/payment-validation.ts";
 import { formatOrderId } from "../_shared/format-order-id.ts";
+import { orderItemName, ORDER_ITEM_COLUMNS } from "../_shared/payments/order-item-label.ts";
+import { configuredOrigins, getSiteOrigin } from "../_shared/siteOrigin.ts";
+import { resolveReturnOrigin } from "../_shared/booking/returnOrigin.ts";
 import { logTransaction } from "../_shared/transaction-logger.ts";
 import { formatCurrency, formatPaymentMethodLabel } from "../_shared/fmt.ts";
 import { resolveCaller, proveOrderAccess, authFailureResponse } from "../_shared/auth.ts";
@@ -152,11 +155,11 @@ Deno.serve(async (req: Request) => {
         id, subtotal_cents, balance_due_cents, balance_paid_cents, deposit_paid_cents,
         tip_cents, stripe_customer_id, stripe_payment_method_id,
         payment_method_brand, payment_method_last_four, customer_id, event_date,
-        travel_fee_cents, surface_fee_cents, same_day_pickup_fee_cents, generator_fee_cents, tax_cents,
+        travel_fee_cents, surface_fee_cents, same_day_pickup_fee_cents, same_day_weekday_delivery_fee_cents, generator_fee_cents, setup_fee_cents, tax_cents,
         travel_fee_waived, surface_fee_waived, same_day_pickup_fee_waived, generator_fee_waived, tax_waived,
         addresses(line1, city, state, zip),
         customers(email, first_name, last_name),
-        order_items(qty, unit_price_cents, units(name))
+        order_items(${ORDER_ITEM_COLUMNS})
       `)
       .eq("id", orderId)
       .single();
@@ -166,14 +169,15 @@ Deno.serve(async (req: Request) => {
       return reply(404, { error: "Order not found.", detail: orderError?.message });
     }
 
-    // Determine origin for Stripe Checkout redirect URLs
+    // Origin for the Stripe Checkout return URLs. The request's Origin/Referer is only a CLAIM: it wins only when it is on the allow-list
+    // (the production site, SITE_URL, RETURN_ORIGINS, local development); anything else falls back to the configured site.
     const headerOrigin = req.headers.get("origin");
     const referer = req.headers.get("referer");
-    let siteOrigin = headerOrigin;
-    if (!siteOrigin && referer) {
-      try { siteOrigin = new URL(referer).origin; } catch { /* ignore */ }
+    let refererOrigin: string | null = null;
+    if (referer) {
+      try { refererOrigin = new URL(referer).origin; } catch { /* ignore */ }
     }
-    siteOrigin = siteOrigin || "https://bouncepartyclub.com";
+    const siteOrigin = resolveReturnOrigin([headerOrigin, refererOrigin], configuredOrigins());
 
     const claimParams = () => ({
       orderId,
@@ -398,7 +402,7 @@ async function sendBalanceReceipt(
         to: customer.email,
         subject: `Payment Received - Order #${formatOrderId(orderId)}`,
         html: buildReceiptEmail({
-          portalUrl: (await buildPortalUrl(supabaseClient, orderId, "https://bouncepartyclub.com")) ?? "https://bouncepartyclub.com",
+          portalUrl: (await buildPortalUrl(supabaseClient, orderId, getSiteOrigin())) ?? getSiteOrigin(),
           contactName: customer.first_name ? `${customer.first_name} ${customer.last_name || ""}`.trim() : "Customer",
           orderId,
           balanceCents: op.principalCents,
@@ -552,7 +556,7 @@ function buildReceiptEmail(opts: {
 
   const items: any[] = Array.isArray(order.order_items) ? order.order_items : [];
   const itemsHtml = items.map((item: any) => {
-    const unitName = item.units?.name || "Item";
+    const unitName = orderItemName(item);
     const qty = item.qty || 1;
     const price = item.unit_price_cents || 0;
     return `<tr><td style="padding:4px 0;color:#374151;font-size:14px;">${qty}x ${unitName}</td><td style="padding:4px 0;text-align:right;color:#374151;font-size:14px;">${fmt(price * qty)}</td></tr>`;

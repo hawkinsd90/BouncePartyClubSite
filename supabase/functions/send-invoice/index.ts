@@ -1,6 +1,8 @@
 import { createClient } from 'npm:@supabase/supabase-js@2.57.4';
 import { resolveCaller, requireRoles, authFailureResponse, INVOICE_SENDER_ROLES } from '../_shared/auth.ts';
 import { generateShortCode, portalTokenFragment } from '../_shared/portal-link.ts';
+import { resolveReturnOrigin } from '../_shared/booking/returnOrigin.ts';
+import { configuredOrigins } from '../_shared/siteOrigin.ts';
 import { storedOrderTotalCents } from '../_shared/booking/orderMoney.ts';
 
 const corsHeaders = {
@@ -112,12 +114,9 @@ Deno.serve(async (req: Request) => {
       );
     }
 
-    const resolvedOrigin =
-      (req.headers.get('origin') && req.headers.get('origin') !== 'null'
-        ? req.headers.get('origin')
-        : null) ||
-      Deno.env.get('SITE_URL') ||
-      'https://bouncepartyclub.com';
+    // The request's Origin is only a claim: it is used when it is on the allow-list (production site, SITE_URL, RETURN_ORIGINS, local
+    // development); otherwise the configured site is used, so an invoice link can never point at a caller-chosen host.
+    const resolvedOrigin = resolveReturnOrigin([req.headers.get('origin')], configuredOrigins());
 
     const fullInvoiceUrl = `${resolvedOrigin}/customer-portal/${orderId}${portalTokenFragment(invoiceLink.link_token)}`;
     const shortInvoiceUrl = shortCode

@@ -12,6 +12,7 @@ import {
 } from './emailTemplateBase';
 import { formatOrderId } from '../utils';
 import { buildPackageDisplay } from '../pricing/packageDisplay';
+import { extraFeeRows } from './feeRows';
 
 export function renderOrderEmailItems(items: any[]): Array<{ description: string; amount: string }> {
   const result: Array<{ description: string; amount: string }> = [];
@@ -151,6 +152,8 @@ export function generateConfirmationReceiptEmail(data: OrderEmailData): string {
       value: `$${((order.same_day_pickup_fee_cents ?? 0) / 100).toFixed(2)}`,
     });
   }
+
+  pricingRows.push(...extraFeeRows(order));
 
   if ((order.tax_cents ?? 0) > 0) {
     pricingRows.push({

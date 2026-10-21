@@ -147,6 +147,8 @@ export function buildOrderSummary(
       same_day_pickup_fee_cents: priceBreakdown.same_day_pickup_fee_cents,
       same_day_weekday_delivery_fee_cents: priceBreakdown.same_day_weekday_delivery_fee_cents,
       generator_fee_cents: priceBreakdown.generator_fee_cents,
+      // The Setup Fee (Event Essentials under the setup minimum) is part of the total, so it is listed in the checkout summary too.
+      setup_fee_cents: totals.setupFeeCents,
     },
     discounts: [],
     customFees: [],

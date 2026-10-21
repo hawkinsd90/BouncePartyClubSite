@@ -3,6 +3,7 @@ import { logTransaction } from "../_shared/transaction-logger.ts";
 import { collectPaymentDetails, finalizeOperation } from "../_shared/payments/payment-operations.ts";
 import { applyProviderRefund } from "../_shared/payments/refund-operations.ts";
 import { sendCheckoutBalanceReceiptEmail, sendDepositReceiptEmail } from "./emails.ts";
+import { ORDER_ITEM_COLUMNS } from "../_shared/payments/order-item-label.ts";
 
 export async function invokeLifecycle(
   supabaseClient: any,
@@ -58,12 +59,12 @@ async function loadOrderForReceipt(supabaseClient: any, orderId: string): Promis
     .select(`
       customer_id, event_date,
       subtotal_cents, travel_fee_cents, surface_fee_cents,
-      same_day_pickup_fee_cents, generator_fee_cents, tax_cents,
+      same_day_pickup_fee_cents, same_day_weekday_delivery_fee_cents, generator_fee_cents, setup_fee_cents, tax_cents,
       travel_fee_waived, surface_fee_waived, same_day_pickup_fee_waived,
       generator_fee_waived, tax_waived,
       deposit_paid_cents, balance_due_cents,
       addresses(line1, city, state, zip),
-      order_items(qty, unit_price_cents, units(name)),
+      order_items(${ORDER_ITEM_COLUMNS}),
       customers(email, first_name, last_name)
     `)
     .eq("id", orderId)

@@ -2,6 +2,7 @@ import "jsr:@supabase/functions-js@2/edge-runtime.d.ts";
 import { createClient } from "npm:@supabase/supabase-js@2.57.4";
 import { buildPortalUrl } from "../_shared/portal-link.ts";
 import { authorizePortalOrder, resolveCaller } from "../_shared/auth.ts";
+import { getSiteOrigin } from "../_shared/siteOrigin.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -264,7 +265,7 @@ Deno.serve(async (req: Request) => {
 
         // The PDF is attached. The link opens the customer's secure portal, where the waiver can be downloaded again
         // (the PDF itself lives in a private bucket and has no permanent public URL).
-        const portalUrl = await buildPortalUrl(supabaseClient, orderId, "https://bouncepartyclub.com");
+        const portalUrl = await buildPortalUrl(supabaseClient, orderId, getSiteOrigin());
         const pdfSection = pdfPath
           ? `
             <div style="background-color:#f0fdf4;border:2px solid #10b981;border-radius:6px;padding:18px;margin:25px 0;text-align:center;">

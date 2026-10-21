@@ -1,5 +1,6 @@
 import { formatCurrency, LOGO_URL } from "../fmt.ts";
 import { effectiveDiscountCents, storedOrderTotalCents } from "../booking/orderMoney.ts";
+import { orderItemMode, orderItemName, type LabelledOrderItem } from "./order-item-label.ts";
 
 const BORDER = "#10b981";
 const ACCENT = "#15803d";
@@ -12,7 +13,8 @@ export interface OrderRow {
   addresses?: { line1: string; city: string; state: string; zip?: string } | null;
   location_type?: string | null;
   surface?: string | null;
-  order_items?: Array<{ qty: number; wet_or_dry: string; unit_price_cents: number; units?: { name: string } | null }>;
+  // Inflatable lines carry units(name); Event Essentials lines carry their own item_name (see order-item-label.ts).
+  order_items?: Array<LabelledOrderItem & { qty: number; unit_price_cents: number }>;
   order_custom_fees?: Array<{ name?: string | null; amount_cents: number }>;
   order_discounts?: Array<{ name?: string | null; amount_cents: number; percentage?: number | null }>;
   subtotal_cents?: number | null;
@@ -46,7 +48,7 @@ export interface PaymentReceiptEmailOpts {
 export function buildPaymentReceiptEmail(opts: PaymentReceiptEmailOpts): string {
   const {
     firstName, orderNum, amountCents, tipCents, totalCents,
-    paymentType, newBalanceDue, order, businessPhone, paymentBanner, paymentMethodLabel,
+    newBalanceDue, order, businessPhone, paymentBanner, paymentMethodLabel,
     logoUrl,
   } = opts;
   const fmt = formatCurrency;
@@ -85,7 +87,7 @@ export function buildPaymentReceiptEmail(opts: PaymentReceiptEmailOpts): string 
   const itemRowsHtml = items.map(item => `
     <tr>
       <td style="padding:12px 0;border-bottom:1px solid #e2e8f0;color:#1e293b;">
-        ${item.qty}x ${item.units?.name} <span style="color:#64748b;font-size:13px;">(${item.wet_or_dry === "water" ? "Wet" : "Dry"})</span>
+        ${item.qty}x ${orderItemName(item)}${orderItemMode(item) ? ` <span style="color:#64748b;font-size:13px;">(${orderItemMode(item)})</span>` : ""}
       </td>
       <td style="padding:12px 0;border-bottom:1px solid #e2e8f0;text-align:right;color:#1e293b;">${fmt(item.unit_price_cents * item.qty)}</td>
     </tr>`).join("");

@@ -43,7 +43,7 @@ const CONFIRMATION_CLAIM_STALE_SECONDS = 600;
 
 const ORDER_PROJECTION = `
   id, status, event_date, start_window, end_window, location_type, surface, special_details,
-  subtotal_cents, travel_fee_cents, surface_fee_cents, same_day_pickup_fee_cents, tax_cents, tip_cents,
+  subtotal_cents, travel_fee_cents, surface_fee_cents, same_day_pickup_fee_cents, same_day_weekday_delivery_fee_cents, generator_fee_cents, setup_fee_cents, tax_cents, tip_cents,
   deposit_due_cents, balance_due_cents, customer_selected_payment_cents, travel_total_miles, booking_confirmation_sent,
   customer:customers!customer_id ( first_name, last_name, email, phone ),
   addresses ( line1, city, state, zip ),

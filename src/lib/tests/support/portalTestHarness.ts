@@ -18,6 +18,8 @@ import * as lifecycleOutcome from '../../../../supabase/functions/_shared/orders
 import * as orderMoney from '../../pricing/orderMoney';
 import * as mediaPaths from '../../../../supabase/functions/_shared/evidence/media-paths';
 import * as evidenceMedia from '../../../../supabase/functions/_shared/evidence/evidence-media';
+import * as siteOriginHelpers from '../../../../supabase/functions/_shared/siteOrigin';
+import * as returnOriginHelpers from '../../../../supabase/functions/_shared/booking/returnOrigin';
 
 export type Row = Record<string, any>;
 
@@ -317,6 +319,9 @@ export function loadFunction(fnDir: string, h: Harness): (req: Request) => Promi
     ...orderMoney,
     ...mediaPaths,
     ...evidenceMedia,
+    getSiteOrigin: () => siteOriginHelpers.getSiteOrigin({ get: (k: string) => env[k] }),
+    configuredOrigins: () => siteOriginHelpers.configuredOrigins({ get: (k: string) => env[k] }),
+    resolveReturnOrigin: returnOriginHelpers.resolveReturnOrigin,
     formatCurrency: (c: number) => `$${((c ?? 0) / 100).toFixed(2)}`,
     formatOrderId: (id: string) => String(id).slice(0, 8),
     Stripe: class {},

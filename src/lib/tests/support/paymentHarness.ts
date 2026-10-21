@@ -757,6 +757,25 @@ function realMoneyScope(): Record<string, unknown> {
   return realMoney;
 }
 
+// Real shared helpers (item labels, site origin), run through the same transpile-and-scope loader as the money helpers above.
+let sharedHelpers: Record<string, any> | null = null;
+function realSharedHelpers(): Record<string, any> {
+  if (sharedHelpers) return sharedHelpers;
+  const run = (path: string, scope: Record<string, unknown>): Record<string, any> => {
+    const src: string = fs.readFileSync(path, 'utf8');
+    const imported = importedNames(src);
+    const names = Object.keys(scope).filter((n) => imported.has(n));
+    const mod: any = { exports: {} };
+    new Function('exports', 'module', ...names, transpile(src))(mod.exports, mod, ...names.map((n) => scope[n]));
+    return mod.exports;
+  };
+  const labels = run('supabase/functions/_shared/payments/order-item-label.ts', {});
+  const returnOrigin = run('supabase/functions/_shared/booking/returnOrigin.ts', {});
+  const siteOrigin = run('supabase/functions/_shared/siteOrigin.ts', returnOrigin);
+  sharedHelpers = { labels, returnOrigin, siteOrigin };
+  return sharedHelpers;
+}
+
 export function baseScope(w: World, extra: Record<string, unknown> = {}): Record<string, unknown> {
   const env: Record<string, string> = { SUPABASE_URL: 'https://fake.supabase.co', SUPABASE_SERVICE_ROLE_KEY: SERVICE_KEY, SUPABASE_ANON_KEY: ANON_KEY, STRIPE_SECRET_KEY: 'sk_test_fake', STRIPE_WEBHOOK_SECRET: 'whsec_fake' };
   const FakeStripeCtor = function () { return w.stripe; } as any;
@@ -792,6 +811,9 @@ export function baseScope(w: World, extra: Record<string, unknown> = {}): Record
     buildPortalUrl: async () => 'https://portal.fake/x',
     portalTokenFragment: (t: string | undefined) => (t ? `#t=${t}` : ''),
     DEFAULT_PHONE: '555-0100',
+    ...realSharedHelpers().labels,
+    getSiteOrigin: () => realSharedHelpers().siteOrigin.getSiteOrigin({ get: (k: string) => env[k] }),
+    configuredOrigins: () => realSharedHelpers().siteOrigin.configuredOrigins({ get: (k: string) => env[k] }),
     ...realMoneyScope(),
     ...extra,
   };

@@ -10,6 +10,8 @@ import {
 import { validatePaymentMethod } from "../_shared/payments/payment-validation.ts";
 import { formatCurrency } from "../_shared/fmt.ts";
 import { buildPortalUrl } from "../_shared/portal-link.ts";
+import { orderItemLabel, ORDER_ITEM_COLUMNS, type LabelledOrderItem } from "../_shared/payments/order-item-label.ts";
+import { getSiteOrigin } from "../_shared/siteOrigin.ts";
 import { receiptOrderFigures, receiptExtraFeeRowsHtml } from "../_shared/payments/receipt-order-totals.ts";
 import {
   resolveCaller,
@@ -546,7 +548,7 @@ async function sendDepositConfirmationEmail(
           .select(`
             *,
             customers(first_name, last_name, email),
-            order_items(qty, wet_or_dry, unit_price_cents, units(name)),
+            order_items(${ORDER_ITEM_COLUMNS}),
             addresses(line1, city, state, zip),
             order_custom_fees(id, name, amount_cents)
           `)
@@ -582,19 +584,15 @@ async function sendDepositConfirmationEmail(
 
           const timeWindow = `${fullOrder.start_window || ""} - ${fullOrder.end_window || ""}`;
           const shortId = orderId.replace(/-/g, "").toUpperCase().slice(0, 8);
-          const portalUrl = (await buildPortalUrl(supabaseClient, orderId, "https://bouncepartyclub.com")) ?? "https://bouncepartyclub.com";
+          const siteOrigin = getSiteOrigin();
+          const portalUrl = (await buildPortalUrl(supabaseClient, orderId, siteOrigin)) ?? siteOrigin;
 
           const itemsHtml = (fullOrder.order_items || [])
             .map(
-              (item: {
-                qty: number;
-                units: { name: string };
-                wet_or_dry: string;
-                unit_price_cents: number;
-              }) => `
+              (item: LabelledOrderItem & { qty: number; unit_price_cents: number }) => `
           <tr>
             <td style="padding:8px 0;border-bottom:1px solid #e5e7eb;color:#374151;">
-              ${item.qty}x ${item.units?.name || ""} (${item.wet_or_dry === "water" ? "Wet" : "Dry"})
+              ${orderItemLabel(item)}
             </td>
             <td style="padding:8px 0;border-bottom:1px solid #e5e7eb;text-align:right;color:#374151;">
               ${fmt(item.unit_price_cents * item.qty)}

@@ -12,6 +12,7 @@ import {
 } from './emailTemplateBase';
 import { formatOrderId } from '../utils';
 import { buildPackageDisplay } from '../pricing/packageDisplay';
+import { extraFeeRows } from './feeRows';
 
 interface OrderEmailItem {
   qty: number;
@@ -38,7 +39,8 @@ interface OrderEmailData {
   start_window: string;
   end_window: string;
   location_type: string;
-  surface: string;
+  // null for Event Essentials-only orders (there is no inflatable surface to report)
+  surface: string | null;
   attendees?: number;
   pets?: boolean;
   special_details?: string;
@@ -46,6 +48,9 @@ interface OrderEmailData {
   travel_fee_cents: number;
   surface_fee_cents: number;
   same_day_pickup_fee_cents: number;
+  generator_fee_cents?: number | null;
+  same_day_weekday_delivery_fee_cents?: number | null;
+  setup_fee_cents?: number | null;
   tax_cents: number;
   tip_cents?: number;
   deposit_due_cents: number;
@@ -137,8 +142,12 @@ export function generateCustomerBookingEmail(order: OrderEmailData): string {
       label: 'Address',
       value: `${order.addresses.line1}, ${order.addresses.city}, ${order.addresses.state}`,
     },
-    { label: 'Surface', value: order.surface },
   ];
+
+  // Surface only applies to inflatable orders: an Event Essentials-only order must not print "Surface: null".
+  if (order.surface) {
+    eventInfoRows.push({ label: 'Surface', value: order.surface });
+  }
 
   if (order.attendees) {
     eventInfoRows.push({ label: 'Expected Attendees', value: String(order.attendees) });
@@ -188,6 +197,8 @@ export function generateCustomerBookingEmail(order: OrderEmailData): string {
       value: `$${(order.same_day_pickup_fee_cents / 100).toFixed(2)}`,
     });
   }
+
+  pricingRows.push(...extraFeeRows(order));
 
   if (order.tax_cents > 0) {
     pricingRows.push({
@@ -319,6 +330,8 @@ export function generateAdminBookingEmail(order: OrderEmailData): string {
       value: `$${(order.surface_fee_cents / 100).toFixed(2)}`,
     });
   }
+
+  pricingRows.push(...extraFeeRows(order));
 
   pricingRows.push({
     label: 'Deposit Due',

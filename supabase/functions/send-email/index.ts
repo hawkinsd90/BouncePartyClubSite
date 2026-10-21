@@ -1,6 +1,7 @@
 import { createClient, SupabaseClient } from 'npm:@supabase/supabase-js@2.57.4';
 import { authorizeRelayCaller, checkEmailPayload, relayDenied } from '../_shared/auth.ts';
 import { decideOutbound, redirectedEmailSubject, withEmailBanner } from '../_shared/notifications/outbound-guard.ts';
+import { formatOrderId } from '../_shared/format-order-id.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -154,7 +155,8 @@ Deno.serve(async (req: Request) => {
       }
 
       // Format order ID
-      const formattedOrderId = order.id.toString().padStart(4, '0');
+      // The customer-facing order number is the short id (first 8 characters), never the full 36-character UUID.
+      const formattedOrderId = formatOrderId(order.id.toString());
 
       // Populate template variables
       emailTo = order.customers?.email || to;

@@ -145,6 +145,8 @@ export function Checkout() {
       priceBreakdown,
       cart,
       contactData,
+      // The preview lists every fee that is in the total (Setup Fee, same-day delivery) from the same totals the page shows.
+      unifiedTotals,
     };
     sessionStorage.setItem('invoice-preview-data', JSON.stringify(invoiceData));
     window.open('/invoice-preview', '_blank');
