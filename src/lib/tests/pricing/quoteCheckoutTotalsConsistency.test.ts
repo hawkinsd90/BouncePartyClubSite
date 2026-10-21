@@ -44,7 +44,7 @@ function makeInflatableCart(): any[] {
 void makeInflatableCart;
 
 const validForm = {
-  address_line1: '123 Main St', city: 'Detroit', state: 'MI', zip: '48201',
+  address_line1: '123 Main St', lat: 42.33, lng: -83.05, city: 'Detroit', state: 'MI', zip: '48201',
   location_type: 'residential' as const, pickup_preference: 'next_day' as const,
   can_stake: true, event_date: '2026-08-01', event_end_date: '2026-08-01',
   start_window: '10:00', end_window: '14:00',

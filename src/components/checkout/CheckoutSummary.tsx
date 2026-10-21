@@ -9,6 +9,10 @@ interface CheckoutSummaryProps {
   cardOnFileConsent: boolean;
   smsConsent: boolean;
   referralSource: string;
+  /** False when the admin turned the "how did you hear about us" question off: the answer is then not required. */
+  referralRequired: boolean;
+  /** What is still missing, shown next to the disabled button. */
+  missingItems?: Array<{ key: string; label: string }>;
   tipCents: number;
   paymentAmountCents?: number;
   onViewInvoice: () => void;
@@ -21,6 +25,8 @@ export function CheckoutSummary({
   cardOnFileConsent,
   smsConsent,
   referralSource,
+  referralRequired,
+  missingItems = [],
   tipCents,
   paymentAmountCents,
   onViewInvoice,
@@ -67,7 +73,7 @@ export function CheckoutSummary({
 
       <button
         type="submit"
-        disabled={processing || !cardOnFileConsent || !smsConsent || !referralSource}
+        disabled={processing || !cardOnFileConsent || !smsConsent || (referralRequired && !referralSource)}
         className="w-full bg-blue-600 hover:bg-blue-700 active:bg-blue-800 disabled:bg-slate-400 text-white font-semibold py-3 sm:py-4 px-4 sm:px-6 rounded-lg transition-all flex items-center justify-center text-sm sm:text-base touch-manipulation"
       >
         {processing ? (
@@ -82,6 +88,15 @@ export function CheckoutSummary({
           </>
         )}
       </button>
+
+      {missingItems.length > 0 && !processing && (
+        <ul className="mt-3 text-xs text-amber-700 space-y-1" data-testid="checkout-missing-items">
+          <li className="font-semibold">Before you can complete your booking:</li>
+          {missingItems.map((item) => (
+            <li key={item.key}>- {item.label}</li>
+          ))}
+        </ul>
+      )}
 
       <p className="text-xs text-slate-500 text-center mt-3 sm:mt-4">
         Your payment information is secured with industry-standard encryption

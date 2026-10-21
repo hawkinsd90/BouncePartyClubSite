@@ -1,6 +1,7 @@
 import { MapPin } from 'lucide-react';
 import { AddressAutocomplete } from '../order/AddressAutocomplete';
 import type { QuoteFormData } from '../../hooks/booking/useQuoteForm';
+import { QUOTE_ADDRESS_EDIT_RESET } from '../../lib/booking/addressEdit';
 
 interface AddressSectionProps {
   formData: QuoteFormData;
@@ -29,7 +30,10 @@ export function AddressSection({
           <AddressAutocomplete
             id="address-input"
             value={addressInput}
-            onChange={onAddressInputChange}
+            onChange={(value) => {
+              onAddressInputChange(value);
+              onFormDataChange(QUOTE_ADDRESS_EDIT_RESET);
+            }}
             onSelect={(address) => {
               onAddressInputChange(address.formatted_address);
               onFormDataChange({

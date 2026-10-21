@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { loadCompletedBooking } from '../../lib/booking/bookingApi';
+import { clearBookingAttempt } from '../../lib/booking/bookingAttempt';
 import { SafeStorage } from '../../lib/core/safeStorage';
 import { sendCustomerBookingConfirmationNotifications } from '../../lib/notifications/orderNotificationService';
 import { ORDER_STATUS } from '../../lib/constants/statuses';
@@ -217,6 +218,8 @@ export function useBookingReturnConfirmation(orderId: string | null, sessionId: 
     SafeStorage.removeItem('bpc_price_breakdown');
     SafeStorage.removeItem('bpc_contact_data');
     SafeStorage.removeItem('test_booking_tip');
+    // The booking is complete: forget the remembered attempt so the next booking starts clean.
+    clearBookingAttempt();
   }
 
   return {

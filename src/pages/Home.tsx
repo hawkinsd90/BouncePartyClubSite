@@ -306,7 +306,11 @@ export function Home() {
 
                   <AddressAutocomplete
                     value={addressInput}
-                    onChange={(value) => setAddressInput(value)}
+                    onChange={(value) => {
+                      setAddressInput(value);
+                      // Typing after a selection discards the old structured address so stale coordinates cannot be submitted.
+                      setAddressData(null);
+                    }}
                     onSelect={(address) => {
                       setAddressData(address);
                       setAddressInput(address.formatted_address);

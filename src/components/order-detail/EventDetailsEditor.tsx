@@ -1,5 +1,7 @@
 import { formatCurrency } from '../../lib/pricing';
 import { AddressAutocomplete } from '../order/AddressAutocomplete';
+import { TimePickerInput } from '../ui/TimePickerInput';
+import { ADMIN_ADDRESS_EDIT_RESET } from '../../lib/booking/addressEdit';
 
 interface EventDetailsEditorProps {
   editedOrder: any;
@@ -70,22 +72,18 @@ export function EventDetailsEditor({
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4 min-w-0 overflow-hidden">
             <div className="min-w-0 overflow-hidden">
               <label className={labelClass}>Start Time</label>
-              <input
-                type="time"
+              <TimePickerInput
                 value={editedOrder.start_window}
-                onChange={(e) => onOrderChange({ start_window: e.target.value })}
-                className={inputClass}
+                onChange={(value) => onOrderChange({ start_window: value })}
               />
             </div>
 
             <div className="min-w-0 overflow-hidden">
               <label className={labelClass}>End Time</label>
-              <input
-                type="time"
+              <TimePickerInput
                 value={editedOrder.end_window}
-                onChange={(e) => onOrderChange({ end_window: e.target.value })}
+                onChange={(value) => onOrderChange({ end_window: value })}
                 disabled={showUntilEndOfDay && editedOrder.until_end_of_day}
-                className={`${inputClass} ${showUntilEndOfDay && editedOrder.until_end_of_day ? 'disabled:bg-slate-100' : ''}`}
               />
             </div>
           </div>
@@ -175,7 +173,7 @@ export function EventDetailsEditor({
                     <label className="block text-xs font-medium text-slate-700 mb-1">Street Address</label>
                     <AddressAutocomplete
                       value={editedOrder.address_line1}
-                      onChange={(value) => onOrderChange({ address_line1: value })}
+                      onChange={(value) => onOrderChange({ address_line1: value, ...ADMIN_ADDRESS_EDIT_RESET })}
                       onSelect={onAddressSelect}
                       placeholder="Enter event address"
                     />
@@ -265,7 +263,7 @@ export function EventDetailsEditor({
                 <label className={labelClass}>Event Address</label>
                 <AddressAutocomplete
                   value={editedOrder.address_line1}
-                  onChange={(value) => onOrderChange({ address_line1: value })}
+                  onChange={(value) => onOrderChange({ address_line1: value, ...ADMIN_ADDRESS_EDIT_RESET })}
                   onSelect={onAddressSelect}
                   placeholder="Enter event address"
                 />

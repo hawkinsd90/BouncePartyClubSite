@@ -140,20 +140,22 @@ export class BookingApiError extends Error {
 export interface CreatedBooking {
   orderId: string;
   bookingToken: string;
+  /** ISO time at which the booking proof expires (from the server); used to decide whether a retry may reuse the order. */
+  expiresAt?: string;
 }
 
 export async function createBooking(request: Record<string, unknown>): Promise<CreatedBooking> {
-  const { ok, data } = await post<{ orderId?: string; bookingToken?: string }>('create-booking', request);
+  const { ok, data } = await post<{ orderId?: string; bookingToken?: string; expiresAt?: string }>('create-booking', request);
   if (!ok || !data.orderId || !data.bookingToken) {
     throw new BookingApiError(data.error || 'We could not create your booking. Please try again.', data.code ?? null);
   }
-  return { orderId: data.orderId, bookingToken: data.bookingToken };
+  return { orderId: data.orderId, bookingToken: data.bookingToken, expiresAt: typeof data.expiresAt === 'string' ? data.expiresAt : undefined };
 }
 
 // Starts the Stripe card-SAVE (setup-mode) session. Nothing is charged. The server reads the customer, deposit and tip
 // from the order; only the order id, the booking proof and the return origin are sent.
-export async function startBookingCardSetup(booking: CreatedBooking): Promise<string> {
-  const { ok, data } = await post<{ url?: string }>('stripe-checkout', {
+export async function startBookingCardSetup(booking: Pick<CreatedBooking, 'orderId' | 'bookingToken'>): Promise<{ url: string; sessionId: string | null }> {
+  const { ok, data } = await post<{ url?: string; sessionId?: string }>('stripe-checkout', {
     orderId: booking.orderId,
     bookingMode: true,
     bookingToken: booking.bookingToken,
@@ -162,7 +164,7 @@ export async function startBookingCardSetup(booking: CreatedBooking): Promise<st
   if (!ok || !data.url) {
     throw new Error(data.error || 'Failed to create checkout session');
   }
-  return data.url;
+  return { url: data.url, sessionId: typeof data.sessionId === 'string' ? data.sessionId : null };
 }
 
 export interface CompletedBooking {

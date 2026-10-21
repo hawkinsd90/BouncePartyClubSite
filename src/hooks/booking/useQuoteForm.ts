@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { SafeStorage } from '../../lib/core/safeStorage';
+import { isPreciseGeocode } from '../../lib/booking/addressEdit';
 
 export interface QuoteFormData {
   event_date: string;
@@ -135,13 +136,15 @@ export function useQuoteForm() {
 
   useEffect(() => {
     async function geocodeAddress() {
-      if (formData.city && formData.state && formData.zip && !formData.lat && !formData.lng) {
+      // Only a saved profile/prefilled street address is geocoded here, from the FULL street address, and only a precise match is
+      // accepted. A city/ZIP centroid is never used for pricing: the customer reselects the address instead.
+      if (formData.address_line1 && formData.city && formData.state && formData.zip && !formData.lat && !formData.lng) {
         try {
           const geocoder = new google.maps.Geocoder();
-          const address = `${formData.city}, ${formData.state} ${formData.zip}`;
+          const address = `${formData.address_line1}, ${formData.city}, ${formData.state} ${formData.zip}`;
           const result = await geocoder.geocode({ address });
 
-          if (result.results && result.results[0]) {
+          if (result.results && result.results[0] && isPreciseGeocode(result.results[0])) {
             const location = result.results[0].geometry.location;
             const lat = location.lat();
             const lng = location.lng();
@@ -155,7 +158,7 @@ export function useQuoteForm() {
     }
 
     geocodeAddress();
-  }, [formData.city, formData.state, formData.zip, formData.lat, formData.lng]);
+  }, [formData.address_line1, formData.city, formData.state, formData.zip, formData.lat, formData.lng]);
 
   function applyPrefillData(prefillData: any) {
     const isDuplicateOrder = SafeStorage.getItem<string>('bpc_duplicate_order') === 'true';

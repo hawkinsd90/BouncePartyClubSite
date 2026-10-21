@@ -131,10 +131,7 @@ export function useCheckoutData(userId?: string) {
         }
       }
 
-      if (savedContactData) {
-        setSmsConsent(true);
-        setCardOnFileConsent(true);
-      }
+      // Consents are never pre-checked, even for returning customers: each booking needs its own explicit agreement.
 
       if (savedTip) {
         const tipCents = parseInt(savedTip, 10);

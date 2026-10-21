@@ -1,4 +1,5 @@
 import type { QuoteFormData } from '../../hooks/booking/useQuoteForm';
+import { hasSelectedAddress, SELECT_ADDRESS_MESSAGE } from './addressEdit';
 import type { UnifiedCartItem, InflatableCartItem, EventEssentialProductCartItem, EventEssentialBundleCartItem } from '../../types';
 
 interface ValidationResult {
@@ -46,10 +47,11 @@ export function validateQuote(
   const hasInflatables = cart.some(isInflatable);
 
   // 2. Address validation
-  if (!formData.address_line1 || formData.address_line1.trim() === '') {
+  // No street, or a street without coordinates (the suggestion was never chosen, or the text was edited afterwards).
+  if (!hasSelectedAddress(formData)) {
     return {
       isValid: false,
-      errorMessage: 'Please enter a street address for the event location.',
+      errorMessage: SELECT_ADDRESS_MESSAGE,
       errorSection: 'address',
       errorFieldId: 'address-input',
     };

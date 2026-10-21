@@ -1,9 +1,18 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { MapPin } from 'lucide-react';
 import { formatCurrency } from '../lib/pricing';
 import { RentalTerms } from '../components/waiver/RentalTerms';
 import { BookingApiError, buildBookingRequest, createBooking, startBookingCardSetup } from '../lib/booking/bookingApi';
+import {
+  bookingErrorMessage,
+  decideAttempt,
+  fingerprintBookingRequest,
+  loadBookingAttempt,
+  missingForSubmit,
+  rememberCreatedBooking,
+  rememberStripeSession,
+} from '../lib/booking/bookingAttempt';
 import { useAuth } from '../contexts/AuthContext';
 import { useCheckoutData } from '../hooks/booking/useCheckoutData';
 import { getPaymentAmountCentsFromTotals, getTipAmountCents, buildOrderSummary } from '../lib/booking/checkoutUtils';
@@ -61,6 +70,8 @@ export function Checkout() {
   } = useCheckoutData(user?.id);
 
   const [processing, setProcessing] = useState(false);
+  // Blocks a second submit in the same tick (a double click can fire before React re-renders the disabled button).
+  const submitInFlightRef = useRef(false);
   const [referralError, setReferralError] = useState('');
   const [billingSameAsEvent, setBillingSameAsEvent] = useState(true);
   const [paymentAmount, setPaymentAmount] = useState<'deposit' | 'full' | 'custom'>('deposit');
@@ -94,6 +105,18 @@ export function Checkout() {
     })();
   }, []);
 
+  // Coming back with the browser Back button can restore this page from the back/forward cache with "Processing" still showing.
+  useEffect(() => {
+    const onPageShow = (event: PageTransitionEvent) => {
+      if (event.persisted) {
+        submitInFlightRef.current = false;
+        setProcessing(false);
+      }
+    };
+    window.addEventListener('pageshow', onPageShow);
+    return () => window.removeEventListener('pageshow', onPageShow);
+  }, []);
+
   useEffect(() => {
     getPublicBusinessSettings().then(s => setHowDidYouHearEnabled(s.how_did_you_hear_enabled)).catch(() => {});
   }, []);
@@ -125,6 +148,7 @@ export function Checkout() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (submitInFlightRef.current) return;
 
     if (!cardOnFileConsent) {
       showToast('Please consent to card-on-file authorization', 'error');
@@ -183,6 +207,7 @@ export function Checkout() {
       return;
     }
 
+    submitInFlightRef.current = true;
     setProcessing(true);
 
     try {
@@ -190,57 +215,73 @@ export function Checkout() {
 
       // The server validates availability, prices the order from the live catalog, creates it atomically and returns a
       // short-lived booking proof. The browser sends only what the customer chose. Nothing is charged.
-      let booking;
-      try {
-        booking = await createBooking(
-          buildBookingRequest({
-            quoteData,
-            priceBreakdown,
-            cart,
-            contactData,
-            billingAddress,
-            billingSameAsEvent,
-            smsConsent,
-            cardOnFileConsent,
-            paymentSelection: paymentAmount,
-            customPaymentCents: paymentAmount === 'custom' ? paymentCents : null,
-            tipCents,
-            referralSource: referralSource || null,
-            referralSourceDetail: referralSourceDetail || null,
-          }),
-        );
-      } catch (error: unknown) {
-        console.error('Error creating booking request:', error);
-        if (error instanceof BookingApiError && error.code === 'ACCOUNT_SIGN_IN_REQUIRED') {
-          // Not an error to retry: this email belongs to a registered account.
-          showToast(error.message, 'error');
+      const request = buildBookingRequest({
+        quoteData,
+        priceBreakdown,
+        cart,
+        contactData,
+        billingAddress,
+        billingSameAsEvent,
+        smsConsent,
+        cardOnFileConsent,
+        paymentSelection: paymentAmount,
+        customPaymentCents: paymentAmount === 'custom' ? paymentCents : null,
+        tipCents,
+        referralSource: referralSource || null,
+        referralSourceDetail: referralSourceDetail || null,
+      });
+      const fingerprint = fingerprintBookingRequest(request);
+
+      // The same request again (Back from Stripe, a retry, a second tab click) reuses the order already created for it instead of
+      // creating another draft: back to the live Stripe session, or the same order when only the Stripe step failed.
+      const decision = decideAttempt(loadBookingAttempt(), fingerprint, Date.now());
+      if (decision.action === 'redirect') {
+        log.info('Reopening the existing Stripe checkout for this booking');
+        window.location.href = decision.url;
+        return;
+      }
+
+      let booking: { orderId: string; bookingToken: string };
+      if (decision.action === 'resume') {
+        booking = { orderId: decision.orderId, bookingToken: decision.bookingToken };
+      } else {
+        try {
+          const created = await createBooking(request);
+          rememberCreatedBooking(fingerprint, created);
+          booking = created;
+        } catch (error: unknown) {
+          console.error('Error creating booking request:', error);
+          if (error instanceof BookingApiError && error.code === 'ACCOUNT_SIGN_IN_REQUIRED') {
+            // Not an error to retry: this email belongs to a registered account.
+            showToast(error.message, 'error');
+          } else if (error instanceof BookingApiError) {
+            showToast(bookingErrorMessage(error.code, error.message), 'error');
+          } else {
+            showToast(bookingErrorMessage(null, error instanceof Error ? error.message : null), 'error');
+          }
+          submitInFlightRef.current = false;
           setProcessing(false);
           return;
         }
-        showToast(
-          `There was an error processing your order: ${error instanceof Error ? error.message : 'Unknown error'}. Please try again or contact us for assistance.`,
-          'error'
-        );
-        setProcessing(false);
-        return;
       }
 
       // Stripe Setup Mode: the card is saved for later, nothing is charged. Customer, deposit and tip come from the order.
       try {
-        const url = await startBookingCardSetup(booking);
+        const { url } = await startBookingCardSetup(booking);
+        rememberStripeSession(fingerprint, booking.orderId, url, Date.now());
         log.info('Opening Stripe checkout');
         window.location.href = url;
+        // The page stays in "Processing" while the browser leaves for Stripe; the pageshow handler resets it if the customer comes back.
       } catch (err: unknown) {
         log.error('Stripe checkout error', err);
         showToast(err instanceof Error && err.message ? err.message : 'Failed to initialize payment', 'error');
+        submitInFlightRef.current = false;
         setProcessing(false);
       }
     } catch (error: unknown) {
       console.error('Error creating order:', error);
-      showToast(
-        `There was an error processing your order: ${error instanceof Error ? error.message : 'Unknown error'}. Please try again or contact us for assistance.`,
-        'error'
-      );
+      showToast(bookingErrorMessage(null, error instanceof Error ? error.message : null), 'error');
+      submitInFlightRef.current = false;
       setProcessing(false);
     }
   };
@@ -405,6 +446,8 @@ export function Checkout() {
               cardOnFileConsent={cardOnFileConsent}
               smsConsent={smsConsent}
               referralSource={referralSource}
+              referralRequired={howDidYouHearEnabled}
+              missingItems={missingForSubmit({ cardOnFileConsent, smsConsent, howDidYouHearEnabled, referralSource })}
               tipCents={tipCents}
               paymentAmountCents={paymentAmountCents}
               onViewInvoice={handleViewInvoice}
