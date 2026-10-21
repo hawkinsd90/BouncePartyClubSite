@@ -52,7 +52,7 @@
 //   - tests are ordered by (chance of killing) / (running time), learned from earlier runs and kept in the cache;
 //   - PROFILE=1 prints, per mutant, how long each test file ran and whether it killed.
 // MUT_NS=<name> runs a second runner beside the first: it gets its own worker databases, work folder, cache and lock. It needs its
-// own pay_base_<name>_<n> databases (for example: CREATE DATABASE pay_base_<name>_0 TEMPLATE role_full).
+// own databases; it makes (and drops) them itself as copies of the shared payment base, so there is nothing to prepare.
 //
 // What makes a KILL trustworthy:
 //   - every mutant runs in a PRISTINE worker database (dropped before each attempt), so a kill can never come from rows an earlier
@@ -66,6 +66,7 @@ const crypto = require('crypto');
 const os = require('os');
 const path = require('path');
 const { spawn, spawnSync } = require('child_process');
+const scratch = require('./scratch-env.cjs');
 
 const ROOT = path.resolve(__dirname, '../..');
 // MUT_NS=<name> gives this run its own worker databases, work folder, cache and lock (to measure beside another run).
@@ -291,6 +292,20 @@ const psqlAsync = (sql) =>
 const dropDbAsync = (name) => psqlAsync(`DROP DATABASE IF EXISTS ${name}`);
 const createDbAsync = (name, template) => psqlAsync(`CREATE DATABASE ${name} TEMPLATE ${template}`);
 
+// The payment base database every test of a worker uses, copied from the shared one (scratch-env's PAY_DB_BASE, bpc_replay_rolepre) one worker
+// after the other. A copy needs a source nobody is connected to, so a connection held by another session for a moment is retried.
+async function buildWorkerBases(n) {
+  const source = scratch.envFor('x.test.ts').PAY_DB_BASE;
+  for (let i = 0; i < n; i++) {
+    const name = `pay_base_${NS}${i}`;
+    await dropDbAsync(name);
+    for (let attempt = 0; (await createDbAsync(name, source)) !== 0; attempt++) {
+      if (attempt >= 10) { console.error(`Could not copy ${source} to ${name}: another session may be connected to ${source}. Try again in a moment.`); process.exit(2); }
+      await new Promise((r) => setTimeout(r, 4000));
+    }
+  }
+}
+
 // Only a test that goes through the payment harness (or names PAY_DB_FULL) uses the worker database; the others need none prepared.
 const usesFullDbMemo = new Map();
 function usesFullDb(testRel) {
@@ -316,19 +331,22 @@ function judge(code, signal, timedOut, stderr) {
   return { killed: true };
 }
 
-function runTests(cwd, tests, idx, fast, dbFull) {
-  const env = {
+// The environment of one test process: the shared per-test mapping (scripts/dev/scratch-env.cjs: which bpc_replay_* database each test file
+// uses), with the payment base/full databases replaced by this worker's own, so mutants never touch another worker's or another session's.
+function testEnv(testFile, idx, fast, dbFull) {
+  return {
     ...process.env,
+    ...scratch.envFor(testFile),
     MUTATION_FAILFAST: '1',
     ...(fast ? { MUTATION_SKIP_CONCURRENT: '1' } : {}),
     PAY_DB_BASE: `pay_base_${NS}${idx}`,
     PAY_DB_FULL: dbFull || mutDb(idx),
-    ROLE_DB_REQUIRE: '1',
-    CORE_DB_NAME: 'clean_new',
     CORE_DB_PORT: DB_PORT,
     CORE_DB_HOST: DB_HOST,
-    CORE_DB_REQUIRE: '1',
   };
+}
+
+function runTests(cwd, tests, idx, fast, dbFull) {
   return new Promise((resolve) => {
     let stderr = '';
     let i = 0;
@@ -337,7 +355,7 @@ function runTests(cwd, tests, idx, fast, dbFull) {
       if (i >= tests.length) return resolve({ killed: false, stderr, timings });
       const t = tests[i++];
       const tStart = Date.now();
-      const p = spawn('node', ['--require', PRELOAD, 'node_modules/jiti/bin/jiti.js', t], { cwd, env });
+      const p = spawn('node', ['--require', PRELOAD, 'node_modules/jiti/bin/jiti.js', t], { cwd, env: testEnv(t, idx, fast, dbFull) });
       let timedOut = false;
       let settled = false;
       p.stderr.on('data', (d) => { stderr += d; });
@@ -430,6 +448,12 @@ exports.runMutants = async function runMutants({ M, tests, spec = 'mutants' }) {
   const dirs = Array.from({ length: used }, (_, i) => path.join(WORK, `w${i}`));
   if (todo.length) for (const d of dirs) sync(d);
 
+  // Stop in a second, with the fix, if the scratch server or its databases are gone, instead of failing in the baseline minutes later.
+  if (todo.length && !process.env.SKIP_PREFLIGHT && !scratch.requireScratch('mutation-runner')) process.exit(2);
+  // Each worker gets its own copy of the payment base database (made now, while nothing of ours is connected to the original).
+  const needDb = todo.some(({ m }) => testsFor(m[0]).some(usesFullDb));
+  if (needDb) await buildWorkerBases(used);
+
   // The baseline only has to run when something will actually run, and not again while every input is as it was when it last passed.
   // (and only for the tests the mutants that will run use: a verdict that is reused needs no baseline)
   const baselineTests = [...new Set(todo.flatMap(({ m }) => testsFor(m[0])))];
@@ -455,7 +479,7 @@ exports.runMutants = async function runMutants({ M, tests, spec = 'mutants' }) {
   // An attempt takes one that is already built; as soon as it ends that one is dropped and rebuilt in the background.
   const SLOTS = Math.max(2, Number(process.env.DB_SLOTS) || 3);
   const pools = dirs.map((_, i) => ({ tmpl: `${mutDb(i)}_t`, slots: Array.from({ length: SLOTS }, (__, k) => `${mutDb(i)}_${k}`), ready: Array.from({ length: SLOTS }, () => Promise.resolve()), next: 0 }));
-  if (todo.some(({ m }) => testsFor(m[0]).some(usesFullDb))) {
+  if (needDb) {
     await Promise.all(
       pools.map(async (p, i) => {
         await dropDbAsync(p.tmpl);
@@ -537,6 +561,7 @@ exports.runMutants = async function runMutants({ M, tests, spec = 'mutants' }) {
     }),
   );
   for (let i = 0; i < used; i++) dropDb(mutDb(i));
+  if (needDb) for (let i = 0; i < used; i++) await dropDbAsync(`pay_base_${NS}${i}`);
   let survivors = 0;
   let errors = 0;
   const killers = new Map();

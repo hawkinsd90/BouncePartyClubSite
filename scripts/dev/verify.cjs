@@ -35,6 +35,10 @@ if (process.argv.includes('--plan')) {
   process.exit(0);
 }
 
+// The database-backed tests and the mutation suites need the scratch PostgreSQL and its bpc_replay_* databases. If a reboot or another session
+// removed them, say so now (about a second) instead of failing 25 tests, or a mutation baseline, minutes into the run. SKIP_PREFLIGHT=1 skips it.
+if (!process.env.SKIP_PREFLIGHT && !require('./scratch-env.cjs').requireScratch('verify')) process.exit(2);
+
 function step(name, cmd, args, env = process.env) {
   const log = path.join(LOGS, `${name}.log`);
   const t0 = Date.now();

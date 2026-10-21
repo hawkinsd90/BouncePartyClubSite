@@ -128,14 +128,8 @@ function verdict({ strict, results, missingDatabases, missingTests, discovered, 
   return { ok: blocking.length === 0, problems, blocking, tally: t, missingDatabases, missingTests };
 }
 
-module.exports = { summaryOf, hasSkippedLayer, classifyRun, parseFailures, compareBaseline, tally, verdict };
-if (require.main !== module) return;
-
-// ---------------------------------------------------------------------------------------------------------------------
-// Command line
-// ---------------------------------------------------------------------------------------------------------------------
-process.chdir(ROOT);
-
+// The scratch databases and the environment each test file needs. Defined above the "required as a module" guard on purpose: run-tests,
+// verify and the mutation runner use this very mapping (scripts/dev/scratch-env.cjs), so there is ONE place that says which database a test uses.
 const DATABASES = [
   // name, replay stops after this version (omit = everything), purpose
   ['bpc_replay_oct12', '20261012120000', 'core lockdown applied; nothing later (evidence/photo/media tests)'],
@@ -148,6 +142,35 @@ const DATABASES = [
 
 const PG = { host: process.env.PGHOST || '127.0.0.1', port: process.env.PGPORT || '54329' };
 const psqlPath = process.env.CORE_DB_PSQL || (fs.existsSync('C:/Program Files/PostgreSQL/18/bin/psql.exe') ? 'C:/Program Files/PostgreSQL/18/bin/psql.exe' : 'psql');
+
+function dbReady(name) {
+  const r = spawnSync(psqlPath, ['-h', PG.host, '-p', PG.port, '-U', 'postgres', '-d', name, '-X', '-q', '-w', '-Atc', "select to_regclass('public.orders') is not null"], { encoding: 'utf8' });
+  return r.status === 0 && r.stdout.trim() === 't';
+}
+
+function envFor(file, strict) {
+  const e = {
+    ...process.env,
+    CORE_DB_NAME: 'bpc_replay_oct18', CORE_DB_PORT: PG.port, CORE_DB_HOST: PG.host, CORE_DB_PSQL: psqlPath,
+    CORE_DB_REQUIRE: '1', ROLE_DB_REQUIRE: '1', HARD_DB_REQUIRE: '1',
+    ROLE_DB_PRE: 'bpc_replay_rolepre', ROLE_DB_FULL: 'bpc_replay_oct18',
+    HARD_DB_PRE: 'bpc_replay_hardpre', HARD_DB_FULL: 'bpc_replay_oct18',
+    PAY_DB_BASE: 'bpc_replay_rolepre', PAY_DB_FULL: 'bpc_replay_payfull', DEVREFRESH_TEMPLATE_DB: 'bpc_replay_full',
+  };
+  if (strict) e.STEP3B_SHAPES_REQUIRE = '1';
+  if (/orderEvidenceAccess|customerPhotoAccess|privateMediaAccess/.test(file)) e.CORE_DB_NAME = 'bpc_replay_oct12';
+  if (/securityPosture/.test(file)) { e.CORE_DB_NAME = 'bpc_replay_full'; e.POSTURE_DB_NAME = 'bpc_replay_full'; }
+  return e;
+}
+
+module.exports = { summaryOf, hasSkippedLayer, classifyRun, parseFailures, compareBaseline, tally, verdict, DATABASES, PG, psqlPath, dbReady, envFor };
+if (require.main !== module) return;
+
+// ---------------------------------------------------------------------------------------------------------------------
+// Command line
+// ---------------------------------------------------------------------------------------------------------------------
+process.chdir(ROOT);
+
 
 if (!['127.0.0.1', 'localhost', '::1'].includes(PG.host)) {
   console.error(`refusing: host "${PG.host}" is not a loopback address`);
@@ -183,25 +206,7 @@ function shapes() {
   }
 }
 
-function envFor(file, strict) {
-  const e = {
-    ...process.env,
-    CORE_DB_NAME: 'bpc_replay_oct18', CORE_DB_PORT: PG.port, CORE_DB_HOST: PG.host, CORE_DB_PSQL: psqlPath,
-    CORE_DB_REQUIRE: '1', ROLE_DB_REQUIRE: '1', HARD_DB_REQUIRE: '1',
-    ROLE_DB_PRE: 'bpc_replay_rolepre', ROLE_DB_FULL: 'bpc_replay_oct18',
-    HARD_DB_PRE: 'bpc_replay_hardpre', HARD_DB_FULL: 'bpc_replay_oct18',
-    PAY_DB_BASE: 'bpc_replay_rolepre', PAY_DB_FULL: 'bpc_replay_payfull', DEVREFRESH_TEMPLATE_DB: 'bpc_replay_full',
-  };
-  if (strict) e.STEP3B_SHAPES_REQUIRE = '1';
-  if (/orderEvidenceAccess|customerPhotoAccess|privateMediaAccess/.test(file)) e.CORE_DB_NAME = 'bpc_replay_oct12';
-  if (/securityPosture/.test(file)) { e.CORE_DB_NAME = 'bpc_replay_full'; e.POSTURE_DB_NAME = 'bpc_replay_full'; }
-  return e;
-}
 
-function dbReady(name) {
-  const r = spawnSync(psqlPath, ['-h', PG.host, '-p', PG.port, '-U', 'postgres', '-d', name, '-X', '-q', '-w', '-Atc', "select to_regclass('public.orders') is not null"], { encoding: 'utf8' });
-  return r.status === 0 && r.stdout.trim() === 't';
-}
 
 function runJob(job) {
   return new Promise((resolve) => {
