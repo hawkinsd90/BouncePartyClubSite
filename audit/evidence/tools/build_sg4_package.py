@@ -37,7 +37,7 @@ EXCLUDED = {
 W = [v for v in W if v not in EXCLUDED]
 man = {r["version"]: r for r in csv.DictReader(open(os.path.join(AUDIT, "development-migration-manifest.csv"), encoding="utf-8"))}
 ledger_lines = open(os.path.join(WORK, "ledger333.lines"), encoding="utf-8", newline="").read().split("\n")
-assert len(ledger_lines) == 333 and sha("\n".join(ledger_lines)) == "3221ec481f7b3a621fb9a9903374e24b609f1b9d69b9aca35e85b0c06b1ffd29"
+assert len(ledger_lines) == 333 and sha("\n".join(ledger_lines)) == "04b1f1bb3b5b0c1a19b0724df544db4e501945010364ff956f77e69dec53eb63"
 led = {l.split("|")[0] for l in ledger_lines}
 atoms_live = json.load(open(os.path.join(WORK, "atoms-live.json")))
 e2a = [r for r in csv.DictReader(open(os.path.join(EV, "derived", "e2a-statements-all.csv"), encoding="utf-8")) if r["environment"] == "Development"]
@@ -190,7 +190,7 @@ for v in orderA:
 batch_of = {**{v: "S8A" for v in orderA}, **{v: "S8B" for v in orderB}}
 cntMid, shaMid = predicted(orderA, batch_of)
 cntA, shaA = predicted(orderA + orderB, batch_of)
-start = {"S8A": (333, "3221ec481f7b3a621fb9a9903374e24b609f1b9d69b9aca35e85b0c06b1ffd29"), "S8B": (cntMid, shaMid)}
+start = {"S8A": (333, "04b1f1bb3b5b0c1a19b0724df544db4e501945010364ff956f77e69dec53eb63"), "S8B": (cntMid, shaMid)}
 
 
 def batch_script(batch, order):

@@ -6,7 +6,7 @@ DO $bpc$
 BEGIN
   IF current_database() <> 'postgres' OR current_user <> 'postgres' THEN RAISE EXCEPTION 'wrong database or role'; END IF;
   IF (SELECT count(*) FROM supabase_migrations.schema_migrations) <> 333 THEN RAISE EXCEPTION 'ledger count differs from the pre-batch export'; END IF;
-  IF (SELECT encode(sha256(convert_to(string_agg(version||'|'||coalesce(name,'')||'|'||md5(coalesce(array_to_string(statements,E'\n'),'')), E'\n' ORDER BY version),'UTF8')),'hex') FROM supabase_migrations.schema_migrations) <> '3221ec481f7b3a621fb9a9903374e24b609f1b9d69b9aca35e85b0c06b1ffd29' THEN RAISE EXCEPTION 'ledger content differs from the pre-batch export'; END IF;
+  IF (SELECT encode(sha256(convert_to(string_agg(version||'|'||coalesce(name,'')||'|'||md5(coalesce(array_to_string(statements,E'\n'),'')), E'\n' ORDER BY version),'UTF8')),'hex') FROM supabase_migrations.schema_migrations) <> '04b1f1bb3b5b0c1a19b0724df544db4e501945010364ff956f77e69dec53eb63' THEN RAISE EXCEPTION 'ledger content differs from the pre-batch export'; END IF;
   IF has_schema_privilege('anon', 'public', 'USAGE') OR has_schema_privilege('authenticated', 'public', 'USAGE') THEN RAISE EXCEPTION 'schema containment is not in force'; END IF;
   -- op 1: 20251129190039 (history-only)
   IF EXISTS (SELECT 1 FROM supabase_migrations.schema_migrations WHERE version = '20251129190039') THEN RAISE EXCEPTION 'version already recorded: 20251129190039'; END IF;

@@ -3,15 +3,15 @@
  "channel": "supabase db query --linked -f <absolute path> (byte-exact, one transaction per file, verified for SG-3 steps 26-28)",
  "start": {
   "count": 333,
-  "sha256": "3221ec481f7b3a621fb9a9903374e24b609f1b9d69b9aca35e85b0c06b1ffd29"
+  "sha256": "04b1f1bb3b5b0c1a19b0724df544db4e501945010364ff956f77e69dec53eb63"
  },
  "after_S8A": {
   "count": 366,
-  "sha256": "aa771695bf31559573593dbf76cf1fd8720f450005ace802087a8603385f4d8b"
+  "sha256": "eb782d6a6d8cb74d34b87b34fb0d4f318864901dbd27abfe831ed78292e57ebf"
  },
  "end": {
   "count": 372,
-  "sha256": "c0a35e28b54e6c3a29d984991253b2a2ada9f3df05197562c2bc6b6510d27516"
+  "sha256": "1dd1460ed16934cedba0bfa64e4db15f91268bdd9e87de1c59d0b5b0756b56ed"
  },
  "order_S8A": [
   "20251129190039",
@@ -66,9 +66,9 @@
   "20260324154955": "order_pictures is not in the supabase_realtime publication today. Same owner decision as 20260324051459."
  },
  "scripts": {
-  "S8A.sql": "30c923dc435a02912263cec85b1183f5e8c581fbd1306bce8de38cd0fa817dbe",
+  "S8A.sql": "61266b2b987e10af64ef7a25fe9d34743f5d92de1790dfa76fe752c87ca5fcae",
   "S8A_reversal.sql": "5234d24f8cbd0292fab98c8fab097cb7f803e180caf90034a47eb9c5c2fd801f",
-  "S8B.sql": "c8b6ea242dae1c84e8f7b5bf435874388c71e264ff262159da45acc04417e2a5",
+  "S8B.sql": "52fcaa333a3203a86a2ddfa155579bca3cd8afcff981aa605cd967d5fe276cc1",
   "S8B_reversal.sql": "27b93f3e98bd7960bd24656c23d2a5ee77ea8f47d5c6fcebad41a686b54f8d9a"
  },
  "per_version": {
