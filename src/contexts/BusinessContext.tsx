@@ -1,6 +1,6 @@
 import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { supabase } from '../lib/supabase';
-import { getBusinessAddressText } from '../lib/core/adminSettingsCache';
+import { getBusinessAddressText, getPublicBusinessSettings } from '../lib/core/adminSettingsCache';
 
 export interface BusinessSettings {
   business_name: string;
@@ -67,6 +67,15 @@ export function BusinessProvider({ children }: { children: ReactNode }) {
               newSettings[key as keyof BusinessSettings] = value || '';
             }
           });
+        }
+
+        // Visitors cannot read admin_settings; take the public fields from the public RPC instead of the hard-coded defaults,
+        // so edited business name, phone and e-mail reach signed-out pages too. Only keys that RPC exposes are used.
+        if (refusedForVisitor) {
+          const pub = await getPublicBusinessSettings();
+          if (pub.business_name) newSettings.business_name = pub.business_name;
+          if (pub.business_phone) newSettings.business_phone = pub.business_phone;
+          if (pub.business_email) newSettings.business_email = pub.business_email;
         }
 
         // Load business address using the centralized helper

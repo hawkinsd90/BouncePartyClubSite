@@ -296,23 +296,13 @@ export async function getHomeBaseAddress(): Promise<{
  * Example: "4426 Woodward St, Wayne, MI 48184"
  */
 export async function getBusinessAddressText(): Promise<string> {
-  const homeBase = await getHomeBaseAddress();
-  const settings = await getMultipleAdminSettings([
-    'home_address_line1',
-    'home_address_line2',
-  ]);
-
-  const line1 = settings['home_address_line1'];
-  const line2 = settings['home_address_line2'];
-
-  // If no line1, use the full fallback address
-  if (!line1) {
+  // Reads the public settings RPC (granted to visitors) rather than the protected admin_settings table.
+  const pub = await getPublicBusinessSettings();
+  if (!pub.home_address_line1) {
     return '4426 Woodward St, Wayne, MI 48184';
   }
-
-  let addressText = line1;
-  if (line2) addressText += `, ${line2}`;
-  addressText += `, ${homeBase.city}, ${homeBase.state} ${homeBase.zip}`;
-
+  let addressText = pub.home_address_line1;
+  if (pub.home_address_line2) addressText += `, ${pub.home_address_line2}`;
+  addressText += `, ${pub.home_address_city ?? 'Wayne'}, ${pub.home_address_state ?? 'MI'} ${pub.home_address_zip ?? '48184'}`;
   return addressText;
 }
