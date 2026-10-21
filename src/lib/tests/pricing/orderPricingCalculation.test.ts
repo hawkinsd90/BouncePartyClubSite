@@ -716,6 +716,11 @@ function compare(label: string, params: CalculatePricingParams, ioDistance = 14.
   ok('reuse: no existing order', shouldReuseSavedTravel(ev, undefined) === false);
   ok('reuse: unchanged address and stored positive fee', shouldReuseSavedTravel(ev, existing()) === true);
   ok('reuse: stored fee 0', shouldReuseSavedTravel(ev, existing({ travel_fee_cents: 0 })) === false);
+  // WP-18: a stored $0 is a granted free delivery only when the order carries its travel snapshot and the fee was not merely waived.
+  const snap = { travel_per_mile_cents: 300, travel_base_radius_miles: 15 };
+  ok('reuse: stored fee 0 with its travel snapshot is reused', shouldReuseSavedTravel(ev, existing({ travel_fee_cents: 0, ...snap })) === true);
+  ok('reuse: stored fee 0 that exists only because it was waived is not reused', shouldReuseSavedTravel(ev, existing({ travel_fee_cents: 0, travel_fee_waived: true, ...snap })) === false);
+  ok('reuse: address text compares without case or spacing noise', shouldReuseSavedTravel({ ...ev, address_line1: '  ' + ev.address_line1.toUpperCase() + ' ' }, existing()) === true);
   ok('reuse: stored fee undefined', shouldReuseSavedTravel(ev, existing({ travel_fee_cents: undefined })) === false);
   for (const part of ['address_line1', 'address_city', 'address_state', 'address_zip'] as const) {
     ok(`reuse: changed ${part}`, shouldReuseSavedTravel({ ...ev, [part]: 'changed' }, existing()) === false);

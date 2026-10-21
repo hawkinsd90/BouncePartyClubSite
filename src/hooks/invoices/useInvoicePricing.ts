@@ -123,7 +123,7 @@ export function useInvoicePricing(
         has_generator: false,
         generator_qty: 0,
         rules: pricingRules,
-        is_same_day_weekday_delivery: isSameDayWeekdayDelivery(eventDetails.event_date),
+        is_same_day_weekday_delivery: isSameDayWeekdayDelivery(eventDetails.event_date, pricingRules.same_day_delivery_fee_days),
       });
 
       setPriceBreakdown(breakdown);

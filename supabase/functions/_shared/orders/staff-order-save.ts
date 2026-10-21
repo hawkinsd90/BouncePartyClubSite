@@ -21,6 +21,7 @@ import { isSameDayWeekdayDelivery } from "../booking/pricing.ts";
 import { orderPricingState, sameOrderPricingState, type OrderPricingState } from "../booking/orderPricingState.ts";
 import { ORDER_STATUS } from "../booking/orderStatuses.ts";
 import { loadBookingCatalog } from "../booking/createBooking.ts";
+import { createGoogleAddressVerifier, resolveTrustedTravelCity, type AddressVerifier, type CityVerification } from "../booking/addressVerification.ts";
 import { repriceEventEssentialsCart, hasBlockingIssues } from "../booking/eventEssentialsCartRepricing.ts";
 import {
   buildProductConfigMap,
@@ -29,7 +30,7 @@ import {
   buildUnitMap,
 } from "../booking/eventEssentialsCatalogResolver.ts";
 import type { BookingCatalog } from "../booking/bookingBuild.ts";
-import { HOME_BASE } from "../booking/bookingBuild.ts";
+import { HOME_BASE, includedCitiesOf } from "../booking/bookingBuild.ts";
 
 // deno-lint-ignore no-explicit-any
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -46,6 +47,8 @@ export interface StaffSaveDeps {
   // Driving miles from the shop to a street address, measured on the server. Defaults to the Google Distance Matrix lookup the
   // calculate-route-mileage function already uses (GOOGLE_MAPS_API_KEY). Returns null when the distance cannot be determined.
   drivingMiles?: (destination: string) => Promise<number | null>;
+  // Server check of the address city for the free-delivery list (WP-18). Defaults to Google Geocoding with the same GOOGLE_MAPS_API_KEY.
+  verifyAddress?: AddressVerifier;
 }
 
 export interface HttpResult {
@@ -340,6 +343,40 @@ function defaultDrivingMiles(): (destination: string) => Promise<number | null> 
 const sameAddressText = (e: EventFields, stored: Any): boolean =>
   !!stored && e.address_line1 === (stored.line1 || "") && e.address_city === (stored.city || "") && e.address_state === (stored.state || "") && e.address_zip === (stored.zip || "");
 
+function defaultAddressVerifier(): AddressVerifier {
+  // deno-lint-ignore no-explicit-any
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const denoEnv = (globalThis as any).Deno?.env;
+  const apiKey = typeof denoEnv?.get === "function" ? denoEnv.get("GOOGLE_MAPS_API_KEY") ?? "" : "";
+  return createGoogleAddressVerifier({ apiKey });
+}
+
+// The city that may decide a FREE delivery for this save. Only a NEW or CHANGED address is verified; an unchanged address keeps its stored
+// travel snapshot and is never re-verified (so historical orders are not silently re-priced). undefined = typed city, as before.
+async function resolveVerifiedTravelCity(
+  deps: StaffSaveDeps,
+  rules: Any,
+  e: EventFields,
+  existing: Any,
+  orderRef: string,
+): Promise<string | undefined> {
+  const includedCities = includedCitiesOf(rules ?? {});
+  if (includedCities.length === 0) return undefined;
+  if (existing && sameAddressText(e, existing.addresses)) return undefined;
+  const verify = deps.verifyAddress ?? defaultAddressVerifier();
+  let verification: CityVerification | null = null;
+  try {
+    verification = await verify({ line1: e.address_line1, city: e.address_city, state: e.address_state, zip: e.address_zip, lat: null, lng: null }, includedCities);
+  } catch {
+    verification = null;
+  }
+  const trusted = resolveTrustedTravelCity(verification, e.address_city, includedCities);
+  if (trusted.review) {
+    console.warn(`[staff-order-save] travel_city_review order=${orderRef} review=${trusted.review} verification=${trusted.status}`);
+  }
+  return trusted.city;
+}
+
 async function resolveDistance(
   deps: StaffSaveDeps,
   params: Pick<CalculatePricingParams, "eventDetails" | "existingOrder">,
@@ -536,7 +573,8 @@ export async function saveStaffOrderChanges(deps: StaffSaveDeps, raw: unknown): 
   };
   const distance = await resolveDistance(deps, params, edited);
   if (!distance.ok) return json(503, { success: false, code: "DISTANCE_UNAVAILABLE", error: "The delivery distance for this address could not be determined. Try again shortly." });
-  const priced = calculateOrderPricing(params, { distanceMiles: distance.miles, isSameDayWeekdayDelivery });
+  const verifiedTravelCity = await resolveVerifiedTravelCity(deps, catalog.pricingRulesRow, edited, params.existingOrder, String(order.id ?? "unknown"));
+  const priced = calculateOrderPricing(params, { distanceMiles: distance.miles, isSameDayWeekdayDelivery, verifiedTravelCity });
   if (priced.status !== "ok") return json(503, { success: false, code: "PRICING_UNAVAILABLE", error: "Pricing is temporarily unavailable." });
   const calculatedPricing = priced.calculatedPricing;
 
@@ -694,7 +732,8 @@ export async function createStaffInvoiceOrder(deps: StaffSaveDeps, raw: unknown)
   };
   const distance = await resolveDistance(deps, params, parsedEvent);
   if (!distance.ok) return json(503, { success: false, code: "DISTANCE_UNAVAILABLE", error: "The delivery distance for this address could not be determined. Try again shortly." });
-  const priced = calculateOrderPricing(params, { distanceMiles: distance.miles, isSameDayWeekdayDelivery });
+  const verifiedTravelCity = await resolveVerifiedTravelCity(deps, catalog.pricingRulesRow, parsedEvent, undefined, "new");
+  const priced = calculateOrderPricing(params, { distanceMiles: distance.miles, isSameDayWeekdayDelivery, verifiedTravelCity });
   if (priced.status !== "ok") return json(503, { success: false, code: "PRICING_UNAVAILABLE", error: "Pricing is temporarily unavailable." });
   const p = priced.calculatedPricing;
 

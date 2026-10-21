@@ -15,6 +15,8 @@ export interface QuoteFormData {
   zip: string;
   lat: number;
   lng: number;
+  /** City Google reported for the chosen suggestion ('' for townships); null when no suggestion was chosen. Drives the free-city preview. */
+  picked_locality?: string | null;
   location_type: 'residential' | 'commercial' | null;
   pickup_preference: 'same_day' | 'next_day' | null;
   same_day_responsibility_accepted: boolean;
@@ -39,6 +41,7 @@ const initialFormData: QuoteFormData = {
   zip: '',
   lat: 0,
   lng: 0,
+  picked_locality: null,
   location_type: null,
   pickup_preference: null,
   same_day_responsibility_accepted: false,

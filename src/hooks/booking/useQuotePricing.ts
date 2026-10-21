@@ -87,7 +87,8 @@ export function useQuotePricing(
       overnight_allowed: formData.pickup_preference === 'next_day',
       num_days,
       distance_miles,
-      city: formData.city,
+      // The free-city test uses the city Google reported for the chosen suggestion (what the server will verify), not the editable field.
+      city: formData.picked_locality ?? formData.city,
       zip: formData.zip,
       // Generator Workflow Unification: the Quote checkbox now controls the
       // EE Generator product in the cart. has_generator/generator_qty must NOT
@@ -95,7 +96,7 @@ export function useQuotePricing(
       has_generator: false,
       generator_qty: 0,
       rules: pricingRules,
-      is_same_day_weekday_delivery: isSameDayWeekdayDelivery(formData.event_date),
+      is_same_day_weekday_delivery: isSameDayWeekdayDelivery(formData.event_date, pricingRules.same_day_delivery_fee_days),
     });
 
     setPriceBreakdown(breakdown);

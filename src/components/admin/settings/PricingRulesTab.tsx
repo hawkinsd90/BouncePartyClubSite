@@ -4,7 +4,17 @@ import { supabase } from '../../../lib/supabase';
 import { notifyError, notifySuccess } from '../../../lib/toasts';
 import { calculateEEOnlyDepositCents } from '../../../lib/pricing/depositCalculation';
 import { validateEEDepositSettingsInput, parseMoneyInput } from '../../../lib/pricing/moneySettings';
-import { formatCurrency } from '../../../lib/pricing';
+import { formatCurrency, DEFAULT_SAME_DAY_FEE_DAYS } from '../../../lib/pricing';
+
+const WEEKDAY_CHIPS: Array<{ day: number; label: string }> = [
+  { day: 0, label: 'Sun' },
+  { day: 1, label: 'Mon' },
+  { day: 2, label: 'Tue' },
+  { day: 3, label: 'Wed' },
+  { day: 4, label: 'Thu' },
+  { day: 5, label: 'Fri' },
+  { day: 6, label: 'Sat' },
+];
 
 interface PricingRules {
   id: string;
@@ -17,6 +27,7 @@ interface PricingRules {
   generator_fee_multiple_cents?: number;
   same_day_pickup_fee_cents?: number;
   same_day_weekday_delivery_fee_cents?: number;
+  same_day_delivery_fee_days?: number[] | null;
   apply_taxes_by_default?: boolean;
   ee_only_deposit_base_threshold_cents?: number;
   ee_only_deposit_base_cents?: number;
@@ -120,6 +131,7 @@ export function PricingRulesTab({ pricingRules: initialRules }: PricingRulesTabP
           generator_fee_multiple_cents: editedRules.generator_fee_multiple_cents || 7500,
           same_day_pickup_fee_cents: editedRules.same_day_pickup_fee_cents || 0,
           same_day_weekday_delivery_fee_cents: editedRules.same_day_weekday_delivery_fee_cents || 0,
+          same_day_delivery_fee_days: [...(editedRules.same_day_delivery_fee_days ?? DEFAULT_SAME_DAY_FEE_DAYS)].sort((a, b) => a - b),
           apply_taxes_by_default: editedRules.apply_taxes_by_default ?? true,
           ee_only_deposit_base_threshold_cents: eeValidation.settings!.ee_only_deposit_base_threshold_cents,
           ee_only_deposit_base_cents: eeValidation.settings!.ee_only_deposit_base_cents,
@@ -389,7 +401,7 @@ export function PricingRulesTab({ pricingRules: initialRules }: PricingRulesTabP
 
         <div>
           <label className="block text-sm font-medium text-slate-700 mb-2">
-            Same Day Weekday Delivery Fee (in dollars)
+            Same-Day Delivery Fee (in dollars)
           </label>
           <input
             type="text"
@@ -406,8 +418,37 @@ export function PricingRulesTab({ pricingRules: initialRules }: PricingRulesTabP
             }`}
           />
           <p className="text-xs text-slate-500 mt-1">
-            Additional fee applied when the event date is today and falls on a weekday
+            Additional fee applied when the event date is today and falls on one of the days selected below
           </p>
+          <div className="mt-3" role="group" aria-label="Days the same-day delivery fee applies">
+            <p className="text-xs font-medium text-slate-700 mb-2">Charge the fee on these days</p>
+            <div className="flex flex-wrap gap-2">
+              {WEEKDAY_CHIPS.map(({ day, label }) => {
+                const selected = (editedRules.same_day_delivery_fee_days ?? DEFAULT_SAME_DAY_FEE_DAYS).includes(day);
+                return (
+                  <button
+                    key={day}
+                    type="button"
+                    disabled={!isEditing}
+                    aria-pressed={selected}
+                    onClick={() => {
+                      const current = editedRules.same_day_delivery_fee_days ?? [...DEFAULT_SAME_DAY_FEE_DAYS];
+                      const next = current.includes(day) ? current.filter((d) => d !== day) : [...current, day];
+                      setEditedRules({ ...editedRules, same_day_delivery_fee_days: next });
+                    }}
+                    className={`min-h-[44px] min-w-[52px] px-3 rounded-lg border text-sm font-semibold transition-colors ${
+                      selected ? 'bg-blue-600 border-blue-600 text-white' : 'bg-white border-slate-300 text-slate-700'
+                    } ${isEditing ? 'cursor-pointer hover:border-blue-500' : 'cursor-default opacity-90'}`}
+                  >
+                    {label}
+                  </button>
+                );
+              })}
+            </div>
+            {(editedRules.same_day_delivery_fee_days ?? DEFAULT_SAME_DAY_FEE_DAYS).length === 0 && (
+              <p className="text-xs text-amber-700 mt-2">No days selected: the same-day delivery fee will never be charged.</p>
+            )}
+          </div>
         </div>
 
         <div className="border-t-2 border-slate-200 pt-6 mt-6">
@@ -603,7 +644,9 @@ export function PricingRulesTab({ pricingRules: initialRules }: PricingRulesTabP
             Free Travel Cities
           </label>
           <p className="text-xs text-slate-500 mb-3">
-            Cities that will have FREE travel fees regardless of distance.
+            Cities that will have FREE travel fees regardless of distance. The city is confirmed from the street address with Google, not
+            from what the customer types; an address that cannot be confirmed (for example some townships) pays the normal distance fee, and an
+            admin can waive it with a reason.
           </p>
 
           {isEditing && (

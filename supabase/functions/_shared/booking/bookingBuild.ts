@@ -28,6 +28,7 @@ import {
 import { isInflatableCartItem } from "./unifiedCartGuards.ts";
 import type { UnifiedCartItem, InflatableCartItem, EventEssentialProductCartItem, EventEssentialBundleCartItem } from "./types.ts";
 import { daysBetween, type BookingInput } from "./bookingInput.ts";
+import { resolveTrustedTravelCity, type CityVerification, type TrustedTravelCity } from "./addressVerification.ts";
 
 export const HOME_BASE = { lat: 42.2808, lng: -83.3863 };
 
@@ -107,6 +108,8 @@ export interface BookingPlan {
   isSameDayOrder: boolean;
   startDate: string;
   endDate: string;
+  // How the free-delivery city was decided (WP-18). `review` is non-null when a human should look at the address.
+  travelCity: TrustedTravelCity;
 }
 
 export type BuildResult = { ok: true; plan: BookingPlan } | { ok: false; code: BuildErrorCode; error: string };
@@ -132,7 +135,13 @@ export function detroitToday(now: Date): string {
   return now.toLocaleDateString("en-CA", { timeZone: "America/Detroit" });
 }
 
-export function buildBooking(input: BookingInput, catalog: BookingCatalog, now: Date = new Date()): BuildResult {
+export function includedCitiesOf(rules: { included_cities?: string[] | null; included_city_list_json?: string[] | null }): string[] {
+  return (rules.included_cities || rules.included_city_list_json || []) as string[];
+}
+
+// `verification` is the server's own check of the address city (addressVerification.ts). When the free-city list is not empty and no
+// verification is supplied, no free-city grant is made from the typed city.
+export function buildBooking(input: BookingInput, catalog: BookingCatalog, now: Date = new Date(), verification?: CityVerification | null): BuildResult {
   const { event } = input;
 
   if (event.event_date < detroitToday(now)) return fail("date_in_past", "The selected event date has passed.");
@@ -212,6 +221,7 @@ export function buildBooking(input: BookingInput, catalog: BookingCatalog, now: 
 
   // ---- inflatable price breakdown (same call the Quote makes) -----------------------------------------------------------
   const rules = catalog.pricingRulesRow as unknown as PricingRules;
+  const travelCity = resolveTrustedTravelCity(verification, event.address.city, includedCitiesOf(rules));
   const numDays = Math.max(1, daysBetween(event.event_date, event.event_end_date) + 1);
   const breakdown = calculatePrice({
     items: inflatableLines.map((i) => ({ unit_id: i.unit_id, wet_or_dry: i.wet_or_dry, unit_price_cents: i.unit_price_cents, qty: i.qty })),
@@ -221,12 +231,12 @@ export function buildBooking(input: BookingInput, catalog: BookingCatalog, now: 
     overnight_allowed: event.pickup_preference === "next_day",
     num_days: numDays,
     distance_miles: event.distance_miles,
-    city: event.address.city,
+    city: travelCity.city,
     zip: event.address.zip,
     has_generator: false,
     generator_qty: 0,
     rules,
-    is_same_day_weekday_delivery: isSameDayWeekdayDelivery(event.event_date),
+    is_same_day_weekday_delivery: isSameDayWeekdayDelivery(event.event_date, rules.same_day_delivery_fee_days),
   });
 
   const deposit = parseBookingDepositSettings(catalog.pricingRulesRow);
@@ -338,6 +348,7 @@ export function buildBooking(input: BookingInput, catalog: BookingCatalog, now: 
       isSameDayOrder,
       startDate: event.event_date,
       endDate: event.event_end_date,
+      travelCity,
     },
   };
 }

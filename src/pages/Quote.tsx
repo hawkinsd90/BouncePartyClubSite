@@ -97,8 +97,9 @@ export function Quote() {
 
     return {
       base_radius_miles: Number(data.base_radius_miles ?? 0),
-      included_city_list_json: (data.included_city_list_json as string[]) ?? [],
-      included_cities: (data.included_city_list_json as string[]) ?? [],
+      // One source for the free-city list, the same one the server prices with (included_cities first, the older JSON column as fallback).
+      included_city_list_json: ((data.included_cities as string[] | null) ?? (data.included_city_list_json as string[] | null)) ?? [],
+      included_cities: ((data.included_cities as string[] | null) ?? (data.included_city_list_json as string[] | null)) ?? [],
       per_mile_after_base_cents: data.per_mile_after_base_cents ?? 0,
       zone_overrides_json: (data.zone_overrides_json as any[]) ?? [],
       surface_sandbag_fee_cents: data.surface_sandbag_fee_cents ?? 0,

@@ -608,7 +608,7 @@ export function InvoiceBuilder() {
       }
 
       if (sameDayWeekdayDeliveryFeeWaived && !sameDayWeekdayDeliveryFeeWaiveReason.trim()) {
-        showToast('A reason is required to waive the Same-Day Weekday Delivery Fee', 'error');
+        showToast('A reason is required to waive the Same-Day Delivery Fee', 'error');
         return;
       }
 

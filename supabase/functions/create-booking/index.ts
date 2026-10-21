@@ -4,6 +4,7 @@ import { checkRateLimit, createRateLimitResponse, getIdentifier, buildRateLimitK
 import { resolveCaller } from "../_shared/auth.ts";
 import { createBookingRequest } from "../_shared/booking/createBooking.ts";
 import { supabaseAvailabilityPort } from "../_shared/booking/bookingAvailability.ts";
+import { createGoogleAddressVerifier } from "../_shared/booking/addressVerification.ts";
 
 // Public booking creation (Payment Safety A2.3).
 //
@@ -53,6 +54,7 @@ Deno.serve(async (req: Request) => {
       {
         db,
         availability: supabaseAvailabilityPort(db),
+        verifyAddress: createGoogleAddressVerifier({ apiKey: Deno.env.get("GOOGLE_MAPS_API_KEY") ?? "" }),
         callerUserId: caller.kind === "user" ? caller.userId : null,
         meta: { ip_address: ip || null, user_agent: req.headers.get("user-agent") },
       },

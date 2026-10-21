@@ -23,6 +23,8 @@ export interface PricingRules {
   generator_fee_multiple_cents?: number;
   apply_taxes_by_default?: boolean;
   same_day_weekday_delivery_fee_cents?: number;
+  /** Days of the week (0 = Sunday ... 6 = Saturday) on which the same-day delivery fee applies. Missing/null = Monday to Friday. */
+  same_day_delivery_fee_days?: number[] | null;
   same_day_matrix_json?: Array<{ units: number; generator: boolean; subtotal_ge_cents: number; fee_cents: number }> | null;
   ee_only_deposit_base_threshold_cents?: number;
   ee_only_deposit_base_cents?: number;
@@ -75,13 +77,31 @@ export interface PriceBreakdown {
   event_essentials_subtotal_cents: number;
 }
 
-export function isSameDayWeekdayDelivery(eventDateYMD: string): boolean {
+// The days the same-day delivery fee applies when the admin has not chosen any (Monday to Friday, the long-standing behavior).
+export const DEFAULT_SAME_DAY_FEE_DAYS: readonly number[] = [1, 2, 3, 4, 5];
+
+const SAME_DAY_FEE_TIME_ZONE = 'America/Detroit';
+
+// True when the event date is TODAY in the business time zone and that weekday (0 = Sunday ... 6 = Saturday) is one of the fee days.
+// days == null/undefined means the default (Monday to Friday); an empty list means the fee is never charged. The weekday comes from
+// the date itself (UTC arithmetic on the year-month-day), so the computer's own time zone and daylight saving never shift it.
+export function isSameDayFeeDay(
+  eventDateYMD: string,
+  now: Date,
+  timeZone: string,
+  days: readonly number[] | null | undefined,
+): boolean {
   if (!eventDateYMD) return false;
-  const todayYMD = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Detroit' });
+  const todayYMD = now.toLocaleDateString('en-CA', { timeZone });
   if (eventDateYMD !== todayYMD) return false;
   const [year, month, day] = eventDateYMD.split('-').map(Number);
-  const dow = new Date(year, month - 1, day).getDay();
-  return dow >= 1 && dow <= 5;
+  if (!year || !month || !day) return false;
+  const dow = new Date(Date.UTC(year, month - 1, day)).getUTCDay();
+  return (days ?? DEFAULT_SAME_DAY_FEE_DAYS).includes(dow);
+}
+
+export function isSameDayWeekdayDelivery(eventDateYMD: string, days?: readonly number[] | null): boolean {
+  return isSameDayFeeDay(eventDateYMD, new Date(), SAME_DAY_FEE_TIME_ZONE, days);
 }
 
 // The generator rental fee for a quantity: the first generator at the single price, each further one at the multiple price.

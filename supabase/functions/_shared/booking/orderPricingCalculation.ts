@@ -205,7 +205,10 @@ export interface ResolvedPricingInputs {
   distanceMiles: number;
   // The clock-dependent same-day weekday check. Called only when the stored weekday-delivery fee
   // is NOT being reused, exactly like the inline code did.
-  isSameDayWeekdayDelivery: (eventDateYmd: string) => boolean;
+  isSameDayWeekdayDelivery: (eventDateYmd: string, days?: readonly number[] | null) => boolean;
+  // The city that may decide a FREE delivery, verified by the server for a new or changed address (WP-18). undefined = no verification was
+  // run (the typed city is used, exactly as before); null or '' = verification ran and could not confirm a free city (no free grant).
+  verifiedTravelCity?: string | null;
 }
 
 // The one pure decision the hook also needs before doing any distance work: reuse the stored
@@ -214,15 +217,22 @@ export function shouldReuseSavedTravel(
   eventDetails: Pick<CalculatePricingParams['eventDetails'], 'address_line1' | 'address_city' | 'address_state' | 'address_zip'>,
   existingOrder: CalculatePricingParams['existingOrder'],
 ): boolean {
-  // Check if address has changed (for order edits)
+  // Check if address has changed (for order edits). Letter case, surrounding spaces and repeated spaces are not a change.
+  const same = (a: string | null | undefined, b: string | null | undefined) =>
+    String(a ?? '').trim().replace(/\s+/g, ' ').toLowerCase() === String(b ?? '').trim().replace(/\s+/g, ' ').toLowerCase();
   const addressChanged = existingOrder
-    ? eventDetails.address_line1 !== (existingOrder.addresses?.line1 || '') ||
-      eventDetails.address_city !== (existingOrder.addresses?.city || '') ||
-      eventDetails.address_state !== (existingOrder.addresses?.state || '') ||
-      eventDetails.address_zip !== (existingOrder.addresses?.zip || '')
+    ? !same(eventDetails.address_line1, existingOrder.addresses?.line1) ||
+      !same(eventDetails.address_city, existingOrder.addresses?.city) ||
+      !same(eventDetails.address_state, existingOrder.addresses?.state) ||
+      !same(eventDetails.address_zip, existingOrder.addresses?.zip)
     : true;
-
-  return !!(existingOrder && !addressChanged && existingOrder.travel_fee_cents && existingOrder.travel_fee_cents > 0);
+  if (!existingOrder || addressChanged) return false;
+  // A positive stored fee is always reused. A stored $0 is reused too when the order carries its travel snapshot (the rate and the radius
+  // it was priced with), so an unrelated edit does not re-price a free delivery that was granted at booking time.
+  const fee = existingOrder.travel_fee_cents;
+  if (fee && fee > 0) return true;
+  // A $0 that exists only because the fee was waived is not a free delivery: removing the waiver must price the fee again.
+  return fee === 0 && !existingOrder.travel_fee_waived && existingOrder.travel_per_mile_cents != null && existingOrder.travel_base_radius_miles != null;
 }
 
 export function calculateOrderPricing(
@@ -285,7 +295,7 @@ export function calculateOrderPricing(
     (waiverUnchanged(sameDayWeekdayDeliveryFeeWaived, existingOrder.same_day_weekday_delivery_fee_waived) ||
       existingOrder.same_day_weekday_delivery_fee_cents > 0)
   );
-  const isSameDayWeekday = useSavedWeekdayDeliveryFee ? false : resolved.isSameDayWeekdayDelivery(eventDetails.event_date);
+  const isSameDayWeekday = useSavedWeekdayDeliveryFee ? false : resolved.isSameDayWeekdayDelivery(eventDetails.event_date, pricingRules?.same_day_delivery_fee_days);
 
   // Filter out deleted items for existing orders
   const activeItems = items.filter(item => !item.is_deleted);
@@ -316,6 +326,9 @@ export function calculateOrderPricing(
     ? (legacyQtyChanged && editedLegacyQty > 0)
     : editedLegacyQty > 0;
 
+  // The city that may decide a free delivery: the verified one when the server verified a new/changed address, otherwise the typed one.
+  const travelCity = resolved.verifiedTravelCity === undefined ? eventDetails.address_city : (resolved.verifiedTravelCity ?? '');
+
   // Calculate pricing
   const priceBreakdown = calculatePrice({
     items: pricingItems,
@@ -325,7 +338,7 @@ export function calculateOrderPricing(
     overnight_allowed: eventDetails.pickup_preference === 'next_day',
     num_days: numDays,
     distance_miles,
-    city: eventDetails.address_city,
+    city: travelCity,
     zip: eventDetails.address_zip,
     has_generator: hasGeneratorForPricing,
     generator_qty: generatorQtyForPricing,
@@ -375,8 +388,8 @@ export function calculateOrderPricing(
     : priceBreakdown.subtotal_cents + eeSubtotalCents;
 
   // Store original amounts before waivers (for display)
-  const originalTravelFeeCents = useSavedTravelFee && existingOrder?.travel_fee_cents
-    ? existingOrder.travel_fee_cents
+  const originalTravelFeeCents = useSavedTravelFee && existingOrder
+    ? (existingOrder.travel_fee_cents ?? 0)
     : priceBreakdown.travel_fee_cents;
   const finalTravelMiles = useSavedTravelFee && existingOrder?.travel_total_miles
     ? parseFloat(String(existingOrder.travel_total_miles)) || 0

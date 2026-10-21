@@ -15,7 +15,7 @@ declare const require: (id: string) => any;
 const fs = require('fs');
 const nodeCrypto = require('crypto');
 
-import { createBookingRequest } from '../../../../supabase/functions/_shared/booking/createBooking';
+import { createBookingRequest, priceChangedSinceShown } from '../../../../supabase/functions/_shared/booking/createBooking';
 import { eventAddressLine2 } from '../../booking/eventAddress';
 import { validateBookingInput } from '../../../../supabase/functions/_shared/booking/bookingInput';
 import { buildBooking } from '../../../../supabase/functions/_shared/booking/bookingBuild';
@@ -380,12 +380,20 @@ const noRows = (w: World, snapshot: string) => JSON.stringify(w.db) === snapshot
   // 4. Deposit tampering: the required deposit is the server rule, never a client number
   // =============================================================================================================
   {
+    // Claims are never used to price (WP-17): a claim that differs from the server's price is refused (409 PRICE_CHANGED) before anything
+    // is created; a malformed claim is a 400. Only a request WITHOUT a conflicting claim produces an order, always at the server's deposit.
     for (const claimed of [0, 1, 5000, 99999999, null, -100]) {
       const w = makeWorld();
       const body = baseRequest({ payment: { selection_type: 'deposit', claimed_deposit_cents: claimed, claimed_total_cents: 1, claimed_subtotal_cents: 1 } });
       const r = await book(w, body);
+      const refused = claimed === -100 ? r.status === 400 : r.status === 409 && r.body.code === 'PRICE_CHANGED';
+      ok(`deposit: a claimed deposit of ${JSON.stringify(claimed)} (with a wrong total) creates no order`, refused && w.db.orders.length === 0 && w.rpcCalls.length === 0);
+    }
+    {
+      const w = makeWorld();
+      const r = await book(w, baseRequest({ payment: { selection_type: 'deposit', claimed_subtotal_cents: 1 } }));
       const o = orderRow(w);
-      ok(`deposit: a claimed deposit of ${JSON.stringify(claimed)} yields deposit_due = 1 unit x 50.00`, r.status === 200 && o.deposit_due_cents === 5000 && o.deposit_paid_cents === 0);
+      ok('deposit: with no total/deposit claim the deposit is the server rule, 1 unit x 50.00', r.status === 200 && o.deposit_due_cents === 5000 && o.deposit_paid_cents === 0);
     }
     const w = makeWorld();
     await book(w, baseRequest({ items: [{ type: 'inflatable', unit_id: UNIT_A, wet_or_dry: 'dry', qty: 3 }] }));
@@ -809,7 +817,8 @@ const noRows = (w: World, snapshot: string) => JSON.stringify(w.db) === snapshot
     ok('source scan: the Checkout page does not read pricing_rules or availability to SUBMIT (display totals only)', !/checkMultipleUnitsAvailability|createOrderBeforePayment/.test(read('src/pages/Checkout.tsx')));
     const req = read('src/lib/booking/bookingApi.ts');
     const buildFn = req.slice(req.indexOf('export function buildBookingRequest'), req.indexOf('export interface CreatedBooking'));
-    ok('source scan: the booking request builder sends no price, deposit, total, status, customer id or address id', !/unit_price_cents|deposit_due|deposit_cents|total_cents|subtotal|tax_cents|status|customer_id|address_id/.test(buildFn));
+    // The only money-shaped fields are the display claims (claimed_total_cents / claimed_deposit_cents); the server compares them and never prices from them.
+    ok('source scan: the booking request builder sends no price, deposit, total, status, customer id or address id (only the two display claims)', !/unit_price_cents|deposit_due|subtotal|tax_cents|status|customer_id|address_id/.test(buildFn) && !/(?<!claimed_)(deposit_cents|total_cents)/.test(buildFn));
     ok('source scan: the booking card setup call sends the proof and order id, not money', /orderId: booking\.orderId,\s*bookingMode: true,\s*bookingToken: booking\.bookingToken/.test(req) && !/depositCents|tipCents|customerEmail/.test(req.slice(req.indexOf('export async function startBookingCardSetup'), req.indexOf('export interface CompletedBooking'))));
 
     // Post-Stripe completion goes through hardened server functions
@@ -890,6 +899,115 @@ const noRows = (w: World, snapshot: string) => JSON.stringify(w.db) === snapshot
     ok('unit: the RPC payload carries the address line2; the order column is derived by the RPC, not sent', w4.rpcCalls[0].p_payload.address.line2 === 'Apt 2A' && !('event_address_line2' in w4.rpcCalls[0].p_payload.order));
     const unitSql = readLf('supabase/migrations/20261011120000_order_event_address_line2.sql');
     ok('unit (SQL): the RPC derives the order unit from the validated address, trimmed, empty when none', unitSql.includes("COALESCE(btrim(v_address->>'line2'), '')") && !/v_order->>'event_address_line2'/.test(unitSql));
+  }
+
+  // =============================================================================================================
+  // WP-17: price review (PRICE_CHANGED) and per-type quantity limits
+  // =============================================================================================================
+  {
+    // The server's own price for the baseline request
+    const probe = makeWorld();
+    const first = await book(probe, baseRequest());
+    ok('price review: a booking without claims still succeeds and returns the server totals', first.status === 200 && typeof (first.body as any).totals?.totalCents === 'number' && typeof (first.body as any).totals?.depositCents === 'number');
+    const T = (first.body as any).totals as { totalCents: number; depositCents: number };
+
+    const claimed = (total: number | null, deposit: number | null) => baseRequest({ payment: { selection_type: 'deposit', ...(total === null ? {} : { claimed_total_cents: total }), ...(deposit === null ? {} : { claimed_deposit_cents: deposit }) } });
+
+    const wOk = makeWorld();
+    const okRes = await book(wOk, claimed(T.totalCents, T.depositCents));
+    ok('price review: matching claims create the booking', okRes.status === 200 && wOk.db.orders.length === 1);
+
+    const wTotal = makeWorld();
+    const before = JSON.stringify(wTotal.db);
+    const badTotal = await book(wTotal, claimed(T.totalCents - 100, T.depositCents));
+    ok('price review: a different total answers 409 PRICE_CHANGED with the server price and creates nothing', badTotal.status === 409 && badTotal.body.code === 'PRICE_CHANGED' && (badTotal.body as any).totals?.totalCents === T.totalCents && (badTotal.body as any).totals?.depositCents === T.depositCents && noRows(wTotal, before) && wTotal.rpcCalls.length === 0);
+
+    const wDep = makeWorld();
+    const badDeposit = await book(wDep, claimed(T.totalCents, T.depositCents + 500));
+    ok('price review: a different deposit answers 409 PRICE_CHANGED and creates nothing', badDeposit.status === 409 && badDeposit.body.code === 'PRICE_CHANGED' && wDep.rpcCalls.length === 0 && wDep.db.orders.length === 0);
+
+    const wTotalOnly = makeWorld();
+    ok('price review: only the claims that were sent are compared (total only)', (await book(wTotalOnly, claimed(T.totalCents, null))).status === 200);
+    const wDepOnly = makeWorld();
+    ok('price review: only the claims that were sent are compared (deposit only)', (await book(wDepOnly, claimed(null, T.depositCents))).status === 200);
+
+    const wNeg = makeWorld();
+    const neg = await book(wNeg, baseRequest({ payment: { selection_type: 'deposit', claimed_total_cents: -5 } }));
+    ok('price review: a malformed claim is a 400', neg.status === 400 && neg.body.code === 'INVALID_REQUEST' && wNeg.rpcCalls.length === 0);
+    const wStr = makeWorld();
+    ok('price review: a non-numeric claim is a 400', (await book(wStr, baseRequest({ payment: { selection_type: 'deposit', claimed_deposit_cents: '5000' } }))).status === 400);
+
+    ok('price review: the pure comparison treats nothing claimed as unchanged', priceChangedSinceShown({ claimed_total_cents: null, claimed_deposit_cents: null }, { totalCents: 1, depositCents: 1 }) === false);
+    ok('price review: the pure comparison detects either difference', priceChangedSinceShown({ claimed_total_cents: 2, claimed_deposit_cents: null }, { totalCents: 1, depositCents: 1 }) === true && priceChangedSinceShown({ claimed_total_cents: null, claimed_deposit_cents: 2 }, { totalCents: 1, depositCents: 1 }) === true);
+
+    // The tip is not part of the claimed price: the same order with a tip is not a price change
+    const wTip = makeWorld();
+    ok('price review: a tip does not change the claimed price', (await book(wTip, baseRequest({ payment: { selection_type: 'deposit', tip_cents: 1000, claimed_total_cents: T.totalCents, claimed_deposit_cents: T.depositCents } }))).status === 200);
+
+    // Quantity limits are per line type
+    const qtyBody = (item: any) => baseRequest({ items: [item] });
+    ok('qty: 50 inflatables is accepted by validation, 51 is not', validateBookingInput(qtyBody({ type: 'inflatable', unit_id: UNIT_A, wet_or_dry: 'dry', qty: 50 })).ok === true && validateBookingInput(qtyBody({ type: 'inflatable', unit_id: UNIT_A, wet_or_dry: 'dry', qty: 51 })).ok === false);
+    ok('qty: 99 packages are accepted, 100 are not', validateBookingInput(qtyBody({ type: 'bundle', bundle_id: UNIT_A, qty: 99 })).ok === true && validateBookingInput(qtyBody({ type: 'bundle', bundle_id: UNIT_A, qty: 100 })).ok === false);
+    ok('qty: 100 products (e.g. chairs) are accepted, 500 is the ceiling, 501 is not', validateBookingInput(qtyBody({ type: 'product', product_id: PROD_1, qty: 100 })).ok === true && validateBookingInput(qtyBody({ type: 'product', product_id: PROD_1, qty: 500 })).ok === true && validateBookingInput(qtyBody({ type: 'product', product_id: PROD_1, qty: 501 })).ok === false);
+  }
+
+  // =============================================================================================================
+  // WP-18: the free-delivery city comes from the server's verification, never from the typed city
+  // =============================================================================================================
+  {
+    const travelOf = (w: World): number => w.rpcCalls[w.rpcCalls.length - 1].p_payload.order.travel_fee_cents;
+    const FAR = 40; // miles: well beyond the 20-mile radius, so the distance fee is clearly non-zero
+    const farRequest = (typedCity: string) => baseRequest({ event: { ...baseRequest().event, distance_miles: FAR, address: { line1: '1 Main St', city: typedCity, state: 'MI', zip: '48315', lat: 42.3, lng: -83.4 } } });
+    const withFreeList = (w: World) => {
+      w.tables.pricing_rules = [{ ...RULES, included_city_list_json: ['Detroit'], included_cities: ['Detroit'] }];
+      return w;
+    };
+    const bookV = (w: World, body: any, verifyAddress?: any) =>
+      createBookingRequest({ db: makeDb(w), availability: makePort(), callerUserId: null, meta: { ip_address: '203.0.113.7', user_agent: 'T' }, now: NOW, verifyAddress }, body);
+
+    // The price with no free list at all: the full distance fee
+    const wBase = makeWorld();
+    const base = await bookV(wBase, farRequest('Detroit'));
+    const FULL = (base.body as any).totals.totalCents as number;
+    const travelFull = travelOf(wBase) as number;
+    ok('verify: with no free list the far address pays a distance fee', base.status === 200 && travelFull > 0);
+
+    const calls: any[] = [];
+    const match = async (a: any, cities: readonly string[]) => (calls.push([a, cities]), { status: 'verified_match', city: 'Detroit' } as const);
+    const w1 = withFreeList(makeWorld());
+    const r1 = await bookV(w1, farRequest('Detroit'), match);
+    ok('verify: a verified free city is free at any distance', r1.status === 200 && travelOf(w1) === 0 && (r1.body as any).totals.totalCents < FULL);
+    ok('verify: the lookup received the street, state and ZIP, the browser coordinates and the admin list', calls.length === 1 && calls[0][0].line1 === '1 Main St' && calls[0][0].zip === '48315' && calls[0][0].lat === 42.3 && JSON.stringify(calls[0][1]) === '["Detroit"]');
+
+    const w2 = withFreeList(makeWorld());
+    const r2 = await bookV(w2, farRequest('Detroit'), async () => ({ status: 'verified_mismatch', city: 'Utica' }));
+    ok('verify: a typed free city that Google places elsewhere pays the distance fee', r2.status === 200 && travelOf(w2) === travelFull && (r2.body as any).totals.totalCents === FULL);
+
+    for (const [label, verdict] of [
+      ['unverified', { status: 'unverified', reason: 'timeout' }],
+      ['null (no result)', null],
+    ] as const) {
+      const w = withFreeList(makeWorld());
+      const r = await bookV(w, farRequest('Detroit'), async () => verdict as any);
+      ok(`verify: ${label} never grants the free delivery`, r.status === 200 && travelOf(w) === travelFull);
+    }
+    const w3 = withFreeList(makeWorld());
+    const r3 = await bookV(w3, farRequest('Detroit'));
+    ok('verify: with a free list but no verifier configured, nothing is granted from the typed city', r3.status === 200 && travelOf(w3) === travelFull);
+    const w4 = withFreeList(makeWorld());
+    const r4 = await bookV(w4, farRequest('Detroit'), async () => { throw new Error('boom'); });
+    ok('verify: a verifier that throws is treated as unverified', r4.status === 200 && travelOf(w4) === travelFull);
+    const w5 = withFreeList(makeWorld());
+    const r5 = await bookV(w5, farRequest('Somewhere Else'), match);
+    ok('verify: the verified city, not the typed one, grants it (typed city is not free but Google says Detroit)', r5.status === 200 && travelOf(w5) === 0);
+    let called = 0;
+    const w6 = makeWorld();
+    await bookV(w6, farRequest('Detroit'), async () => (called++, { status: 'verified_match', city: 'Detroit' } as const));
+    ok('verify: no free list => no lookup at all', called === 0);
+    // The price review compares the verified price: a Quote that showed the free price is told it changed
+    const w7 = withFreeList(makeWorld());
+    const r7 = await bookV(w7, baseRequest({ ...farRequest('Detroit'), payment: { selection_type: 'deposit', claimed_total_cents: (r1.body as any).totals.totalCents } }), async () => ({ status: 'unverified', reason: 'x' }));
+    ok('verify: a free price shown to the customer but not verified by the server is a PRICE_CHANGED review', r7.status === 409 && r7.body.code === 'PRICE_CHANGED' && w7.db.orders.length === 0);
   }
 
   console.log(`Public booking security tests: ${passed} passed, ${failed} failed`);

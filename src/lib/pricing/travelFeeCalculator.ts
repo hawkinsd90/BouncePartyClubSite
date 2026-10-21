@@ -34,6 +34,22 @@ export interface TravelFeeFromDistanceInput {
   zoneOverrides: Array<{ zip: string; flat_cents: number }>;
 }
 
+// City names compared the way people write them: case, surrounding spaces, repeated spaces and periods do not matter ("St. Clair Shores" =
+// "st clair shores"). Used for the free-delivery list; the city compared must be the one VERIFIED for the address, not the typed field.
+export function normalizeCityName(city: string): string {
+  return String(city ?? '')
+    .toLowerCase()
+    .replace(/\./g, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+export function matchesIncludedCity(city: string, includedCities: readonly string[]): boolean {
+  const wanted = normalizeCityName(city);
+  if (wanted === '') return false;
+  return includedCities.some((c) => normalizeCityName(c) === wanted);
+}
+
 export function calculateTravelFeeFromDistance(
   input: TravelFeeFromDistanceInput
 ): {
@@ -55,9 +71,7 @@ export function calculateTravelFeeFromDistance(
   } = input;
 
   // Check if city is in included (free) cities
-  const is_included_city = includedCities.some(
-    (c) => c.toLowerCase() === city.toLowerCase()
-  );
+  const is_included_city = matchesIncludedCity(city, includedCities);
 
   // Check if ZIP has a flat fee zone override
   const zone_override = zoneOverrides.find((z) => z.zip === zip);

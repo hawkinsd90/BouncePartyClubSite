@@ -110,8 +110,8 @@ export async function saveOrderChanges(params: SaveOrderChangesParams): Promise<
   }
 
   if (params.sameDayWeekdayDeliveryFeeWaived && !params.sameDayWeekdayDeliveryFeeWaiveReason?.trim()) {
-    showToast('A reason is required to waive the Same-Day Weekday Delivery Fee.', 'error');
-    throw new Error('Same-Day Weekday Delivery Fee waiver reason required');
+    showToast('A reason is required to waive the Same-Day Delivery Fee.', 'error');
+    throw new Error('Same-Day Delivery Fee waiver reason required');
   }
 
   let result: SaveResponse;

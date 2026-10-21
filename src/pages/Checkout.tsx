@@ -3,7 +3,8 @@ import { useNavigate } from 'react-router-dom';
 import { MapPin } from 'lucide-react';
 import { formatCurrency } from '../lib/pricing';
 import { RentalTerms } from '../components/waiver/RentalTerms';
-import { BookingApiError, buildBookingRequest, createBooking, startBookingCardSetup } from '../lib/booking/bookingApi';
+import { BookingApiError, buildBookingRequest, createBooking, startBookingCardSetup, type ServerTotals } from '../lib/booking/bookingApi';
+import { PriceChangedReview } from '../components/checkout/PriceChangedReview';
 import {
   bookingErrorMessage,
   decideAttempt,
@@ -72,6 +73,9 @@ export function Checkout() {
   const [processing, setProcessing] = useState(false);
   // Blocks a second submit in the same tick (a double click can fire before React re-renders the disabled button).
   const submitInFlightRef = useRef(false);
+  // The server priced the booking differently from what this page showed: the customer reviews old versus new before anything is created.
+  const [priceReview, setPriceReview] = useState<{ previous: ServerTotals; updated: ServerTotals } | null>(null);
+  const acceptedTotalsRef = useRef<ServerTotals | null>(null);
   const [referralError, setReferralError] = useState('');
   const [billingSameAsEvent, setBillingSameAsEvent] = useState(true);
   const [paymentAmount, setPaymentAmount] = useState<'deposit' | 'full' | 'custom'>('deposit');
@@ -146,8 +150,8 @@ export function Checkout() {
     window.open('/invoice-preview', '_blank');
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleSubmit = async (e?: React.FormEvent) => {
+    e?.preventDefault();
     if (submitInFlightRef.current) return;
 
     if (!cardOnFileConsent) {
@@ -229,6 +233,8 @@ export function Checkout() {
         tipCents,
         referralSource: referralSource || null,
         referralSourceDetail: referralSourceDetail || null,
+        claimedTotalCents: acceptedTotalsRef.current?.totalCents ?? unifiedTotals.totalCents,
+        claimedDepositCents: acceptedTotalsRef.current?.depositCents ?? unifiedTotals.depositCents,
       });
       const fingerprint = fingerprintBookingRequest(request);
 
@@ -251,7 +257,12 @@ export function Checkout() {
           booking = created;
         } catch (error: unknown) {
           console.error('Error creating booking request:', error);
-          if (error instanceof BookingApiError && error.code === 'ACCOUNT_SIGN_IN_REQUIRED') {
+          if (error instanceof BookingApiError && error.code === 'PRICE_CHANGED' && error.totals) {
+            setPriceReview({
+              previous: { totalCents: unifiedTotals.totalCents, depositCents: unifiedTotals.depositCents },
+              updated: error.totals,
+            });
+          } else if (error instanceof BookingApiError && error.code === 'ACCOUNT_SIGN_IN_REQUIRED') {
             // Not an error to retry: this email belongs to a registered account.
             showToast(error.message, 'error');
           } else if (error instanceof BookingApiError) {
@@ -343,6 +354,23 @@ export function Checkout() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 to-white">
+      {priceReview && (
+        <PriceChangedReview
+          previous={priceReview.previous}
+          updated={priceReview.updated}
+          busy={processing}
+          onAccept={() => {
+            acceptedTotalsRef.current = priceReview.updated;
+            setPriceReview(null);
+            void handleSubmit();
+          }}
+          onReview={() => {
+            acceptedTotalsRef.current = null;
+            setPriceReview(null);
+            navigate('/quote');
+          }}
+        />
+      )}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10 sm:py-14 lg:py-16">
         <div className="mb-10 sm:mb-12">
           <h1 className="text-4xl sm:text-5xl lg:text-6xl font-bold text-slate-900 mb-3 sm:mb-4 tracking-tight">

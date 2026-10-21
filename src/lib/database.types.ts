@@ -685,6 +685,7 @@ export interface Database {
           free_city_list_json: Json | null
           same_day_pickup_fee_cents: number | null
           same_day_weekday_delivery_fee_cents: number | null
+          same_day_delivery_fee_days: number[]
           tax_rate: number | null
           generator_fee_single_cents: number | null
           generator_fee_multiple_cents: number | null

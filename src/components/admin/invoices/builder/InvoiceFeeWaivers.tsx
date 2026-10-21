@@ -127,7 +127,7 @@ export function InvoiceFeeWaivers({
 
       {((calculatedPricing?.same_day_weekday_delivery_fee_cents || 0) > 0 || sameDayWeekdayDeliveryFeeWaived) && (
         <FeeWaiver
-          feeName="Same-Day Weekday Delivery Fee"
+          feeName="Same-Day Delivery Fee"
           feeAmount={calculatedPricing?.same_day_weekday_delivery_fee_cents || 0}
           isWaived={sameDayWeekdayDeliveryFeeWaived}
           waiveReason={sameDayWeekdayDeliveryFeeWaiveReason}

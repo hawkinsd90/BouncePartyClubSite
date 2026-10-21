@@ -9,7 +9,8 @@
 // that later authorizes the card-SAVE (setup-mode) session.
 
 import { validateBookingInput } from "./bookingInput.ts";
-import { buildBooking, type BookingCatalog } from "./bookingBuild.ts";
+import { buildBooking, includedCitiesOf, type BookingCatalog } from "./bookingBuild.ts";
+import type { AddressVerifier, CityVerification } from "./addressVerification.ts";
 import { verifyBookingAvailability, type AvailabilityPort } from "./bookingAvailability.ts";
 import { generateBookingToken, hashBookingToken, bookingProofExpiry } from "./bookingProof.ts";
 
@@ -22,6 +23,8 @@ export interface CreateBookingDeps {
   availability: AvailabilityPort;
   // Signed-in customer's user id when the caller is authenticated; null for guests. Never taken from the body.
   callerUserId: string | null;
+  // Server check of the address city for the free-delivery list (WP-18). Absent = nothing is verified, so no free grant from a typed city.
+  verifyAddress?: AddressVerifier;
   meta: { ip_address: string | null; user_agent: string | null };
   now?: Date;
 }
@@ -61,6 +64,17 @@ export async function loadBookingCatalog(db: Db): Promise<BookingCatalog | null>
 
 const json = (status: number, body: Record<string, unknown>): HttpResult => ({ status, body });
 
+// The price the customer was shown differs from the price the server just computed from the live catalog and rules. Only claims that were
+// actually sent are compared (older clients send none and are unaffected). Nothing is created when this returns true.
+export function priceChangedSinceShown(
+  claimed: { claimed_total_cents: number | null; claimed_deposit_cents: number | null },
+  actual: { totalCents: number; depositCents: number },
+): boolean {
+  if (claimed.claimed_total_cents !== null && claimed.claimed_total_cents !== actual.totalCents) return true;
+  if (claimed.claimed_deposit_cents !== null && claimed.claimed_deposit_cents !== actual.depositCents) return true;
+  return false;
+}
+
 export async function createBookingRequest(deps: CreateBookingDeps, rawBody: unknown): Promise<HttpResult> {
   const now = deps.now ?? new Date();
 
@@ -70,7 +84,20 @@ export async function createBookingRequest(deps: CreateBookingDeps, rawBody: unk
   const catalog = await loadBookingCatalog(deps.db);
   if (!catalog) return json(503, { success: false, error: "Booking is temporarily unavailable. Please try again.", code: "CATALOG_UNAVAILABLE" });
 
-  const built = buildBooking(parsed.value, catalog, now);
+  // Free-delivery city: decided from Google's answer for the street address, never from the typed city. One lookup, only when the admin has
+  // a free-city list.
+  const includedCities = includedCitiesOf(catalog.pricingRulesRow as unknown as { included_cities?: string[] | null; included_city_list_json?: string[] | null });
+  let verification: CityVerification | null = null;
+  if (includedCities.length > 0 && deps.verifyAddress) {
+    const a = parsed.value.event.address;
+    try {
+      verification = await deps.verifyAddress({ line1: a.line1, city: a.city, state: a.state, zip: a.zip, lat: a.lat, lng: a.lng }, includedCities);
+    } catch {
+      verification = null;
+    }
+  }
+
+  const built = buildBooking(parsed.value, catalog, now, verification);
   if (!built.ok) {
     const status = built.code === "pricing_unavailable" ? 503 : 400;
     return json(status, { success: false, error: built.error, code: built.code.toUpperCase() });
@@ -98,6 +125,17 @@ export async function createBookingRequest(deps: CreateBookingDeps, rawBody: unk
       default:
         return json(503, { success: false, error: "Unable to verify availability. Please try again.", code: "AVAILABILITY_UNVERIFIABLE" });
     }
+  }
+
+  // Price review: refuse BEFORE creating anything when the customer was shown a different price. The response carries the server's
+  // price so the page can show old versus new and let the customer accept it. No charge happens in this flow either way.
+  if (priceChangedSinceShown(parsed.value.payment, plan.totals)) {
+    return json(409, {
+      success: false,
+      error: "The price for your booking has changed. Please review the new price to continue.",
+      code: "PRICE_CHANGED",
+      totals: { totalCents: plan.totals.totalCents, depositCents: plan.totals.depositCents },
+    });
   }
 
   // Booking proof: random, stored as a hash, bound to the order by the RPC in the same transaction.
@@ -131,5 +169,17 @@ export async function createBookingRequest(deps: CreateBookingDeps, rawBody: unk
     return json(500, { success: false, error: "We could not create your booking. Please try again.", code: "CREATE_FAILED" });
   }
 
-  return json(200, { success: true, orderId: data.order_id, bookingToken: token, expiresAt });
+  // Patch A has no durable "needs review" column (that is the later snapshot patch): an address whose typed free city could not be
+  // confirmed is recorded in the function log with the order id, and the customer sees the distance fee in the price review.
+  if (plan.travelCity.review) {
+    console.warn(`[create-booking] travel_city_review order=${data.order_id} review=${plan.travelCity.review} verification=${plan.travelCity.status}`);
+  }
+
+  return json(200, {
+    success: true,
+    orderId: data.order_id,
+    bookingToken: token,
+    expiresAt,
+    totals: { totalCents: plan.totals.totalCents, depositCents: plan.totals.depositCents },
+  });
 }

@@ -59,12 +59,19 @@ export interface BookingInput {
   billing: { same_as_event: boolean; address: Omit<BookingAddress, "lat" | "lng"> | null };
   items: BookingItemInput[];
   consents: { sms: boolean; card_on_file: boolean };
-  payment: { selection_type: "deposit" | "full" | "custom"; selection_cents: number | null; tip_cents: number };
+  // claimed_total_cents / claimed_deposit_cents are what the customer was SHOWN (equipment, fees, tax; tip excluded). The server never
+  // trusts them for pricing: if they differ from its own price the booking is refused with PRICE_CHANGED before anything is created.
+  payment: { selection_type: "deposit" | "full" | "custom"; selection_cents: number | null; tip_cents: number; claimed_total_cents: number | null; claimed_deposit_cents: number | null };
   referral: { source: string | null; detail: string | null };
 }
 
 export const MAX_BOOKING_ITEMS = 40;
-export const MAX_ITEM_QTY = 50;
+// Per-line quantity limits. Inflatables are few and large; packages are capped as in the Event Essentials catalog; products are limited by
+// their real inventory (checked by availability), so the request limit only has to stop absurd values.
+export const MAX_INFLATABLE_QTY = 50;
+export const MAX_BUNDLE_QTY = 99;
+export const MAX_PRODUCT_QTY = 500;
+export const MAX_ITEM_QTY = MAX_PRODUCT_QTY;
 export const MAX_BOOKING_DAYS = 14;
 export const MAX_DISTANCE_MILES = 500;
 export const REFERRAL_SOURCES = ["social_media", "google", "physical_marketing", "referral", "returning_customer", "other"];
@@ -185,7 +192,8 @@ export function validateBookingInput(raw: unknown): BookingValidation<BookingInp
   for (const [i, it] of raw.items.entries()) {
     if (!isObj(it)) return { ok: false, error: `invalid:items[${i}]` };
     const qty = it.qty;
-    if (typeof qty !== "number" || !Number.isInteger(qty) || qty < 1 || qty > MAX_ITEM_QTY) return { ok: false, error: `invalid:items[${i}].qty` };
+    const maxQty = it.type === "inflatable" ? MAX_INFLATABLE_QTY : it.type === "bundle" ? MAX_BUNDLE_QTY : MAX_PRODUCT_QTY;
+    if (typeof qty !== "number" || !Number.isInteger(qty) || qty < 1 || qty > maxQty) return { ok: false, error: `invalid:items[${i}].qty` };
     // unit_price_cents is a legacy NON-AUTHORITATIVE claim: tolerated, never used.
     if (it.type === "inflatable") {
       const x = onlyKeys(it, ["type", "unit_id", "wet_or_dry", "qty", "unit_price_cents"], `items[${i}]`);
@@ -227,6 +235,10 @@ export function validateBookingInput(raw: unknown): BookingValidation<BookingInp
   }
   const tip = payRaw.tip_cents === undefined || payRaw.tip_cents === null ? 0 : wholeCents(payRaw.tip_cents);
   if (tip === null) return { ok: false, error: "invalid:payment.tip_cents" };
+  const claimedTotal = payRaw.claimed_total_cents === undefined || payRaw.claimed_total_cents === null ? null : wholeCents(payRaw.claimed_total_cents);
+  if (payRaw.claimed_total_cents !== undefined && payRaw.claimed_total_cents !== null && claimedTotal === null) return { ok: false, error: "invalid:payment.claimed_total_cents" };
+  const claimedDeposit = payRaw.claimed_deposit_cents === undefined || payRaw.claimed_deposit_cents === null ? null : wholeCents(payRaw.claimed_deposit_cents);
+  if (payRaw.claimed_deposit_cents !== undefined && payRaw.claimed_deposit_cents !== null && claimedDeposit === null) return { ok: false, error: "invalid:payment.claimed_deposit_cents" };
 
   // referral
   const refRaw = raw.referral ?? {};
@@ -263,7 +275,7 @@ export function validateBookingInput(raw: unknown): BookingValidation<BookingInp
       billing: { same_as_event: billingRaw.same_as_event, address: billingAddress },
       items,
       consents: { sms: raw.consents.sms, card_on_file: raw.consents.card_on_file },
-      payment: { selection_type: selType, selection_cents: selCents, tip_cents: tip },
+      payment: { selection_type: selType, selection_cents: selCents, tip_cents: tip, claimed_total_cents: claimedTotal, claimed_deposit_cents: claimedDeposit },
       referral: { source, detail },
     },
   };

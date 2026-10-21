@@ -8,7 +8,8 @@ export interface QuoteAddressFields {
 }
 
 /** Fields cleared on the Quote form when the customer edits the address text. City, state and ZIP stay editable. */
-export const QUOTE_ADDRESS_EDIT_RESET: QuoteAddressFields = { address_line1: '', lat: 0, lng: 0 };
+// picked_locality is the city Google reported for the chosen suggestion ('' for townships, null when no suggestion was chosen).
+export const QUOTE_ADDRESS_EDIT_RESET: QuoteAddressFields & { picked_locality: string | null } = { address_line1: '', lat: 0, lng: 0, picked_locality: null };
 
 /** Admin order editor: coordinates and county captured from a previous selection are dropped when the street text is typed over. */
 export const ADMIN_ADDRESS_EDIT_RESET = { address_lat: null, address_lng: null, address_county: null } as const;

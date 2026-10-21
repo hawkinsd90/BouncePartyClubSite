@@ -15,6 +15,8 @@ const CREW = 'src/components/crew/CrewInvoiceBuilder.tsx';
 const FEE_DISPLAY = 'src/lib/pricing/orderFeeDisplay.ts';
 const STATE = 'src/lib/pricing/orderPricingState.ts';
 const STATE_SRV = 'supabase/functions/_shared/booking/orderPricingState.ts';
+const VERIFY = 'supabase/functions/_shared/booking/addressVerification.ts';
+const BUILD = 'supabase/functions/_shared/booking/bookingBuild.ts';
 
 const repl = (a, b) => (src) => {
   const n = src.split(a).length - 1;
@@ -51,6 +53,12 @@ const M = [
   [ENGINE, 'the stored formula deposit is re-read from today\'s per-unit rule', [repl('  if (reuseStoredDeposit) {\n    calculatedDepositDueCents', '  if (false) {\n    calculatedDepositDueCents')]],
   [ENGINE, 'the stored tax decision is ignored when the business default changes', [repl('    if (storedBase > 0) taxEnabled = existingOrder.tax_cents > 0;', '')]],
   [ENGINE, 'a stored travel explanation is re-read from today\'s rules', [repl('const savedTravelDetail = useSavedTravelFee && existingOrder\n', 'const savedTravelDetail = false && existingOrder\n')]],
+
+  // ---------------------------------------------------------------- verified free-delivery city (WP-18)
+  [VERIFY, 'a partial geocode match can grant a free delivery', [repl('  if (first.partial_match === true) return { status: "unverified", reason: "partial match" };\n', '')]],
+  [VERIFY, 'a result without a city is treated as a city', [repl('  if (!city) return { status: "unverified", reason: "no city (locality) in the result" };\n', '')]],
+  [BUILD, 'the booking prices the free-city test with the typed city', [repl('    city: travelCity.city,\n', '    city: event.address.city,\n')]],
+  [ENGINE, 'a waived travel fee is reused as a free delivery', [repl('  return fee === 0 && !existingOrder.travel_fee_waived && existingOrder.travel_per_mile_cents', '  return fee === 0 && existingOrder.travel_per_mile_cents')]],
 
   // ---------------------------------------------------------------- deposit override
   [ENGINE, 'an explicit zero deposit override is treated as no override', [repl('  const rawDepositDueCents = customDepositCents !== null ? customDepositCents : calculatedDepositDueCents;', '  const rawDepositDueCents = customDepositCents ? customDepositCents : calculatedDepositDueCents;')]],
@@ -267,6 +275,7 @@ const BROWSER_SRC = ['src/lib/tests/pricing/pricingReconciliation.test.ts', 'src
 module.exports = {
   M,
   tests: (file) => {
+    if (file.includes('addressVerification') || file.includes('bookingBuild')) return ['src/lib/tests/pricing/addressVerification.test.ts', 'src/lib/tests/security/publicBookingSecurity.test.ts'];
     if (file.includes('20261022')) return ['src/lib/tests/orders/staffOrderSave.test.ts', 'src/lib/tests/security/coreDatabaseAccess.test.ts', 'src/lib/tests/pricing/pricingReconciliation.test.ts'];
     if (file.endsWith('.sql')) return file.includes('20261021') ? ['src/lib/tests/orders/staffOrderSave.test.ts', 'src/lib/tests/security/coreDatabaseAccess.test.ts', 'src/lib/tests/pricing/pricingReconciliation.test.ts', 'src/lib/tests/payments/paymentOperations.test.ts'] : SQL;
     if (file.includes('orderPricingState')) return SERVER;

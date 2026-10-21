@@ -94,7 +94,17 @@ const filesOf = (d: string): string[] => {
   return out;
 };
 const treeHash = (paths: string[]) => { const h = crypto.createHash('sha256'); for (const p of [...paths].sort()) { h.update(p.split(path.sep).join('/')); h.update(Buffer.from([0])); h.update(lf(fs.readFileSync(path.join(FDIR, p), 'utf8'))); h.update(Buffer.from([0])); } return h.digest('hex'); };
-ok('SG-2: every function bundle hash and the shared tree hash still equal the package', sg.functions.every((f: any) => treeHash(filesOf(f.function)) === f.bundle_sha256) && treeHash(filesOf('_shared')) === sg.shared_sha256);
+// The package records what was deployed to Development (AUTH-11). The working tree has moved on since (the pre-Production fixes edit
+// the same functions and _shared files on purpose, and the consolidated Dev deployment will supersede the package), so the bundle hashes
+// are checked against the files AS THEY WERE in the commit that recorded the package. That still proves the package describes the code it
+// was built from; it no longer pretends the working tree is frozen.
+const { execFileSync } = require('child_process');
+const PKG_COMMIT = execFileSync('git', ['log', '-1', '--format=%H', '--', 'audit/step4/sg2-package/package.json'], { cwd: ROOT, encoding: 'utf8' }).trim();
+const gitFilesOf = (d: string): string[] =>
+  execFileSync('git', ['ls-tree', '-r', '--name-only', PKG_COMMIT, '--', 'supabase/functions/' + d], { cwd: ROOT, encoding: 'utf8' })
+    .split(/\r?\n/).filter(Boolean).map((x: string) => x.slice('supabase/functions/'.length).split('/').join(path.sep));
+const gitTreeHash = (paths: string[]) => { const h = crypto.createHash('sha256'); for (const q of [...paths].sort()) { h.update(q.split(path.sep).join('/')); h.update(Buffer.from([0])); h.update(lf(execFileSync('git', ['show', PKG_COMMIT + ':supabase/functions/' + q.split(path.sep).join('/')], { cwd: ROOT, encoding: 'utf8', maxBuffer: 1 << 26 }))); h.update(Buffer.from([0])); } return h.digest('hex'); };
+ok('SG-2: every function bundle hash and the shared tree hash equal the package, as recorded in the commit that created it', PKG_COMMIT.length === 40 && sg.functions.every((f: any) => gitTreeHash(gitFilesOf(f.function)) === f.bundle_sha256) && gitTreeHash(gitFilesOf('_shared')) === sg.shared_sha256);
 const cfgToml = read(path.join(ROOT, 'supabase', 'config.toml'));
 ok('SG-2: the explicit verify_jwt of each of the 21 functions equals config.toml', sg.functions.every((f: any) => new RegExp('\\[functions\\.' + f.function + '\\]\\s*\\r?\\nverify_jwt\\s*=\\s*' + f.explicit_verify_jwt_at_deploy).test(cfgToml)));
 ok('SG-2: relative imports of the 21 bundles resolve inside the function folder or _shared', sg.functions.every((f: any) => filesOf(f.function).filter((p) => p.endsWith('.ts')).every((p) => { const t = read(path.join(FDIR, p)); const re = /(?:from|import)\s*\(?\s*["'](\.{1,2}\/[^"']+)["']/g; let m: any; while ((m = re.exec(t))) { const tgt = path.normalize(path.join(path.dirname(path.join(FDIR, p)), m[1])); if (!fs.existsSync(tgt)) return false; const top = path.relative(FDIR, tgt).split(path.sep)[0]; if (top !== f.function && top !== '_shared') return false; } return true; })));

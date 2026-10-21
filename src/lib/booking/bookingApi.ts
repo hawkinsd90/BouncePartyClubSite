@@ -58,6 +58,9 @@ export interface BookingIntentInput {
   tipCents: number;
   referralSource: string | null;
   referralSourceDetail: string | null;
+  /** What the customer was shown (equipment, fees, tax; no tip). If the server prices differently it answers PRICE_CHANGED. */
+  claimedTotalCents?: number | null;
+  claimedDepositCents?: number | null;
 }
 
 // Pure: turns the Checkout page state into the create-booking request. Items carry identity and quantity only.
@@ -123,18 +126,34 @@ export function buildBookingRequest(input: BookingIntentInput): Record<string, u
       selection_type: input.paymentSelection,
       ...(input.paymentSelection === 'custom' ? { selection_cents: input.customPaymentCents } : {}),
       tip_cents: input.tipCents,
+      ...(typeof input.claimedTotalCents === 'number' ? { claimed_total_cents: input.claimedTotalCents } : {}),
+      ...(typeof input.claimedDepositCents === 'number' ? { claimed_deposit_cents: input.claimedDepositCents } : {}),
     },
     referral: { source: input.referralSource || null, detail: input.referralSourceDetail || null },
   };
   return request;
 }
 
+export interface ServerTotals {
+  totalCents: number;
+  depositCents: number;
+}
+
 export class BookingApiError extends Error {
   code: string | null;
-  constructor(message: string, code: string | null) {
+  /** Present on PRICE_CHANGED: the price the server computed. */
+  totals: ServerTotals | null;
+  constructor(message: string, code: string | null, totals: ServerTotals | null = null) {
     super(message);
     this.code = code;
+    this.totals = totals;
   }
+}
+
+function parseServerTotals(value: unknown): ServerTotals | null {
+  if (!value || typeof value !== 'object') return null;
+  const v = value as Record<string, unknown>;
+  return typeof v.totalCents === 'number' && typeof v.depositCents === 'number' ? { totalCents: v.totalCents, depositCents: v.depositCents } : null;
 }
 
 export interface CreatedBooking {
@@ -142,14 +161,21 @@ export interface CreatedBooking {
   bookingToken: string;
   /** ISO time at which the booking proof expires (from the server); used to decide whether a retry may reuse the order. */
   expiresAt?: string;
+  /** The price the server computed for this order (equipment, fees, tax; no tip). */
+  totals?: ServerTotals | null;
 }
 
 export async function createBooking(request: Record<string, unknown>): Promise<CreatedBooking> {
-  const { ok, data } = await post<{ orderId?: string; bookingToken?: string; expiresAt?: string }>('create-booking', request);
+  const { ok, data } = await post<{ orderId?: string; bookingToken?: string; expiresAt?: string; totals?: unknown }>('create-booking', request);
   if (!ok || !data.orderId || !data.bookingToken) {
-    throw new BookingApiError(data.error || 'We could not create your booking. Please try again.', data.code ?? null);
+    throw new BookingApiError(data.error || 'We could not create your booking. Please try again.', data.code ?? null, parseServerTotals(data.totals));
   }
-  return { orderId: data.orderId, bookingToken: data.bookingToken, expiresAt: typeof data.expiresAt === 'string' ? data.expiresAt : undefined };
+  return {
+    orderId: data.orderId,
+    bookingToken: data.bookingToken,
+    expiresAt: typeof data.expiresAt === 'string' ? data.expiresAt : undefined,
+    totals: parseServerTotals(data.totals),
+  };
 }
 
 // Starts the Stripe card-SAVE (setup-mode) session. Nothing is charged. The server reads the customer, deposit and tip

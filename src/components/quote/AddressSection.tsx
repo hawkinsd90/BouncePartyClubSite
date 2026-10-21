@@ -43,6 +43,7 @@ export function AddressSection({
                 zip: address.zip,
                 lat: address.lat,
                 lng: address.lng,
+                picked_locality: address.city,
               });
             }}
             placeholder="Enter event address"
