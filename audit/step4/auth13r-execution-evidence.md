@@ -11,3 +11,6 @@
 | S12b D20 (sha e2e727d3...) | exactly 57 contacts changed (captured before in BPC-Operator-Log/d20-before-capture.json); orders 171, payments 185, items 184, invoices 82 and their md5 digests identical before/after |
 
 Post state: ledger 372; G01 and G14 now report false by design (they assert the pre-S11 containment and the pre-S11 schema ACL); all other gates true. Note: gate file has 20 rows, not 21 as earlier documents said.
+
+## AUTH-14 (media URL rewrite), executed
+auth14-media-url-rewrite.sql (sha256 b524cacc3a3330a0d8955d7b6f0017e596b6ce75586cf7858c9fc5f183a35b7b) unchanged; before-capture of 38 rows in BPC-Operator-Log/auth14-before-capture.json. Result: unit_media 35 and hero 3 now use the Development host, 0 Production references in those columns, ledger still 372, no other table touched; all 38 public image URLs answer 200 from Development storage (see command output in session).
