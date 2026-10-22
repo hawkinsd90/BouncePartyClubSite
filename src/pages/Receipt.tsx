@@ -15,12 +15,16 @@ import { formatTime } from '../lib/utils';
 import { LoadingSpinner } from '../components/common/LoadingSpinner';
 import { SecureAccessRequired } from '../components/customer-portal/SecureAccessRequired';
 import { eventAddressLine2 } from '../lib/booking/eventAddress';
+import { asErrorLike } from '../lib/core/errorLike';
+
+// What the secure read returns (the order and the requested payment).
+type PortalData = Awaited<ReturnType<typeof fetchPortalData>>['data'];
 
 export function Receipt() {
   const { orderId, paymentId } = useParams();
   const [loading, setLoading] = useState(true);
-  const [order, setOrder] = useState<any>(null);
-  const [payment, setPayment] = useState<any>(null);
+  const [order, setOrder] = useState<PortalData['order'] | null>(null);
+  const [payment, setPayment] = useState<PortalData['payment'] | null>(null);
   const [summary, setSummary] = useState<OrderSummaryDisplay | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [accessRequired, setAccessRequired] = useState(false);
@@ -62,10 +66,10 @@ export function Receipt() {
       setOrder(orderData);
       setPayment(paymentData);
       setSummary(formatOrderSummary(summaryData));
-    } catch (err: any) {
+    } catch (err) {
       console.error('Error loading receipt:', err);
       if (err instanceof PortalAccessError) setAccessRequired(true);
-      setError(err instanceof PortalAccessError ? 'Secure access is required to view this receipt. Open it from your secure order link.' : (err.message || 'Failed to load receipt'));
+      setError(err instanceof PortalAccessError ? 'Secure access is required to view this receipt. Open it from your secure order link.' : (asErrorLike(err).message || 'Failed to load receipt'));
     } finally {
       setLoading(false);
     }

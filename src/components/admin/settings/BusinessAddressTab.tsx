@@ -3,6 +3,7 @@ import { MapPin, Save, CreditCard as Edit2, X } from 'lucide-react';
 import { supabase } from '../../../lib/supabase';
 import { notifyError, notifySuccess } from '../../../lib/toasts';
 import { AddressAutocomplete } from '../../order/AddressAutocomplete';
+import { asErrorLike } from '../../../lib/core/errorLike';
 
 interface BusinessAddressTabProps {
   onAddressUpdate?: () => void;
@@ -91,8 +92,8 @@ export function BusinessAddressTab({ onAddressUpdate }: BusinessAddressTabProps)
 
       setAddress(addressData);
       setEditedAddress(addressData);
-    } catch (error: any) {
-      notifyError('Failed to load business address: ' + error.message);
+    } catch (error) {
+      notifyError('Failed to load business address: ' + asErrorLike(error).message);
     }
   };
 
@@ -150,8 +151,8 @@ export function BusinessAddressTab({ onAddressUpdate }: BusinessAddressTabProps)
       if (onAddressUpdate) {
         onAddressUpdate();
       }
-    } catch (error: any) {
-      notifyError('Failed to save address: ' + error.message);
+    } catch (error) {
+      notifyError('Failed to save address: ' + asErrorLike(error).message);
     } finally {
       setSaving(false);
     }

@@ -33,7 +33,7 @@ interface Unit {
   indoor_ok: boolean;
   outdoor_ok: boolean;
   quantity_available: number;
-  media: Array<{ url: string; alt: string }>;
+  media: Array<{ url: string; alt: string; mode?: string | null; visibility_mode?: string | null; is_featured?: boolean | null; sort?: number | null }>;
 }
 
 export function UnitDetail() {
@@ -91,7 +91,8 @@ export function UnitDetail() {
 
       if (mediaError) throw mediaError;
 
-      const loadedUnit = { ...unitData, media: (mediaData || []) as any } as any;
+      // unitData is the units row (select *) and `media` its unit_media rows, which is the Unit shape above
+      const loadedUnit = { ...unitData, media: mediaData || [] } as unknown as Unit;
       setUnit(loadedUnit);
       trackEvent('unit_view', { unitId: unitData.id, metadata: { name: unitData.name, slug: unitData.slug } });
       // Auto-select water mode for water slide units
@@ -203,11 +204,11 @@ export function UnitDetail() {
             {(() => {
               const isWetDryUnit = (unit.types || []).includes('Combo') || (unit.types || []).includes('Water Slide');
               let filteredMedia = isWetDryUnit
-                ? unit.media.filter((m: any) => m.mode === wetOrDry || m.visibility_mode === 'both')
+                ? unit.media.filter((m) => m.mode === wetOrDry || m.visibility_mode === 'both')
                 : unit.media;
 
               if (isWetDryUnit && wetOrDry === 'water' && filteredMedia.length === 0) {
-                filteredMedia = unit.media.filter((m: any) => m.mode === 'dry');
+                filteredMedia = unit.media.filter((m) => m.mode === 'dry');
               }
 
               const displayImage = filteredMedia[selectedImageIndex] || filteredMedia[0];
@@ -233,7 +234,7 @@ export function UnitDetail() {
 
                   {filteredMedia.length > 1 && (
                     <div className="grid grid-cols-4 gap-3">
-                      {filteredMedia.slice(0, 4).map((media: any, idx: number) => (
+                      {filteredMedia.slice(0, 4).map((media, idx) => (
                         <button
                           key={idx}
                           onClick={() => setSelectedImageIndex(idx)}
@@ -377,10 +378,10 @@ export function UnitDetail() {
 
             <button
               onClick={() => {
-                const cart = SafeStorage.getItem<any[]>('bpc_cart') || [];
+                const cart = SafeStorage.getItem<Array<{ unit_id?: string; wet_or_dry?: string }>>('bpc_cart') || [];
 
                 // Count how many of this unit are already in cart (same unit_id and wet_or_dry)
-                const existingCount = cart.filter((item: any) =>
+                const existingCount = cart.filter((item) =>
                   item.unit_id === unit.id && item.wet_or_dry === wetOrDry
                 ).length;
 
@@ -444,10 +445,10 @@ export function UnitDetail() {
       {isImageModalOpen && (() => {
         const isWetDryUnitModal = (unit.types || []).includes('Combo') || (unit.types || []).includes('Water Slide');
         let filteredMedia = isWetDryUnitModal
-          ? unit.media.filter((m: any) => m.mode === wetOrDry || m.visibility_mode === 'both')
+          ? unit.media.filter((m) => m.mode === wetOrDry || m.visibility_mode === 'both')
           : unit.media;
         if (isWetDryUnitModal && wetOrDry === 'water' && filteredMedia.length === 0) {
-          filteredMedia = unit.media.filter((m: any) => m.mode === 'dry');
+          filteredMedia = unit.media.filter((m) => m.mode === 'dry');
         }
         const displayImage = filteredMedia[selectedImageIndex] || filteredMedia[0];
 
@@ -495,7 +496,7 @@ export function UnitDetail() {
 
               {filteredMedia.length > 1 && (
                 <div className="mt-4 flex justify-center gap-2 overflow-x-auto pb-4" onClick={(e) => e.stopPropagation()}>
-                  {filteredMedia.map((media: any, idx: number) => (
+                  {filteredMedia.map((media, idx) => (
                     <button
                       key={idx}
                       type="button"

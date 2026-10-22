@@ -61,8 +61,8 @@ function preloadImages(urls: string[]) {
 
 function getUnitImageUrl(unit: Unit): string {
   const allImages = unit.media || [];
-  const featured = allImages.find((m: any) => m.is_featured);
-  const dryImages = allImages.filter((m: any) => m.mode === 'dry' || !m.mode);
+  const featured = allImages.find((m) => m.is_featured);
+  const dryImages = allImages.filter((m) => m.mode === 'dry' || !m.mode);
   return featured?.url || dryImages[0]?.url || allImages[0]?.url || '';
 }
 

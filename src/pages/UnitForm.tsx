@@ -4,6 +4,8 @@ import { supabase } from '../lib/supabase';
 import { ArrowLeft, Save, Upload, X, Layers } from 'lucide-react';
 import { notifyError, notifySuccess, showConfirm } from '../lib/toasts';
 import { todayLocalKey } from '../lib/core/localDate';
+import type { FutureBooking } from '../lib/units/futureBooking';
+import { asErrorLike } from '../lib/core/errorLike';
 
 export function UnitForm() {
   const navigate = useNavigate();
@@ -16,7 +18,7 @@ export function UnitForm() {
     types: ['Bounce House'] as string[],
     is_combo: false,
     price_dry_cents: 0,
-    price_water_cents: 0,
+    price_water_cents: 0 as number | null,
     dimensions: '',
     dimensions_water: '',
     footprint_sqft: 0,
@@ -71,7 +73,8 @@ export function UnitForm() {
     setLoadingUnit(false);
 
     if (unitRes.data) {
-      const unit = unitRes.data as any;
+      // `type` and `dimensions_wet` are legacy columns the form still falls back on; the table no longer has them (reads give undefined)
+      const unit = unitRes.data as typeof unitRes.data & { type?: string; dimensions_wet?: string | null };
       setFormData({
         name: unit.name,
         slug: unit.slug,
@@ -86,10 +89,10 @@ export function UnitForm() {
         capacity: unit.capacity ?? 0,
         indoor_ok: unit.indoor_ok ?? true,
         outdoor_ok: unit.outdoor_ok ?? true,
-        active: unit.active,
+        active: unit.active!,
         quantity_available: unit.quantity_available,
       });
-      setOriginalActive(unit.active);
+      setOriginalActive(unit.active!);
       setPriceInput((unit.price_dry_cents / 100).toFixed(2));
       if (unit.price_water_cents) {
         setPriceWaterInput((unit.price_water_cents / 100).toFixed(2));
@@ -100,7 +103,7 @@ export function UnitForm() {
     }
 
     if (mediaRes.data) {
-      const dryMedia = mediaRes.data.filter((img: any) => img.mode === 'dry').map((img: any) => ({
+      const dryMedia = mediaRes.data.filter((img) => img.mode === 'dry').map((img) => ({
         id: img.id,
         url: img.url,
         alt: img.alt,
@@ -108,7 +111,7 @@ export function UnitForm() {
         is_featured: img.is_featured || false,
         visibility_mode: img.visibility_mode || 'dry',
       }));
-      const wetMedia = mediaRes.data.filter((img: any) => img.mode === 'water').map((img: any) => ({
+      const wetMedia = mediaRes.data.filter((img) => img.mode === 'water').map((img) => ({
         id: img.id,
         url: img.url,
         alt: img.alt,
@@ -156,7 +159,8 @@ export function UnitForm() {
       return [];
     }
 
-    return bookings || [];
+    // select('order_id, orders!inner(...)'): the embed is not modelled in database.types.ts
+    return (bookings || []) as unknown as FutureBooking[];
   }
 
   async function handleActiveChange(checked: boolean) {
@@ -166,7 +170,7 @@ export function UnitForm() {
       if (futureBookings.length > 0) {
         const bookingDetails = futureBookings
           .slice(0, 5)
-          .map((b: any) => {
+          .map((b) => {
             const order = b.orders;
             return `• Order #${order.order_number} - ${order.customer_name} on ${order.event_date}`;
           })
@@ -307,7 +311,7 @@ export function UnitForm() {
         ...formData,
         slug: formData.slug || generateSlug(formData.name),
         dimensions_water: useWetSameAsDry ? null : (formData.dimensions_water || null),
-      } as any;
+      };
 
       let unitId = id;
 
@@ -381,9 +385,9 @@ export function UnitForm() {
 
       notifySuccess(isEdit ? 'Unit updated successfully!' : 'Unit created successfully!');
       navigate('/admin?tab=inventory');
-    } catch (error: any) {
+    } catch (error) {
       console.error('Error saving unit:', error);
-      notifyError(`Failed to save unit: ${error.message}`);
+      notifyError(`Failed to save unit: ${asErrorLike(error).message}`);
     } finally {
       setSaving(false);
       setUploadingImages(false);
@@ -530,7 +534,7 @@ export function UnitForm() {
                     const value = e.target.value;
                     if (/^\d*\.?\d{0,2}$/.test(value) || value === '') {
                       setPriceWaterInput(value);
-                      setFormData({ ...formData, price_water_cents: value ? Math.round(parseFloat(value) * 100) : null as any });
+                      setFormData({ ...formData, price_water_cents: value ? Math.round(parseFloat(value) * 100) : null });
                     }
                   }}
                   placeholder="Leave empty if same as regular price"

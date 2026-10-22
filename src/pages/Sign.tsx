@@ -17,6 +17,7 @@ import {
   generateWaiverTextWithParksAcknowledgment,
 } from '../lib/documents/waiverContent';
 import { useBusinessSettings } from '../contexts/BusinessContext';
+import { asErrorLike } from '../lib/core/errorLike';
 
 interface OrderData {
   id: string;
@@ -124,7 +125,7 @@ export default function Sign() {
         ...portal.order,
         customer: portal.order.customers,
         address: portal.order.addresses,
-      } as any;
+      };
 
       if (orderData.waiver_signed_at && orderData.has_signed_waiver_document) {
         setError('This waiver has already been signed.');
@@ -133,7 +134,7 @@ export default function Sign() {
       setOrder(orderData as unknown as OrderData);
 
       // Auto-fill typed name and renter information from order
-      const customer = orderData.customer as any;
+      const customer = orderData.customer;
       const fullName = `${customer.first_name} ${customer.last_name}`;
       setTypedName(fullName);
       setRenterName(fullName);
@@ -143,7 +144,7 @@ export default function Sign() {
       setEventEndDate(orderData.event_end_date || '');
 
       // Auto-fill address from related address record
-      const address = orderData.address as any;
+      const address = orderData.address;
       if (address) {
         setEventAddressLine1(address.line1 || '');
         setEventAddressLine2(address.line2 || '');
@@ -151,10 +152,10 @@ export default function Sign() {
         setEventState(address.state || '');
         setEventZip(address.zip || '');
       }
-    } catch (err: any) {
+    } catch (err) {
       console.error('Error loading order:', err);
       if (err instanceof PortalAccessError) setAccessRequired(true);
-      setError(err instanceof PortalAccessError ? 'Secure access is required to sign this waiver. Open it from your secure order link.' : (err.message || 'Failed to load order'));
+      setError(err instanceof PortalAccessError ? 'Secure access is required to sign this waiver. Open it from your secure order link.' : (asErrorLike(err).message || 'Failed to load order'));
     } finally {
       setLoading(false);
     }
@@ -297,9 +298,9 @@ export default function Sign() {
       }
 
       navigate(portalPathForCurrentVisitor(orderId!, { signatureComplete: true }));
-    } catch (err: any) {
+    } catch (err) {
       console.error('Error submitting signature:', err);
-      setError(err.message || 'Failed to submit signature');
+      setError(asErrorLike(err).message || 'Failed to submit signature');
     } finally {
       setSubmitting(false);
     }

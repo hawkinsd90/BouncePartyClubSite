@@ -38,7 +38,7 @@ export function useCarouselData() {
       if (data && Array.isArray(data)) {
         // Resolve storage_path → public URL for items stored in the bucket.
         // For externally-hosted URLs (no storage_path) image_url is used as-is.
-        const mediaWithUrls = data.map((item: any) => {
+        const mediaWithUrls = data.map((item) => {
           if (item.storage_path) {
             const { data: urlData } = supabase.storage
               .from('carousel-media')
@@ -47,7 +47,8 @@ export function useCarouselData() {
           }
           return item;
         });
-        setMedia(mediaWithUrls);
+        // media_type is CHECK-constrained to 'image' | 'video' in hero_carousel_images
+        setMedia(mediaWithUrls as CarouselMedia[]);
       } else {
         setMedia([]);
       }

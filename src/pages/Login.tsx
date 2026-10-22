@@ -6,6 +6,7 @@ import { Lock, Loader2, Eye, EyeOff, X, Mail, AlertTriangle, Clock } from 'lucid
 import { notifySuccess, notifyError } from '../lib/toasts';
 import { createLogger } from '../lib/core/logger';
 import { IN_APP_BROWSER_NOTICE, isLikelyInAppBrowser } from '../lib/auth/inAppBrowser';
+import { asErrorLike } from '../lib/core/errorLike';
 
 const log = createLogger('Login');
 
@@ -75,8 +76,8 @@ export function Login() {
   const [cooldownSecondsLeft, setCooldownSecondsLeft] = useState(0);
   const cooldownTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
-  const from = (location.state as any)?.from?.pathname || '/';
-  const prefillEmail = (location.state as any)?.prefillEmail || '';
+  const from = location.state?.from?.pathname || '/';
+  const prefillEmail = location.state?.prefillEmail || '';
 
   useEffect(() => {
     // setIsIOS(isIOSDevice());
@@ -129,8 +130,8 @@ export function Login() {
       // Reset failure counter on success
       setFailedAttempts(0);
       navigate(from, { replace: true });
-    } catch (err: any) {
-      const msg: string = err.message || '';
+    } catch (err) {
+      const msg: string = asErrorLike(err).message || '';
       const kind = classifyAuthError(msg);
       log.warn('Login failed', { kind, raw: msg });
 
@@ -164,9 +165,9 @@ export function Login() {
       if (error) throw error;
       setResendSuccess(true);
       notifySuccess('Confirmation email resent. Check your inbox.', { duration: 8000 });
-    } catch (err: any) {
-      log.warn('Resend confirmation failed', err.message);
-      notifyError(err.message || 'Failed to resend confirmation email. Please try again.');
+    } catch (err) {
+      log.warn('Resend confirmation failed', asErrorLike(err).message);
+      notifyError(asErrorLike(err).message || 'Failed to resend confirmation email. Please try again.');
     } finally {
       setResending(false);
     }
@@ -178,9 +179,9 @@ export function Login() {
     setLoading(true);
     try {
       await signInWithGoogle(from !== '/' ? from : undefined);
-    } catch (err: any) {
+    } catch (err) {
       log.error('Google sign-in failed', err);
-      setError(err.message || 'Failed to sign in with Google');
+      setError(asErrorLike(err).message || 'Failed to sign in with Google');
       setLoading(false);
     }
   };

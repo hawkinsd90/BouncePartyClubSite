@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, type ComponentProps } from 'react';
 import { formatPhoneAsTyped } from '../lib/core/phone';
 import { MIN_PASSWORD_LENGTH } from '../lib/auth/recoveryLink';
 import { useNavigate, useLocation } from 'react-router-dom';
@@ -8,6 +8,11 @@ import { notifySuccess, notifyError } from '../lib/toasts';
 import { AddressAutocomplete } from '../components/order/AddressAutocomplete';
 import { useCustomerProfile } from '../contexts/CustomerProfileContext';
 import { createLogger } from '../lib/core/logger';
+import { asErrorLike } from '../lib/core/errorLike';
+
+// What the address picker hands back (its result type is not exported), and what the sign-up form keeps of it.
+type PickedAddress = Parameters<ComponentProps<typeof AddressAutocomplete>['onSelect']>[0];
+interface SignUpAddress { line1: string; line2: string; city: string; state: string; zip: string; lat: number; lng: number; formatted_address: string }
 
 const log = createLogger('SignUp');
 
@@ -87,8 +92,8 @@ async function recordConsent(
       skipped: json.skipped ?? 0,
       safe_to_clear_pending: json.safe_to_clear_pending === true,
     };
-  } catch (err: any) {
-    log.warn('recordConsent: network error', err.message);
+  } catch (err) {
+    log.warn('recordConsent: network error', asErrorLike(err).message);
     return { success: false, inserted: 0, skipped: 0, safe_to_clear_pending: false };
   }
 }
@@ -99,7 +104,7 @@ export function SignUp() {
   const location = useLocation();
   const { refreshProfile } = useCustomerProfile();
 
-  const from = (location.state as any)?.from?.pathname || '/';
+  const from = location.state?.from?.pathname || '/';
 
   const [loading, setLoading] = useState(false);
   const [resendingConfirmation, setResendingConfirmation] = useState(false);
@@ -116,7 +121,7 @@ export function SignUp() {
     confirmPassword: '',
     businessName: '',
   });
-  const [addressData, setAddressData] = useState<any>(null);
+  const [addressData, setAddressData] = useState<SignUpAddress | null>(null);
   const [addressInput, setAddressInput] = useState('');
   const [errors, setErrors] = useState<Record<string, string>>({});
 
@@ -323,10 +328,10 @@ export function SignUp() {
 
       notifySuccess('Account created! Welcome to Bounce Party Club.');
       navigate(from, { replace: true });
-    } catch (err: any) {
+    } catch (err) {
       log.error('handleSubmit unhandled error', err);
-      const msg: string = err.message || '';
-      if (msg.toLowerCase().includes('rate limit') || err.status === 429) {
+      const msg: string = asErrorLike(err).message || '';
+      if (msg.toLowerCase().includes('rate limit') || asErrorLike(err).status === 429) {
         notifyError('Too many signup attempts. Please wait a few minutes and try again.');
       } else {
         notifyError(msg || 'Failed to create account. Please try again.');
@@ -367,14 +372,14 @@ export function SignUp() {
       });
       if (error) throw error;
       notifySuccess('Confirmation email resent. Check your inbox.', { duration: 8000 });
-    } catch (err: any) {
-      notifyError(err.message || 'Failed to resend confirmation email. Please try again.');
+    } catch (err) {
+      notifyError(asErrorLike(err).message || 'Failed to resend confirmation email. Please try again.');
     } finally {
       setResendingConfirmation(false);
     }
   };
 
-  const handleAddressSelect = (address: any) => {
+  const handleAddressSelect = (address: PickedAddress) => {
     setAddressData({
       line1: address.street,
       line2: '',

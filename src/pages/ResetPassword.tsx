@@ -5,6 +5,7 @@ import { Lock, Loader2, Eye, EyeOff, CheckCircle2, AlertTriangle } from 'lucide-
 import { notifyError, notifySuccess } from '../lib/toasts';
 import { clearRecoveryPending, initialAuthLink, isRecoveryPending, subscribeRecovery } from '../lib/auth/authLinkCapture';
 import { MIN_PASSWORD_LENGTH, RECOVERY_MESSAGES, decideRecoveryState, passwordProblem, type RecoveryState } from '../lib/auth/recoveryLink';
+import { asErrorLike } from '../lib/core/errorLike';
 
 // How long to wait for the Auth client to finish verifying the emailed link before calling it expired.
 const READY_TIMEOUT_MS = 6000;
@@ -90,9 +91,9 @@ export function ResetPassword() {
       setTimeout(() => {
         navigate('/login');
       }, 2000);
-    } catch (err: any) {
+    } catch (err) {
       console.error('Password reset error:', err);
-      notifyError(err.message || 'Failed to reset password. Please try again.');
+      notifyError(asErrorLike(err).message || 'Failed to reset password. Please try again.');
     } finally {
       setLoading(false);
     }

@@ -186,7 +186,7 @@ export function SiteAnalytics() {
 
       const unitCounts: Record<string, number> = {};
       for (const row of (unitsRes.data || [])) {
-        const unitName = (row.units as any)?.name || 'Unknown';
+        const unitName = (row.units as unknown as { name?: string } | null)?.name || 'Unknown';
         unitCounts[unitName] = (unitCounts[unitName] || 0) + 1;
       }
       const topUnits: TopUnit[] = Object.entries(unitCounts)

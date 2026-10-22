@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, type ComponentProps } from 'react';
 import { MapPin, Calculator, Info } from 'lucide-react';
 import { AddressAutocomplete } from '../../order/AddressAutocomplete';
 import { TravelFeeBreakdown } from '../../shared/TravelFeeBreakdown';
@@ -8,6 +8,10 @@ import { formatCurrency } from '../../../lib/pricing';
 import { supabase } from '../../../lib/supabase';
 import { notifyError } from '../../../lib/toasts';
 import { LoadingSpinner } from '../../common/LoadingSpinner';
+import { asErrorLike } from '../../../lib/core/errorLike';
+
+// What the address picker hands back (its result type is not exported).
+type PickedAddress = Parameters<ComponentProps<typeof AddressAutocomplete>['onSelect']>[0];
 
 interface PricingRules {
   base_radius_miles: number;
@@ -22,7 +26,7 @@ interface PricingRules {
 
 export function TravelCalculator() {
   const [address, setAddress] = useState('');
-  const [selectedAddress, setSelectedAddress] = useState<any>(null);
+  const [selectedAddress, setSelectedAddress] = useState<PickedAddress | null>(null);
   const [calculating, setCalculating] = useState(false);
   const [result, setResult] = useState<TravelFeeCalculationResult | null>(null);
   const [pricingRules, setPricingRules] = useState<PricingRules | null>(null);
@@ -45,8 +49,8 @@ export function TravelCalculator() {
       if (!data) throw new Error('Pricing rules not found');
 
       setPricingRules(data as PricingRules);
-    } catch (error: any) {
-      notifyError(error.message);
+    } catch (error) {
+      notifyError(asErrorLike(error).message!);
     } finally {
       setLoading(false);
     }
@@ -80,8 +84,8 @@ export function TravelCalculator() {
       });
 
       setResult(travelFeeResult);
-    } catch (error: any) {
-      notifyError(error.message);
+    } catch (error) {
+      notifyError(asErrorLike(error).message!);
     } finally {
       setCalculating(false);
     }
@@ -96,7 +100,7 @@ export function TravelCalculator() {
     setResult(null);
   }, []);
 
-  const handleAddressSelect = useCallback((addr: any) => {
+  const handleAddressSelect = useCallback((addr: PickedAddress) => {
     // console.log('[TravelCalculator] Address selected with full data:', addr);
     // Update both address and selectedAddress
     setAddress(addr.formatted_address);

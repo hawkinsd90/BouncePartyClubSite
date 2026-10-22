@@ -40,6 +40,9 @@ import {
   applyGeneratorEeCandidate,
 } from '../orders/detail-modal/generatorStagedItems';
 
+// What the availability banner shows: a unit (or Event Essentials) and the orders it conflicts with.
+interface InvoiceAvailabilityIssue { unitName: string; unitId: string; conflicts: unknown[] }
+
 interface StagedEEItem {
   client_id: string;
   product_id: string | null;
@@ -49,6 +52,7 @@ interface StagedEEItem {
   qty: number;
   unit_price_cents: number;
   pricing_context: string;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- two different BundleComponentSnapshot types (types/index and stagedItemModel) meet here; unifying them is outside this cleanup
   component_snapshot?: any;
   is_new?: boolean;
   is_deleted?: boolean;
@@ -85,7 +89,7 @@ export function InvoiceBuilder() {
   const [customSetupFeeCents, setCustomSetupFeeCents] = useState<number | null>(null);
   const [customSetupFeeInput, setCustomSetupFeeInput] = useState('');
   const [requireCardOnFile, setRequireCardOnFile] = useState(true);
-  const [availabilityIssues, setAvailabilityIssues] = useState<any[]>([]);
+  const [availabilityIssues, setAvailabilityIssues] = useState<InvoiceAvailabilityIssue[]>([]);
   const [checkingAvailability, setCheckingAvailability] = useState(false);
   const [generatorProductIdsState, setGeneratorProductIdsState] = useState<{ status: 'loading' | 'ready' | 'failed'; ids: Set<string> }>({ status: 'loading', ids: new Set() });
   const [generatorResolutionPending, setGeneratorResolutionPending] = useState(false);
@@ -109,15 +113,15 @@ export function InvoiceBuilder() {
         }
         const cats = catsRes.data || [];
         const products = prodsRes.data || [];
-        const generatorCat = cats.find((c: any) => c.slug === 'generators');
+        const generatorCat = cats.find((c) => c.slug === 'generators');
         if (!generatorCat) {
           setGeneratorProductIdsState({ status: 'ready', ids: new Set() });
           return;
         }
         const genProductIds = new Set(
           products
-            .filter((p: any) => p.category_id === generatorCat.id && p.active !== false)
-            .map((p: any) => p.id)
+            .filter((p) => p.category_id === generatorCat.id && p.active !== false)
+            .map((p) => p.id)
         );
         setGeneratorProductIdsState({ status: 'ready', ids: genProductIds });
       } catch {
@@ -236,7 +240,7 @@ export function InvoiceBuilder() {
       const resolution = await resolveAdminGeneratorIncrease({
         current: { legacyQty: eventDetails.generator_qty ?? 0, directEeQty: directQty },
         requestedTotal: requestedQty,
-        stagedItems: completeStagedItems as any[],
+        stagedItems: completeStagedItems,
         eventDate: eventDetails.event_date,
         eventEndDate: eventDetails.event_end_date,
         orderId: null,
@@ -295,11 +299,11 @@ export function InvoiceBuilder() {
     setStagedEEItems(prev => addEEBundleToStagedItems(prev as StagedItem[], item, () => `new-ee-${Date.now()}-${Math.random().toString(36).slice(2)}`) as StagedEEItem[]);
   }, []);
 
-  const handleRemoveEEItem = useCallback((item: any) => {
+  const handleRemoveEEItem = useCallback((item: StagedItem) => {
     setStagedEEItems(prev => removeStagedItem(prev as StagedItem[], item) as StagedEEItem[]);
   }, []);
 
-  const handleUpdateEEQuantity = useCallback((item: any, qty: number) => {
+  const handleUpdateEEQuantity = useCallback((item: StagedItem, qty: number) => {
     setStagedEEItems(prev => updateStagedItemQuantity(prev as StagedItem[], item, qty) as StagedEEItem[]);
   }, []);
 
@@ -462,7 +466,7 @@ export function InvoiceBuilder() {
 
     setCheckingAvailability(true);
     try {
-      const issues: any[] = [];
+      const issues: InvoiceAvailabilityIssue[] = [];
 
       // Check inflatable availability
       if (hasInflatables) {
@@ -479,7 +483,7 @@ export function InvoiceBuilder() {
             issues.push({
               unitName: item?.unit_name || 'Unknown',
               unitId: result.unitId,
-              conflicts: result.conflictingOrders,
+              conflicts: result.conflictingOrders!,
             });
           }
         }

@@ -3,6 +3,7 @@ import { Building2, Save, AlertCircle, MapPin } from 'lucide-react';
 import { supabase } from '../../../lib/supabase';
 import { showToast } from '../../../lib/toasts';
 import { AddressAutocomplete } from '../../order/AddressAutocomplete';
+import { asErrorLike } from '../../../lib/core/errorLike';
 
 interface BusinessSettings {
   business_name: string;
@@ -103,7 +104,7 @@ export function BusinessBrandingTab() {
           if (key in loadedSettings) {
             if (key === 'how_did_you_hear_enabled' || key === 'require_start_mileage') {
               // Only an explicit 'false' turns these off (a missing or odd value means on).
-              (loadedSettings as any)[key] = value !== 'false';
+              (loadedSettings as unknown as Record<string, string | boolean>)[key] = value !== 'false';
             } else {
               (loadedSettings as unknown as Record<string, string | boolean>)[key] = value || '';
             }
@@ -141,9 +142,9 @@ export function BusinessBrandingTab() {
         setTravelAddress(loadedAddress);
         setUseBusinessAddress(useBusinessAddrForTravel);
       }
-    } catch (error: any) {
+    } catch (error) {
       setLoadFailed(true);
-      showToast('Error loading business settings: ' + error.message, 'error');
+      showToast('Error loading business settings: ' + asErrorLike(error).message, 'error');
     } finally {
       setLoading(false);
     }
@@ -193,8 +194,8 @@ export function BusinessBrandingTab() {
 
       showToast('Business branding settings saved successfully', 'success');
       window.location.reload();
-    } catch (error: any) {
-      showToast('Error saving settings: ' + error.message, 'error');
+    } catch (error) {
+      showToast('Error saving settings: ' + asErrorLike(error).message, 'error');
     } finally {
       setSaving(false);
     }

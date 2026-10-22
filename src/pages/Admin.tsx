@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useRef, type ComponentProps } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import { Package, FileText } from 'lucide-react';
@@ -32,6 +32,7 @@ import { useDataFetch } from '../hooks/core/useDataFetch';
 import { handleError } from '../lib/core/errorHandling';
 import { LoadingSpinner } from '../components/common/LoadingSpinner';
 import type { Unit, PricingRules } from '../types';
+import type { AdminOrderRecord } from '../lib/orders/adminOrderRecord';
 
 interface UnitMedia {
   url: string;
@@ -44,45 +45,13 @@ interface UnitWithMedia extends Omit<Unit, 'description'> {
   unit_media?: UnitMedia[];
   image_url?: string | null;
   dimensions?: string | null;
-  capacity?: string | null;
+  capacity?: number | null;
   description?: string | null;
-}
-
-interface Customer {
-  first_name: string;
-  last_name: string;
-  email: string;
-  phone: string;
-}
-
-interface OrderAddress {
-  line1: string;
-  city: string;
-  state: string;
-  zip: string;
-}
-
-interface OrderWithRelations {
-  id: string;
-  order_number?: string;
-  status: string;
-  event_date: string;
-  event_end_date?: string;
-  subtotal_cents: number;
-  total_cents: number;
-  deposit_due_cents: number;
-  deposit_paid_cents: number;
-  balance_due_cents: number;
-  created_at: string;
-  customers: Customer | null;
-  addresses: OrderAddress | null;
-  // Only the travel-fee city review rows are requested here (WP-18).
-  order_changelog?: Array<{ change_type: string; notes: string | null; created_at: string }>;
 }
 
 interface AdminData {
   units: UnitWithMedia[];
-  orders: OrderWithRelations[];
+  orders: AdminOrderRecord[];
   pricingRules: PricingRules | null;
 }
 
@@ -90,7 +59,7 @@ function AdminDashboard() {
   const [searchParams, setSearchParams] = useSearchParams();
   const tabFromUrl = searchParams.get('tab') as AdminTab | null;
   const [activeTab, setActiveTab] = useState<AdminTab>(tabFromUrl || 'pending');
-  const [visibleOrder, setVisibleOrder] = useState<any>(null);
+  const [visibleOrder, setVisibleOrder] = useState<AdminOrderRecord | null>(null);
   const orderCardsRef = useRef<Map<string, PendingOrderCardRef>>(new Map());
 
   // Set URL parameter on initial load if not present
@@ -150,7 +119,7 @@ function AdminDashboard() {
 
     return {
       units: (unitsWithImages || []) as UnitWithMedia[],
-      orders: [...(pendingRes.data || []), ...(otherRes.data || [])] as unknown as OrderWithRelations[],
+      orders: [...(pendingRes.data || []), ...(otherRes.data || [])] as unknown as AdminOrderRecord[],
       pricingRules: pricingRes.data as unknown as PricingRules,
     };
   }, []);
@@ -408,7 +377,7 @@ function AdminDashboard() {
         </div>
       )}
 
-      {activeTab === 'inventory' && <InventorySection units={units as any} onRefetch={refetch} />}
+      {activeTab === 'inventory' && <InventorySection units={units as unknown as ComponentProps<typeof InventorySection>['units']} onRefetch={refetch} />}
 
       {activeTab === 'menu_groups' && <MenuGroupsTab />}
 
@@ -428,7 +397,7 @@ function AdminDashboard() {
 
       {activeTab === 'changelog' && <ChangelogTab />}
 
-      {activeTab === 'pricing' && pricingRules && <PricingRulesSection pricingRules={pricingRules as any} />}
+      {activeTab === 'pricing' && pricingRules && <PricingRulesSection pricingRules={pricingRules as unknown as ComponentProps<typeof PricingRulesSection>['pricingRules']} />}
       {activeTab === 'pricing' && !pricingRules && (
         <div className="bg-white rounded-2xl shadow-xl p-8 border-2 border-amber-200 text-center" role="alert">
           <p className="text-slate-700 mb-4">The pricing rules could not be loaded, so they are not shown here.</p>

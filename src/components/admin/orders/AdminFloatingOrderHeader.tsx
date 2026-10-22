@@ -2,9 +2,10 @@ import { format } from 'date-fns';
 import { Calendar, MapPin, User, Hash, CreditCard as Edit } from 'lucide-react';
 import { formatOrderId } from '../../../lib/utils';
 import { ORDER_STATUS } from '../../../lib/constants/statuses';
+import type { AdminOrderRecord } from '../../../lib/orders/adminOrderRecord';
 
 interface AdminFloatingOrderHeaderProps {
-  order: any | null;
+  order: AdminOrderRecord | null;
   isVisible: boolean;
   onEditClick?: () => void;
 }

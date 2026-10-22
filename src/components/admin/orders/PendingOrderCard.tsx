@@ -23,6 +23,7 @@ import { AlertTriangle } from 'lucide-react';
 import { formatCurrency } from '../../../lib/pricing';
 import { showToast } from '../../../lib/toasts';
 import { useRefetchOnReturn } from '../../../hooks/core/useRefetchOnReturn';
+import type { AdminOrderRecord } from '../../../lib/orders/adminOrderRecord';
 
 export interface PendingOrderCardRef {
   card: HTMLElement;
@@ -31,7 +32,7 @@ export interface PendingOrderCardRef {
 }
 
 const PendingOrderCardInner = forwardRef<PendingOrderCardRef, {
-  order: any;
+  order: AdminOrderRecord;
   onUpdate: () => void;
   openEditMode?: boolean;
 }>(function PendingOrderCard({
@@ -76,7 +77,7 @@ const PendingOrderCardInner = forwardRef<PendingOrderCardRef, {
     loadCustomerDamageHistory,
   } = usePendingOrderData(order.id);
 
-  const { sendingSms, sendSms } = usePendingOrderSms(order.id, order.customers?.phone);
+  const { sendingSms, sendSms } = usePendingOrderSms(order.id, order.customers?.phone as string);
 
   const getCustomerDisplayName = () => {
     if (contact?.business_name) {
@@ -89,7 +90,7 @@ const PendingOrderCardInner = forwardRef<PendingOrderCardRef, {
     loadSmsConversations();
     loadPayments();
     loadRefunds();
-    loadContact(order.customers?.email);
+    loadContact(order.customers?.email as string);
     loadSummary();
     loadCustomFees();
     loadDiscounts();
@@ -239,7 +240,7 @@ const PendingOrderCardInner = forwardRef<PendingOrderCardRef, {
       alert('The secure payment link is not ready yet. Please try again in a moment.');
       return;
     }
-    const message = generatePaymentLinkSmsMessage(order.customers?.first_name, paymentUrl);
+    const message = generatePaymentLinkSmsMessage(order.customers?.first_name as string, paymentUrl);
     const success = await sendSms(message);
     if (success) {
       await loadSmsConversations();

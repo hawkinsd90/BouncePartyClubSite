@@ -39,6 +39,7 @@ import { EvidenceOverrideModal } from './detail/EvidenceOverrideModal';
 import { ReasonModal } from './detail/ReasonModal';
 import { PhotoUploadNotice } from './detail/PhotoUploadNotice';
 import { shouldBlockForStartMileage, START_MILEAGE_PROMPTS, type MileageGatedAction } from '../../../lib/core/startMileage';
+import { asErrorLike } from '../../../lib/core/errorLike';
 
 export type { Task };
 
@@ -74,7 +75,7 @@ export function TaskDetailModal({ task, allTasks, onClose, onUpdate, onRefresh, 
   const [recordingCheck, setRecordingCheck] = useState(false);
   const [signingWaiver, setSigningWaiver] = useState(false);
   const [cancelling, setCancelling] = useState(false);
-  const [mileageLog, setMileageLog] = useState<any>(null);
+  const [mileageLog, setMileageLog] = useState<Parameters<typeof shouldBlockForStartMileage>[1]>(null);
   // Owner setting. Required until the setting has loaded and says otherwise (fail closed).
   const [requireStartMileage, setRequireStartMileage] = useState(true);
   // Admin override of the required photo: the open request (its kind and the promise to answer with the reason, or null for "go back").
@@ -151,8 +152,8 @@ export function TaskDetailModal({ task, allTasks, onClose, onUpdate, onRefresh, 
         return false;
       }
       return true;
-    } catch (e: any) {
-      showAlert('Could not check the photo requirement: ' + (e?.message ?? 'unknown error'));
+    } catch (e) {
+      showAlert('Could not check the photo requirement: ' + (asErrorLike(e)?.message ?? 'unknown error'));
       return false;
     } finally {
       setOverrideBusy(false);
@@ -219,7 +220,7 @@ export function TaskDetailModal({ task, allTasks, onClose, onUpdate, onRefresh, 
         etaMinutes = eta.durationMinutes; etaDistance = eta.distanceText;
         const { error: locErr } = await supabase.from('crew_location_history').insert({ latitude: loc.lat, longitude: loc.lng });
         if (locErr) console.warn('crew_location_history insert failed:', locErr.message);
-      } catch (e: any) { console.warn('ETA calc failed:', e); etaCalcErr = e.message; }
+      } catch (e) { console.warn('ETA calc failed:', e); etaCalcErr = asErrorLike(e).message!; }
 
       const eta = new Date(Date.now() + etaMinutes * 60000);
       const etaStart = new Date(eta.getTime() - 10 * 60000);
@@ -302,7 +303,7 @@ export function TaskDetailModal({ task, allTasks, onClose, onUpdate, onRefresh, 
       const successMsg = buildEnRouteResultMessage({ smsWarning, etaCalcErr, etaMinutes, etaDistance, workflowStatusFailed: !!wfErr });
       showAlert(successMsg);
       refresh();
-    } catch (e: any) { console.error('Error en route:', e); showAlert('Failed to send notification: ' + e.message); }
+    } catch (e) { console.error('Error en route:', e); showAlert('Failed to send notification: ' + asErrorLike(e).message); }
     finally { setProcessing(false); setBusyAction(null); }
   }
 
@@ -365,7 +366,7 @@ export function TaskDetailModal({ task, allTasks, onClose, onUpdate, onRefresh, 
       const arrivedMsg = buildArrivedResultMessage({ smsWarn, workflowStatusFailed: !!wfErr });
       showAlert(arrivedMsg);
       refresh();
-    } catch (e: any) { console.error('Error arrived:', e); showAlert('Failed to send notification: ' + e.message); }
+    } catch (e) { console.error('Error arrived:', e); showAlert('Failed to send notification: ' + asErrorLike(e).message); }
     finally { setProcessing(false); setBusyAction(null); }
   }
 
@@ -411,9 +412,9 @@ export function TaskDetailModal({ task, allTasks, onClose, onUpdate, onRefresh, 
       }
 
       setUploadNotice(noticeForResult(buildPhotoUploadSummary(result, isDamage), result.uploadedPaths.length, result.skippedHeic.length + result.skippedLarge.length));
-    } catch (e: any) {
+    } catch (e) {
       console.error('[photos] Upload error:', e);
-      const msg = (e.message || '').toLowerCase();
+      const msg = (asErrorLike(e).message || '').toLowerCase();
       failedBatchRef.current = { files, isDamage };
       setUploadNotice(noticeForFailure(
         msg.includes('size') || msg.includes('maximum')
@@ -462,7 +463,7 @@ export function TaskDetailModal({ task, allTasks, onClose, onUpdate, onRefresh, 
       const dropOffMsg = buildDropOffResultMessage({ smsWarn, workflowStatusFailed: !!wfErr });
       showAlert(dropOffMsg);
       refresh();
-    } catch (e: any) { console.error('Drop-off complete error:', e); showAlert('Failed to complete delivery: ' + e.message); }
+    } catch (e) { console.error('Drop-off complete error:', e); showAlert('Failed to complete delivery: ' + asErrorLike(e).message); }
     finally { setProcessing(false); setBusyAction(null); }
   }
 
@@ -494,7 +495,7 @@ export function TaskDetailModal({ task, allTasks, onClose, onUpdate, onRefresh, 
           body: JSON.stringify({ templateKey: 'pickup_thanks_sms', orderId: task.orderId }),
         });
         if (!r.ok) { const d = await r.json().catch(() => ({})); smsWarn = d.error || 'SMS failed to send'; }
-      } catch (e: any) { smsWarn = 'SMS failed: ' + e.message; }
+      } catch (e) { smsWarn = 'SMS failed: ' + asErrorLike(e).message; }
 
       try {
         if (!relayToken) throw new Error('not signed in');
@@ -503,7 +504,7 @@ export function TaskDetailModal({ task, allTasks, onClose, onUpdate, onRefresh, 
           body: JSON.stringify({ templateName: 'pickup_complete', orderId: task.orderId }),
         });
         if (!r.ok) console.warn('Pickup complete email failed (non-blocking)');
-      } catch (e: any) { console.warn('Pickup email error (non-blocking):', e); }
+      } catch (e) { console.warn('Pickup email error (non-blocking):', e); }
 
       // workflow_status MUST be written before task_status so the DB trigger
       // reads 'pickup_in_progress' when it fires and advances orders.status → completed.
@@ -520,7 +521,7 @@ export function TaskDetailModal({ task, allTasks, onClose, onUpdate, onRefresh, 
       const summary: CompletionSummaryData = buildPickupCompletionSummary(task, hasBalance, new Date());
       setCompletionSummary(summary);
       refresh();
-    } catch (e: any) { console.error('Pickup complete error:', e); showAlert('Failed to complete pickup: ' + e.message); }
+    } catch (e) { console.error('Pickup complete error:', e); showAlert('Failed to complete pickup: ' + asErrorLike(e).message); }
     finally { setProcessing(false); setBusyAction(null); }
   }
 
@@ -534,16 +535,16 @@ export function TaskDetailModal({ task, allTasks, onClose, onUpdate, onRefresh, 
       if (swapIdx < 0 || swapIdx >= tasksOfSameType.length) return;
       const cur = tasksOfSameType[idx]; const swap = tasksOfSameType[swapIdx];
       const curOrder = cur.taskStatus?.sortOrder ?? idx; const swapOrder = swap.taskStatus?.sortOrder ?? swapIdx;
-      const updates: Promise<{ error: any }>[] = [];
-      if (cur.taskStatus?.id) updates.push(supabase.from('task_status').update({ sort_order: swapOrder }).eq('id', cur.taskStatus.id) as unknown as Promise<{ error: any }>);
-      if (swap.taskStatus?.id) updates.push(supabase.from('task_status').update({ sort_order: curOrder }).eq('id', swap.taskStatus.id) as unknown as Promise<{ error: any }>);
+      const updates: Promise<{ error: { message: string } | null }>[] = [];
+      if (cur.taskStatus?.id) updates.push(supabase.from('task_status').update({ sort_order: swapOrder }).eq('id', cur.taskStatus.id) as unknown as Promise<{ error: { message: string } | null }>);
+      if (swap.taskStatus?.id) updates.push(supabase.from('task_status').update({ sort_order: curOrder }).eq('id', swap.taskStatus.id) as unknown as Promise<{ error: { message: string } | null }>);
       const results = await Promise.all(updates);
       const err = results.find(r => r.error)?.error;
       if (err) throw new Error('Failed to reorder: ' + err.message);
       // A small toast, not an alert: re-ordering several stops should not need a tap on a dialog each time.
       showToast(`Task moved ${direction}`, 'success', { duration: 1500 });
       refresh();
-    } catch (e: any) { console.error('Reorder error:', e); showToast('Failed to reorder: ' + e.message, 'error'); }
+    } catch (e) { console.error('Reorder error:', e); showToast('Failed to reorder: ' + asErrorLike(e).message, 'error'); }
     finally { setReordering(false); }
   }
 
@@ -573,7 +574,7 @@ export function TaskDetailModal({ task, allTasks, onClose, onUpdate, onRefresh, 
         : `Cash payment of ${formatCurrency(balancePaymentCents)} recorded successfully!`;
       showAlert(successMsg);
       refresh();
-    } catch (e: any) { console.error('Cash payment error:', e); showAlert('Failed to record payment: ' + e.message); }
+    } catch (e) { console.error('Cash payment error:', e); showAlert('Failed to record payment: ' + asErrorLike(e).message); }
     finally { setRecordingCash(false); }
   }
 
@@ -604,7 +605,7 @@ export function TaskDetailModal({ task, allTasks, onClose, onUpdate, onRefresh, 
         : `Check payment of ${formatCurrency(balancePaymentCents)} (Check #${checkNumber}) recorded successfully!`;
       showAlert(successMsg);
       refresh();
-    } catch (e: any) { console.error('Check payment error:', e); showAlert('Failed to record payment: ' + e.message); }
+    } catch (e) { console.error('Check payment error:', e); showAlert('Failed to record payment: ' + asErrorLike(e).message); }
     finally { setRecordingCheck(false); }
   }
 
@@ -629,7 +630,7 @@ export function TaskDetailModal({ task, allTasks, onClose, onUpdate, onRefresh, 
       });
       showAlert('Waiver marked as signed in person (no photo).');
       refresh();
-    } catch (e: any) { console.error('Paper waiver error:', e); showAlert('Failed to mark waiver: ' + e.message); }
+    } catch (e) { console.error('Paper waiver error:', e); showAlert('Failed to mark waiver: ' + asErrorLike(e).message); }
     finally { setSigningWaiver(false); }
   }
 
@@ -666,7 +667,7 @@ export function TaskDetailModal({ task, allTasks, onClose, onUpdate, onRefresh, 
         });
         showAlert('Paper waiver uploaded successfully.');
         refresh();
-      } catch (e: any) { console.error('Paper waiver upload error:', e); showAlert('Failed to upload waiver: ' + e.message); }
+      } catch (e) { console.error('Paper waiver upload error:', e); showAlert('Failed to upload waiver: ' + asErrorLike(e).message); }
       finally { setSigningWaiver(false); }
     }
   }
@@ -691,7 +692,7 @@ export function TaskDetailModal({ task, allTasks, onClose, onUpdate, onRefresh, 
       });
       showAlert(`Successfully charged ${formatCurrency(amountCents)} to ${cardLabel}. A receipt has been sent to the customer.`);
       refresh();
-    } catch (e: any) { console.error('Charge card error:', e); showAlert('Failed to charge card: ' + e.message); }
+    } catch (e) { console.error('Charge card error:', e); showAlert('Failed to charge card: ' + asErrorLike(e).message); }
     finally { setChargingCard(false); }
   }
 
@@ -723,7 +724,7 @@ export function TaskDetailModal({ task, allTasks, onClose, onUpdate, onRefresh, 
         : `Order cancelled. No refund will be issued.`;
       showAlert(alertMsg);
       onClose(); onUpdate();
-    } catch (e: any) { console.error('Cancel order error:', e); showAlert('Failed to cancel order: ' + e.message); }
+    } catch (e) { console.error('Cancel order error:', e); showAlert('Failed to cancel order: ' + asErrorLike(e).message); }
     finally { setCancelling(false); }
   }
 

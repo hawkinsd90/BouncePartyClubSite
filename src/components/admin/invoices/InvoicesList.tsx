@@ -51,12 +51,13 @@ export function InvoicesList() {
     return result;
   }, []);
 
-  const { data: invoicesData, loading, refetch } = useSupabaseQuery<any[]>(
-    fetchInvoices,
+  const { data: invoicesData, loading, refetch } = useSupabaseQuery<Invoice[]>(
+    // select('*, customers(first_name, last_name, email), orders(event_date)') is the Invoice shape; the embeds are not modelled in database.types.ts
+    fetchInvoices as unknown as () => Promise<{ data: Invoice[] | null; error: { message?: string } | null }>,
     { errorMessage: 'Failed to load invoices' }
   );
 
-  const invoices = (invoicesData || []) as Invoice[];
+  const invoices = invoicesData || [];
 
   const { mutate: generateInvoice } = useMutation(
     async (orderId: string) => {
@@ -75,11 +76,11 @@ export function InvoicesList() {
       const subtotalCents = order.subtotal_cents ?? 0;
       const taxCents = order.tax_cents ?? 0;
       const travelFeeCents = order.travel_fee_cents ?? 0;
-      const surfaceFeeCents = (order as any).surface_fee_cents ?? 0;
-      const sameDayPickupFeeCents = (order as any).same_day_pickup_fee_cents ?? 0;
-      const generatorFeeCents = (order as any).generator_fee_cents ?? 0;
+      const surfaceFeeCents = order.surface_fee_cents ?? 0;
+      const sameDayPickupFeeCents = order.same_day_pickup_fee_cents ?? 0;
+      const generatorFeeCents = order.generator_fee_cents ?? 0;
       // The total by the one order formula (orderMoney) over the stored order, not a sum of a few columns.
-      const totalCents = storedOrderTotalCents(order as any, [], []);
+      const totalCents = storedOrderTotalCents(order, [], []);
 
       const { data, error } = await supabase.from('invoices').insert({
         invoice_number: invoiceNumber,
@@ -102,7 +103,7 @@ export function InvoicesList() {
     },
     {
       errorMessage: 'Failed to generate invoice',
-      onSuccess: (data: any) => {
+      onSuccess: (data) => {
         notifySuccess(`Invoice ${data.invoice_number} generated successfully!`);
         refetch();
       },

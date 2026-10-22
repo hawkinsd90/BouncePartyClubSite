@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { supabase } from '../../../lib/supabase';
 import { Plus } from 'lucide-react';
 import { notifyError, notifySuccess } from '../../../lib/toasts';
+import { asErrorLike } from '../../../lib/core/errorLike';
 
 interface BlackoutContactFormProps {
   onSuccess: () => void;
@@ -19,7 +20,7 @@ export function BlackoutContactForm({ onSuccess }: BlackoutContactFormProps) {
 
     setAdding(true);
     try {
-      const { error } = await supabase.from('blackout_contacts' as any).insert([{
+      const { error } = await supabase.from('blackout_contacts').insert([{
         email: newContact.email || null,
         phone: newContact.phone || null,
         customer_name: newContact.customer_name || null,
@@ -31,8 +32,8 @@ export function BlackoutContactForm({ onSuccess }: BlackoutContactFormProps) {
       notifySuccess('Contact blacklisted successfully');
       setNewContact({ email: '', phone: '', customer_name: '', reason: '', notes: '' });
       onSuccess();
-    } catch (error: any) {
-      notifyError(error.message);
+    } catch (error) {
+      notifyError(asErrorLike(error).message!);
     } finally {
       setAdding(false);
     }

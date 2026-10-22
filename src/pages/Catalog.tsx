@@ -12,6 +12,9 @@ import { DatePickerInput } from '../components/ui/DatePickerInput';
 import { checkMultipleUnitsAvailabilityPublic } from '../lib/booking/availability';
 
 
+// What the quote form and the catalog keep in browser storage; only the event date is read here.
+interface StoredQuoteDraft { event_date?: string; [key: string]: unknown }
+
 interface Unit {
   id: string;
   slug: string;
@@ -63,9 +66,9 @@ export function Catalog() {
 
         if (unitsError) throw unitsError;
 
-        const unitsWithMedia = unitsData.map((unit: any) => ({
+        const unitsWithMedia = unitsData.map((unit) => ({
           ...unit,
-          media: (unit.unit_media || []).sort((a: any, b: any) => {
+          media: (unit.unit_media || []).sort((a, b) => {
             if (a.is_featured !== b.is_featured) {
               return b.is_featured ? 1 : -1;
             }
@@ -74,7 +77,8 @@ export function Catalog() {
         }));
 
         if (mounted) {
-          setUnits(unitsWithMedia as any);
+          // the rows (units plus the sorted unit_media as `media`) are the Unit shape below; `types` is NOT NULL in the table
+          setUnits(unitsWithMedia as unknown as Unit[]);
         }
       } catch (error) {
         console.error('Error loading units:', error);
@@ -105,14 +109,14 @@ export function Catalog() {
   }, []);
 
   function loadPrefillData() {
-    const prefillData = SafeStorage.getItem<any>('bpc_quote_prefill');
+    const prefillData = SafeStorage.getItem<StoredQuoteDraft>('bpc_quote_prefill');
     if (prefillData && prefillData.event_date) {
       setEventDate(prefillData.event_date);
       autoCheckRef.current = true;
       return;
     }
 
-    const formData = SafeStorage.getItem<any>('bpc_quote_form');
+    const formData = SafeStorage.getItem<StoredQuoteDraft>('bpc_quote_form');
     if (formData && formData.event_date) {
       setEventDate(formData.event_date);
     }
@@ -266,12 +270,12 @@ export function Catalog() {
     setAvailabilityChecked(false);
     setUnavailableUnitIds(new Set());
 
-    const prefillData = SafeStorage.getItem<any>('bpc_quote_prefill');
+    const prefillData = SafeStorage.getItem<StoredQuoteDraft>('bpc_quote_prefill');
     if (prefillData) {
       SafeStorage.setItem('bpc_quote_prefill', { ...prefillData, event_date: newDate }, { expirationDays: 7 });
     }
 
-    const formData = SafeStorage.getItem<any>('bpc_quote_form');
+    const formData = SafeStorage.getItem<StoredQuoteDraft>('bpc_quote_form');
     if (formData) {
       SafeStorage.setItem('bpc_quote_form', { ...formData, event_date: newDate, event_end_date: newDate }, { expirationDays: 7 });
     }

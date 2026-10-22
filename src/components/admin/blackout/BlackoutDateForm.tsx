@@ -2,6 +2,8 @@ import { useState } from 'react';
 import { supabase } from '../../../lib/supabase';
 import { Plus } from 'lucide-react';
 import { notifyError, notifySuccess } from '../../../lib/toasts';
+import { asErrorLike } from '../../../lib/core/errorLike';
+import type { Database } from '../../../lib/database.types';
 
 interface BlackoutDateFormProps {
   onSuccess: () => void;
@@ -38,7 +40,7 @@ export function BlackoutDateForm({ onSuccess }: BlackoutDateFormProps) {
 
     setAdding(true);
     try {
-      const payload: Record<string, string | null> = {
+      const payload: Database['public']['Tables']['blackout_dates']['Insert'] = {
         start_date: form.start_date,
         end_date: form.end_date,
         reason: form.reason,
@@ -47,14 +49,14 @@ export function BlackoutDateForm({ onSuccess }: BlackoutDateFormProps) {
         recurrence: form.recurrence,
         expires_at: form.recurrence === 'annual' && form.expires_at ? form.expires_at : null,
       };
-      const { error } = await supabase.from('blackout_dates' as any).insert([payload]);
+      const { error } = await supabase.from('blackout_dates').insert([payload]);
       if (error) throw error;
 
       notifySuccess('Blackout date added successfully');
       setForm(EMPTY_FORM);
       onSuccess();
-    } catch (error: any) {
-      notifyError(error.message);
+    } catch (error) {
+      notifyError(asErrorLike(error).message!);
     } finally {
       setAdding(false);
     }

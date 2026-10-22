@@ -6,6 +6,8 @@ import { AdminFloatingOrderHeader } from './AdminFloatingOrderHeader';
 import { supabase } from '../../../lib/supabase';
 import { ORDER_STATUS } from '../../../lib/constants/statuses';
 import { createShortPortalLink } from '../../../lib/portal/portalShortLink';
+import { asErrorLike } from '../../../lib/core/errorLike';
+import type { AdminOrderRecord } from '../../../lib/orders/adminOrderRecord';
 
 interface SingleOrderViewProps {
   orderId: string;
@@ -15,7 +17,7 @@ interface SingleOrderViewProps {
 }
 
 export function SingleOrderView({ orderId, openEditMode = false, onBack, onUpdate }: SingleOrderViewProps) {
-  const [order, setOrder] = useState<any>(null);
+  const [order, setOrder] = useState<AdminOrderRecord | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [showFloatingHeader, setShowFloatingHeader] = useState(false);
@@ -81,7 +83,9 @@ export function SingleOrderView({ orderId, openEditMode = false, onBack, onUpdat
 
         if (fullOrderError) throw fullOrderError;
 
-        setOrder(fullOrder);
+        // The select above (orders, customers, addresses, order_items+units, order_custom_fees, order_discounts) is the AdminOrderRecord shape;
+        // database.types.ts has no orders relationships, so the embeds arrive typed as errors.
+        setOrder(fullOrder as unknown as AdminOrderRecord);
         setLoading(false);
         return;
       } else {
@@ -96,10 +100,10 @@ export function SingleOrderView({ orderId, openEditMode = false, onBack, onUpdat
         return;
       }
 
-      setOrder(data);
-    } catch (err: any) {
+      setOrder(data as unknown as AdminOrderRecord);
+    } catch (err) {
       console.error('Error loading order:', err);
-      setError(err.message || 'Failed to load order');
+      setError(asErrorLike(err).message || 'Failed to load order');
     } finally {
       setLoading(false);
     }
@@ -157,7 +161,7 @@ export function SingleOrderView({ orderId, openEditMode = false, onBack, onUpdat
         const { data: existing } = await supabase
           .from('invoice_links')
           .select('short_code')
-          .eq('order_id', order.id)
+          .eq('order_id', order!.id)
           .eq('link_type', 'portal')
         .is('revoked_at', null)
           .not('short_code', 'is', null)
@@ -168,7 +172,7 @@ export function SingleOrderView({ orderId, openEditMode = false, onBack, onUpdat
         if (existing?.short_code) {
           url = `${window.location.origin}/i/${existing.short_code}`;
         } else {
-          const linkResult = await createShortPortalLink(order.id, supabase, order.event_date);
+          const linkResult = await createShortPortalLink(order!.id, supabase, order!.event_date);
           if (!linkResult.success) {
             throw new Error(linkResult.error);
           }

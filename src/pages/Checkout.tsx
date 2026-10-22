@@ -35,6 +35,7 @@ import { ReferralSourceSelect } from '../components/shared/ReferralSourceSelect'
 import { getPublicBusinessSettings } from '../lib/core/adminSettingsCache';
 import { createLogger } from '../lib/core/logger';
 import { trackEvent } from '../lib/core/siteEvents';
+import { asErrorLike } from '../lib/core/errorLike';
 
 const log = createLogger('Checkout');
 
@@ -101,8 +102,8 @@ export function Checkout() {
           return;
         }
         setBookingDepositSettings(parsed);
-      } catch (err: any) {
-        setSettingsError(err?.message || 'Failed to load pricing configuration.');
+      } catch (err) {
+        setSettingsError(asErrorLike(err)?.message || 'Failed to load pricing configuration.');
       } finally {
         setSettingsLoading(false);
       }
@@ -201,7 +202,7 @@ export function Checkout() {
     }
 
     // Stage E4 — Validate package snapshots before order creation.
-    const packageValidation = validateCartPackageSnapshots(cart as any[]);
+    const packageValidation = validateCartPackageSnapshots(cart);
     if (!packageValidation.ok) {
       showToast('Package details could not be verified. Please remove and re-add the package or contact us.', 'error');
       return;

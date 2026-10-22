@@ -4,6 +4,7 @@ import { History, Package, Settings, Filter, ChevronDown, ChevronRight } from 'l
 import { notify, notifyError } from '../../../lib/toasts';
 import { LoadingSpinner } from '../../common/LoadingSpinner';
 import { formatOrderId } from '../../../lib/utils';
+import { asErrorLike } from '../../../lib/core/errorLike';
 
 interface OrderChange {
   id: string;
@@ -42,9 +43,9 @@ interface ChangelogEntry {
   user_email: string;
   title: string;
   description: string;
-  old_value?: string;
-  new_value?: string;
-  details: any;
+  old_value?: string | null;
+  new_value?: string | null;
+  details: Record<string, unknown>;
 }
 
 export function ChangelogTab() {
@@ -75,7 +76,7 @@ export function ChangelogTab() {
 
       // Fetch admin settings changes
       const { data: settingChanges, error: settingError } = await supabase
-        .from('admin_settings_changelog' as any)
+        .from('admin_settings_changelog')
         .select('*')
         .order('created_at', { ascending: false })
         .limit(limit);
@@ -84,10 +85,10 @@ export function ChangelogTab() {
 
       // Collect all unique user IDs
       const userIds = new Set<string>();
-      (orderChanges || []).forEach((change: any) => {
+      (orderChanges || []).forEach((change) => {
         if (change.user_id) userIds.add(change.user_id);
       });
-      (settingChanges || []).forEach((change: any) => {
+      (settingChanges || []).forEach((change) => {
         if (change.changed_by) userIds.add(change.changed_by);
       });
 
@@ -143,7 +144,8 @@ export function ChangelogTab() {
           .from('orders')
           .select('id, customers(first_name, last_name)')
           .in('id', allOrderIds);
-        (ordersWithCustomers || []).forEach((o: any) => {
+        // customers(first_name, last_name) is not modelled as an orders relationship in database.types.ts
+        ((ordersWithCustomers || []) as unknown as Array<{ id: string; customers: { first_name: string; last_name: string } | null }>).forEach((o) => {
           orderCustomerNames[o.id] = o.customers
             ? `${o.customers.first_name} ${o.customers.last_name}`
             : 'Unknown Customer';
@@ -188,7 +190,7 @@ export function ChangelogTab() {
       setGroupedOrders(grouped);
 
       // Process admin settings changes
-      for (const change of (settingChanges as any[]) || []) {
+      for (const change of settingChanges || []) {
         const userEmail = change.changed_by
           ? userInfo[change.changed_by]?.email || 'Unknown User'
           : 'System';
@@ -196,7 +198,7 @@ export function ChangelogTab() {
         allEntries.push({
           id: change.id,
           type: 'setting',
-          timestamp: change.created_at,
+          timestamp: change.created_at!,
           user_email: userEmail,
           title: `Setting Changed: ${change.setting_key}`,
           description: change.change_description || 'Setting updated',
@@ -210,8 +212,8 @@ export function ChangelogTab() {
       allEntries.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
 
       setEntries(allEntries);
-    } catch (error: any) {
-      notifyError(error.message);
+    } catch (error) {
+      notifyError(asErrorLike(error).message!);
     } finally {
       setLoading(false);
     }

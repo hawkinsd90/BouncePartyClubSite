@@ -5,6 +5,7 @@ import { notifyError, notifySuccess } from '../../../lib/toasts';
 import { LoadingSpinner } from '../../common/LoadingSpinner';
 import { TextareaInput } from '../../forms/TextareaInput';
 import { TextInput } from '../../forms/TextInput';
+import { asErrorLike } from '../../../lib/core/errorLike';
 
 interface SMSTemplate {
   id: string;
@@ -72,16 +73,17 @@ export function MessageTemplatesTab() {
     try {
       const [smsRes, emailRes] = await Promise.all([
         supabase.from('sms_message_templates').select('*').order('template_name'),
-        supabase.from('email_templates' as any).select('*').order('category, template_name'),
+        supabase.from('email_templates').select('*').order('category, template_name'),
       ]);
 
       if (smsRes.error) throw smsRes.error;
       if (emailRes.error) throw emailRes.error;
 
       setSmsTemplates(smsRes.data || []);
-      setEmailTemplates(emailRes.data as any || []);
-    } catch (error: any) {
-      notifyError(error.message);
+      // theme is nullable in the table (default 'primary'); the editor treats it as text
+      setEmailTemplates((emailRes.data as EmailTemplate[] | null) || []);
+    } catch (error) {
+      notifyError(asErrorLike(error).message!);
     } finally {
       setLoading(false);
     }
@@ -102,8 +104,8 @@ export function MessageTemplatesTab() {
       notifySuccess('SMS template saved successfully');
       setEditingSMS(null);
       fetchTemplates();
-    } catch (error: any) {
-      notifyError(error.message);
+    } catch (error) {
+      notifyError(asErrorLike(error).message!);
     } finally {
       setSaving(false);
     }
@@ -115,7 +117,7 @@ export function MessageTemplatesTab() {
     setSaving(true);
     try {
       const { error } = await supabase
-        .from('email_templates' as any)
+        .from('email_templates')
         .update({
           subject: editingEmail.subject,
           header_title: editingEmail.header_title,
@@ -128,8 +130,8 @@ export function MessageTemplatesTab() {
       notifySuccess('Email template saved successfully');
       setEditingEmail(null);
       fetchTemplates();
-    } catch (error: any) {
-      notifyError(error.message);
+    } catch (error) {
+      notifyError(asErrorLike(error).message!);
     } finally {
       setSaving(false);
     }

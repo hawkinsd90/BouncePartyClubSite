@@ -24,8 +24,8 @@ function sleep(ms: number) {
 
 async function geocodeAddress(address: string): Promise<{ lat: number; lng: number }> {
   return new Promise((resolve, reject) => {
-    const geocoder = new (window as any).google.maps.Geocoder();
-    geocoder.geocode({ address, componentRestrictions: { country: 'us' } }, (results: any[], status: string) => {
+    const geocoder = new (window as unknown as { google: typeof google }).google.maps.Geocoder();
+    geocoder.geocode({ address, componentRestrictions: { country: 'us' } }, (results: google.maps.GeocoderResult[] | null, status: google.maps.GeocoderStatus) => {
       if (status === 'OK' && results && results[0]?.geometry?.location) {
         resolve({
           lat: results[0].geometry.location.lat(),

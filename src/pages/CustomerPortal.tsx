@@ -162,7 +162,7 @@ export function CustomerPortal() {
 
           setInvoiceProcessing(false);
           setApprovalSuccess(true);
-        } catch (err: any) {
+        } catch (err) {
           console.error('[CustomerPortal] invoice card-saved error:', err instanceof Error ? err.message : 'unknown');
           showToast('Something went wrong. Please contact us.', 'error');
           setInvoiceProcessing(false);

@@ -18,11 +18,16 @@ import { OrderStatusBadge } from '../../dashboard/OrderStatusBadge';
 import { OrderListCards } from './OrderListCards';
 import { categorizeOrders, filterAndSortOrders, computeTabCounts, pickDefaultTab } from '../../../lib/orders/ordersListModel';
 import type { OrderTab } from '../../../lib/orders/ordersListModel';
+import { asErrorLike } from '../../../lib/core/errorLike';
+import type { AdminOrderRecord } from '../../../lib/orders/adminOrderRecord';
 
+
+// What getAllOrdersWithContacts selects from contacts for each customer email.
+interface OrderContactSummary { email: string | null; business_name: string | null; total_bookings: number | null }
 
 interface OrdersData {
-  orders: any[];
-  contactsMap: Map<string, any>;
+  orders: AdminOrderRecord[];
+  contactsMap: Map<string, OrderContactSummary>;
 }
 
 export function OrdersManager() {
@@ -34,8 +39,8 @@ export function OrdersManager() {
   const [activeTab, setActiveTab] = useState<OrderTab>(tabFromUrl || 'draft');
   const [searchTerm, setSearchTerm] = useState('');
   const [singleOrderSearchId, setSingleOrderSearchId] = useState(singleOrderId || '');
-  const [selectedOrder, setSelectedOrder] = useState<any>(null);
-  const [visibleOrder, setVisibleOrder] = useState<any>(null);
+  const [selectedOrder, setSelectedOrder] = useState<AdminOrderRecord | null>(null);
+  const [visibleOrder, setVisibleOrder] = useState<AdminOrderRecord | null>(null);
   const [showArchived, setShowArchived] = useState(false);
   const [sortColumn, setSortColumn] = useState<string | null>(null);
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
@@ -52,10 +57,11 @@ export function OrdersManager() {
 
     if (error) throw error;
 
-    return data || { orders: [], contactsMap: new Map() };
+    // The compact select embeds customers/addresses/order_items; database.types.ts has no orders relationships, so the embeds arrive typed as errors.
+    return (data || { orders: [], contactsMap: new Map() }) as unknown as OrdersData;
   }, []);
 
-  const handleOrdersError = useCallback((error: any) => {
+  const handleOrdersError = useCallback((error: unknown) => {
     handleError(error, 'OrdersManager.loadOrders');
   }, []);
 
@@ -127,8 +133,8 @@ export function OrdersManager() {
       if (error) throw error;
       showToast('Old orders archived successfully.', 'success');
       refetch();
-    } catch (err: any) {
-      showToast('Failed to archive orders: ' + (err.message || 'Unknown error'), 'error');
+    } catch (err) {
+      showToast('Failed to archive orders: ' + (asErrorLike(err).message || 'Unknown error'), 'error');
     } finally {
       setArchiving(false);
     }

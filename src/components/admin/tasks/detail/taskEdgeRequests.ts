@@ -88,8 +88,9 @@ export async function postTaskSms(body: Record<string, unknown>, label: string, 
       return failure;
     }
     return { ok: true };
-  } catch (e: any) {
-    return { ok: false, warning: 'SMS failed: ' + e.message, failureError: e.message };
+  } catch (e) {
+    return { ok: false, warning: 'SMS failed: ' + asErrorLike(e).message!, failureError: asErrorLike(e).message! };
   }
 }
 import { isUsablePhone } from '../../../../lib/core/phone';
+import { asErrorLike } from '../../../../lib/core/errorLike';

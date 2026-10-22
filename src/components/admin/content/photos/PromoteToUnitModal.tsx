@@ -74,7 +74,7 @@ export function PromoteToUnitModal({ photo, onClose, onSuccess }: PromoteToUnitM
             : Promise.resolve({ data: [], error: null }),
         ]);
 
-        const all: Unit[] = (allUnitsRes.data ?? []).map((u: { id: string; name: string; is_combo: boolean }) => ({
+        const all: Unit[] = (allUnitsRes.data ?? []).map((u: { id: string; name: string; is_combo: boolean | null }) => ({
           id: u.id,
           name: u.name,
           is_combo: u.is_combo ?? false,

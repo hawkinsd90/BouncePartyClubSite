@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { supabase } from '../../../lib/supabase';
 import { Plus } from 'lucide-react';
 import { notifyError, notifySuccess } from '../../../lib/toasts';
+import { asErrorLike } from '../../../lib/core/errorLike';
 
 interface BlackoutAddressFormProps {
   onSuccess: () => void;
@@ -27,7 +28,7 @@ export function BlackoutAddressForm({ onSuccess }: BlackoutAddressFormProps) {
 
     setAdding(true);
     try {
-      const { error } = await supabase.from('blackout_addresses' as any).insert([{
+      const { error } = await supabase.from('blackout_addresses').insert([{
         address_line1: newAddress.address_line1,
         address_line2: newAddress.address_line2 || null,
         city: newAddress.city,
@@ -41,8 +42,8 @@ export function BlackoutAddressForm({ onSuccess }: BlackoutAddressFormProps) {
       notifySuccess('Address blacklisted successfully');
       setNewAddress({ address_line1: '', address_line2: '', city: '', state: '', zip_code: '', reason: '', notes: '' });
       onSuccess();
-    } catch (error: any) {
-      notifyError(error.message);
+    } catch (error) {
+      notifyError(asErrorLike(error).message!);
     } finally {
       setAdding(false);
     }

@@ -104,11 +104,11 @@ export function Quote() {
       included_city_list_json: ((data.included_cities as string[] | null) ?? (data.included_city_list_json as string[] | null)) ?? [],
       included_cities: ((data.included_cities as string[] | null) ?? (data.included_city_list_json as string[] | null)) ?? [],
       per_mile_after_base_cents: data.per_mile_after_base_cents ?? 0,
-      zone_overrides_json: (data.zone_overrides_json as any[]) ?? [],
+      zone_overrides_json: (data.zone_overrides_json as unknown as PricingRules['zone_overrides_json']) ?? [],
       surface_sandbag_fee_cents: data.surface_sandbag_fee_cents ?? 0,
       residential_multiplier: Number(data.residential_multiplier ?? 1),
       commercial_multiplier: Number(data.commercial_multiplier ?? 1),
-      same_day_matrix_json: (data.same_day_matrix_json as any[]) ?? [],
+      same_day_matrix_json: (data.same_day_matrix_json as unknown as PricingRules['same_day_matrix_json']) ?? [],
       overnight_holiday_only: data.overnight_holiday_only ?? false,
       extra_day_pct: Number(data.extra_day_pct ?? 0),
       generator_price_cents: Number(data.generator_price_cents ?? 0),
@@ -233,9 +233,9 @@ export function Quote() {
         const unavailable = result.cart.filter(item => item.isAvailable === false);
         if (unavailable.length > 0) {
           const names = unavailable.map(item => {
-            if (item.item_type === 'event_essential_bundle') return (item as any).bundle_name;
-            if (item.item_type === 'event_essential_product') return (item as any).product_name;
-            return (item as any).unit_name;
+            if (item.item_type === 'event_essential_bundle') return item.bundle_name;
+            if (item.item_type === 'event_essential_product') return item.product_name;
+            return item.unit_name;
           }).join(', ');
           setDateChangeAvailabilityError(`The following items are not available for the selected dates: ${names}. Please choose different dates or remove these items.`);
         } else {

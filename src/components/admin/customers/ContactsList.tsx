@@ -40,7 +40,7 @@ export function ContactsList() {
   }, []);
 
   const { data: contactsData, loading, error: loadError, refetch } = useSupabaseQuery<Contact[]>(
-    fetchContacts as () => Promise<{ data: Contact[] | null; error: any }>,
+    fetchContacts as () => Promise<{ data: Contact[] | null; error: { message?: string } | null }>,
     { errorMessage: 'Failed to load contacts' }
   );
 

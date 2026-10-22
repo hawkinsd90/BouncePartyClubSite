@@ -3,8 +3,6 @@ import { supabase } from '../../../../lib/supabase';
 import { notifyError, showConfirm } from '../../../../lib/toasts';
 import { clearPublicMenuGroupsCache } from '../../../../lib/core/adminSettingsCache';
 
-const menuGroupsDb = supabase as any;
-
 export interface MenuGroup {
   id: string;
   title: string;
@@ -36,11 +34,11 @@ export function useMenuGroupsData() {
       setError(null);
 
       const [groupsRes, catsRes] = await Promise.all([
-        menuGroupsDb
+        supabase
           .from('public_menu_groups')
           .select('*')
           .order('display_order'),
-        menuGroupsDb
+        supabase
           .from('product_categories')
           .select('id, slug, name, sort_order, active, public_visible')
           .order('sort_order'),
@@ -55,7 +53,7 @@ export function useMenuGroupsData() {
       const groupIds = groupRows.map((g: { id: string }) => g.id);
       let associations: { menu_group_id: string; category_id: string }[] = [];
       if (groupIds.length > 0) {
-        const assocRes = await menuGroupsDb
+        const assocRes = await supabase
           .from('public_menu_group_categories')
           .select('menu_group_id, category_id')
           .in('menu_group_id', groupIds);
@@ -70,7 +68,7 @@ export function useMenuGroupsData() {
         assocMap.set(a.menu_group_id, existing);
       }
 
-      const merged: MenuGroup[] = groupRows.map((g: any) => ({
+      const merged: MenuGroup[] = groupRows.map((g) => ({
         id: g.id,
         title: g.title,
         is_enabled: g.is_enabled,
@@ -98,7 +96,7 @@ export function useMenuGroupsData() {
     isEnabled: boolean
   ): Promise<boolean> => {
     try {
-      const { data, error: rpcError } = await menuGroupsDb.rpc('save_menu_group', {
+      const { data, error: rpcError } = await supabase.rpc('save_menu_group', {
         p_group_id: id,
         p_title: title,
         p_category_ids: categoryIds,
@@ -122,7 +120,7 @@ export function useMenuGroupsData() {
     if (!await showConfirm('Are you sure you want to delete this menu group?')) return false;
 
     try {
-      const { error } = await menuGroupsDb
+      const { error } = await supabase
         .from('public_menu_groups')
         .delete()
         .eq('id', id);
@@ -148,7 +146,7 @@ export function useMenuGroupsData() {
     const targetGroup = groups[targetIndex];
 
     try {
-      const { error: rpcError } = await menuGroupsDb.rpc('reorder_menu_group', {
+      const { error: rpcError } = await supabase.rpc('reorder_menu_group', {
         p_group_id: id,
         p_swap_group_id: targetGroup.id,
       });

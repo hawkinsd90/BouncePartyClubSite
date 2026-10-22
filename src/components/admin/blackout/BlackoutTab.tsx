@@ -7,6 +7,7 @@ import { showConfirm } from '../../../lib/toasts';
 import { BlackoutDateForm } from './BlackoutDateForm';
 import { BlackoutDatesList } from './BlackoutDatesList';
 import type { BlackoutDate } from '../../../types/index';
+import { asErrorLike } from '../../../lib/core/errorLike';
 
 function annualMatchesDay(bd: BlackoutDate, d: Date): boolean {
   const bStart = new Date(bd.start_date + 'T00:00:00');
@@ -170,13 +171,14 @@ export function BlackoutTab() {
     setLoading(true);
     try {
       const { data, error } = await supabase
-        .from('blackout_dates' as any)
+        .from('blackout_dates')
         .select('*')
         .order('start_date', { ascending: false });
       if (error) throw error;
-      setDates((data as any) || []);
-    } catch (error: any) {
-      notifyError(error.message);
+      // block_type and recurrence are CHECK-constrained to the BlackoutDate unions in the database; created_at defaults to now().
+      setDates((data as unknown as BlackoutDate[]) || []);
+    } catch (error) {
+      notifyError(asErrorLike(error).message!);
     } finally {
       setLoading(false);
     }
@@ -190,12 +192,12 @@ export function BlackoutTab() {
     if (!confirmed) return;
 
     try {
-      const { error } = await supabase.from('blackout_dates' as any).delete().eq('id', id);
+      const { error } = await supabase.from('blackout_dates').delete().eq('id', id);
       if (error) throw error;
       notifySuccess('Blackout removed successfully');
       fetchDates();
-    } catch (error: any) {
-      notifyError(error.message);
+    } catch (error) {
+      notifyError(asErrorLike(error).message!);
     }
   }
 

@@ -4,6 +4,7 @@ import { Shield, Trash2, History, UserPlus } from 'lucide-react';
 import { notifyError, notifySuccess, showConfirm } from '../../../lib/toasts';
 import { LoadingSpinner } from '../../common/LoadingSpinner';
 import { getAdminSetting } from '../../../lib/core/adminSettingsCache';
+import { asErrorLike } from '../../../lib/core/errorLike';
 
 interface UserRole {
   user_id: string;
@@ -62,7 +63,7 @@ export function PermissionsTab() {
         return;
       }
 
-      const enriched: UserRole[] = allRoleUsers.map((r: any) => ({
+      const enriched: UserRole[] = allRoleUsers.map((r) => ({
         user_id: r.user_id,
         role: r.user_role ? (r.user_role.toLowerCase() as UserRole['role']) : null,
         created_at: r.created_at,
@@ -70,8 +71,8 @@ export function PermissionsTab() {
       }));
 
       setUsers(enriched);
-    } catch (error: any) {
-      notifyError(error.message || 'Failed to load users');
+    } catch (error) {
+      notifyError(asErrorLike(error).message || 'Failed to load users');
     } finally {
       setLoading(false);
     }
@@ -96,8 +97,8 @@ export function PermissionsTab() {
       notifySuccess('Role updated');
       sendPermissionChangeEmail('changed', user.email, newRole, user.role || undefined);
       fetchData();
-    } catch (error: any) {
-      notifyError(error.message || 'Failed to update role');
+    } catch (error) {
+      notifyError(asErrorLike(error).message || 'Failed to update role');
     }
   }
 
@@ -118,8 +119,8 @@ export function PermissionsTab() {
       notifySuccess('Role removed');
       sendPermissionChangeEmail('removed', user.email, user.role || '');
       fetchData();
-    } catch (error: any) {
-      notifyError(error.message || 'Failed to remove role');
+    } catch (error) {
+      notifyError(asErrorLike(error).message || 'Failed to remove role');
     }
   }
 
@@ -145,8 +146,8 @@ export function PermissionsTab() {
       setAddEmail('');
       setShowAddForm(false);
       fetchData();
-    } catch (error: any) {
-      notifyError(error.message || 'Failed to assign role');
+    } catch (error) {
+      notifyError(asErrorLike(error).message || 'Failed to assign role');
     } finally {
       setAddingUser(false);
     }
@@ -165,8 +166,8 @@ export function PermissionsTab() {
       if (error) throw error;
       setChangelog(data || []);
       setSelectedUserChangelog(userId);
-    } catch (error: any) {
-      notifyError(error.message || 'Failed to load changelog');
+    } catch (error) {
+      notifyError(asErrorLike(error).message || 'Failed to load changelog');
     } finally {
       setLoadingChangelog(false);
     }

@@ -1,8 +1,8 @@
-import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
+import { useState, useEffect, useCallback, useRef, useMemo, type ComponentProps } from 'react';
 import { supabase } from '../../../lib/supabase';
 import { checkMultipleUnitsAvailability } from '../../../lib/booking/availability';
 import { checkEventEssentialsAvailability } from '../../../lib/queries/products';
-import { formatOrderSummary } from '../../../lib/orders/orderSummaryLoader';
+import { formatOrderSummary, type OrderSummaryData } from '../../../lib/orders/orderSummaryLoader';
 import { calculateDrivingDistance } from '../../../lib/pricing';
 import { HOME_BASE } from '../../../lib/core/businessLocation';
 import { StatusChangeDialog } from '../../order-detail/StatusChangeDialog';
@@ -14,7 +14,7 @@ import { PaymentsTab } from '../../order-detail/PaymentsTab';
 import { OrderDetailTabNav, type OrderDetailSection } from './detail-modal/OrderDetailTabNav';
 import { OrderDetailHeader } from './detail-modal/OrderDetailHeader';
 import { buildCurrentOrderSummaryData } from './detail-modal/buildCurrentOrderSummaryData';
-import { buildInitialEditedOrder, hasOrderDetailChanges } from './detail-modal/editedOrderModel';
+import { buildInitialEditedOrder, hasOrderDetailChanges, type EditedOrderState } from './detail-modal/editedOrderModel';
 import { GeneratorLegacyConfirmDialogs } from './detail-modal/GeneratorLegacyConfirmDialogs';
 import {
   buildStagedItemsFromOrderItems,
@@ -24,7 +24,7 @@ import {
   addEEBundleToStagedItems,
   updateStagedItemQuantity,
 } from './detail-modal/stagedItemModel';
-import type { StagedItem } from './detail-modal/stagedItemModel';
+import type { StagedItem, StageableUnit } from './detail-modal/stagedItemModel';
 import {
   sortDirectGeneratorItemsNewestFirst,
   reduceDirectGeneratorItems,
@@ -49,8 +49,21 @@ import {
   type AdminGeneratorStagedItem,
 } from '../../../lib/eventEssentials/adminGeneratorResolution';
 import { loadAdminResolverCatalogRows } from '../../../lib/queries/products';
+import type { Database } from '../../../lib/database.types';
+import type { PricingRules } from '../../../lib/pricing';
+import type { AvailabilityIssue } from '../../../lib/orders/availabilityIssue';
+import type { AddressAutocomplete } from '../../order/AddressAutocomplete';
+
+// What the address picker hands back (its result type is not exported).
+type PickedAddress = Parameters<ComponentProps<typeof AddressAutocomplete>['onSelect']>[0];
+
+type Tables = Database['public']['Tables'];
+
+// The editor state starts as EditedOrderState and gains the picked address's coordinates/county as the Admin edits the address.
+type OrderEditState = EditedOrderState & { address_lat?: number | string | null; address_lng?: number | string | null; address_county?: string | null };
 
 interface OrderDetailModalProps {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- the screen reads many numeric/decimal columns through parseFloat and several partial embeds; typing it exactly needs runtime changes (see the cleanup report)
   order: any;
   onClose: () => void;
   onUpdate: () => void;
@@ -60,20 +73,20 @@ export type { StagedItem, BundleComponentSnapshot } from './detail-modal/stagedI
 
 export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalProps) {
   const [activeSection, setActiveSection] = useState<OrderDetailSection>('details');
-  const [orderItems, setOrderItems] = useState<any[]>([]);
-  const [changelog, setChangelog] = useState<any[]>([]);
+  const [orderItems, setOrderItems] = useState<OrderSummaryData['items']>([]);
+  const [changelog, setChangelog] = useState<Tables['order_changelog']['Row'][]>([]);
   // WP-18: the server records an unconfirmed free city as a changelog row; the banner shows the newest one.
   const travelReviewNote = latestTravelCityReviewNote(changelog);
-  const [notes] = useState<any[]>([]);
-  const [workflowEvents] = useState<any[]>([]);
-  const [availableUnits, setAvailableUnits] = useState<any[]>([]);
-  const [editedOrder, setEditedOrder] = useState<any>(() => buildInitialEditedOrder(order));
+  const [notes] = useState<never[]>([]);
+  const [workflowEvents] = useState<never[]>([]);
+  const [availableUnits, setAvailableUnits] = useState<Tables['units']['Row'][]>([]);
+  const [editedOrder, setEditedOrder] = useState<OrderEditState>(() => buildInitialEditedOrder(order));
   const [stagedItems, setStagedItems] = useState<StagedItem[]>([]);
   const stagedInitializedForOrderId = useRef<string | null>(null);
   // The discounts and custom fees exactly as they were stored when the editor loaded them (the editor's own lists are edited).
   // The server compares this with what is stored now and refuses a stale save.
-  const loadedDiscountsRef = useRef<any[]>([]);
-  const loadedCustomFeesRef = useRef<any[]>([]);
+  const loadedDiscountsRef = useRef<Tables['order_discounts']['Row'][]>([]);
+  const loadedCustomFeesRef = useRef<Tables['order_custom_fees']['Row'][]>([]);
   const orderLoadRequestIdRef = useRef(0);
   const [loadedOrderItemsForOrderId, setLoadedOrderItemsForOrderId] = useState<string | null>(null);
   const [generatorProductIdsState, setGeneratorProductIdsState] = useState<{ status: 'loading' | 'ready' | 'failed'; ids: Set<string> }>({ status: 'loading', ids: new Set() });
@@ -85,18 +98,18 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
       .catch(() => { if (!cancelled) setGeneratorProductIdsState({ status: 'failed', ids: new Set() }); });
     return () => { cancelled = true; };
   }, []);
-  const [discounts, setDiscounts] = useState<any[]>([]);
-  const [customFees, setCustomFees] = useState<any[]>([]);
+  const [discounts, setDiscounts] = useState<Array<Tables['order_discounts']['Row'] & { is_new?: boolean }>>([]);
+  const [customFees, setCustomFees] = useState<Tables['order_custom_fees']['Row'][]>([]);
   const [adminMessage, setAdminMessage] = useState(order.admin_message || '');
   const [saving, setSaving] = useState(false);
   const [hasChanges, setHasChanges] = useState(false);
   const [showCloseConfirm, setShowCloseConfirm] = useState(false);
   const [showStatusDialog, setShowStatusDialog] = useState(false);
   const [pendingStatus, setPendingStatus] = useState('');
-  const [adminSettings, setAdminSettings] = useState<any>(null);
+  const [adminSettings, setAdminSettings] = useState<Record<string, string | null> | null>(null);
   const [adminOverrideApproval, setAdminOverrideApproval] = useState(false);
   const [depositCatchupMode, setDepositCatchupMode] = useState<'require' | 'waive'>('require');
-  const [availabilityIssues, setAvailabilityIssues] = useState<any[]>([]);
+  const [availabilityIssues, setAvailabilityIssues] = useState<AvailabilityIssue[]>([]);
   const [checkingAvailability, setCheckingAvailability] = useState(false);
   const [depositOverrideState, setDepositOverrideState] = useState(() =>
     initDepositOverrideState(order.custom_deposit_cents),
@@ -111,7 +124,7 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
   const setCustomDepositInput = useCallback((input: string) => {
     setDepositOverrideState((prev) => ({ ...prev, customDepositInput: input }));
   }, []);
-  const [currentOrderSummary, setCurrentOrderSummary] = useState<any>(null);
+  const [currentOrderSummary, setCurrentOrderSummary] = useState<ReturnType<typeof formatOrderSummary> | null>(null);
   const [requireCardOnFile, setRequireCardOnFile] = useState(order.require_card_on_file ?? true);
   const [manualDirty, setManualDirty] = useState(false);
   const [pricingPending, setPricingPending] = useState(false);
@@ -374,7 +387,7 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
   useEffect(() => {
     if (editedOrder.event_date !== editedOrder.event_end_date) {
       if (editedOrder.pickup_preference === 'same_day') {
-        setEditedOrder((prev: any) => ({ ...prev, pickup_preference: 'next_day' }));
+        setEditedOrder((prev) => ({ ...prev, pickup_preference: 'next_day' }));
       }
     }
   }, [editedOrder.event_date, editedOrder.event_end_date]);
@@ -382,9 +395,9 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
   // Sync surface with can_stake
   useEffect(() => {
     if (editedOrder.can_stake && editedOrder.surface !== 'grass') {
-      setEditedOrder((prev: any) => ({ ...prev, surface: 'grass' }));
+      setEditedOrder((prev) => ({ ...prev, surface: 'grass' }));
     } else if (!editedOrder.can_stake && editedOrder.surface === 'grass') {
-      setEditedOrder((prev: any) => ({ ...prev, surface: 'cement' }));
+      setEditedOrder((prev) => ({ ...prev, surface: 'cement' }));
     }
   }, [editedOrder.can_stake]);
 
@@ -433,7 +446,7 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
         let county: string | null = null;
 
         if (lat != null && lng != null && lat !== 0 && lng !== 0) {
-          county = await reverseGeocodeCounty(parseFloat(lat), parseFloat(lng));
+          county = await reverseGeocodeCounty(parseFloat(lat as string), parseFloat(lng as string));
         }
         if (!county) {
           const line1 = editedOrder.address_line1 || '';
@@ -476,8 +489,8 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
       if (error) throw error;
 
       if (data) {
-        const settings: any = {};
-        data.forEach((s: any) => {
+        const settings: Record<string, string | null> = {};
+        data.forEach((s) => {
           settings[s.key] = s.value;
         });
         setAdminSettings(settings);
@@ -487,7 +500,7 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
     }
   }
 
-  async function checkAvailability(): Promise<any[]> {
+  async function checkAvailability(): Promise<AvailabilityIssue[]> {
     if (!editedOrder.event_date || !editedOrder.event_end_date || stagedItems.length === 0) {
       setAvailabilityIssues([]);
       return [];
@@ -498,13 +511,13 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
       const activeItems = stagedItems.filter(item => !item.is_deleted && item.unit_id);
       const checks = activeItems.map(item => ({
         unitId: item.unit_id!,
-        eventStartDate: editedOrder.event_date,
-        eventEndDate: editedOrder.event_end_date,
+        eventStartDate: editedOrder.event_date!,
+        eventEndDate: editedOrder.event_end_date!,
         excludeOrderId: order.id,
       }));
 
       const results = await checkMultipleUnitsAvailability(checks);
-      const finalIssues: any[] = results
+      const finalIssues: AvailabilityIssue[] = results
         .filter(result => !result.isAvailable)
         .map(result => {
           const item = activeItems.find(i => i.unit_id === result.unitId);
@@ -582,10 +595,10 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
         items: inflatableItems,
         eeProductItems,
         eventDetails: {
-          event_date: editedOrder.event_date,
-          event_end_date: editedOrder.event_end_date,
-          location_type: editedOrder.location_type,
-          surface: editedOrder.surface,
+          event_date: editedOrder.event_date!,
+          event_end_date: editedOrder.event_end_date!,
+          location_type: editedOrder.location_type as 'residential' | 'commercial',
+          surface: editedOrder.surface as 'grass' | 'cement',
           pickup_preference: editedOrder.pickup_preference,
           generator_qty: editedOrder.generator_qty,
           address_line1: editedOrder.address_line1,
@@ -601,7 +614,8 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
         setupFeeBasisChanged,
         // Any added, removed or changed equipment line: only then is the order's stored equipment subtotal and deposit priced again.
         equipmentBasisChanged: stagedItems.some((item) => item.is_new || item.is_deleted || item.is_updated),
-        pricingRules: pricingRules as any,
+        // useAdminOrderDetails loads the row with select('*'); the pricing_rules columns are only partly modelled in database.types.ts
+        pricingRules: pricingRules as unknown as PricingRules,
         feeWaivers: {
           taxWaived,
           travelFeeWaived,
@@ -643,7 +657,8 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
       if (requestId !== orderLoadRequestIdRef.current) return;
 
       if (itemsRes.data) {
-        setOrderItems(itemsRes.data);
+        // select('*, units(name, price_dry_cents, price_water_cents)'): the embed is not modelled in database.types.ts (no order_items relationships for it)
+        setOrderItems(itemsRes.data as unknown as OrderSummaryData['items']);
         setLoadedOrderItemsForOrderId(targetOrderId);
       }
       if (changelogRes.data) setChangelog(changelogRes.data);
@@ -655,7 +670,7 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
     }
   }
 
-  const stageAddItem = useCallback((unit: any, mode: 'dry' | 'water') => {
+  const stageAddItem = useCallback((unit: StageableUnit, mode: 'dry' | 'water') => {
     const newItem = buildNewInflatableItem(
       unit,
       mode,
@@ -753,8 +768,8 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
   }
 
   // Memoized callbacks to prevent child component re-renders
-  const handleOrderChange = useCallback((updates: any) => {
-    setEditedOrder((prev: any) => ({ ...prev, ...updates }));
+  const handleOrderChange = useCallback((updates: Partial<OrderEditState>) => {
+    setEditedOrder((prev) => ({ ...prev, ...updates }));
     setManualDirty(true);
   }, []);
 
@@ -818,7 +833,7 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
         return reduced.next;
       });
 
-      setEditedOrder((previous: any) => ({ ...previous, generator_qty: decision.newLegacyQty }));
+      setEditedOrder((previous) => ({ ...previous, generator_qty: decision.newLegacyQty }));
       if (decision.newLegacyQty === 0) {
         setGeneratorFeeWaived(false);
         setGeneratorFeeWaiveReason('');
@@ -861,8 +876,8 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
         current: { legacyQty: editedOrder.generator_qty ?? 0, directEeQty: directQty },
         requestedTotal: requestedQty,
         stagedItems: stagedItems as AdminGeneratorStagedItem[],
-        eventDate: editedOrder.event_date,
-        eventEndDate: editedOrder.event_end_date,
+        eventDate: editedOrder.event_date!,
+        eventEndDate: editedOrder.event_end_date!,
         orderId: order.id,
         productConfigs: catalog.productConfigs,
         bundleConfigs: catalog.bundleConfigs,
@@ -912,7 +927,7 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
           setGeneratorFeeWaived(false);
           setGeneratorFeeWaiveReason('');
         }
-        setEditedOrder((previous: any) => ({ ...previous, generator_qty: (previous.generator_qty ?? 0) + additionalQty }));
+        setEditedOrder((previous) => ({ ...previous, generator_qty: (previous.generator_qty ?? 0) + additionalQty }));
         setManualDirty(true);
         return;
       }
@@ -954,7 +969,7 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
     // REMOVE WAIVER: increase legacy qty, clear waiver (pricing recalculates).
     // This callback handles "keep waived" — the only confirm option for non-waived.
     // For waived, the three-way choice is handled by separate callbacks below.
-    setEditedOrder((previous: any) => ({ ...previous, generator_qty: (previous.generator_qty ?? 0) + pending.additionalQty }));
+    setEditedOrder((previous) => ({ ...previous, generator_qty: (previous.generator_qty ?? 0) + pending.additionalQty }));
     setManualDirty(true);
     setGeneratorLegacyConfirm(null);
   }, [generatorLegacyConfirm]);
@@ -972,7 +987,7 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
 
     setGeneratorFeeWaived(false);
     setGeneratorFeeWaiveReason('');
-    setEditedOrder((previous: any) => ({ ...previous, generator_qty: (previous.generator_qty ?? 0) + pending.additionalQty }));
+    setEditedOrder((previous) => ({ ...previous, generator_qty: (previous.generator_qty ?? 0) + pending.additionalQty }));
     setManualDirty(true);
     setGeneratorLegacyConfirm(null);
   }, [generatorLegacyConfirm]);
@@ -981,8 +996,8 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
     setGeneratorLegacyConfirm(null);
   }, []);
 
-  const handleAddressSelect = useCallback((result: any) => {
-    setEditedOrder((prev: any) => ({
+  const handleAddressSelect = useCallback((result: PickedAddress) => {
+    setEditedOrder((prev) => ({
       ...prev,
       address_line1: result.street,
       address_city: result.city,
@@ -1022,7 +1037,7 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
       let county: string | null = null;
 
       if (lat != null && lng != null && lat !== 0 && lng !== 0) {
-        county = await reverseGeocodeCounty(parseFloat(lat), parseFloat(lng));
+        county = await reverseGeocodeCounty(parseFloat(lat as string), parseFloat(lng as string));
       }
 
       if (!county) {
@@ -1244,7 +1259,7 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
               payments={payments}
               order={order}
               customFees={customFees}
-              discounts={discounts.filter((d: any) => !d.is_new)}
+              discounts={discounts.filter((d) => !d.is_new)}
               loadError={orderDataLoadError}
               onRetryLoad={() => { reloadOrderData(); }}
               onPaymentsUpdate={() => {
@@ -1262,7 +1277,8 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
           )}
 
           {activeSection === 'changelog' && (
-            <OrderChangelogTab changelog={changelog} />
+            // field_changed is nullable in the table; the tab only prints it.
+            <OrderChangelogTab changelog={changelog as unknown as ComponentProps<typeof OrderChangelogTab>['changelog']} />
           )}
         </div>
       </div>
@@ -1277,8 +1293,8 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
         currentStatus={order.status}
         pendingStatus={pendingStatus}
         stagedItems={stagedItems}
-        eventDate={editedOrder.event_date}
-        eventEndDate={editedOrder.event_end_date}
+        eventDate={editedOrder.event_date!}
+        eventEndDate={editedOrder.event_end_date!}
         onStatusChanged={async () => {
           const requestId = ++orderLoadRequestIdRef.current;
           await loadOrderDetails(order.id, requestId);

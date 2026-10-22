@@ -5,6 +5,7 @@ import { notifyError, notifySuccess } from '../../../lib/toasts';
 import { calculateEEOnlyDepositCents } from '../../../lib/pricing/depositCalculation';
 import { validateEEDepositSettingsInput, parseMoneyInput } from '../../../lib/pricing/moneySettings';
 import { formatCurrency, DEFAULT_SAME_DAY_FEE_DAYS } from '../../../lib/pricing';
+import { asErrorLike } from '../../../lib/core/errorLike';
 
 const WEEKDAY_CHIPS: Array<{ day: number; label: string }> = [
   { day: 0, label: 'Sun' },
@@ -92,7 +93,7 @@ export function PricingRulesTab({ pricingRules: initialRules }: PricingRulesTabP
       if (data) {
         setApplyTravelFeeByDefault(data.value === 'true');
       }
-    } catch (error: any) {
+    } catch (error) {
       console.error('Error loading travel fee default:', error);
     }
   };
@@ -158,8 +159,8 @@ export function PricingRulesTab({ pricingRules: initialRules }: PricingRulesTabP
       notifySuccess('Pricing settings updated successfully');
       setIsEditing(false);
       window.location.reload();
-    } catch (error: any) {
-      notifyError(error.message);
+    } catch (error) {
+      notifyError(asErrorLike(error).message!);
     } finally {
       setSaving(false);
     }

@@ -26,6 +26,9 @@ import { useCustomerProfile } from '../contexts/CustomerProfileContext';
 import { notifyError } from '../lib/toasts';
 import { supabase } from '../lib/supabase';
 
+// The address kept for the quote: the picker's result, or the signed-in customer's saved address (which has no coordinates).
+interface QuoteAddress { formatted_address: string; street: string; line1?: string; line2?: string; city: string; state: string; zip: string; lat?: number; lng?: number; county?: string }
+
 interface GoogleReview {
   id: string;
   reviewer_name: string;
@@ -43,7 +46,7 @@ export function Home() {
   const { sessionData, loading: profileLoading } = useCustomerProfile();
 
   const [eventDate, setEventDate] = useState('');
-  const [addressData, setAddressData] = useState<any>(null);
+  const [addressData, setAddressData] = useState<QuoteAddress | null>(null);
   const [locationType, setLocationType] = useState<'residential' | 'commercial' | null>(null);
   const [addressInput, setAddressInput] = useState('');
   // BPC-SECURITY-HARDENING: COMMENTED OUT FOR PRODUCTION.

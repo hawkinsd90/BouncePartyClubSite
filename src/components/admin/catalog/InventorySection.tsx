@@ -6,6 +6,8 @@ import { Plus, Edit2, Trash2, Wind, PartyPopper } from 'lucide-react';
 import { notifyError, notifySuccess, showConfirm } from '../../../lib/toasts';
 import { EventEssentialsAdmin } from './event-essentials/EventEssentialsAdmin';
 
+import type { FutureBooking } from '../../../lib/units/futureBooking';
+
 interface Unit {
   id: string;
   name: string;
@@ -45,7 +47,7 @@ export function InventorySection({ units, onRefetch }: InventorySectionProps) {
     setSearchParams(next);
   }
 
-  async function checkFutureBookings(unitId: string) {
+  async function checkFutureBookings(unitId: string): Promise<FutureBooking[]> {
     const today = todayLocalKey();
 
     const { data: bookings, error } = await supabase
@@ -70,7 +72,8 @@ export function InventorySection({ units, onRefetch }: InventorySectionProps) {
       return [];
     }
 
-    return bookings || [];
+    // select('order_id, orders!inner(...)'): the embed is not modelled in database.types.ts
+    return (bookings || []) as unknown as FutureBooking[];
   }
 
   async function handleDeleteUnit(unitId: string, unitName: string) {
@@ -81,7 +84,7 @@ export function InventorySection({ units, onRefetch }: InventorySectionProps) {
     if (futureBookings.length > 0) {
       const bookingDetails = futureBookings
         .slice(0, 5)
-        .map((b: any) => {
+        .map((b) => {
           const order = b.orders;
           return `• Order #${order.order_number} - ${order.customer_name} on ${order.event_date}`;
         })
