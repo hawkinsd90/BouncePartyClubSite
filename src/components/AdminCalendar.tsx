@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
+import { localDateKey } from '../lib/core/localDate';
 import { TaskDetailModal } from './admin/tasks/TaskDetailModal';
 import { CalendarHeader } from './calendar/CalendarHeader';
 import { CalendarGrid } from './calendar/CalendarGrid';
@@ -21,6 +22,8 @@ export function AdminCalendar() {
   const { tasks, loading, reload } = useCalendarTasks(currentMonth);
   const { optimizing, optimizeRoute } = useRouteOptimization();
   const [mileageDates, setMileageDates] = useState<Set<string>>(new Set());
+  // Bumped when a mileage reading is saved so the open task screen reads the log again.
+  const [mileageVersion, setMileageVersion] = useState(0);
 
   useEffect(() => {
     loadMonthMileage();
@@ -28,8 +31,8 @@ export function AdminCalendar() {
 
   async function loadMonthMileage() {
     try {
-      const start = startOfMonth(currentMonth).toISOString().split('T')[0];
-      const end = endOfMonth(currentMonth).toISOString().split('T')[0];
+      const start = localDateKey(startOfMonth(currentMonth));
+      const end = localDateKey(endOfMonth(currentMonth));
       const { data } = await supabase
         .from('daily_mileage_logs')
         .select('date')
@@ -168,7 +171,7 @@ export function AdminCalendar() {
         date={selectedDate || new Date()}
         type="start"
         onClose={() => setShowMileageModal(false)}
-        onSuccess={() => { setShowMileageModal(false); reload(); }}
+        onSuccess={() => { setShowMileageModal(false); setMileageVersion((v) => v + 1); loadMonthMileage(); reload(); }}
       />
 
       {liveTask && (
@@ -183,6 +186,7 @@ export function AdminCalendar() {
           onRefresh={handleTaskRefresh}
           onBack={selectedDate ? handleBackToDayView : undefined}
           onOpenMileageModal={() => setShowMileageModal(true)}
+          mileageVersion={mileageVersion}
         />
       )}
     </div>

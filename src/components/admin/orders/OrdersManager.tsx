@@ -61,6 +61,8 @@ export function OrdersManager() {
     {
       errorMessage: 'Failed to load orders',
       onError: handleOrdersError,
+      // An open order modal must survive a background refresh (someone else's change, or this screen's own save).
+      keepDataWhileRefetching: true,
     }
   );
 
@@ -134,7 +136,7 @@ export function OrdersManager() {
 
   const filteredOrders = useMemo(() => filterAndSortOrders({
     categorizedOrders, activeTab, showArchived, searchTerm, sortColumn, sortDirection, contactsMap,
-  }), [categorizedOrders, activeTab, searchTerm, sortColumn, sortDirection, contactsMap]);
+  }), [categorizedOrders, activeTab, showArchived, searchTerm, sortColumn, sortDirection, contactsMap]);
 
   // Memoize tab counts — past and cancelled respect the showArchived flag
   // so the badge count always matches what is actually visible in the list.

@@ -157,6 +157,8 @@ function AdminDashboard() {
     {
       errorMessage: 'Failed to load admin data',
       onError: handleDataError,
+      // Refreshing after a save must not replace the page with a spinner (it would close the open editor).
+      keepDataWhileRefetching: true,
     }
   );
 

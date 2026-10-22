@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { localDateKey } from '../../lib/core/localDate';
 import { optimizeMorningRoute, type MorningRouteStop, type RouteOriginOptions } from '../../lib/routing/routeOptimization';
 import { Task } from './useCalendarTasks';
 
@@ -21,7 +22,7 @@ export function useRouteOptimization() {
         eventStartTime: task.type === 'drop-off' ? task.eventStartTime : task.eventEndTime,
         equipmentIds: task.equipmentIds,
         numInflatables: task.numInflatables,
-        routeDateISO: task.date.toISOString().split('T')[0],
+        routeDateISO: localDateKey(task.date),
         lat: task.lat,
         lng: task.lng,
       }));

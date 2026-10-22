@@ -34,7 +34,7 @@ ok('crew select asks for no payments and no signature rows', !/payments/.test(cr
 ok('crew select still loads the order, customer and address', /\*,/.test(crewSelect) && /customers \(/.test(crewSelect) && /addresses \(/.test(crewSelect));
 ok('admin select is unchanged: payments and signature rows', /payments \(id, amount_cents, status, paid_at, type\)/.test(adminSelect) && /order_signatures!order_signatures_order_id_fkey \(electronic_consent_given, waiver_version, physical_waiver_storage_path, physical_waiver_upload_source\)/.test(adminSelect));
 const hook = read('src/hooks/admin/useCalendarTasks.ts');
-ok('the hook builds its select from the caller role and reloads when the role resolves', /calendarOrdersSelect\(isAdminRef\.current/.test(hook) && /\[currentMonth, isAdmin\]/.test(hook));
+ok('the hook builds its select from the caller role and reloads when the role resolves', /calendarOrdersSelect\(isAdminRef\.current/.test(hook) && /\[isAdmin\]/.test(hook));
 ok('no literal payments / order_signatures embed is left in the hook', !/payments \(/.test(hook) && !/order_signatures!/.test(hook));
 
 // --- assembly of a crew-shaped order -------------------------------------------------------------------------------------

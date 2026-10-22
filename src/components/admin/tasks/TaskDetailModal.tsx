@@ -31,6 +31,7 @@ import {
 import { postSessionEdge, postTaskSms, currentAccessToken } from './detail/taskEdgeRequests';
 import { getPublicBusinessSettings } from '../../../lib/core/adminSettingsCache';
 import { useAuth } from '../../../contexts/AuthContext';
+import { localDateKey } from '../../../lib/core/localDate';
 import { shouldBlockForStartMileage, START_MILEAGE_PROMPTS, type MileageGatedAction } from '../../../lib/core/startMileage';
 
 export type { Task };
@@ -43,9 +44,11 @@ interface TaskDetailModalProps {
   onRefresh?: () => void;
   onBack?: () => void;
   onOpenMileageModal?: () => void;
+  // Bumped by the parent each time a mileage reading is saved, so the log is read again (En Route must stop asking for a start reading).
+  mileageVersion?: number;
 }
 
-export function TaskDetailModal({ task, allTasks, onClose, onUpdate, onRefresh, onBack, onOpenMileageModal }: TaskDetailModalProps) {
+export function TaskDetailModal({ task, allTasks, onClose, onUpdate, onRefresh, onBack, onOpenMileageModal, mileageVersion = 0 }: TaskDetailModalProps) {
   const refresh = onRefresh || onUpdate;
   // Admin/Master get the money and order-management controls; crew keeps the field workflow (database policy already limits what crew can read).
   const { isAdmin } = useAuth();
@@ -107,7 +110,7 @@ export function TaskDetailModal({ task, allTasks, onClose, onUpdate, onRefresh, 
       try {
         const { data: { user } } = await supabase.auth.getUser();
         if (!user) return;
-        const dateStr = task.date.toISOString().split('T')[0];
+        const dateStr = localDateKey(task.date);
         const { data } = await supabase
           .from('daily_mileage_logs').select('*')
           .eq('date', dateStr).eq('user_id', user.id).maybeSingle();
@@ -115,7 +118,7 @@ export function TaskDetailModal({ task, allTasks, onClose, onUpdate, onRefresh, 
       } catch (error) { console.error('Error loading mileage log:', error); }
     }
     loadMileageLog();
-  }, [task.date]);
+  }, [task.date, mileageVersion]);
 
   // Use shared route-stop logic so stop numbers match DayView/TaskCard exactly.
   // Only active (non-excluded, non-completed) route stops are counted.
@@ -694,7 +697,7 @@ export function TaskDetailModal({ task, allTasks, onClose, onUpdate, onRefresh, 
             />
           )}
 
-          <TaskDetailCustomerInfo task={task} isAdmin={isAdmin} onRefundChanged={onUpdate} />
+          <TaskDetailCustomerInfo task={task} isAdmin={isAdmin} onRefundChanged={refresh} />
 
           {/* Equipment */}
           <TaskDetailEquipmentCard items={task.items} isDropOff={isDropOff} />

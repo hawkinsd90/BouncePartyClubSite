@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { localDateKey } from '../../lib/core/localDate';
 import { format } from 'date-fns';
 import { X, Truck as TruckIcon, Package, MousePointer, Car, Settings, ClipboardList, AlertTriangle, Clock, CheckCircle, Gauge } from 'lucide-react';
 import { Task } from '../../hooks/admin/useCalendarTasks';
@@ -50,7 +51,7 @@ export function DayViewModal({
 
   async function loadMileageLogs() {
     try {
-      const dateStr = selectedDate.toISOString().split('T')[0];
+      const dateStr = localDateKey(selectedDate);
       const { data, error } = await supabase
         .from('daily_mileage_logs')
         .select('user_id, start_mileage, end_mileage, notes')

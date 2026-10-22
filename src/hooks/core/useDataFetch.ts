@@ -1,5 +1,6 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { notifyError } from '../../lib/toasts';
+import { shouldRaiseLoading } from '../../lib/core/loadingPolicy';
 
 interface DataFetchOptions<T> {
   onSuccess?: (data: T) => void;
@@ -7,6 +8,9 @@ interface DataFetchOptions<T> {
   errorMessage?: string;
   autoFetch?: boolean;
   showErrorNotification?: boolean;
+  // Screens that hold unsaved work in a modal (Orders, Admin): a refetch must not flip `loading` back on once data is showing,
+  // because the page replaces itself with a spinner and the open modal is lost. The first load still reports loading.
+  keepDataWhileRefetching?: boolean;
 }
 
 interface DataFetchResult<T> {
@@ -26,18 +30,22 @@ export function useDataFetch<T>(
     errorMessage = 'Failed to load data',
     autoFetch = true,
     showErrorNotification = true,
+    keepDataWhileRefetching = false,
   } = options;
 
   const [data, setData] = useState<T | null>(null);
+  const hasDataRef = useRef(false);
+  const raiseLoading = () => shouldRaiseLoading({ keepDataWhileRefetching, hasData: hasDataRef.current });
   const [loading, setLoading] = useState(autoFetch);
   const [error, setError] = useState<Error | null>(null);
 
   const fetchData = useCallback(async () => {
-    setLoading(true);
+    if (raiseLoading()) setLoading(true);
     setError(null);
 
     try {
       const result = await fetchFn();
+      hasDataRef.current = true;
       setData(result);
       onSuccess?.(result);
     } catch (err: any) {
@@ -53,7 +61,7 @@ export function useDataFetch<T>(
     } finally {
       setLoading(false);
     }
-  }, [fetchFn, onSuccess, onError, errorMessage, showErrorNotification]);
+  }, [fetchFn, onSuccess, onError, errorMessage, showErrorNotification, keepDataWhileRefetching]);
 
   useEffect(() => {
     let cancelled = false;
@@ -61,12 +69,13 @@ export function useDataFetch<T>(
     if (autoFetch) {
       (async () => {
         try {
-          setLoading(true);
+          if (raiseLoading()) setLoading(true);
           setError(null);
 
           const result = await fetchFn();
 
           if (!cancelled) {
+            hasDataRef.current = true;
             setData(result);
             onSuccess?.(result);
           }

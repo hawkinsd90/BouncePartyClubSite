@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { X, Car, Zap } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { showToast } from '../../lib/toasts';
+import { localDateKey, endMileageProblem } from '../../lib/core/localDate';
 
 interface MileageModalProps {
   isOpen: boolean;
@@ -19,17 +20,22 @@ export function MileageModal({ isOpen, date, type, onClose, onSuccess }: Mileage
   const [calculating, setCalculating] = useState(false);
 
   useEffect(() => {
-    if (isOpen) {
-      loadExistingLog();
-    }
-  }, [isOpen, date]);
+    if (!isOpen) return;
+    // Start every opening from a clean form: the End form must not inherit the Start reading (or the last day's notes).
+    setMileage('');
+    setNotes('');
+    setExistingLog(null);
+    let cancelled = false;
+    loadExistingLog(() => cancelled);
+    return () => { cancelled = true; };
+  }, [isOpen, date, type]);
 
-  async function loadExistingLog() {
+  async function loadExistingLog(isStale: () => boolean = () => false) {
     try {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
 
-      const dateStr = date.toISOString().split('T')[0];
+      const dateStr = localDateKey(date);
       const { data, error } = await supabase
         .from('daily_mileage_logs')
         .select('*')
@@ -38,6 +44,7 @@ export function MileageModal({ isOpen, date, type, onClose, onSuccess }: Mileage
         .maybeSingle();
 
       if (error) throw error;
+      if (isStale()) return;
 
       if (data) {
         setExistingLog(data);
@@ -64,7 +71,7 @@ export function MileageModal({ isOpen, date, type, onClose, onSuccess }: Mileage
       const { data: { session } } = await supabase.auth.getSession();
       if (!session?.access_token) throw new Error('Not authenticated');
 
-      const dateStr = date.toISOString().split('T')[0];
+      const dateStr = localDateKey(date);
 
       const resp = await fetch(
         `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/calculate-route-mileage`,
@@ -104,8 +111,11 @@ export function MileageModal({ isOpen, date, type, onClose, onSuccess }: Mileage
     e.preventDefault();
 
     const mileageNum = parseFloat(mileage);
-    if (!mileageNum || mileageNum < 0) {
-      showToast('Please enter a valid mileage reading', 'error');
+    const problem = type === 'end'
+      ? endMileageProblem(mileageNum, existingLog?.start_mileage)
+      : (!mileageNum || mileageNum < 0 ? 'Please enter a valid mileage reading' : null);
+    if (problem) {
+      showToast(problem, 'error');
       return;
     }
 
@@ -114,7 +124,7 @@ export function MileageModal({ isOpen, date, type, onClose, onSuccess }: Mileage
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error('Not authenticated');
 
-      const dateStr = date.toISOString().split('T')[0];
+      const dateStr = localDateKey(date);
       const now = new Date().toISOString();
 
       const updateData: any = {
@@ -157,7 +167,8 @@ export function MileageModal({ isOpen, date, type, onClose, onSuccess }: Mileage
   const canAutoCalculate = type === 'end' && !!existingLog?.start_mileage;
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 z-[70] flex items-center justify-center p-4">
+    <div className="fixed inset-0 bg-black bg-opacity-50 z-[70] overflow-y-auto">
+      <div className="min-h-full flex items-center justify-center p-4">
       <div className="bg-white rounded-xl shadow-2xl max-w-md w-full">
         <div className="flex items-center justify-between p-6 border-b border-slate-200">
           <div className="flex items-center gap-3">
@@ -168,7 +179,8 @@ export function MileageModal({ isOpen, date, type, onClose, onSuccess }: Mileage
           </div>
           <button
             onClick={onClose}
-            className="p-1 hover:bg-slate-100 rounded-lg transition-colors"
+            className="p-2 min-w-[44px] min-h-[44px] flex items-center justify-center hover:bg-slate-100 rounded-lg transition-colors"
+            aria-label="Close"
           >
             <X className="w-5 h-5" />
           </button>
@@ -201,7 +213,7 @@ export function MileageModal({ isOpen, date, type, onClose, onSuccess }: Mileage
               placeholder="Enter current mileage"
               className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
               required
-              autoFocus
+              inputMode="decimal"
             />
             <p className="text-xs text-slate-500 mt-1">
               {type === 'start'
@@ -247,19 +259,20 @@ export function MileageModal({ isOpen, date, type, onClose, onSuccess }: Mileage
             <button
               type="button"
               onClick={onClose}
-              className="flex-1 px-4 py-2 border border-slate-300 rounded-lg text-slate-700 font-medium hover:bg-slate-50 transition-colors"
+              className="flex-1 px-4 py-2 min-h-[48px] border border-slate-300 rounded-lg text-slate-700 font-medium hover:bg-slate-50 transition-colors"
             >
               Cancel
             </button>
             <button
               type="submit"
               disabled={submitting}
-              className="flex-1 px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-slate-400 text-white font-medium rounded-lg transition-colors"
+              className="flex-1 px-4 py-2 min-h-[48px] bg-blue-600 hover:bg-blue-700 disabled:bg-slate-400 text-white font-medium rounded-lg transition-colors"
             >
               {submitting ? 'Saving...' : 'Save Mileage'}
             </button>
           </div>
         </form>
+      </div>
       </div>
     </div>
   );

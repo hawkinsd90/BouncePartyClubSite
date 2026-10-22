@@ -6,6 +6,7 @@ import { type OperationalEquipmentItem } from '../../lib/tasks/operationalEquipm
 import { loadGeneratorCategoryProductIds } from '../../lib/eventEssentials/customerGeneratorCart';
 import { buildCalendarTasks, calendarOrdersSelect, type PickupReadiness } from '../../lib/tasks/calendarTaskAssembly';
 import { useAuth } from '../../contexts/AuthContext';
+import { shouldRaiseLoading } from '../../lib/core/loadingPolicy';
 
 export type { PickupReadiness };
 export { derivePickupReadiness, derivePickupBlockReason } from '../../lib/tasks/calendarTaskAssembly';
@@ -88,14 +89,24 @@ export function useCalendarTasks(currentMonth: Date) {
     }
     debounceTimerRef.current = setTimeout(() => {
       debounceTimerRef.current = null;
-      loadTasksForMonth(currentMonthRef.current);
+      // A change made by someone else (or by this screen) refreshes quietly: no spinner, so open modals keep their unsaved work.
+      loadTasksForMonth(currentMonthRef.current, { background: true });
     }, 1000);
   });
 
+  const firstRoleRef = useRef(true);
   useEffect(() => {
     loadTasksForMonth(currentMonth);
-    // Reload when the role resolves: the first load can run before the roles are known.
-  }, [currentMonth, isAdmin]);
+  }, [currentMonth]);
+
+  // The first load can run before the roles are known: load again, quietly, once the role is resolved.
+  useEffect(() => {
+    if (firstRoleRef.current) {
+      firstRoleRef.current = false;
+      return;
+    }
+    loadTasksForMonth(currentMonthRef.current, { background: true });
+  }, [isAdmin]);
 
   useEffect(() => {
     const channel = supabase
@@ -129,14 +140,17 @@ export function useCalendarTasks(currentMonth: Date) {
     };
   }, []);
 
-  async function loadTasksForMonth(month: Date) {
+  // `background` loads (realtime changes, manual reload, a role resolving) never raise `loading`: the calendar and any open modal
+  // stay mounted. Only the first load and a month change show the spinner.
+  async function loadTasksForMonth(month: Date, options: { background?: boolean } = {}) {
+    const background = !!options.background;
     if (isLoadingRef.current) {
       pendingRefreshRef.current = true;
       return;
     }
     isLoadingRef.current = true;
     pendingRefreshRef.current = false;
-    setLoading(true);
+    if (shouldRaiseLoading({ background, hasData: false })) setLoading(true);
     try {
       const monthStart = startOfMonth(month);
       const monthEnd = endOfMonth(month);
@@ -208,10 +222,10 @@ export function useCalendarTasks(currentMonth: Date) {
       isLoadingRef.current = false;
       if (pendingRefreshRef.current) {
         pendingRefreshRef.current = false;
-        loadTasksForMonth(currentMonthRef.current);
+        loadTasksForMonth(currentMonthRef.current, { background: true });
       }
     }
   }
 
-  return { tasks, loading, reload: () => loadTasksForMonth(currentMonthRef.current) };
+  return { tasks, loading, reload: () => loadTasksForMonth(currentMonthRef.current, { background: true }) };
 }

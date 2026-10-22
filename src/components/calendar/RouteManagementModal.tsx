@@ -8,6 +8,7 @@ import { sortTasksByOrder, isTaskActiveRouteStop, isDropOffPlanningOnly } from '
 import { SimpleConfirmModal } from '../common/SimpleConfirmModal';
 import type { RouteOriginOptions } from '../../lib/routing/routeOptimization';
 import { getOrCreateTaskStatusRow } from '../../lib/tasks/taskStatusService';
+import { planRouteSave, runRouteSave } from '../../lib/tasks/routeSave';
 
 export type RouteStartMode = 'home_base' | 'last_completed' | 'current_location';
 
@@ -331,34 +332,31 @@ export function RouteManagementModal({
   async function handleSave() {
     setSaving(true);
     try {
-      const updates = localTasks.map((task, index) => {
-        if (!task.taskStatus?.id) return null;
-        return supabase
-          .from('task_status')
-          .update({ sort_order: index })
-          .eq('id', task.taskStatus.id);
-      }).filter(Boolean);
-
-      const excludedUpdates = excludedTasks
-        .filter(task => task.taskStatus?.id)
-        .map(task =>
-          supabase
-            .from('task_status')
-            .update({ sort_order: null })
-            .eq('id', task.taskStatus!.id)
-        );
-
-      await Promise.all([...updates, ...excludedUpdates]);
+      const toSaveTask = (t: Task) => ({ orderId: t.orderId, type: t.type, dateKey: format(t.date, 'yyyy-MM-dd'), taskStatusId: t.taskStatus?.id ?? null });
+      const plan = planRouteSave(localTasks.map(toSaveTask), excludedTasks.map(toSaveTask));
+      const result = await runRouteSave(supabase, plan);
+      if (!result.ok) {
+        // Keep the modal open with the work intact: nothing was reported as saved.
+        console.error('Error saving route:', result.errors);
+        showToast('The route could not be fully saved. Your changes are still here - please try again.', 'error');
+        return;
+      }
       showToast('Route saved successfully', 'success');
       setHasChanges(false);
       onUpdate();
       onClose();
     } catch (error: any) {
       console.error('Error saving route:', error);
-      showToast('Failed to save route', 'error');
+      showToast('Failed to save route. Your changes are still here - please try again.', 'error');
     } finally {
       setSaving(false);
     }
+  }
+
+  // The X button and Cancel share one guard: unsaved changes always ask first.
+  function requestClose() {
+    if (hasChanges) setShowCloseConfirm(true);
+    else onClose();
   }
 
   const startModeOptions: { value: RouteStartMode; label: string; icon: React.ReactNode; sublabel: string; available: boolean }[] = [
@@ -401,14 +399,9 @@ export function RouteManagementModal({
             </p>
           </div>
           <button
-            onClick={() => {
-              if (hasChanges) {
-                setShowCloseConfirm(true);
-              } else {
-                onClose();
-              }
-            }}
-            className="p-2 hover:bg-slate-100 rounded-lg transition-colors"
+            onClick={requestClose}
+            className="p-2 hover:bg-slate-100 rounded-lg transition-colors min-w-[44px] min-h-[44px] flex items-center justify-center"
+            aria-label="Close"
           >
             <X className="w-6 h-6" />
           </button>
@@ -485,7 +478,7 @@ export function RouteManagementModal({
                         <button
                           onClick={() => moveUp(index)}
                           disabled={index === 0}
-                          className="p-1 hover:bg-slate-200 rounded disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                          className="min-w-[44px] min-h-[44px] flex items-center justify-center hover:bg-slate-200 rounded disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
                           title="Move up"
                         >
                           <ChevronUp className="w-5 h-5 text-slate-600" />
@@ -493,7 +486,7 @@ export function RouteManagementModal({
                         <button
                           onClick={() => moveDown(index)}
                           disabled={index === localTasks.length - 1}
-                          className="p-1 hover:bg-slate-200 rounded disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                          className="min-w-[44px] min-h-[44px] flex items-center justify-center hover:bg-slate-200 rounded disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
                           title="Move down"
                         >
                           <ChevronDown className="w-5 h-5 text-slate-600" />
@@ -693,21 +686,18 @@ export function RouteManagementModal({
             </div>
           )}
 
-          <div className="flex gap-3 pt-4 border-t border-slate-200">
+          {/* Sticky so Save / Cancel stay reachable however long the route is (and above the phone keyboard). */}
+          <div className="sticky bottom-0 -mx-4 sm:-mx-6 -mb-4 sm:-mb-6 px-4 sm:px-6 py-3 flex gap-3 border-t border-slate-200 bg-white">
             <button
-              onClick={() => {
-                setLocalTasks(initialTasks);
-                setHasChanges(false);
-                onClose();
-              }}
-              className="flex-1 bg-slate-200 hover:bg-slate-300 text-slate-800 font-semibold py-3 px-4 rounded-lg transition-colors"
+              onClick={requestClose}
+              className="flex-1 bg-slate-200 hover:bg-slate-300 text-slate-800 font-semibold py-3 px-4 rounded-lg transition-colors min-h-[48px]"
             >
               Cancel
             </button>
             <button
               onClick={handleSave}
               disabled={!hasChanges || saving}
-              className="flex-1 bg-green-600 hover:bg-green-700 disabled:bg-slate-400 text-white font-semibold py-3 px-4 rounded-lg transition-colors"
+              className="flex-1 bg-green-600 hover:bg-green-700 disabled:bg-slate-400 text-white font-semibold py-3 px-4 rounded-lg transition-colors min-h-[48px]"
             >
               {saving ? 'Saving...' : 'Save Route'}
             </button>
