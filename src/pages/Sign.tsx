@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { FileCheck, AlertCircle, Loader2 } from 'lucide-react';
 import { fetchPortalData, PortalAccessError } from '../lib/portal/customerPortalApi';
+import { notifyError } from '../lib/toasts';
 import { trackEvent } from '../lib/core/siteEvents';
 import { SecureAccessRequired } from '../components/customer-portal/SecureAccessRequired';
 import { portalPathForCurrentVisitor, readPortalToken } from '../lib/portal/portalToken';
@@ -234,12 +235,15 @@ export default function Sign() {
         setError(
           `Please complete the missing initials:\n• ${missingSections.join('\n• ')}`
         );
-        // Try to scroll inside the waiver viewer first, then fall back to full-page scroll
+        // Bring the waiver into view on the page first (the viewer scrolls only its own box), then to the next missing initials.
+        document.getElementById('waiver-section')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
         const scrolled = waiverViewerRef.current?.scrollToNextIncompleteInitial();
         if (!scrolled) scrollToFirstIncomplete();
+        notifyError('Please complete the missing initials.');
       } else {
         setError('Please complete all required fields');
         scrollToFirstIncomplete();
+        notifyError('Please complete all required fields.');
       }
       return;
     }
@@ -714,7 +718,7 @@ export default function Sign() {
             <div className="flex gap-4">
               <button
                 type="button"
-                onClick={() => navigate(-1)}
+                onClick={() => navigate(orderId ? portalPathForCurrentVisitor(orderId) : '/customer-portal')}
                 className="flex-1 bg-slate-200 text-slate-700 rounded-xl px-6 py-4 font-bold hover:bg-slate-300 transition-all shadow-md"
                 disabled={submitting}
               >

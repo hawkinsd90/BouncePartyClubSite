@@ -21,6 +21,7 @@ import * as evidenceMedia from '../../../../supabase/functions/_shared/evidence/
 import * as siteOriginHelpers from '../../../../supabase/functions/_shared/siteOrigin';
 import * as returnOriginHelpers from '../../../../supabase/functions/_shared/booking/returnOrigin';
 import * as eeAvailability from '../../../../supabase/functions/_shared/booking/eeOrderItemAvailability';
+import * as signatureValidation from '../../../../supabase/functions/_shared/waiver/signature-validation';
 import * as bookingAvailability from '../../../../supabase/functions/_shared/booking/bookingAvailability';
 
 export type Row = Record<string, any>;
@@ -243,8 +244,9 @@ export function makeClient(db: Db, ctx: ClientContext = {}): any {
           let result: any;
           if (mode === 'update') {
             db.writes.push({ op: 'update', table, payload: payload as Row, filters: [...filters] });
-            for (const r of base()) Object.assign(r, payload);
-            result = { error: null };
+            const touched = base();
+            for (const r of touched) Object.assign(r, payload);
+            result = { data: touched.map((r) => ({ ...r })), error: null };
           } else if (mode === 'delete') {
             db.writes.push({ op: 'delete', table, filters: [...filters] });
             const doomed = base();
@@ -321,6 +323,7 @@ export function loadFunction(fnDir: string, h: Harness): (req: Request) => Promi
     ...orderMoney,
     ...mediaPaths,
     ...evidenceMedia,
+    ...signatureValidation,
     checkEventEssentialsAvailabilityWith: eeAvailability.checkEventEssentialsAvailabilityWith,
     supabaseAvailabilityPort: bookingAvailability.supabaseAvailabilityPort,
     getSiteOrigin: () => siteOriginHelpers.getSiteOrigin({ get: (k: string) => env[k] }),

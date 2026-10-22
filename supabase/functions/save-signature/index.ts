@@ -3,6 +3,7 @@ import { createClient } from "npm:@supabase/supabase-js@2.57.4";
 import { buildPortalUrl } from "../_shared/portal-link.ts";
 import { authorizePortalOrder, resolveCaller } from "../_shared/auth.ts";
 import { getSiteOrigin } from "../_shared/siteOrigin.ts";
+import { invalidSignatureField, parseSignatureDataUrl } from "../_shared/waiver/signature-validation.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -80,7 +81,7 @@ Deno.serve(async (req: Request) => {
 
     // The customer is derived from the order, never trusted from the request. A request that names a different customer is
     // rejected rather than silently corrected, because it means the page was tampered with.
-    const { data: orderRow } = await supabaseClient.from("orders").select("id, customer_id").eq("id", orderId).maybeSingle();
+    const { data: orderRow } = await supabaseClient.from("orders").select("id, customer_id, waiver_signed_at, signature_id").eq("id", orderId).maybeSingle();
     if (!orderRow) {
       return new Response(
         JSON.stringify({ success: false, error: "access_required" }),
@@ -91,6 +92,27 @@ Deno.serve(async (req: Request) => {
     if (claimedCustomerId && claimedCustomerId !== customerId) {
       return new Response(
         JSON.stringify({ success: false, error: "customer_mismatch" }),
+        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    // A double tap, a retry after a slow response or a second tab must not create a second signature, consent or PDF: an order that
+    // is already signed answers with the signature it has.
+    if (orderRow.waiver_signed_at && orderRow.signature_id) {
+      return new Response(
+        JSON.stringify({ success: true, alreadySigned: true, signatureId: orderRow.signature_id, message: "This waiver was already signed." }),
+        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    const invalidField = invalidSignatureField({
+      signatureDataUrl, initialsData, renterName, typedName, renterEmail, renterPhone, eventDate, eventEndDate,
+      eventAddressLine1, eventAddressLine2, eventCity, eventState, eventZip,
+      homeAddressLine1, homeAddressLine2, homeCity, homeState, homeZip, waiverVersion, waiverText, electronicConsentText,
+    });
+    if (invalidField) {
+      return new Response(
+        JSON.stringify({ success: false, error: "invalid_request", field: invalidField }),
         { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
@@ -106,8 +128,14 @@ Deno.serve(async (req: Request) => {
       mobile: req.headers.get("sec-ch-ua-mobile") === "?1",
     };
 
-    const base64Data = signatureDataUrl.split(",")[1];
-    const binaryData = Uint8Array.from(atob(base64Data), (c) => c.charCodeAt(0));
+    const image = parseSignatureDataUrl(signatureDataUrl);
+    if (!image.ok) {
+      return new Response(
+        JSON.stringify({ success: false, error: "invalid_request", field: "signatureDataUrl" }),
+        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+    const binaryData = image.bytes;
 
     const fileName = `${orderId}-${Date.now()}.png`;
     const { data: uploadData, error: uploadError } = await supabaseClient.storage
@@ -176,17 +204,29 @@ Deno.serve(async (req: Request) => {
       );
     }
 
-    const { error: orderUpdateError } = await supabaseClient
+    // Claim the order for this signature. Only one of two simultaneous submissions can find signature_id empty; the other one
+    // removes what it just wrote and answers with the winner's signature.
+    const { data: claimedRows, error: orderUpdateError } = await supabaseClient
       .from("orders")
       .update({
         waiver_signed_at: new Date().toISOString(),
         signature_id: signatureRecord.id,
         e_signature_consent: true,
       })
-      .eq("id", orderId);
+      .eq("id", orderId)
+      .is("signature_id", null)
+      .select("id");
 
     if (orderUpdateError) {
       console.error("Order update error:", orderUpdateError);
+    } else if (!claimedRows || claimedRows.length === 0) {
+      await supabaseClient.from("order_signatures").delete().eq("id", signatureRecord.id);
+      await supabaseClient.storage.from("signatures").remove([signatureImageUrl]);
+      const { data: winner } = await supabaseClient.from("orders").select("signature_id").eq("id", orderId).maybeSingle();
+      return new Response(
+        JSON.stringify({ success: true, alreadySigned: true, signatureId: winner?.signature_id ?? null, message: "This waiver was already signed." }),
+        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
     }
 
     const { error: consentError } = await supabaseClient

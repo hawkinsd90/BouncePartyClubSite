@@ -22,6 +22,8 @@ export default function WaiverTab({ orderId, token, onWaiverChange }: WaiverTabP
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [signatureData, setSignatureData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+  // The status request failed: say so with a Retry instead of showing "Waiver Required" for a waiver that may be signed.
+  const [statusError, setStatusError] = useState(false);
   const [downloadingBlank, setDownloadingBlank] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
@@ -33,6 +35,7 @@ export default function WaiverTab({ orderId, token, onWaiverChange }: WaiverTabP
   const loadSignatureData = async () => {
     try {
       setLoading(true);
+      setStatusError(false);
       const res = await fetch(`${SUPABASE_URL}/functions/v1/get-waiver-status`, {
         method: 'POST',
         headers: await waiverFunctionHeaders(),
@@ -43,6 +46,7 @@ export default function WaiverTab({ orderId, token, onWaiverChange }: WaiverTabP
       setSignatureData(data);
     } catch (err) {
       console.error('Error loading signature:', err);
+      setStatusError(true);
     } finally {
       setLoading(false);
     }
@@ -144,31 +148,22 @@ export default function WaiverTab({ orderId, token, onWaiverChange }: WaiverTabP
     );
   }
 
+  if (statusError) {
+    return (
+      <div className="max-w-2xl mx-auto bg-amber-50 border border-amber-200 rounded-lg p-5 text-center" role="alert">
+        <p className="text-sm font-semibold text-amber-900 mb-1">We couldn't check your waiver status</p>
+        <p className="text-xs text-amber-800 mb-4">Your waiver has not changed. Check your connection and try again.</p>
+        <button type="button" onClick={loadSignatureData} className="bg-amber-600 hover:bg-amber-700 text-white text-sm font-semibold px-4 py-2 rounded-lg min-h-[44px]">Try again</button>
+      </div>
+    );
+  }
+
   const waiverType = signatureData?.waiver_type as 'digital' | 'paper_with_photo' | 'paper_no_photo' | undefined;
   const isSigned = !!signatureData;
   const showUploadSection = !isSigned || waiverType === 'paper_no_photo';
 
   return (
     <div className="max-w-2xl mx-auto space-y-4">
-      {/* Blank waiver download — always visible */}
-      <div className="bg-slate-50 border border-slate-200 rounded-lg p-4 flex items-center justify-between gap-4">
-        <div className="flex items-center gap-3">
-          <Printer className="w-5 h-5 text-slate-500 flex-shrink-0" />
-          <div>
-            <p className="text-sm font-semibold text-slate-800">Download Blank Waiver</p>
-            <p className="text-xs text-slate-500">Print and sign by hand if requested by our crew.</p>
-          </div>
-        </div>
-        <button
-          onClick={handleDownloadBlank}
-          disabled={downloadingBlank}
-          className="flex items-center gap-2 bg-slate-700 hover:bg-slate-800 disabled:bg-slate-400 text-white text-sm font-semibold px-4 py-2 rounded-lg transition-colors whitespace-nowrap"
-        >
-          <Download className="w-4 h-4" />
-          {downloadingBlank ? 'Generating...' : 'Download PDF'}
-        </button>
-      </div>
-
       {/* Status badge */}
       {isSigned && (
         <div className={`rounded-lg p-4 flex items-start gap-3 ${
@@ -248,6 +243,25 @@ export default function WaiverTab({ orderId, token, onWaiverChange }: WaiverTabP
           </p>
         </div>
       )}
+
+      {/* Blank waiver download — always visible, below the Sign action so it never competes with it */}
+      <div className="bg-slate-50 border border-slate-200 rounded-lg p-4 flex items-center justify-between gap-4">
+        <div className="flex items-center gap-3">
+          <Printer className="w-5 h-5 text-slate-500 flex-shrink-0" />
+          <div>
+            <p className="text-sm font-semibold text-slate-800">Download Blank Waiver</p>
+            <p className="text-xs text-slate-500">Print and sign by hand if requested by our crew.</p>
+          </div>
+        </div>
+        <button
+          onClick={handleDownloadBlank}
+          disabled={downloadingBlank}
+          className="flex items-center gap-2 bg-slate-700 hover:bg-slate-800 disabled:bg-slate-400 text-white text-sm font-semibold px-4 py-2 rounded-lg transition-colors whitespace-nowrap"
+        >
+          <Download className="w-4 h-4" />
+          {downloadingBlank ? 'Generating...' : 'Download PDF'}
+        </button>
+      </div>
 
       {/* Physical waiver upload section — TODO: implement upload flow before enabling */}
       {false && showUploadSection && (

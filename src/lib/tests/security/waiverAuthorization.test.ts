@@ -211,6 +211,63 @@ const NONE = (h: Harness) => h.db.storageSigned.length === 0;
     ok('sign: missing required fields are still rejected (400)', r.status === 400);
   }
 
+  // ---- B7: one signature per signing, and a payload the signing page could really have produced ---------------------------------
+  {
+    const newRows = (h: Harness) => h.db.tables.order_signatures.filter((x: any) => x.order_id === 'order-A' && x.id !== 'sig-A');
+    const consents = (h: Harness) => h.db.writes.filter((w) => w.table === 'consent_records');
+
+    // first signing works and marks the order
+    const first = await sign(ANON_KEY, sigBody({ token: TOK_A }));
+    ok('B7 sign: the order records the new signature id and time', first.r.status === 200 && newRows(first.h).length === 1 && (first.h.db.tables.orders.find((o: any) => o.id === 'order-A') as any).signature_id === first.r.json.signatureId);
+
+    // a second submission after the first (retry / second tab) returns the existing record and writes nothing
+    const h = world();
+    const a = await sign(ANON_KEY, sigBody({ token: TOK_A }), h);
+    const uploadsAfterFirst = h.db.storageUploads.length;
+    const writesAfterFirst = h.db.writes.length;
+    const fetchesAfterFirst = h.fetches.length;
+    const b = await sign(ANON_KEY, sigBody({ token: TOK_A }), h);
+    ok('B7 sign: a second submission succeeds and says the waiver was already signed', b.r.status === 200 && b.r.json?.success === true && b.r.json?.alreadySigned === true && b.r.json?.signatureId === a.r.json?.signatureId);
+    ok('B7 sign: ... and creates nothing (no second image, signature row, consent, PDF or email)', h.db.storageUploads.length === uploadsAfterFirst && h.db.writes.length === writesAfterFirst && h.fetches.length === fetchesAfterFirst && newRows(h).length === 1 && consents(h).length === 1);
+    const c = await sign('jwt-A', sigBody(), h);
+    ok('B7 sign: the signed-in owner also gets the existing signature', c.r.json?.alreadySigned === true && newRows(h).length === 1);
+
+    // two submissions at the same moment: one record survives
+    const race = world();
+    const [r1, r2] = await Promise.all([sign(ANON_KEY, sigBody({ token: TOK_A }), race), sign(ANON_KEY, sigBody({ token: TOK_A }), race)]);
+    ok('B7 race: both requests answer success', r1.r.status === 200 && r2.r.status === 200 && r1.r.json?.success && r2.r.json?.success);
+    ok('B7 race: exactly one signature row, one consent record and one PDF request remain', newRows(race).length === 1 && consents(race).length === 1 && race.fetches.filter((f) => /generate-signed-waiver$/.test(f.url)).length === 1);
+    ok('B7 race: both requests name the same signature, and the order points at it', r1.r.json.signatureId === r2.r.json.signatureId && r1.r.json.signatureId === (race.db.tables.orders.find((o: any) => o.id === 'order-A') as any).signature_id);
+    ok('B7 race: the loser removes the image it uploaded', race.db.storageRemoved.length === 1 && race.db.storageRemoved[0].startsWith('signatures:order-A-'));
+
+    // payload validation: refused before anything is written
+    const PNG8 = 'iVBORw0KGgo=';
+    const bad: Array<[string, Record<string, unknown>, string]> = [
+      ['a JPEG data URL', { signatureDataUrl: 'data:image/jpeg;base64,' + PNG8 }, 'signatureDataUrl'],
+      ['a non-image string', { signatureDataUrl: 'hello' }, 'signatureDataUrl'],
+      ['an SVG data URL', { signatureDataUrl: 'data:image/svg+xml;base64,PHN2Zz48L3N2Zz4=' }, 'signatureDataUrl'],
+      ['PNG-labelled bytes that are not a PNG', { signatureDataUrl: 'data:image/png;base64,' + Buffer.from('not a png file').toString('base64') }, 'signatureDataUrl'],
+      ['invalid base64', { signatureDataUrl: 'data:image/png;base64,@@@@' }, 'signatureDataUrl'],
+      ['an oversized image', { signatureDataUrl: 'data:image/png;base64,' + Buffer.concat([Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]), Buffer.alloc(1_600_000)]).toString('base64') }, 'signatureDataUrl'],
+      ['initials that are not an object', { initialsData: 'AA' }, 'initialsData'],
+      ['initials as an array', { initialsData: ['AA'] }, 'initialsData'],
+      ['an initials value that is not short text', { initialsData: { Assumption: 'A'.repeat(50) } }, 'initialsData'],
+      ['an initials value that is a number', { initialsData: { Assumption: 12 } }, 'initialsData'],
+      ['a name that is far too long', { renterName: 'N'.repeat(500) }, 'renterName'],
+      ['an email without an @', { renterEmail: 'nobody' }, 'renterEmail'],
+      ['an event date that is not a date', { eventDate: 'tomorrow' }, 'eventDate'],
+      ['an object where text is expected', { eventCity: { a: 1 } }, 'eventCity'],
+    ];
+    for (const [label, over, field] of bad) {
+      const { h: hh, r } = await sign(ANON_KEY, sigBody({ token: TOK_A, ...over }));
+      ok('B7 validate: ' + label + ' is refused with 400 naming the field', r.status === 400 && r.json?.error === 'invalid_request' && r.json?.field === field);
+      ok('B7 validate: ... and writes nothing', noSideEffects(hh));
+    }
+    const src = read('supabase/functions/save-signature/index.ts');
+    ok('B7 source: validation comes after authorization and before the first upload', src.indexOf('authorizePortalOrder(') < src.indexOf('invalidSignatureField(') && src.indexOf('invalidSignatureField(') < src.indexOf('.storage'));
+    ok('B7 source: the already-signed answer comes before validation and upload', src.indexOf('alreadySigned: true') < src.indexOf('invalidSignatureField(') );
+  }
+
   // ======================================================================================================================
   // generate-signed-waiver: the backend only
   // ======================================================================================================================
@@ -269,7 +326,7 @@ const NONE = (h: Harness) => h.db.storageSigned.length === 0;
   eq('config: get-waiver-status does not verify a JWT; the function authorizes the order itself', verify('get-waiver-status'), 'false');
   eq('config: upload-physical-waiver verifies a JWT (the public anon key qualifies) and then authorizes the order itself', verify('upload-physical-waiver'), 'true');
   const sigSrc = read('supabase/functions/save-signature/index.ts');
-  ok('source: save-signature authorizes before it decodes or uploads anything', sigSrc.indexOf('authorizePortalOrder(') > 0 && sigSrc.indexOf('authorizePortalOrder(') < sigSrc.indexOf('atob(') && sigSrc.indexOf('authorizePortalOrder(') < sigSrc.indexOf('.storage'));
+  ok('source: save-signature authorizes before it decodes or uploads anything', sigSrc.indexOf('authorizePortalOrder(') > 0 && sigSrc.indexOf('authorizePortalOrder(') < sigSrc.indexOf('parseSignatureDataUrl(signatureDataUrl)') && !sigSrc.includes('atob(') && sigSrc.indexOf('authorizePortalOrder(') < sigSrc.indexOf('.storage'));
   ok('source: save-signature derives the customer from the order and never uses the claimed id', /customerId = orderRow\.customer_id/.test(sigSrc) && !/customer_id: claimedCustomerId/.test(sigSrc) && !/customer_id: customerId,[\s\S]{0,40}signer/.test('') );
   const genSrc = read('supabase/functions/generate-signed-waiver/index.ts');
   ok('source: generate-signed-waiver checks the caller before its first database read', genSrc.indexOf('resolveCaller(') > 0 && genSrc.indexOf('resolveCaller(') < genSrc.indexOf('.from("order_signatures")'));

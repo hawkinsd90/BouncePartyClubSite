@@ -52,6 +52,8 @@ interface SimpleInvoiceDisplayProps {
   showPricingNotice?: boolean;
   contactData?: ContactData;
   onPrint: () => void;
+  // 'external': the parent draws the Print button itself (below its own Accept action). Default keeps Print at the bottom of the invoice.
+  printPlacement?: 'inline' | 'external';
 }
 
 export function SimpleInvoiceDisplay({
@@ -78,6 +80,7 @@ export function SimpleInvoiceDisplay({
   showPricingNotice = true,
   contactData,
   onPrint,
+  printPlacement = 'inline',
 }: SimpleInvoiceDisplayProps) {
   const navigate = useNavigate();
   return (
@@ -254,14 +257,17 @@ export function SimpleInvoiceDisplay({
         </div>
       )}
 
-      <button
-        type="button"
-        onClick={onPrint}
-        className="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 px-6 rounded-lg transition-colors flex items-center justify-center no-print"
-      >
-        <Printer className="w-5 h-5 mr-2" />
-        Print / Save PDF
-      </button>
+      {/* The screen that owns an Accept button draws Print itself, below it ("external"), so Print never competes with Accept. */}
+      {printPlacement !== 'external' && (
+        <button
+          type="button"
+          onClick={onPrint}
+          className="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 px-6 rounded-lg transition-colors flex items-center justify-center no-print"
+        >
+          <Printer className="w-5 h-5 mr-2" />
+          Print / Save PDF
+        </button>
+      )}
     </div>
   );
 }

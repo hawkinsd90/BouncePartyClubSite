@@ -111,7 +111,7 @@ const WaiverViewer = forwardRef<WaiverViewerHandle, WaiverViewerProps>(function 
             <p className={`text-xs mb-3 ${isSigned ? 'text-green-700' : 'text-amber-800'}`}>
               Acknowledging: <span className="font-semibold">{sectionKey}</span>
             </p>
-            <div className="flex items-center gap-3">
+            <div className="flex flex-wrap items-center gap-3">
               <label htmlFor={`${inputId}-input`} className="text-sm font-semibold text-gray-700 whitespace-nowrap">
                 Your initials:
               </label>

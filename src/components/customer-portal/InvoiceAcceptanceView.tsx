@@ -7,6 +7,7 @@ import {
   CheckCircle,
   AlertCircle,
   Shield,
+  Printer,
 } from 'lucide-react';
 import { OrderSummaryDisplay } from '../../lib/orders/orderSummaryLoader';
 import { SimpleInvoiceDisplay } from '../shared/SimpleInvoiceDisplay';
@@ -23,6 +24,7 @@ import {
   generateConfirmationSmsMessage,
 } from '../../lib/notifications/orderEmailTemplates';
 import { formatOrderId } from '../../lib/utils';
+import { invoiceAcceptBlockers } from '../../lib/orders/invoiceAcceptBlockers';
 import { createShortPortalLink } from '../../lib/portal/portalShortLink';
 import { portalPathForCurrentVisitor } from '../../lib/portal/portalToken';
 import { ReferralSourceSelect } from '../shared/ReferralSourceSelect';
@@ -481,6 +483,24 @@ export function InvoiceAcceptanceView({
     window.open('/invoice-preview', '_blank');
   };
 
+  // What the customer still has to do before Accept works (also drives the disabled state).
+  const acceptBlockers = invoiceAcceptBlockers({
+    processing,
+    isNoCardRequired,
+    isCardSetupOnly,
+    cardOnFileConsent,
+    smsConsent,
+    nextDayPickup: order.pickup_preference === 'next_day',
+    overnightResponsibilityAccepted,
+    paymentAmount: String(paymentAmount),
+    customPaymentAmount: String(customPaymentAmount ?? ''),
+    needsCustomerInfo,
+    customerInfo,
+    howDidYouHearEnabled,
+    referralAlreadyCaptured,
+    referralSource,
+  });
+
   return (
     <div className="min-h-screen bg-slate-50 py-12 px-4 sm:px-6 lg:px-8">
       <div className="max-w-3xl mx-auto" id="print-content-wrapper">
@@ -514,9 +534,10 @@ export function InvoiceAcceptanceView({
             business_name: customerInfo.business_name || order.customers?.business_name || '',
           }}
           onPrint={handlePrintInvoice}
+          printPlacement="external"
         />
 
-        <div className="bg-white rounded-lg shadow-md p-8 mt-6 no-print">
+        <div className="bg-white rounded-lg shadow-md p-4 sm:p-8 mt-6 no-print">
           {isNoCardRequired ? (
             <div className="mb-6 bg-green-50 border border-green-200 rounded-lg p-4 text-center">
               <CheckCircle className="w-8 h-8 text-green-600 mx-auto mb-2" />
@@ -689,23 +710,8 @@ export function InvoiceAcceptanceView({
 
           <button
             onClick={handleAcceptInvoice}
-            disabled={
-              processing ||
-              (!isNoCardRequired && !cardOnFileConsent) ||
-              !smsConsent ||
-              (order.pickup_preference === 'next_day' &&
-                !overnightResponsibilityAccepted) ||
-              (!isNoCardRequired &&
-                !isCardSetupOnly &&
-                paymentAmount === 'custom' &&
-                !customPaymentAmount) ||
-              (needsCustomerInfo &&
-                (!customerInfo.first_name ||
-                  !customerInfo.last_name ||
-                  !customerInfo.email ||
-                  !customerInfo.phone)) ||
-              (howDidYouHearEnabled && !referralAlreadyCaptured && !referralSource)
-            }
+            disabled={processing || acceptBlockers.length > 0}
+            aria-describedby={acceptBlockers.length > 0 ? 'accept-blockers' : undefined}
             className="w-full bg-blue-600 hover:bg-blue-700 disabled:bg-slate-400 text-white font-semibold py-4 px-6 rounded-lg transition-colors flex items-center justify-center"
           >
             {processing ? (
@@ -736,6 +742,26 @@ export function InvoiceAcceptanceView({
             )}
           </button>
 
+          {acceptBlockers.length > 0 && !processing && (
+            <div id="accept-blockers" className="mt-3 bg-amber-50 border border-amber-200 rounded-lg p-3 text-sm text-amber-900" role="status">
+              <p className="font-semibold mb-1">Still needed before you can accept:</p>
+              <ul className="list-disc pl-5 space-y-0.5">
+                {acceptBlockers.map((b) => (
+                  <li key={b}>{b}</li>
+                ))}
+              </ul>
+            </div>
+          )}
+
+          <button
+            type="button"
+            onClick={handlePrintInvoice}
+            className="w-full mt-3 text-slate-700 hover:text-slate-900 font-medium py-2 px-4 rounded-lg border border-slate-300 hover:bg-slate-50 transition-colors flex items-center justify-center min-h-[44px]"
+          >
+            <Printer className="w-4 h-4 mr-2" />
+            Print / Save PDF
+          </button>
+
           <p className="text-xs text-slate-500 text-center mt-4">
             {isNoCardRequired
               ? 'By accepting, you confirm your booking. Full balance is due on event day.'
@@ -749,10 +775,10 @@ export function InvoiceAcceptanceView({
           <button
             type="button"
             onClick={() => setShowCancelModal(true)}
-            className="w-full mt-4 bg-red-50 hover:bg-red-100 text-red-600 font-semibold py-3 px-6 rounded-lg transition-colors border-2 border-red-200"
+            className="w-full mt-6 text-sm text-slate-500 hover:text-red-600 underline underline-offset-2 py-2 min-h-[44px] transition-colors"
             disabled={processing}
           >
-            Cancel This Order
+            Cancel this order
           </button>
         </div>
 
