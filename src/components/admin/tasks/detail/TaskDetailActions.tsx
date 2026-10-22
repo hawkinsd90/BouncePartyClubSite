@@ -1,6 +1,6 @@
 import { Navigation, CheckCircle, Camera, MessageCircle, Star, AlertTriangle, Upload } from 'lucide-react';
 
-import { buttonLabel, workingLabel, type TaskBusyAction } from '../../../../lib/tasks/taskProgress';
+import { buttonLabel, completionDisabled, workingLabel, type TaskBusyAction } from '../../../../lib/tasks/taskProgress';
 
 interface Props {
   isDropOff: boolean;
@@ -8,6 +8,7 @@ interface Props {
   currentStatus: string;
   processing: boolean;
   uploadingImages: boolean;
+  uploadCount?: number;
   onEnRoute: () => void;
   onArrived: () => void;
   onImageUpload: (isDamage?: boolean) => void;
@@ -18,11 +19,11 @@ interface Props {
 }
 
 export function TaskDetailActions({
-  isDropOff, isToday, currentStatus: _currentStatus, processing, uploadingImages,
+  isDropOff, isToday, currentStatus: _currentStatus, processing, uploadingImages, uploadCount,
   onEnRoute, onArrived, onImageUpload, onDropOffComplete, onPickupComplete, onPaperWaiverUpload,
   busyAction = null,
 }: Props) {
-  const working = workingLabel(busyAction, uploadingImages);
+  const working = workingLabel(busyAction, uploadingImages, uploadCount);
   return (
     <div className="border-t border-slate-200 pt-6">
       <h3 className="font-bold text-slate-900 mb-4">{isDropOff ? 'Delivery Actions' : 'Pickup Actions'}</h3>
@@ -61,7 +62,7 @@ export function TaskDetailActions({
 
             <button
               onClick={onDropOffComplete}
-              disabled={processing || !isToday}
+              disabled={completionDisabled({ processing, isToday, uploadingImages })}
               className="flex items-center justify-center gap-2 bg-slate-600 hover:bg-slate-700 disabled:bg-slate-300 text-white font-semibold py-3 px-4 rounded-lg transition-colors"
             >
               <MessageCircle className="w-5 h-5" />
@@ -83,7 +84,7 @@ export function TaskDetailActions({
           <>
             <button
               onClick={onPickupComplete}
-              disabled={processing || !isToday}
+              disabled={completionDisabled({ processing, isToday, uploadingImages })}
               className="flex items-center justify-center gap-2 bg-green-600 hover:bg-green-700 disabled:bg-slate-300 text-white font-semibold py-3 px-4 rounded-lg transition-colors"
             >
               <Star className="w-5 h-5" />

@@ -3,7 +3,10 @@
 // PASS - LOCAL AUTOMATED. 320/360/390 passes, the camera/file pickers on iOS and Android, and the two-device checks are REQUIRES HOSTED DEV VERIFICATION.
 import { readFileSync } from 'node:fs';
 import { balanceDueLabel, equipmentSummary, eventTimeRange, statusLabel } from '../../tasks/taskCardFormat';
-import { buttonLabel, workingLabel } from '../../tasks/taskProgress';
+import { createRequire } from 'node:module';
+import { buttonLabel, completionDisabled, noticeForFailure, noticeForResult, uploadingLabel, workingLabel } from '../../tasks/taskProgress';
+
+const require = createRequire(import.meta.url);
 import { invoiceBlockedReason } from '../../payments/invoiceReadiness';
 import { filterCustomers } from '../../core/customerSearch';
 
@@ -75,7 +78,7 @@ eq('working label: uploads show only when no action runs; nothing otherwise', [w
 eq('button label swaps only for the active button', [buttonLabel('En Route', 'Working...', true), buttonLabel('En Route', 'Working...', false)], ['Working...', 'En Route']);
 const bar = read('src/components/admin/tasks/detail/TaskDetailMobileActionBar.tsx');
 const actions = read('src/components/admin/tasks/detail/TaskDetailActions.tsx');
-ok('both action sets show a status line and busy button text', /workingLabel\(busyAction, uploadingImages\)/.test(bar) && /workingLabel\(busyAction, uploadingImages\)/.test(actions) && /role="status"/.test(bar) && /role="status"/.test(actions) && (bar.match(/buttonLabel\(/g) ?? []).length === 5 && (actions.match(/buttonLabel\(/g) ?? []).length === 4);
+ok('both action sets show a status line and busy button text', /workingLabel\(busyAction, uploadingImages, uploadCount\)/.test(bar) && /workingLabel\(busyAction, uploadingImages, uploadCount\)/.test(actions) && /role="status"/.test(bar) && /role="status"/.test(actions) && (bar.match(/buttonLabel\(/g) ?? []).length === 5 && (actions.match(/buttonLabel\(/g) ?? []).length === 4);
 ok('the modal records which action is running and clears it in every finally', (modal.match(/setBusyAction\('(en_route|arrived|drop_off|pickup)'\)/g) ?? []).length === 4 && (modal.match(/finally \{ setProcessing\(false\); setBusyAction\(null\); \}/g) ?? []).length === 4);
 ok('the header and the phone action bar share ONE sticky block (the bar no longer guesses the header height with top-[60px])', !/top-\[60px\]/.test(bar) && /sticky top-0 z-10 flex-shrink-0 bg-white/.test(modal) && !/sticky/.test(read('src/components/admin/tasks/detail/TaskDetailHeader.tsx')));
 ok('reordering is a toast (not a blocking alert) and cannot be double-tapped', /showToast\(`Task moved \$\{direction\}`, 'success'/.test(modal) && /showToast\('Failed to reorder: '/.test(modal) && !/showAlert\(`Task moved/.test(modal) && /if \(reordering\) return;/.test(modal) && /canMoveUp=\{canMoveUp && !reordering\}/.test(modal));
@@ -179,5 +182,44 @@ ok('calendar reloads quietly (no spinner, open dialogs stay) when the page is sh
 const lotPics = read('src/components/pending-order/LotPicturesDisplay.tsx');
 ok('lot pictures reload when the admin returns to the page', /useRefetchOnReturn\(\(\) => \{ void loadPictures\(\); \}\);/.test(lotPics));
 
-console.log(`adminCrewScreens: ${passed} passed, ${failed} failed`);
+// --- photo upload states (owner section 4): started, in progress, succeeded, failed, retry, completion protected ---------------------------------
+{
+  const working = workingLabel;
+  eq('started/in progress: the line says how many photos are going up', [uploadingLabel(1), uploadingLabel(3)], ['Uploading photo... keep this screen open.', 'Uploading 3 photos... keep this screen open.']);
+  eq('the status line carries the count when it is known, and stays generic otherwise', [working(null, true, 4), working(null, true), working('arrived', true, 4)], ['Uploading 4 photos... keep this screen open.', 'Uploading photos...', 'Sending Arrived notice...']);
+  eq('succeeded: a green notice with nothing to retry', noticeForResult('2 delivery photo(s) uploaded and saved successfully!', 2, 0), { tone: 'success', message: '2 delivery photo(s) uploaded and saved successfully!', retryCount: 0 });
+  eq('partly skipped: a warning that keeps the saved count and offers no retry (skipped files must be retaken)', noticeForResult('m', 1, 2), { tone: 'warning', message: 'm', retryCount: 0 });
+  eq('nothing saved because every file was skipped: an error with no retry', noticeForResult('m', 0, 2), { tone: 'error', message: 'm', retryCount: 0 });
+  eq('failed: an error that says nothing was saved and keeps every file for a one-tap retry', noticeForFailure('Failed to upload photos. Please try again.', 3), { tone: 'error', message: 'Failed to upload photos. Please try again. Nothing from this batch was saved.', retryCount: 3 });
+  eq('completion is off while photos are uploading, while another action runs, or when it is not today', [completionDisabled({ processing: false, isToday: true, uploadingImages: false }), completionDisabled({ processing: false, isToday: true, uploadingImages: true }), completionDisabled({ processing: true, isToday: true, uploadingImages: false }), completionDisabled({ processing: false, isToday: false, uploadingImages: false })], [false, true, true, true]);
+
+  // executed: the notice as the crew sees it
+  const tsc = require('typescript');
+  const path = require('path');
+  const { renderToStaticMarkup } = require('react-dom/server');
+  const { createElement } = require('react');
+  const abs = path.resolve('src/components/admin/tasks/detail/PhotoUploadNotice.tsx');
+  const js = tsc.transpileModule(readFileSync(abs, 'utf8'), { compilerOptions: { jsx: tsc.JsxEmit.ReactJSX, module: tsc.ModuleKind.CommonJS, target: tsc.ScriptTarget.ES2020 } }).outputText;
+  const mod: any = { exports: {} };
+  new Function('require', 'module', 'exports', js)(require, mod, mod.exports);
+  const render = (n: unknown) => renderToStaticMarkup(createElement(mod.exports.PhotoUploadNotice, { notice: n, onRetry() {}, onDismiss() {} }));
+  eq('no notice renders nothing', render(null), '');
+  const failed = render(noticeForFailure('Failed to upload photos. Please try again.', 2));
+  ok('a failed batch renders an alert with "Try again (2 photos)" and Dismiss, both 44px', /role="alert"/.test(failed) && /Try again \(2 photos\)/.test(failed) && />Dismiss</.test(failed) && (failed.match(/min-h-\[44px\]/g) ?? []).length === 2);
+  ok('a single failed photo reads "1 photo"', /Try again \(1 photo\)/.test(render(noticeForFailure('x', 1))));
+  const done = render(noticeForResult('1 delivery photo(s) uploaded and saved successfully!', 1, 0));
+  ok('a success renders a status with Dismiss and no retry', /role="status"/.test(done) && !/Try again/.test(done) && />Dismiss</.test(done));
+  ok('a warning keeps its multi-line text', /whitespace-pre-line/.test(render(noticeForResult('a\nb', 1, 1))));
+
+  // wiring
+  const mdl = read('src/components/admin/tasks/TaskDetailModal.tsx');
+  ok('the modal keeps a failed batch and retries it without the picker', /failedBatchRef\.current = \{ files, isDamage \};/.test(mdl) && /function retryFailedUpload\(\)/.test(mdl) && /onRetry=\{retryFailedUpload\}/.test(mdl));
+  ok('the upload result is an inline notice (no blocking alert for it)', /setUploadNotice\(noticeForResult\(/.test(mdl) && !/showAlert\(buildPhotoUploadSummary/.test(mdl) && !/showAlert\('Failed to upload photos/.test(mdl));
+  ok('a second upload cannot start while one is running, and completion handlers refuse during an upload', /async function runPhotoUpload[^\n]*\n\s+if \(uploadingImages\) return;/.test(mdl) && /async function handleDropOffComplete\(\) \{\n\s+if \(uploadingImages\) return;/.test(mdl) && /async function handlePickupComplete\(\) \{\n\s+if \(uploadingImages\) return;/.test(mdl));
+  ok('leaving the page mid-upload asks the browser to confirm', /addEventListener\('beforeunload', warn\)/.test(mdl) && /\[uploadingImages\]\);/.test(mdl));
+  ok('the notice sits in the sticky block, visible on phone and desktop', /<PhotoUploadNotice[^\n]*\/>\n\s+<\/div>\n\n\s+<div className="p-4 sm:p-6 space-y-6">/.test(mdl));
+  ok('both action sets disable completion through the shared rule and show the count', /completionDisabled\(\{ processing, isToday, uploadingImages \}\)/.test(actions) && /completionDisabled\(\{ processing, isToday: true, uploadingImages \}\)/.test(bar) && /workingLabel\(busyAction, uploadingImages, uploadCount\)/.test(actions) && /workingLabel\(busyAction, uploadingImages, uploadCount\)/.test(bar) && /uploadCount=\{uploadCount\}/.test(mdl));
+}
+
+console.log(`adminCrewScreens:${passed} passed, ${failed} failed`);
 if (failed > 0) throw new Error(`${failed} admin/crew screen test(s) failed`);

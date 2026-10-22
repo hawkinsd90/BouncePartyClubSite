@@ -8,7 +8,7 @@ import type { ShortPortalLinkResult } from '../../../lib/portal/portalShortLink'
 import { decideActionRequiredSms, decideEnRouteReminders } from '../../../lib/notifications/notificationDecision';
 import { showAlert, showConfirm, showModal } from '../../common/CustomModal';
 import { showToast } from '../../../lib/toasts';
-import { type TaskBusyAction } from '../../../lib/tasks/taskProgress';
+import { type TaskBusyAction, type UploadNotice, noticeForFailure, noticeForResult } from '../../../lib/tasks/taskProgress';
 import { getCurrentLocation, calculateETA } from '../../../lib/routing/crewLocationEta';
 import { Task } from '../../../hooks/admin/useCalendarTasks';
 import { getStopNumber } from '../../../lib/tasks/calendarUtils';
@@ -37,6 +37,7 @@ import { localDateKey } from '../../../lib/core/localDate';
 import { decideEvidence, isEvidenceRequiredError, parseEvidenceState, type EvidenceKind } from '../../../lib/tasks/evidenceRule';
 import { EvidenceOverrideModal } from './detail/EvidenceOverrideModal';
 import { ReasonModal } from './detail/ReasonModal';
+import { PhotoUploadNotice } from './detail/PhotoUploadNotice';
 import { shouldBlockForStartMileage, START_MILEAGE_PROMPTS, type MileageGatedAction } from '../../../lib/core/startMileage';
 
 export type { Task };
@@ -62,6 +63,10 @@ export function TaskDetailModal({ task, allTasks, onClose, onUpdate, onRefresh, 
   const [busyAction, setBusyAction] = useState<TaskBusyAction | null>(null);
   const [reordering, setReordering] = useState(false);
   const [uploadingImages, setUploadingImages] = useState(false);
+  const [uploadCount, setUploadCount] = useState(0);
+  // The result of the last upload stays visible; a failed batch keeps its files so one tap retries it.
+  const [uploadNotice, setUploadNotice] = useState<UploadNotice | null>(null);
+  const failedBatchRef = useRef<{ files: File[]; isDamage?: boolean } | null>(null);
   const [refreshing, setRefreshing] = useState(false);
   const [lastUpdated, setLastUpdated] = useState(new Date());
   const [chargingCard, setChargingCard] = useState(false);
@@ -364,6 +369,14 @@ export function TaskDetailModal({ task, allTasks, onClose, onUpdate, onRefresh, 
     finally { setProcessing(false); setBusyAction(null); }
   }
 
+  // Leaving or reloading the page while photos are going up would lose them: the browser asks first.
+  useEffect(() => {
+    if (!uploadingImages) return;
+    const warn = (ev: BeforeUnloadEvent) => { ev.preventDefault(); ev.returnValue = ''; };
+    window.addEventListener('beforeunload', warn);
+    return () => window.removeEventListener('beforeunload', warn);
+  }, [uploadingImages]);
+
   function handleImageUpload(isDamage?: boolean) {
     photoKindRef.current = { isDamage };
     photoInputRef.current?.click();
@@ -373,40 +386,54 @@ export function TaskDetailModal({ task, allTasks, onClose, onUpdate, onRefresh, 
     const isDamage = photoKindRef.current.isDamage;
     const files: File[] = Array.from(e.target.files || []);
     e.target.value = '';
-    {
-      if (files.length === 0) return;
+    if (files.length === 0) return;
+    await runPhotoUpload(files, isDamage);
+  }
 
-      console.log(`[photos] Selected ${files.length} file(s) for ${isDamage ? 'damage' : 'delivery'} upload`);
+  async function runPhotoUpload(files: File[], isDamage?: boolean) {
+    if (uploadingImages) return;
+    console.log(`[photos] Selected ${files.length} file(s) for ${isDamage ? 'damage' : 'delivery'} upload`);
 
-      setUploadingImages(true);
+    setUploadNotice(null);
+    failedBatchRef.current = null;
+    setUploadCount(files.length);
+    setUploadingImages(true);
 
-      try {
-        const taskStatusId = await ensureTaskStatus();
+    try {
+      const taskStatusId = await ensureTaskStatus();
 
-        const result = await uploadTaskPhotos(
-          { files, orderId: task.orderId, taskType: task.type, taskStatusId, isDamage },
-          { client: supabase },
-        );
-        if (result.uploadedPaths.length > 0) {
-          refresh();
-        }
-
-        showAlert(buildPhotoUploadSummary(result, isDamage));
-      } catch (e: any) {
-        console.error('[photos] Upload error:', e);
-        const msg = (e.message || '').toLowerCase();
-        if (msg.includes('size') || msg.includes('maximum')) {
-          showAlert('Photo is too large. Please try again, or take a lower-resolution photo.');
-        } else {
-          showAlert('Failed to upload photos. Please try again.');
-        }
-      } finally {
-        setUploadingImages(false);
+      const result = await uploadTaskPhotos(
+        { files, orderId: task.orderId, taskType: task.type, taskStatusId, isDamage },
+        { client: supabase },
+      );
+      if (result.uploadedPaths.length > 0) {
+        refresh();
       }
+
+      setUploadNotice(noticeForResult(buildPhotoUploadSummary(result, isDamage), result.uploadedPaths.length, result.skippedHeic.length + result.skippedLarge.length));
+    } catch (e: any) {
+      console.error('[photos] Upload error:', e);
+      const msg = (e.message || '').toLowerCase();
+      failedBatchRef.current = { files, isDamage };
+      setUploadNotice(noticeForFailure(
+        msg.includes('size') || msg.includes('maximum')
+          ? 'A photo is too large. Try again, or take a lower-resolution photo.'
+          : 'Failed to upload photos. Please try again.',
+        files.length,
+      ));
+    } finally {
+      setUploadingImages(false);
+      setUploadCount(0);
     }
   }
 
+  function retryFailedUpload() {
+    const batch = failedBatchRef.current;
+    if (batch) void runPhotoUpload(batch.files, batch.isDamage);
+  }
+
   async function handleDropOffComplete() {
+    if (uploadingImages) return;
     if (!(await passesStartMileageGate('drop_off'))) return;
     if (!(await passesEvidenceGate('delivery'))) return;
     const hasPhotos = (task.taskStatus?.deliveryImages?.length ?? 0) > 0;
@@ -440,6 +467,7 @@ export function TaskDetailModal({ task, allTasks, onClose, onUpdate, onRefresh, 
   }
 
   async function handlePickupComplete() {
+    if (uploadingImages) return;
     if (!(await passesStartMileageGate('pickup'))) return;
     if (!(await passesEvidenceGate('pickup'))) return;
 
@@ -758,6 +786,7 @@ export function TaskDetailModal({ task, allTasks, onClose, onUpdate, onRefresh, 
             isDropOff={isDropOff}
             processing={processing}
             uploadingImages={uploadingImages}
+            uploadCount={uploadCount}
             onEnRoute={handleEnRoute}
             onArrived={handleArrived}
             onImageUpload={handleImageUpload}
@@ -766,6 +795,7 @@ export function TaskDetailModal({ task, allTasks, onClose, onUpdate, onRefresh, 
             busyAction={busyAction}
           />
         )}
+        <PhotoUploadNotice notice={uploadNotice} onRetry={retryFailedUpload} onDismiss={() => { setUploadNotice(null); failedBatchRef.current = null; }} />
         </div>
 
         <div className="p-4 sm:p-6 space-y-6">
@@ -813,6 +843,7 @@ export function TaskDetailModal({ task, allTasks, onClose, onUpdate, onRefresh, 
             currentStatus={currentStatus}
             processing={processing}
             uploadingImages={uploadingImages}
+            uploadCount={uploadCount}
             onEnRoute={handleEnRoute}
             onArrived={handleArrived}
             onImageUpload={handleImageUpload}

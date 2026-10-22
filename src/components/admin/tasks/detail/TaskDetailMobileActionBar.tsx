@@ -1,9 +1,10 @@
-import { buttonLabel, workingLabel, type TaskBusyAction } from '../../../../lib/tasks/taskProgress';
+import { buttonLabel, completionDisabled, workingLabel, type TaskBusyAction } from '../../../../lib/tasks/taskProgress';
 
 interface Props {
   isDropOff: boolean;
   processing: boolean;
   uploadingImages: boolean;
+  uploadCount?: number;
   onEnRoute: () => void;
   onArrived: () => void;
   onImageUpload: (isDamage?: boolean) => void;
@@ -14,10 +15,10 @@ interface Props {
 
 // The parent decides when to render this bar (isToday && not completed).
 export function TaskDetailMobileActionBar({
-  isDropOff, processing, uploadingImages,
+  isDropOff, processing, uploadingImages, uploadCount,
   onEnRoute, onArrived, onImageUpload, onDropOffComplete, onPickupComplete, busyAction = null,
 }: Props) {
-  const working = workingLabel(busyAction, uploadingImages);
+  const working = workingLabel(busyAction, uploadingImages, uploadCount);
   return (
     <div className="sm:hidden bg-white border-b border-slate-200 px-4 py-3">
       {working && <p role="status" className="text-xs font-semibold text-slate-600 mb-2">{working}</p>}
@@ -27,10 +28,10 @@ export function TaskDetailMobileActionBar({
         {isDropOff ? (
           <>
             <button onClick={() => onImageUpload(false)} disabled={uploadingImages} className="flex items-center justify-center gap-1.5 bg-green-600 hover:bg-green-700 disabled:bg-slate-300 text-white font-semibold py-2.5 px-3 rounded-lg transition-colors text-sm">{buttonLabel('Photos', 'Uploading...', uploadingImages)}</button>
-            <button onClick={onDropOffComplete} disabled={processing} className="flex items-center justify-center gap-1.5 bg-slate-600 hover:bg-slate-700 disabled:bg-slate-300 text-white font-semibold py-2.5 px-3 rounded-lg transition-colors text-sm">{buttonLabel('Leaving', 'Working...', busyAction === 'drop_off')}</button>
+            <button onClick={onDropOffComplete} disabled={completionDisabled({ processing, isToday: true, uploadingImages })} className="flex items-center justify-center gap-1.5 bg-slate-600 hover:bg-slate-700 disabled:bg-slate-300 text-white font-semibold py-2.5 px-3 rounded-lg transition-colors text-sm">{buttonLabel('Leaving', 'Working...', busyAction === 'drop_off')}</button>
           </>
         ) : (
-          <button onClick={onPickupComplete} disabled={processing} className="flex items-center justify-center gap-1.5 bg-green-600 hover:bg-green-700 disabled:bg-slate-300 text-white font-semibold py-2.5 px-3 rounded-lg transition-colors text-sm col-span-2">{buttonLabel('Complete Pickup', 'Working...', busyAction === 'pickup')}</button>
+          <button onClick={onPickupComplete} disabled={completionDisabled({ processing, isToday: true, uploadingImages })} className="flex items-center justify-center gap-1.5 bg-green-600 hover:bg-green-700 disabled:bg-slate-300 text-white font-semibold py-2.5 px-3 rounded-lg transition-colors text-sm col-span-2">{buttonLabel('Complete Pickup', 'Working...', busyAction === 'pickup')}</button>
         )}
       </div>
     </div>
