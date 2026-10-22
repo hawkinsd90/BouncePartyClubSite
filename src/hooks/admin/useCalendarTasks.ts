@@ -4,7 +4,8 @@ import { format, startOfMonth, endOfMonth, addDays } from 'date-fns';
 import { ORDER_STATUS } from '../../lib/constants/statuses';
 import { type OperationalEquipmentItem } from '../../lib/tasks/operationalEquipment';
 import { loadGeneratorCategoryProductIds } from '../../lib/eventEssentials/customerGeneratorCart';
-import { buildCalendarTasks, type PickupReadiness } from '../../lib/tasks/calendarTaskAssembly';
+import { buildCalendarTasks, calendarOrdersSelect, type PickupReadiness } from '../../lib/tasks/calendarTaskAssembly';
+import { useAuth } from '../../contexts/AuthContext';
 
 export type { PickupReadiness };
 export { derivePickupReadiness, derivePickupBlockReason } from '../../lib/tasks/calendarTaskAssembly';
@@ -34,6 +35,8 @@ export interface Task {
   tipCents: number;
   waiverSigned: boolean;
   waiverType?: 'digital' | 'paper_with_photo' | 'paper_no_photo' | null;
+  // False when the signature rows were not loaded (crew): waiverType is then unknown, not "missing".
+  waiverTypeKnown?: boolean;
   balanceDue: number;
   pickupPreference?: string;
   surface?: string;
@@ -65,6 +68,10 @@ export interface Task {
 }
 
 export function useCalendarTasks(currentMonth: Date) {
+  const { isAdmin } = useAuth();
+  // Read at load time so realtime callbacks and retries never use a stale role.
+  const isAdminRef = useRef(isAdmin);
+  isAdminRef.current = isAdmin;
   const [tasks, setTasks] = useState<Task[]>([]);
   const [loading, setLoading] = useState(true);
   const debounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -87,7 +94,8 @@ export function useCalendarTasks(currentMonth: Date) {
 
   useEffect(() => {
     loadTasksForMonth(currentMonth);
-  }, [currentMonth]);
+    // Reload when the role resolves: the first load can run before the roles are known.
+  }, [currentMonth, isAdmin]);
 
   useEffect(() => {
     const channel = supabase
@@ -139,21 +147,17 @@ export function useCalendarTasks(currentMonth: Date) {
       // Since pickup can be event_date or event_date + 1, we need to query from monthStart - 1 day
       const queryStart = addDays(monthStart, -1);
 
-      const { data: orders, error } = await supabase
+      // The select string depends on the role, so the row type is not inferred; the assembly reads rows as loose objects anyway.
+      const { data: ordersData, error } = await supabase
         .from('orders')
-        .select(`
-          *,
-          customers (first_name, last_name, phone, email),
-          addresses (line1, city, state, zip, lat, lng),
-          payments (id, amount_cents, status, paid_at, type),
-          order_signatures!order_signatures_order_id_fkey (electronic_consent_given, waiver_version, physical_waiver_storage_path, physical_waiver_upload_source)
-        `)
+        .select(calendarOrdersSelect(isAdminRef.current) as '*')
         .gte('event_date', format(queryStart, 'yyyy-MM-dd'))
         .lte('event_date', format(monthEnd, 'yyyy-MM-dd'))
         .in('status', [ORDER_STATUS.CONFIRMED, ORDER_STATUS.IN_PROGRESS, ORDER_STATUS.COMPLETED, ORDER_STATUS.PENDING])
         .order('event_date', { ascending: true });
 
       if (error) throw error;
+      const orders = ordersData as any[] | null;
 
       if (!orders) {
         setTasks([]);

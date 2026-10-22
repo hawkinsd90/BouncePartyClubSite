@@ -16,6 +16,7 @@ interface BusinessSettings {
   google_review_url: string;
   business_license_number: string;
   how_did_you_hear_enabled: boolean;
+  require_start_mileage: boolean;
 }
 
 interface TravelAddress {
@@ -41,6 +42,7 @@ export function BusinessBrandingTab() {
     google_review_url: '',
     business_license_number: '',
     how_did_you_hear_enabled: true,
+    require_start_mileage: true,
   });
   const [travelAddress, setTravelAddress] = useState<TravelAddress>({
     line1: '',
@@ -76,6 +78,7 @@ export function BusinessBrandingTab() {
           'google_review_url',
           'business_license_number',
           'how_did_you_hear_enabled',
+          'require_start_mileage',
           'home_address_line1',
           'home_address_line2',
           'home_address_city',
@@ -95,7 +98,8 @@ export function BusinessBrandingTab() {
 
         data.forEach(({ key, value }) => {
           if (key in loadedSettings) {
-            if (key === 'how_did_you_hear_enabled') {
+            if (key === 'how_did_you_hear_enabled' || key === 'require_start_mileage') {
+              // Only an explicit 'false' turns these off (a missing or odd value means on).
               (loadedSettings as any)[key] = value !== 'false';
             } else {
               (loadedSettings as unknown as Record<string, string | boolean>)[key] = value || '';
@@ -213,6 +217,7 @@ export function BusinessBrandingTab() {
       home_address_lng: 'Travel calculation starting point - Longitude',
       use_business_address_for_travel: 'Whether to use business address for travel calculations',
       how_did_you_hear_enabled: 'Show the How did you hear about us? question on Checkout and Invoice Acceptance',
+      require_start_mileage: 'Crew must record start-of-day mileage before En Route, Arrived and completing tasks',
     };
     return descriptions[key] || '';
   }
@@ -452,6 +457,23 @@ export function BusinessBrandingTab() {
             </label>
             <p className="text-xs text-slate-500 mt-1 ml-6">
               When enabled, customers will see this question on Checkout and Invoice Acceptance. When disabled, the question is hidden and does not block submission.
+            </p>
+          </div>
+
+          <div className="mb-6">
+            <label className="flex items-center cursor-pointer">
+              <input
+                type="checkbox"
+                checked={settings.require_start_mileage}
+                onChange={(e) => setSettings({ ...settings, require_start_mileage: e.target.checked })}
+                className="w-4 h-4 text-blue-600 border-slate-300 rounded focus:ring-blue-500"
+              />
+              <span className="ml-2 text-sm font-medium text-slate-700">
+                Require crew to record start-of-day mileage
+              </span>
+            </label>
+            <p className="text-xs text-slate-500 mt-1 ml-6">
+              When on, crew must enter a starting mileage before marking a task En Route, Arrived or complete. When off, those buttons work without it; the end-of-day auto-calculation still needs a start reading.
             </p>
           </div>
 

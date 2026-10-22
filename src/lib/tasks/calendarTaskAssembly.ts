@@ -15,6 +15,21 @@ import type { Task } from '../../hooks/admin/useCalendarTasks';
 
 export type PickupReadiness = 'projected' | 'blocked' | 'ready' | 'completed';
 
+// The orders select for the calendar. Payments and signed-waiver rows are readable by Admin/Master only (database policy since the
+// 2026-10 lockdown). For crew the embeds would silently come back empty and make every signed waiver look like a missing paper
+// photo, so crew does not ask for them: payment state comes from the order's own columns and waiver state from get-waiver-status.
+export function calendarOrdersSelect(isAdmin: boolean): string {
+  const base = `
+          *,
+          customers (first_name, last_name, phone, email),
+          addresses (line1, city, state, zip, lat, lng)`;
+  if (!isAdmin) return base + '\n        ';
+  return `${base},
+          payments (id, amount_cents, status, paid_at, type),
+          order_signatures!order_signatures_order_id_fkey (electronic_consent_given, waiver_version, physical_waiver_storage_path, physical_waiver_upload_source)
+        `;
+}
+
 export function deriveWaiverType(
   waiverSignedAt: string | null,
   signatures: Array<{
@@ -155,6 +170,8 @@ export function buildCalendarTasks({ orders, orderItems, taskStatuses, generator
         order.waiver_signed_at,
         (order.order_signatures as any[]) ?? []
       ),
+      // False for a crew-shaped order (no signature rows were requested): the screen then asks get-waiver-status instead of guessing.
+      waiverTypeKnown: Array.isArray(order.order_signatures),
       balanceDue,
       stripePaymentMethodId: order.stripe_payment_method_id || null,
       paymentMethodBrand: order.payment_method_brand || null,
@@ -215,6 +232,8 @@ export function buildCalendarTasks({ orders, orderItems, taskStatuses, generator
         order.waiver_signed_at,
         (order.order_signatures as any[]) ?? []
       ),
+      // False for a crew-shaped order (no signature rows were requested): the screen then asks get-waiver-status instead of guessing.
+      waiverTypeKnown: Array.isArray(order.order_signatures),
       balanceDue,
       stripePaymentMethodId: order.stripe_payment_method_id || null,
       paymentMethodBrand: order.payment_method_brand || null,

@@ -18,17 +18,44 @@ function formatTimeStr(time: string): string {
 
 interface Props {
   task: Task;
+  // Payments, refunds and the signed-waiver file link are Admin/Master only. Crew sees status derived from the order and get-waiver-status.
+  isAdmin?: boolean;
   // Called after a refund request has been answered, so the calendar can reload the task.
   onRefundChanged?: () => void;
 }
 
-export function TaskDetailCustomerInfo({ task, onRefundChanged }: Props) {
+export function TaskDetailCustomerInfo({ task, isAdmin = true, onRefundChanged }: Props) {
   const [showRefundForm, setShowRefundForm] = useState(false);
   const [physicalWaiverUrl, setPhysicalWaiverUrl] = useState<string | null>(null);
+  // Crew: waiver kind from get-waiver-status (summary only: no file links). 'loading' | 'error' | the kind.
+  const [crewWaiver, setCrewWaiver] = useState<'loading' | 'error' | 'digital' | 'paper_with_photo' | 'paper_no_photo' | 'none'>('loading');
 
-  // Fetch signed URL for physical waiver when task has a paper waiver
+  // Crew cannot read the signature rows, so ask the server (it allows crew and, with summaryOnly, hands out no files).
   useEffect(() => {
-    if (!task.waiverSigned || task.waiverType === 'digital' || task.waiverType === null) {
+    if (isAdmin || task.waiverTypeKnown !== false || !task.waiverSigned) return;
+    let cancelled = false;
+    setCrewWaiver('loading');
+    (async () => {
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        const res = await fetch(`${SUPABASE_URL}/functions/v1/get-waiver-status`, {
+          method: 'POST',
+          headers: { 'Authorization': `Bearer ${session?.access_token}`, 'Content-Type': 'application/json' },
+          body: JSON.stringify({ orderId: task.orderId, summaryOnly: true }),
+        });
+        if (!res.ok) throw new Error(`get-waiver-status ${res.status}`);
+        const { data } = await res.json();
+        if (!cancelled) setCrewWaiver(data?.waiver_type ?? 'none');
+      } catch {
+        if (!cancelled) setCrewWaiver('error');
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [isAdmin, task.orderId, task.waiverSigned, task.waiverTypeKnown]);
+
+  // Fetch signed URL for physical waiver when task has a paper waiver (Admin only: crew never receives file links)
+  useEffect(() => {
+    if (!isAdmin || !task.waiverSigned || task.waiverType === 'digital' || task.waiverType === null) {
       setPhysicalWaiverUrl(null);
       return;
     }
@@ -54,9 +81,11 @@ export function TaskDetailCustomerInfo({ task, onRefundChanged }: Props) {
       }
     })();
     return () => { cancelled = true; };
-  }, [task.orderId, task.waiverType]);
+  }, [isAdmin, task.orderId, task.waiverType]);
 
-  const succeededPayments = task.payments?.filter(p => p.status === 'succeeded') ?? [];
+  const succeededPayments = isAdmin ? (task.payments?.filter(p => p.status === 'succeeded') ?? []) : [];
+  // The waiver kind to show: the loaded one for Admin (and for any task whose signature rows were loaded), the server's answer for crew.
+  const waiverKind = task.waiverTypeKnown === false && !isAdmin ? crewWaiver : (task.waiverType ?? 'none');
 
   return (
     <div className="bg-slate-50 rounded-lg p-4">
@@ -69,9 +98,13 @@ export function TaskDetailCustomerInfo({ task, onRefundChanged }: Props) {
 
         {!task.waiverSigned ? (
           <div className="text-amber-700 font-semibold text-xs bg-amber-50 border border-amber-200 rounded px-2 py-1">Waiver not signed</div>
-        ) : task.waiverType === 'digital' ? (
+        ) : waiverKind === 'loading' ? (
+          <div className="text-slate-600 font-semibold text-xs bg-slate-100 border border-slate-200 rounded px-2 py-1">Checking waiver…</div>
+        ) : waiverKind === 'error' ? (
+          <div className="text-slate-700 font-semibold text-xs bg-slate-100 border border-slate-200 rounded px-2 py-1">Waiver signed — details unavailable right now</div>
+        ) : waiverKind === 'digital' ? (
           <div className="text-green-700 font-semibold text-xs bg-green-50 border border-green-200 rounded px-2 py-1">Waiver signed — digital</div>
-        ) : task.waiverType === 'paper_with_photo' ? (
+        ) : waiverKind === 'paper_with_photo' ? (
           <div className="flex items-center gap-2 flex-wrap">
             <div className="text-green-700 font-semibold text-xs bg-green-50 border border-green-200 rounded px-2 py-1">Paper waiver — photo on file</div>
             {physicalWaiverUrl && (
@@ -86,12 +119,26 @@ export function TaskDetailCustomerInfo({ task, onRefundChanged }: Props) {
               </a>
             )}
           </div>
-        ) : (
+        ) : waiverKind === 'paper_no_photo' ? (
           <div className="text-amber-700 font-semibold text-xs bg-amber-50 border border-amber-200 rounded px-2 py-1">Paper waiver — photo missing</div>
+        ) : (
+          <div className="text-slate-700 font-semibold text-xs bg-slate-100 border border-slate-200 rounded px-2 py-1">Waiver signed</div>
         )}
 
         {task.balanceDue > 0 && (
           <div className="text-red-700 font-semibold">⚠️ Balance due: {formatCurrency(task.balanceDue)}</div>
+        )}
+
+        {!isAdmin && task.total > 0 && (
+          <div className="mt-3 pt-3 border-t border-slate-200 text-xs text-slate-700 space-y-0.5">
+            <div className="font-semibold text-slate-700 text-sm">Payment status</div>
+            <div>Deposit paid: {formatCurrency(task.depositPaidCents)}</div>
+            <div>Balance paid: {formatCurrency(task.balancePaidCents)}</div>
+            {task.tipCents > 0 && <div>Tip: {formatCurrency(task.tipCents)}</div>}
+            <div className={task.balanceDue > 0 ? 'font-semibold text-red-700' : 'font-semibold text-green-700'}>
+              {task.balanceDue > 0 ? `Balance due: ${formatCurrency(task.balanceDue)}` : 'Paid in full'}
+            </div>
+          </div>
         )}
 
         {succeededPayments.length > 0 && (

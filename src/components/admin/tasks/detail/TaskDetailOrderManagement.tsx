@@ -10,6 +10,8 @@ interface Props {
   onPaperWaiver: () => Promise<void>;
   onCancelOrder: (reason: string) => Promise<void>;
   onChargeCard: (amountCents: number) => Promise<void>;
+  // Charge to Card and Cancel Order are Admin/Master only (the functions behind them refuse crew).
+  isAdmin?: boolean;
   recordingCash: boolean;
   recordingCheck: boolean;
   signingWaiver: boolean;
@@ -52,7 +54,7 @@ function PaymentBreakdown({ totalValue, balanceDueCents }: { totalValue: string;
 }
 
 export function TaskDetailOrderManagement({
-  task, onCashPayment, onCheckPayment, onPaperWaiver, onCancelOrder, onChargeCard,
+  task, onCashPayment, onCheckPayment, onPaperWaiver, onCancelOrder, onChargeCard, isAdmin = true,
   recordingCash, recordingCheck, signingWaiver, cancelling, chargingCard,
 }: Props) {
   const [showCashPayment, setShowCashPayment] = useState(false);
@@ -197,7 +199,7 @@ export function TaskDetailOrderManagement({
         </div>
       )}
 
-      {task.balanceDue > 0 && task.stripePaymentMethodId && (
+      {isAdmin && task.balanceDue > 0 && task.stripePaymentMethodId && (
         <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg space-y-2">
           <div className="flex items-center gap-2 mb-1">
             <CreditCard className="w-4 h-4 text-blue-700" />
@@ -230,6 +232,7 @@ export function TaskDetailOrderManagement({
         </button>
       )}
 
+      {isAdmin && (
       <div>
         <button
           onClick={() => setShowCancelForm(!showCancelForm)}
@@ -273,6 +276,7 @@ export function TaskDetailOrderManagement({
           </div>
         )}
       </div>
+      )}
     </div>
   );
 }

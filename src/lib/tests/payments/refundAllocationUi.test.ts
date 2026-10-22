@@ -517,7 +517,7 @@ const overviewOf = (payments: OverviewPayment[], extra: Partial<RefundOverview> 
       ok(`wiring: ${label} shows the panel only on an explicit action or a cancelled order, and passes its own refresh`, /onChanged=\{|onChanged=/.test(src));
     }
     const modal = read('src/components/admin/tasks/TaskDetailModal.tsx').replace(/\/\/.*$/gm, '');
-    ok('wiring: the calendar task modal no longer owns a refund handler; it only reloads the task', !/handleRefund|refundAttempt|stripe-refund|classifyRefundResponse/.test(modal) && /TaskDetailCustomerInfo task=\{task\} onRefundChanged=\{onUpdate\}/.test(modal));
+    ok('wiring: the calendar task modal no longer owns a refund handler; it only reloads the task', !/handleRefund|refundAttempt|stripe-refund|classifyRefundResponse/.test(modal) && /TaskDetailCustomerInfo task=\{task\} isAdmin=\{isAdmin\} onRefundChanged=\{onUpdate\}/.test(modal));
     const panel = read('src/components/admin/orders/refunds/RefundAllocationPanel.tsx');
     ok('wiring: the shared panel never calls the browser client or sends from a load', !/from '.*lib\/supabase'/.test(panel) && /void c\.load\(\)/.test(panel) && !/useEffect\([^)]*confirm|useEffect\([^)]*resume/.test(panel));
     ok('wiring: payments are never marked or the refund function called from the three screens directly', !/from\('payments'\)\.(update|insert)|from\('order_refunds'\)\.(update|insert)/.test(read('src/components/order-detail/PaymentsTab.tsx') + read('src/components/pending-order/PaymentManagementSection.tsx')));

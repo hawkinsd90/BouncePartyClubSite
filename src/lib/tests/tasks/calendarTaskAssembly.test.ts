@@ -160,6 +160,8 @@ function oracleAssemble(orders: any[], orderItems: any[] | null, taskStatuses: a
         order.waiver_signed_at,
         (order.order_signatures as any[]) ?? []
       ),
+      // B8 (WP-09): the one intentional addition to the assembled task - false when the signature rows were not loaded (crew).
+      waiverTypeKnown: Array.isArray(order.order_signatures),
       balanceDue,
       stripePaymentMethodId: order.stripe_payment_method_id || null,
       paymentMethodBrand: order.payment_method_brand || null,
@@ -228,6 +230,8 @@ function oracleAssemble(orders: any[], orderItems: any[] | null, taskStatuses: a
         order.waiver_signed_at,
         (order.order_signatures as any[]) ?? []
       ),
+      // B8 (WP-09): the one intentional addition to the assembled task - false when the signature rows were not loaded (crew).
+      waiverTypeKnown: Array.isArray(order.order_signatures),
       balanceDue,
       stripePaymentMethodId: order.stripe_payment_method_id || null,
       paymentMethodBrand: order.payment_method_brand || null,

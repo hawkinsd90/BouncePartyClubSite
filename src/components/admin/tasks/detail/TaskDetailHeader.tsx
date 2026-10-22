@@ -13,6 +13,8 @@ interface Props {
   lastUpdated: Date;
   onBack?: () => void;
   onClose: () => void;
+  // The admin order screen is Admin/Master only; crew sees the order number as plain text.
+  canOpenOrder?: boolean;
   onOpenOrder: () => void;
   onReorder: (direction: 'up' | 'down') => void;
   onRefreshClick: () => void;
@@ -20,7 +22,7 @@ interface Props {
 
 export function TaskDetailHeader({
   isDropOff, currentStatus, statusColor, orderNumber, canMoveUp, canMoveDown, stopNumber, activeStopsCount,
-  refreshing, lastUpdated, onBack, onClose, onOpenOrder, onReorder, onRefreshClick,
+  refreshing, lastUpdated, onBack, onClose, canOpenOrder = true, onOpenOrder, onReorder, onRefreshClick,
 }: Props) {
   return (
     <div className="sticky top-0 bg-white border-b border-slate-200 px-4 sm:px-6 py-3 sm:py-4 z-10 flex-shrink-0">
@@ -40,10 +42,14 @@ export function TaskDetailHeader({
               {currentStatus.toUpperCase()}
             </span>
           </div>
-          <button onClick={onOpenOrder} className="text-sm text-blue-600 hover:text-blue-700 hover:underline flex items-center gap-1">
-            Order #{orderNumber}
-            <ExternalLink className="w-3 h-3" />
-          </button>
+          {canOpenOrder ? (
+            <button onClick={onOpenOrder} className="text-sm text-blue-600 hover:text-blue-700 hover:underline flex items-center gap-1">
+              Order #{orderNumber}
+              <ExternalLink className="w-3 h-3" />
+            </button>
+          ) : (
+            <span className="text-sm text-slate-600">Order #{orderNumber}</span>
+          )}
           <div className="flex items-center gap-2 mt-2 flex-wrap">
             <div className="flex gap-2">
               <button onClick={() => onReorder('up')} disabled={!canMoveUp} className="p-1 hover:bg-slate-100 rounded disabled:opacity-30 disabled:cursor-not-allowed" title="Move up in route"><ChevronUp className="w-4 h-4" /></button>

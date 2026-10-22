@@ -29,6 +29,9 @@ import {
   buildDropOffRulesMessage, buildDropOffResultMessage, buildPickupCompletionSummary,
 } from './detail/taskNotificationMessages';
 import { postSessionEdge, postTaskSms, currentAccessToken } from './detail/taskEdgeRequests';
+import { getPublicBusinessSettings } from '../../../lib/core/adminSettingsCache';
+import { useAuth } from '../../../contexts/AuthContext';
+import { shouldBlockForStartMileage, START_MILEAGE_PROMPTS, type MileageGatedAction } from '../../../lib/core/startMileage';
 
 export type { Task };
 
@@ -44,6 +47,8 @@ interface TaskDetailModalProps {
 
 export function TaskDetailModal({ task, allTasks, onClose, onUpdate, onRefresh, onBack, onOpenMileageModal }: TaskDetailModalProps) {
   const refresh = onRefresh || onUpdate;
+  // Admin/Master get the money and order-management controls; crew keeps the field workflow (database policy already limits what crew can read).
+  const { isAdmin } = useAuth();
   const [processing, setProcessing] = useState(false);
   const [uploadingImages, setUploadingImages] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
@@ -54,6 +59,8 @@ export function TaskDetailModal({ task, allTasks, onClose, onUpdate, onRefresh, 
   const [signingWaiver, setSigningWaiver] = useState(false);
   const [cancelling, setCancelling] = useState(false);
   const [mileageLog, setMileageLog] = useState<any>(null);
+  // Owner setting. Required until the setting has loaded and says otherwise (fail closed).
+  const [requireStartMileage, setRequireStartMileage] = useState(true);
   const [completionSummary, setCompletionSummary] = useState<CompletionSummaryData | null>(null);
   const [futureTaskOverride, setFutureTaskOverride] = useState(false);
   const currentStatus = task.taskStatus?.status || 'pending';
@@ -71,6 +78,29 @@ export function TaskDetailModal({ task, allTasks, onClose, onUpdate, onRefresh, 
       .subscribe();
     return () => { if (debounceTimer) clearTimeout(debounceTimer); supabase.removeChannel(channel); };
   }, [task.orderId, refresh]);
+
+  useEffect(() => {
+    let cancelled = false;
+    getPublicBusinessSettings()
+      .then((settings) => { if (!cancelled) setRequireStartMileage(settings.require_start_mileage); })
+      .catch(() => undefined);
+    return () => { cancelled = true; };
+  }, []);
+
+  // The one start-mileage gate for every crew action. Returns true when the action may go ahead.
+  async function passesStartMileageGate(action: MileageGatedAction): Promise<boolean> {
+    if (!shouldBlockForStartMileage(requireStartMileage, mileageLog)) return true;
+    if (action === 'en_route') {
+      const ok = await showConfirm(START_MILEAGE_PROMPTS.en_route);
+      if (ok) {
+        if (onOpenMileageModal) onOpenMileageModal();
+        else showAlert('Please use the "Start Day Mileage" button at the top of the day view to record your starting mileage, then return here to mark this task as En Route.');
+      }
+    } else {
+      showAlert(START_MILEAGE_PROMPTS[action]);
+    }
+    return false;
+  }
 
   useEffect(() => {
     async function loadMileageLog() {
@@ -117,14 +147,7 @@ export function TaskDetailModal({ task, allTasks, onClose, onUpdate, onRefresh, 
     );
     if (!confirmed) return;
 
-    if (!mileageLog || !mileageLog.start_mileage) {
-      const ok = await showConfirm('Starting mileage required before marking tasks as En Route.\n\nWould you like to record your starting mileage now?');
-      if (ok) {
-        if (onOpenMileageModal) onOpenMileageModal();
-        else showAlert('Please use the "Start Day Mileage" button at the top of the day view to record your starting mileage, then return here to mark this task as En Route.');
-      }
-      return;
-    }
+    if (!(await passesStartMileageGate('en_route'))) return;
 
     setProcessing(true);
     try {
@@ -227,10 +250,7 @@ export function TaskDetailModal({ task, allTasks, onClose, onUpdate, onRefresh, 
   async function handleArrived() {
     const confirmed = await showConfirm(`Mark as Arrived at ${task.customerName}'s location?\n\nThis will notify the customer that the crew has arrived.`);
     if (!confirmed) return;
-    if (!mileageLog || !mileageLog.start_mileage) {
-      showAlert('You must enter your starting mileage before marking tasks. Please use the "Start Day Mileage" button in the day view.');
-      return;
-    }
+    if (!(await passesStartMileageGate('arrived'))) return;
     setProcessing(true);
     try {
       const taskStatusId = await ensureTaskStatus();
@@ -328,10 +348,7 @@ export function TaskDetailModal({ task, allTasks, onClose, onUpdate, onRefresh, 
   }
 
   async function handleDropOffComplete() {
-    if (!mileageLog || !mileageLog.start_mileage) {
-      showAlert('You must enter your starting mileage before completing tasks. Please use the "Start Day Mileage" button in the day view.');
-      return;
-    }
+    if (!(await passesStartMileageGate('drop_off'))) return;
     const hasPhotos = (task.taskStatus?.deliveryImages?.length ?? 0) > 0;
     const confirmed = await showConfirm(
       hasPhotos
@@ -362,10 +379,7 @@ export function TaskDetailModal({ task, allTasks, onClose, onUpdate, onRefresh, 
   }
 
   async function handlePickupComplete() {
-    if (!mileageLog || !mileageLog.start_mileage) {
-      showAlert('You must enter your starting mileage before completing tasks. Please use the "Start Day Mileage" button in the day view.');
-      return;
-    }
+    if (!(await passesStartMileageGate('pickup'))) return;
 
     const hasBalance = task.balanceDue > 0;
     if (hasBalance) {
@@ -644,6 +658,7 @@ export function TaskDetailModal({ task, allTasks, onClose, onUpdate, onRefresh, 
           lastUpdated={lastUpdated}
           onBack={onBack}
           onClose={onClose}
+          canOpenOrder={isAdmin}
           onOpenOrder={() => { onClose(); navigate(`/admin?tab=orders&subtab=single_order&orderId=${task.orderId}`); }}
           onReorder={handleReorder}
           onRefreshClick={async () => { setRefreshing(true); setLastUpdated(new Date()); await refresh(); setTimeout(() => setRefreshing(false), 500); }}
@@ -679,7 +694,7 @@ export function TaskDetailModal({ task, allTasks, onClose, onUpdate, onRefresh, 
             />
           )}
 
-          <TaskDetailCustomerInfo task={task} onRefundChanged={onUpdate} />
+          <TaskDetailCustomerInfo task={task} isAdmin={isAdmin} onRefundChanged={onUpdate} />
 
           {/* Equipment */}
           <TaskDetailEquipmentCard items={task.items} isDropOff={isDropOff} />
@@ -689,6 +704,7 @@ export function TaskDetailModal({ task, allTasks, onClose, onUpdate, onRefresh, 
 
           <TaskDetailOrderManagement
             task={task}
+            isAdmin={isAdmin}
             onCashPayment={handleCashPayment}
             onCheckPayment={handleCheckPayment}
             onPaperWaiver={handlePaperWaiver}

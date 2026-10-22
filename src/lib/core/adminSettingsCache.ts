@@ -1,4 +1,5 @@
 import { supabase } from '../supabase';
+import { parseRequireStartMileage } from './startMileage';
 
 const CACHE_DURATION_MS = 5 * 60 * 1000;
 
@@ -18,6 +19,10 @@ export interface PublicBusinessSettings {
   event_essentials_page_enabled: boolean;
   min_event_essentials_order_cents: number | null;
   how_did_you_hear_enabled: boolean;
+  // Crew requirements. Anything but an explicit 'false' means required (fail closed).
+  require_start_mileage: boolean;
+  require_delivery_photo: boolean;
+  require_pickup_photo: boolean;
 }
 
 let publicSettingsCache: { data: PublicBusinessSettings; timestamp: number } | null = null;
@@ -48,6 +53,9 @@ export async function getPublicBusinessSettings(useCache = true): Promise<Public
     event_essentials_page_enabled: false,
     min_event_essentials_order_cents: null,
     how_did_you_hear_enabled: true,
+    require_start_mileage: true,
+    require_delivery_photo: true,
+    require_pickup_photo: true,
   };
 
   if (error || !data) {
@@ -71,6 +79,9 @@ export async function getPublicBusinessSettings(useCache = true): Promise<Public
     event_essentials_page_enabled: dataRecord.event_essentials_page_enabled === 'true',
     min_event_essentials_order_cents: parseMinOrderCents(dataRecord.min_event_essentials_order_cents),
     how_did_you_hear_enabled: dataRecord.how_did_you_hear_enabled !== 'false',
+    require_start_mileage: parseRequireStartMileage(dataRecord.require_start_mileage),
+    require_delivery_photo: parseRequireStartMileage(dataRecord.require_delivery_photo),
+    require_pickup_photo: parseRequireStartMileage(dataRecord.require_pickup_photo),
   };
 
   publicSettingsCache = { data: result, timestamp: now };
