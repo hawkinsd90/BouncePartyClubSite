@@ -20,6 +20,12 @@ import {
   deriveCandidateViewModel,
 } from '../../lib/eventEssentials/eventEssentialsCatalogResolver';
 import type {
+  ResolverProductConfig,
+  ResolverBundleConfig,
+  ResolverCategory,
+  ResolverUnitConfig,
+} from '../../lib/eventEssentials/eventEssentialsPricingTypes';
+import type {
   UnifiedCartItem,
   InflatableCartItem,
   EventEssentialProductCartItem,
@@ -96,7 +102,7 @@ function makeProductConfig(productId: string, categoryId: string, standalone: nu
   };
 }
 
-function makeResolverContext(cart: UnifiedCartItem[], productConfigs: Record<string, any>, bundleConfigs: Record<string, any> = {}, categories: Record<string, any> = { 'cat-gen': { id: 'cat-gen' } }, units: Record<string, any> = { 'u1': { id: 'u1', active: true }, 'u2': { id: 'u2', active: true } }) {
+function makeResolverContext(cart: UnifiedCartItem[], productConfigs: Record<string, ResolverProductConfig>, bundleConfigs: Record<string, ResolverBundleConfig> = {}, categories: Record<string, ResolverCategory> = { 'cat-gen': { id: 'cat-gen' } }, units: Record<string, ResolverUnitConfig> = { 'u1': { id: 'u1', active: true }, 'u2': { id: 'u2', active: true } }) {
   const cartLines = normalizeCartLines(cart, productConfigs, bundleConfigs);
   return {
     productConfigs,
@@ -294,7 +300,7 @@ test('11. Direct product removal preserves other items', () => {
 });
 
 test('12. Add-on pricing with a qualifying cart', () => {
-  const productConfigs: Record<string, any> = {
+  const productConfigs: Record<string, ResolverProductConfig> = {
     [GEN_ID]: makeProductConfig(GEN_ID, 'cat-gen', 9500, 5000, 10000),
   };
   const cart: UnifiedCartItem[] = [makeInflatable('u1', 15000)];
@@ -306,7 +312,7 @@ test('12. Add-on pricing with a qualifying cart', () => {
 });
 
 test('13. Standalone pricing without qualification', () => {
-  const productConfigs: Record<string, any> = {
+  const productConfigs: Record<string, ResolverProductConfig> = {
     [GEN_ID]: makeProductConfig(GEN_ID, 'cat-gen', 9500, 5000, 10000),
   };
   const cart: UnifiedCartItem[] = [];

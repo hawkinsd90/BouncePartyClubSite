@@ -14,6 +14,8 @@ import {
 } from '../../pricing/packageDisplay';
 import { composeUnifiedQuoteTotals } from '../../pricing/unifiedTotals';
 import type { PriceBreakdown } from '../../pricing';
+import type { UnifiedCartItem, EventEssentialBundleCartItem } from '../../../types';
+import { asErrorLike } from '../../core/errorLike';
 
 let passed = 0;
 let failed = 0;
@@ -30,9 +32,9 @@ function ok(label: string, condition: boolean) {
 function test(label: string, fn: () => void) {
   try {
     fn();
-  } catch (err: any) {
+  } catch (err) {
     failed++;
-    console.error(`FAIL (throw): ${label}: ${err?.message || err}`);
+    console.error(`FAIL (throw): ${label}: ${asErrorLike(err).message || err}`);
   }
 }
 
@@ -64,7 +66,7 @@ function makeInflatableBreakdown(overrides: Partial<PriceBreakdown> = {}): Price
   };
 }
 
-function makeEEProductCart(): any[] {
+function makeEEProductCart(): UnifiedCartItem[] {
   return [
     {
       item_type: 'event_essential_product',
@@ -74,10 +76,11 @@ function makeEEProductCart(): any[] {
       qty: 2,
       isAvailable: true,
     },
-  ];
+  ] as UnifiedCartItem[];
 }
 
-function makeBundleWithoutSnapshot(): any[] {
+// The two bundle fixtures are deliberately malformed (no snapshot, components not an array): that is what the tests feed the guards.
+function makeBundleWithoutSnapshot(): UnifiedCartItem[] {
   return [
     {
       item_type: 'event_essential_bundle',
@@ -88,10 +91,10 @@ function makeBundleWithoutSnapshot(): any[] {
       isAvailable: true,
       component_snapshot: null,
     },
-  ];
+  ] as unknown as UnifiedCartItem[];
 }
 
-function makeMalformedBundle(): any[] {
+function makeMalformedBundle(): UnifiedCartItem[] {
   return [
     {
       item_type: 'event_essential_bundle',
@@ -106,7 +109,7 @@ function makeMalformedBundle(): any[] {
         components: 'not-an-array',
       },
     },
-  ];
+  ] as unknown as UnifiedCartItem[];
 }
 
 // ---------------------------------------------------------------------------
@@ -364,7 +367,7 @@ test('13. Product availability failure blocks approval', () => {
 
 test('14. Historical missing package snapshot produces fallback flag', () => {
   const cart = makeBundleWithoutSnapshot();
-  const item = cart[0];
+  const item = cart[0] as EventEssentialBundleCartItem;
   const pkgDisplay = buildPackageDisplay({
     bundleName: item.bundle_name,
     bundleQty: item.qty,

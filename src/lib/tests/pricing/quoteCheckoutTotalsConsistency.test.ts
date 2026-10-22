@@ -9,6 +9,8 @@ import { composeUnifiedQuoteTotals } from '../../pricing/unifiedTotals';
 import { parseMoneyInput, validateEEDepositSettingsInput } from '../../pricing/moneySettings';
 import type { PriceBreakdown } from '../../pricing';
 import type { UnifiedCartItem } from '../../../types';
+import type { QuoteFormData } from '../../../hooks/booking/useQuoteForm';
+import { asErrorLike } from '../../core/errorLike';
 
 let passed = 0;
 let failed = 0;
@@ -18,7 +20,7 @@ function ok(label: string, condition: boolean) {
 }
 
 function test(label: string, fn: () => void) {
-  try { fn(); } catch (err: any) { failed++; console.error(`FAIL (throw): ${label}: ${err?.message || err}`); }
+  try { fn(); } catch (err) { failed++; console.error(`FAIL (throw): ${label}: ${asErrorLike(err).message || err}`); }
 }
 
 // Helpers
@@ -34,11 +36,11 @@ function makeBreakdown(overrides: Partial<PriceBreakdown> = {}): PriceBreakdown 
   };
 }
 
-function makeEEProductCart(): any[] {
-  return [{ item_type: 'event_essential_product', product_id: 'p1', product_name: 'Tables', unit_price_cents: 5000, qty: 2, isAvailable: true }];
+function makeEEProductCart(): UnifiedCartItem[] {
+  return [{ item_type: 'event_essential_product', product_id: 'p1', product_name: 'Tables', unit_price_cents: 5000, qty: 2, isAvailable: true }] as UnifiedCartItem[]; // fixture without pricing_context, as written before
 }
 
-function makeInflatableCart(): any[] {
+function makeInflatableCart(): UnifiedCartItem[] {
   return [{ item_type: 'inflatable', unit_id: 'u1', unit_name: 'Castle', unit_price_cents: 20000, qty: 1, wet_or_dry: 'dry', isAvailable: true }];
 }
 void makeInflatableCart;
@@ -53,13 +55,13 @@ const validForm = {
 
 // 1. Quote accepts an Event Essentials-only cart.
 test('1. Quote accepts EE-only cart', () => {
-  const result = validateQuote(makeEEProductCart() as UnifiedCartItem[], validForm as any);
+  const result = validateQuote(makeEEProductCart() as UnifiedCartItem[], validForm as QuoteFormData);
   ok('EE-only cart valid', result.isValid === true);
 });
 
 // 2. Quote blocks an empty cart.
 test('2. Quote blocks empty cart', () => {
-  const result = validateQuote([] as UnifiedCartItem[], validForm as any);
+  const result = validateQuote([] as UnifiedCartItem[], validForm as QuoteFormData);
   ok('empty cart blocked', result.isValid === false);
   ok('error mentions cart', result.errorSection === 'cart');
 });
@@ -86,7 +88,7 @@ test('4. Admin deposit settings reach Checkout totals', () => {
     eeOnlyDepositSubtotalStepCents: 10000, eeOnlyDepositStepCents: 5000,
   };
   const bd = makeBreakdown({ subtotal_cents: 0, deposit_due_cents: 0, total_cents: 0, event_essentials_subtotal_cents: 25000 });
-  const cart: any[] = [{ item_type: 'event_essential_product', product_id: 'p1', product_name: 'Tables', unit_price_cents: 25000, qty: 1, isAvailable: true }];
+  const cart: UnifiedCartItem[] = [{ item_type: 'event_essential_product', product_id: 'p1', product_name: 'Tables', unit_price_cents: 25000, qty: 1, isAvailable: true }] as UnifiedCartItem[];
   const totals = composeUnifiedQuoteTotals({
     inflatableBreakdown: bd, cart, taxApplied: true, eeOnlyDepositSettings: settings, inflatableDepositPerUnitCents: 5000,
   });
@@ -100,7 +102,7 @@ test('5. Quote and Checkout match with nondefault settings', () => {
     eeOnlyDepositSubtotalStepCents: 10000, eeOnlyDepositStepCents: 5000,
   };
   const bd = makeBreakdown({ subtotal_cents: 0, deposit_due_cents: 0, total_cents: 0, event_essentials_subtotal_cents: 35000 });
-  const cart: any[] = [{ item_type: 'event_essential_product', product_id: 'p1', product_name: 'Tables', unit_price_cents: 35000, qty: 1, isAvailable: true }];
+  const cart: UnifiedCartItem[] = [{ item_type: 'event_essential_product', product_id: 'p1', product_name: 'Tables', unit_price_cents: 35000, qty: 1, isAvailable: true }] as UnifiedCartItem[];
   const quoteTotals = composeUnifiedQuoteTotals({
     inflatableBreakdown: bd, cart, taxApplied: true, eeOnlyDepositSettings: settings, inflatableDepositPerUnitCents: 7000,
   });
@@ -254,7 +256,7 @@ test('16. Booking notification item types require no any cast', () => {
     bundle_id: string | null;
     item_name: string | null;
     pricing_context: string | null;
-    component_snapshot: any | null;
+    component_snapshot: unknown | null;
     units: { name: string } | null;
   };
   const item: BookingOrderItem = {
@@ -266,7 +268,7 @@ test('16. Booking notification item types require no any cast', () => {
   ok('nullable unit_id accepted', item.unit_id === null);
   ok('nullable units accepted', item.units === null);
   ok('product_id present', item.product_id === 'p1');
-  ok('no cast needed', (item as any) === item);
+  ok('no cast needed', (item as BookingOrderItem) === item);
 });
 
 console.log(`\nStage E4 Consistency Defect Tests: ${passed} passed, ${failed} failed.`);

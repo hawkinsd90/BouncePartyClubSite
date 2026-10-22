@@ -357,7 +357,7 @@ function testInvalidEEDepositFailsClosed(): void {
     eventEssentialsSubtotalCents: 25000,
     orderTotalCents: 25000,
     inflatableDepositPerUnitCents: 0,
-    eeOnlyDepositSettings: badSettings as any,
+    eeOnlyDepositSettings: badSettings,
   });
   ok('ee deposit: invalid -> not calculated', result.status !== 'calculated');
   if (result.status !== 'calculated') {
@@ -574,8 +574,8 @@ function testUnknownResolverReasonFailsClosed(): void {
   ok('business reason: allowed', allowedReason === 'NO_STANDALONE_AND_ADDON_NOT_QUALIFIED');
 
   // Empty/null reason also fails closed
-  ok('null reason: not allowed', (null as any) !== allowedReason);
-  ok('undefined reason: not allowed', (undefined as any) !== allowedReason);
+  ok('null reason: not allowed', null !== allowedReason);
+  ok('undefined reason: not allowed', undefined !== allowedReason);
 }
 
 // ---------------------------------------------------------------------------

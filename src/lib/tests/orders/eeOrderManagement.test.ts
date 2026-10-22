@@ -82,7 +82,7 @@ eq('Event Essentials are listed', c.eventEssentials.map((e) => e.name), ['Foldin
 eq('an EE-only day shows no stakes or sandbags at all', [buildChecklist([dropEE]).stakeUnits, buildChecklist([dropEE]).sandbagUnits], [0, 0]);
 eq('plural wording: 0, 1, 2', [deliveryCountLabel(0), deliveryCountLabel(1), deliveryCountLabel(2)], ['0 deliveries', '1 delivery', '2 deliveries']);
 const modal = read('src/components/calendar/EquipmentChecklistModal.tsx');
-ok('checklist screen uses the pure summary and no longer builds "deliveryies"', /buildChecklist\(tasks as any\)/.test(modal) && /deliveryCountLabel\(equipment\.deliveryCount\)/.test(modal) && !/'ies'/.test(modal) && /equipment\.stakeUnits > 0/.test(modal) && /equipment\.sandbagUnits > 0/.test(modal));
+ok('checklist screen uses the pure summary and no longer builds "deliveryies"', /buildChecklist\(tasks\)/.test(modal) && /deliveryCountLabel\(equipment\.deliveryCount\)/.test(modal) && !/'ies'/.test(modal) && /equipment\.stakeUnits > 0/.test(modal) && /equipment\.sandbagUnits > 0/.test(modal));
 
 // --- wording ------------------------------------------------------------------------------------------------------------------------
 const fullRules = buildDropOffRulesMessage({ pickupPreference: 'next_day' });

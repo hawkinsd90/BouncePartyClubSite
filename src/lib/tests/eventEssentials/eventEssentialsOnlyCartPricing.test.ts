@@ -6,6 +6,8 @@
 import { parseBookingDepositSettings, calculateRequiredDepositCents, DEFAULT_EE_ONLY_DEPOSIT_SETTINGS } from '../../pricing/depositCalculation';
 import { composeUnifiedQuoteTotals } from '../../pricing/unifiedTotals';
 import { formatCurrency } from '../../pricing';
+import type { PriceBreakdown } from '../../pricing';
+import { asErrorLike } from '../../core/errorLike';
 import type { UnifiedCartItem } from '../../../types';
 
 let passed = 0;
@@ -16,10 +18,10 @@ function ok(label: string, condition: boolean) {
 }
 
 function test(label: string, fn: () => void) {
-  try { fn(); } catch (err: any) { failed++; console.error(`FAIL (throw): ${label}: ${err?.message || err}`); }
+  try { fn(); } catch (err) { failed++; console.error(`FAIL (throw): ${label}: ${asErrorLike(err).message || err}`); }
 }
 
-function makeBreakdown(overrides: Partial<any> = {}): any {
+function makeBreakdown(overrides: Partial<PriceBreakdown> = {}): PriceBreakdown {
   return {
     travel_fee_cents: 0, travel_fee_display_name: 'Travel Fee', surface_fee_cents: 0,
     same_day_pickup_fee_cents: 0, same_day_weekday_delivery_fee_cents: 0, generator_fee_cents: 0,
@@ -30,11 +32,11 @@ function makeBreakdown(overrides: Partial<any> = {}): any {
   };
 }
 
-function makeEEProductCart(): any[] {
+function makeEEProductCart(): UnifiedCartItem[] {
   return [{ item_type: 'event_essential_product', product_id: 'p1', product_name: 'Tables', unit_price_cents: 5000, qty: 2, pricing_context: 'standalone', isAvailable: true }];
 }
 
-function makeInflatableCart(): any[] {
+function makeInflatableCart(): UnifiedCartItem[] {
   return [{ item_type: 'inflatable', unit_id: 'u1', unit_name: 'Castle', unit_price_cents: 20000, qty: 1, wet_or_dry: 'dry', isAvailable: true }];
 }
 
@@ -205,7 +207,7 @@ test('9. EE-only surface stored as cement (schema NOT NULL), surface_fee=0', () 
 
 // 10. Package with missing snapshot blocks approval.
 test('10. Package with missing snapshot blocks approval', () => {
-  const item: { bundle_id: string | null; product_id: string | null; qty: number; component_snapshot: any } = { bundle_id: 'b1', product_id: null, qty: 1, component_snapshot: null };
+  const item: { bundle_id: string | null; product_id: string | null; qty: number; component_snapshot: { components: unknown[] } | null } = { bundle_id: 'b1', product_id: null, qty: 1, component_snapshot: null };
   let threw = false;
   try {
     if (item.bundle_id) {
@@ -219,7 +221,7 @@ test('10. Package with missing snapshot blocks approval', () => {
 
 // 11. Package with empty components blocks approval.
 test('11. Package with empty components blocks approval', () => {
-  const item = { bundle_id: 'b1', product_id: null, qty: 1, component_snapshot: { components: [] as any[] } };
+  const item = { bundle_id: 'b1', product_id: null, qty: 1, component_snapshot: { components: [] as unknown[] } };
   let threw = false;
   try {
     if (item.bundle_id) {

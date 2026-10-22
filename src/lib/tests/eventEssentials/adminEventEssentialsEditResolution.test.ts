@@ -66,8 +66,8 @@ function testResolverFallbackClassificationNarrowed(): void {
   ok('resolver: NO_PURCHASE_PATH fails closed', 'NO_PURCHASE_PATH' !== allowedReason);
   ok('resolver: PREREQUISITE_NOT_MET fails closed', 'PREREQUISITE_NOT_MET' !== allowedReason);
   ok('resolver: unknown fails closed', 'UNKNOWN_REASON' !== allowedReason);
-  ok('resolver: null fails closed', (null as any) !== allowedReason);
-  ok('resolver: undefined fails closed', (undefined as any) !== allowedReason);
+  ok('resolver: null fails closed', null !== allowedReason);
+  ok('resolver: undefined fails closed', undefined !== allowedReason);
   ok('resolver: empty string fails closed', '' !== allowedReason);
 }
 
@@ -216,7 +216,7 @@ function testOperationalMixedGeneratorQuantities(): void {
 
   // legacy2 only -> 2
   {
-    const orderItems: any[] = [];
+    const orderItems: Array<Record<string, unknown>> = [];
     const { totalGeneratorQty } = aggregateOrderEquipment({ orderItems, legacyGeneratorQty: 2, generatorCategoryProductIds: genIds });
     ok('op qty: legacy2 only -> 2', totalGeneratorQty === 2);
   }
@@ -278,7 +278,7 @@ function testAvailabilityMalformedProductId(): void {
 
 function testPricingExceptionFailClosed(): void {
   // Simulate usePricing catch block behavior
-  let calculatedPricing: any = { total_cents: 50000 }; // stale
+  let calculatedPricing: { total_cents: number } | null = { total_cents: 50000 }; // stale
   let pricingError: string | null = null;
 
   // Simulate catch block

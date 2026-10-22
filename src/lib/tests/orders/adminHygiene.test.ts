@@ -51,7 +51,7 @@ async function main() {
   // =====================================================================================================================
   const legacy = read('src/lib/core/legacyAlert.ts');
   ok('window.confirm is no longer overridden', !/\.confirm\s*=/.test(legacy) && !/originalConfirm/.test(legacy));
-  ok('window.alert is still replaced (unchanged)', /\(window as any\)\.alert = /.test(legacy));
+  ok('window.alert is still replaced (unchanged)', /window\.alert = /.test(legacy));
 
   const srcFiles: string[] = [];
   const walk = (dir: string) => {

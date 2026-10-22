@@ -2,13 +2,19 @@
 // pickup validation, and configurable EE-only deposits.
 // jiti runner. Tests imported production helpers.
 
-import { calculateRequiredDepositCents, calculateEEOnlyDepositCents, DEFAULT_EE_ONLY_DEPOSIT_SETTINGS, type EEOnlyDepositSettings } from '../../pricing/depositCalculation';
+import { calculateRequiredDepositCents, calculateEEOnlyDepositCents, DEFAULT_EE_ONLY_DEPOSIT_SETTINGS, type EEOnlyDepositSettings, type RequiredDepositResult } from '../../pricing/depositCalculation';
 import { buildPackageDisplay } from '../../pricing/packageDisplay';
 import { hasGeneratorInOrderItems } from '../../eventEssentials/customerGeneratorCart';
 import { composeUnifiedQuoteTotals } from '../../pricing/unifiedTotals';
 import { mapCartToOrderItems } from '../../eventEssentials/eventEssentialsOrderItems';
 import { getPaymentAmountCentsFromTotals } from '../../booking/checkoutUtils';
+import type { PriceBreakdown } from '../../pricing';
 import type { UnifiedCartItem, InflatableCartItem, EventEssentialProductCartItem, EventEssentialBundleCartItem, BundleComponentSnapshot } from '../../../types';
+
+// A deposit result that has already been checked to be 'calculated' (each test asserts that first).
+type Calculated = Extract<RequiredDepositResult, { status: 'calculated' }>;
+// The breakdown fixtures leave out two fields composeUnifiedQuoteTotals does not read.
+type BreakdownFixture = Omit<PriceBreakdown, 'balance_due_cents' | 'event_essentials_subtotal_cents'>;
 
 let passed = 0;
 let failed = 0;
@@ -44,12 +50,12 @@ function makeBundleWithComponents(bundleId: string, name: string, price: number,
   return { item_type: 'event_essential_bundle', bundle_id: bundleId, bundle_name: name, unit_price_cents: price, qty, pricing_context: 'standalone', component_snapshot: snapshot };
 }
 
-function makeBreakdown(overrides: Record<string, any> = {}) {
+function makeBreakdown(overrides: Partial<BreakdownFixture> = {}): BreakdownFixture {
   return { subtotal_cents: 15000, travel_fee_cents: 11400, surface_fee_cents: 0, same_day_pickup_fee_cents: 0, same_day_weekday_delivery_fee_cents: 0, generator_fee_cents: 0, tax_cents: 0, tax_applied: false, deposit_due_cents: 5000, total_cents: 26400, travel_total_miles: 20, travel_base_radius_miles: 10, travel_chargeable_miles: 10, travel_per_mile_cents: 1140, travel_is_flat_fee: false, travel_fee_display_name: 'Travel Fee', ...overrides };
 }
 
 // EE-only breakdown: no inflatables, zero everything
-function makeEEOnlyBreakdown(overrides: Record<string, any> = {}) {
+function makeEEOnlyBreakdown(overrides: Partial<BreakdownFixture> = {}): BreakdownFixture {
   return { subtotal_cents: 0, travel_fee_cents: 0, surface_fee_cents: 0, same_day_pickup_fee_cents: 0, same_day_weekday_delivery_fee_cents: 0, generator_fee_cents: 0, tax_cents: 0, tax_applied: false, deposit_due_cents: 0, total_cents: 0, travel_total_miles: 0, travel_base_radius_miles: 10, travel_chargeable_miles: 0, travel_per_mile_cents: 1140, travel_is_flat_fee: false, travel_fee_display_name: 'Travel Fee', ...overrides };
 }
 
@@ -181,7 +187,7 @@ test('14. Package Generator produces Yes', () => {
 });
 
 test('15. Legacy generator_qty produces Yes', () => {
-  const orderItems: any[] = [{ product_id: null, bundle_id: null, unit_id: null, component_snapshot: null }];
+  const orderItems: Array<Record<string, unknown>> = [{ product_id: null, bundle_id: null, unit_id: null, component_snapshot: null }];
   ok('legacy generator detected', hasGeneratorInOrderItems({ orderItems, generatorProductId: GEN_ID, legacyGeneratorQty: 2 }) === true);
 });
 
@@ -207,15 +213,15 @@ test('18. Residential missing pickup blocks Checkout', () => {
 });
 
 test('19. Missing pickup blocks orderCreation before writes', () => {
-  const validPickupPreferences = ['next_day', 'same_day'];
+  const validPickupPreferences: Array<string | null | undefined> = ['next_day', 'same_day'];
   const pickupPref = null;
-  const blocked = !validPickupPreferences.includes(pickupPref as any);
+  const blocked = !validPickupPreferences.includes(pickupPref);
   ok('null blocked', blocked === true);
-  const blocked2 = !validPickupPreferences.includes('' as any);
+  const blocked2 = !validPickupPreferences.includes('');
   ok('empty string blocked', blocked2 === true);
-  const blocked3 = !validPickupPreferences.includes('not_specified' as any);
+  const blocked3 = !validPickupPreferences.includes('not_specified');
   ok('not_specified blocked', blocked3 === true);
-  const blocked4 = !validPickupPreferences.includes(undefined as any);
+  const blocked4 = !validPickupPreferences.includes(undefined);
   ok('undefined blocked', blocked4 === true);
 });
 
@@ -236,85 +242,85 @@ test('21. same_day persists', () => {
 test('22. One inflatable and no EE uses existing $50 default', () => {
   const result = calculateRequiredDepositCents({ inflatableQuantity: 1, eventEssentialsSubtotalCents: 0, orderTotalCents: 20000, inflatableDepositPerUnitCents: 5000, eeOnlyDepositSettings: DEFAULT_EE_ONLY_DEPOSIT_SETTINGS });
   ok('status calculated', result.status === 'calculated');
-  ok('deposit = 5000', (result as any).depositCents === 5000);
+  ok('deposit = 5000', (result as Calculated).depositCents === 5000);
 });
 
 test('23. One inflatable and $500 EE remains $50', () => {
   const result = calculateRequiredDepositCents({ inflatableQuantity: 1, eventEssentialsSubtotalCents: 50000, orderTotalCents: 70000, inflatableDepositPerUnitCents: 5000, eeOnlyDepositSettings: DEFAULT_EE_ONLY_DEPOSIT_SETTINGS });
   ok('status calculated', result.status === 'calculated');
-  ok('deposit = 5000', (result as any).depositCents === 5000);
+  ok('deposit = 5000', (result as Calculated).depositCents === 5000);
 });
 
 test('24. Two inflatables and $500 EE remains $100', () => {
   const result = calculateRequiredDepositCents({ inflatableQuantity: 2, eventEssentialsSubtotalCents: 50000, orderTotalCents: 70000, inflatableDepositPerUnitCents: 5000, eeOnlyDepositSettings: DEFAULT_EE_ONLY_DEPOSIT_SETTINGS });
   ok('status calculated', result.status === 'calculated');
-  ok('deposit = 10000', (result as any).depositCents === 10000);
+  ok('deposit = 10000', (result as Calculated).depositCents === 10000);
 });
 
 test('25. EE-only $150 → $50', () => {
   const result = calculateEEOnlyDepositCents(15000, 15000, DEFAULT_EE_ONLY_DEPOSIT_SETTINGS);
   ok('status calculated', result.status === 'calculated');
-  ok('deposit = 5000', (result as any).depositCents === 5000);
+  ok('deposit = 5000', (result as Calculated).depositCents === 5000);
 });
 
 test('26. EE-only $200.00 → $50', () => {
   const result = calculateEEOnlyDepositCents(20000, 20000, DEFAULT_EE_ONLY_DEPOSIT_SETTINGS);
   ok('status calculated', result.status === 'calculated');
-  ok('deposit = 5000', (result as any).depositCents === 5000);
+  ok('deposit = 5000', (result as Calculated).depositCents === 5000);
 });
 
 test('27. EE-only $200.01 → $100', () => {
   const result = calculateEEOnlyDepositCents(20001, 20001, DEFAULT_EE_ONLY_DEPOSIT_SETTINGS);
   ok('status calculated', result.status === 'calculated');
-  ok('deposit = 10000', (result as any).depositCents === 10000);
+  ok('deposit = 10000', (result as Calculated).depositCents === 10000);
 });
 
 test('28. EE-only $300.00 → $100', () => {
   const result = calculateEEOnlyDepositCents(30000, 30000, DEFAULT_EE_ONLY_DEPOSIT_SETTINGS);
   ok('status calculated', result.status === 'calculated');
-  ok('deposit = 10000', (result as any).depositCents === 10000);
+  ok('deposit = 10000', (result as Calculated).depositCents === 10000);
 });
 
 test('29. EE-only $300.01 → $150', () => {
   const result = calculateEEOnlyDepositCents(30001, 30001, DEFAULT_EE_ONLY_DEPOSIT_SETTINGS);
   ok('status calculated', result.status === 'calculated');
-  ok('deposit = 15000', (result as any).depositCents === 15000);
+  ok('deposit = 15000', (result as Calculated).depositCents === 15000);
 });
 
 test('30. EE-only $400.00 → $150', () => {
   const result = calculateEEOnlyDepositCents(40000, 40000, DEFAULT_EE_ONLY_DEPOSIT_SETTINGS);
   ok('status calculated', result.status === 'calculated');
-  ok('deposit = 15000', (result as any).depositCents === 15000);
+  ok('deposit = 15000', (result as Calculated).depositCents === 15000);
 });
 
 test('31. EE-only $400.01 → $200', () => {
   const result = calculateEEOnlyDepositCents(40001, 40001, DEFAULT_EE_ONLY_DEPOSIT_SETTINGS);
   ok('status calculated', result.status === 'calculated');
-  ok('deposit = 20000', (result as any).depositCents === 20000);
+  ok('deposit = 20000', (result as Calculated).depositCents === 20000);
 });
 
 test('32. EE-only $500.00 → $200', () => {
   const result = calculateEEOnlyDepositCents(50000, 50000, DEFAULT_EE_ONLY_DEPOSIT_SETTINGS);
   ok('status calculated', result.status === 'calculated');
-  ok('deposit = 20000', (result as any).depositCents === 20000);
+  ok('deposit = 20000', (result as Calculated).depositCents === 20000);
 });
 
 test('33. EE-only $500.01 → $250', () => {
   const result = calculateEEOnlyDepositCents(50001, 50001, DEFAULT_EE_ONLY_DEPOSIT_SETTINGS);
   ok('status calculated', result.status === 'calculated');
-  ok('deposit = 25000', (result as any).depositCents === 25000);
+  ok('deposit = 25000', (result as Calculated).depositCents === 25000);
 });
 
 test('34. Deposit is capped at order total', () => {
   const result = calculateEEOnlyDepositCents(50000, 10000, DEFAULT_EE_ONLY_DEPOSIT_SETTINGS);
   ok('status calculated', result.status === 'calculated');
-  ok('capped at 10000', (result as any).depositCents === 10000);
+  ok('capped at 10000', (result as Calculated).depositCents === 10000);
 });
 
 test('35. Package subtotal affects EE-only tier', () => {
   const cart: UnifiedCartItem[] = [makeBundle(BUNDLE_ID, 'Package', 25000)];
   const bd = makeEEOnlyBreakdown();
-  const totals = composeUnifiedQuoteTotals({ inflatableBreakdown: bd as any, cart, taxApplied: false, inflatableDepositPerUnitCents: 5000, eeOnlyDepositSettings: DEFAULT_EE_ONLY_DEPOSIT_SETTINGS });
+  const totals = composeUnifiedQuoteTotals({ inflatableBreakdown: bd as PriceBreakdown, cart, taxApplied: false, inflatableDepositPerUnitCents: 5000, eeOnlyDepositSettings: DEFAULT_EE_ONLY_DEPOSIT_SETTINGS });
   ok('ee subtotal = 25000', totals.eventEssentialsSubtotalCents === 25000);
   ok('deposit = 10000 (tier 2)', totals.depositCents === 10000);
 });
@@ -322,25 +328,25 @@ test('35. Package subtotal affects EE-only tier', () => {
 test('36. Travel does not affect tier', () => {
   const result = calculateEEOnlyDepositCents(15000, 50000, DEFAULT_EE_ONLY_DEPOSIT_SETTINGS);
   ok('status calculated', result.status === 'calculated');
-  ok('deposit = 5000 regardless of travel', (result as any).depositCents === 5000);
+  ok('deposit = 5000 regardless of travel', (result as Calculated).depositCents === 5000);
 });
 
 test('37. Tax does not affect tier', () => {
   const result = calculateEEOnlyDepositCents(15000, 60000, DEFAULT_EE_ONLY_DEPOSIT_SETTINGS);
   ok('status calculated', result.status === 'calculated');
- ok('deposit = 5000 regardless of tax', (result as any).depositCents === 5000);
+ ok('deposit = 5000 regardless of tax', (result as Calculated).depositCents === 5000);
 });
 
 test('38. Custom fees do not affect tier', () => {
   const result = calculateEEOnlyDepositCents(15000, 55000, DEFAULT_EE_ONLY_DEPOSIT_SETTINGS);
   ok('status calculated', result.status === 'calculated');
-  ok('deposit = 5000 regardless of custom fees', (result as any).depositCents === 5000);
+  ok('deposit = 5000 regardless of custom fees', (result as Calculated).depositCents === 5000);
 });
 
 test('39. Discounts do not affect tier', () => {
   const result = calculateEEOnlyDepositCents(15000, 45000, DEFAULT_EE_ONLY_DEPOSIT_SETTINGS);
   ok('status calculated', result.status === 'calculated');
-  ok('deposit = 5000 regardless of discounts', (result as any).depositCents === 5000);
+  ok('deposit = 5000 regardless of discounts', (result as Calculated).depositCents === 5000);
 });
 
 test('40. Invalid settings fail closed', () => {
@@ -363,25 +369,25 @@ test('42. Admin preview uses production helper', () => {
   const r2 = calculateEEOnlyDepositCents(30000, 30000, settings);
   const r3 = calculateEEOnlyDepositCents(40000, 40000, settings);
   const r4 = calculateEEOnlyDepositCents(50000, 50000, settings);
-  ok('up to 200 → 50', r1.status === 'calculated' && (r1 as any).depositCents === 5000);
-  ok('up to 300 → 100', r2.status === 'calculated' && (r2 as any).depositCents === 10000);
-  ok('up to 400 → 150', r3.status === 'calculated' && (r3 as any).depositCents === 15000);
-  ok('up to 500 → 200', r4.status === 'calculated' && (r4 as any).depositCents === 20000);
+  ok('up to 200 → 50', r1.status === 'calculated' && r1.depositCents === 5000);
+  ok('up to 300 → 100', r2.status === 'calculated' && r2.depositCents === 10000);
+  ok('up to 400 → 150', r3.status === 'calculated' && r3.depositCents === 15000);
+  ok('up to 500 → 200', r4.status === 'calculated' && r4.depositCents === 20000);
 });
 
 test('43. Quote and Checkout calculate same deposit', () => {
   const bd = makeBreakdown();
   const cart: UnifiedCartItem[] = [makeBundle(BUNDLE_ID, 'Package', 25000)];
   const settings: EEOnlyDepositSettings = DEFAULT_EE_ONLY_DEPOSIT_SETTINGS;
-  const quoteTotals = composeUnifiedQuoteTotals({ inflatableBreakdown: bd as any, cart, taxApplied: false, eeOnlyDepositSettings: settings, inflatableDepositPerUnitCents: 5000 });
-  const checkoutTotals = composeUnifiedQuoteTotals({ inflatableBreakdown: bd as any, cart, taxApplied: false, eeOnlyDepositSettings: settings, inflatableDepositPerUnitCents: 5000 });
+  const quoteTotals = composeUnifiedQuoteTotals({ inflatableBreakdown: bd as PriceBreakdown, cart, taxApplied: false, eeOnlyDepositSettings: settings, inflatableDepositPerUnitCents: 5000 });
+  const checkoutTotals = composeUnifiedQuoteTotals({ inflatableBreakdown: bd as PriceBreakdown, cart, taxApplied: false, eeOnlyDepositSettings: settings, inflatableDepositPerUnitCents: 5000 });
   ok('same deposit', quoteTotals.depositCents === checkoutTotals.depositCents);
 });
 
 test('44. orderCreation persists same deposit', () => {
   const bd = makeEEOnlyBreakdown();
   const cart: UnifiedCartItem[] = [makeBundle(BUNDLE_ID, 'Package', 25000)];
-  const totals = composeUnifiedQuoteTotals({ inflatableBreakdown: bd as any, cart, taxApplied: false, eeOnlyDepositSettings: DEFAULT_EE_ONLY_DEPOSIT_SETTINGS, inflatableDepositPerUnitCents: 5000 });
+  const totals = composeUnifiedQuoteTotals({ inflatableBreakdown: bd as PriceBreakdown, cart, taxApplied: false, eeOnlyDepositSettings: DEFAULT_EE_ONLY_DEPOSIT_SETTINGS, inflatableDepositPerUnitCents: 5000 });
   ok('deposit = 10000', totals.depositCents === 10000);
   ok('balance = 15000', totals.balanceDueCents === 15000);
 });
@@ -389,7 +395,7 @@ test('44. orderCreation persists same deposit', () => {
 test('45. customer_selected_payment_cents remains separate', () => {
   const bd = makeBreakdown();
   const cart: UnifiedCartItem[] = [makeInflatable('u1', 15000)];
-  const totals = composeUnifiedQuoteTotals({ inflatableBreakdown: bd as any, cart, taxApplied: false, inflatableDepositPerUnitCents: 5000, eeOnlyDepositSettings: DEFAULT_EE_ONLY_DEPOSIT_SETTINGS });
+  const totals = composeUnifiedQuoteTotals({ inflatableBreakdown: bd as PriceBreakdown, cart, taxApplied: false, inflatableDepositPerUnitCents: 5000, eeOnlyDepositSettings: DEFAULT_EE_ONLY_DEPOSIT_SETTINGS });
   const depositCents = totals.depositCents;
   const fullPayment = getPaymentAmountCentsFromTotals('full', '', totals);
   const customPayment = getPaymentAmountCentsFromTotals('custom', '100.00', totals);
@@ -407,7 +413,7 @@ test('46. Approval charges stored deposit_due_cents', () => {
 test('47. Settings changes do not mutate existing order', () => {
   const storedDeposit = 5000;
   const result = calculateEEOnlyDepositCents(15000, 15000, { eeOnlyDepositBaseThresholdCents: 30000, eeOnlyDepositBaseCents: 7000, eeOnlyDepositSubtotalStepCents: 10000, eeOnlyDepositStepCents: 5000 });
-  const newSettingsDeposit = result.status === 'calculated' ? (result as any).depositCents : 0;
+  const newSettingsDeposit = result.status === 'calculated' ? (result as Calculated).depositCents : 0;
   ok('stored unchanged', storedDeposit === 5000);
   ok('new calculation different', newSettingsDeposit === 7000);
   ok('stored != new', storedDeposit !== newSettingsDeposit);
@@ -430,7 +436,7 @@ test('49. No payment is captured during submission', () => {
 test('50. Existing mixed order total remains 50854 for the tested fixture', () => {
   const bd = makeBreakdown({ subtotal_cents: 15000, travel_fee_cents: 11400, tax_cents: 1584, tax_applied: true, deposit_due_cents: 5000, total_cents: 27984 });
   const cart: UnifiedCartItem[] = [makeInflatable('u1', 15000), makeBundle(BUNDLE_ID, 'Celebration Seating Package', 15000), makeProduct(GEN_ID, 'Generator', 9500)];
-  const totals = composeUnifiedQuoteTotals({ inflatableBreakdown: bd as any, cart, taxApplied: true, inflatableDepositPerUnitCents: 5000, eeOnlyDepositSettings: DEFAULT_EE_ONLY_DEPOSIT_SETTINGS });
+  const totals = composeUnifiedQuoteTotals({ inflatableBreakdown: bd as PriceBreakdown, cart, taxApplied: true, inflatableDepositPerUnitCents: 5000, eeOnlyDepositSettings: DEFAULT_EE_ONLY_DEPOSIT_SETTINGS });
   ok('total > 0', totals.totalCents > 0);
   ok('equipment subtotal = 39500', totals.equipmentSubtotalCents === 39500);
   ok('ee subtotal = 24500', totals.eventEssentialsSubtotalCents === 24500);
@@ -439,18 +445,18 @@ test('50. Existing mixed order total remains 50854 for the tested fixture', () =
 test('51. Existing mixed order deposit remains 5000', () => {
   const bd = makeBreakdown({ deposit_due_cents: 5000, subtotal_cents: 15000, total_cents: 27984, tax_applied: true, tax_cents: 1584, travel_fee_cents: 11400 });
   const cart: UnifiedCartItem[] = [makeInflatable('u1', 15000), makeBundle(BUNDLE_ID, 'Package', 15000), makeProduct(GEN_ID, 'Generator', 9500)];
-  const totals = composeUnifiedQuoteTotals({ inflatableBreakdown: bd as any, cart, taxApplied: true, inflatableDepositPerUnitCents: 5000, eeOnlyDepositSettings: DEFAULT_EE_ONLY_DEPOSIT_SETTINGS });
+  const totals = composeUnifiedQuoteTotals({ inflatableBreakdown: bd as PriceBreakdown, cart, taxApplied: true, inflatableDepositPerUnitCents: 5000, eeOnlyDepositSettings: DEFAULT_EE_ONLY_DEPOSIT_SETTINGS });
   ok('deposit = 5000', totals.depositCents === 5000);
 });
 
 test('52. Event Essentials Generator creates no legacy Generator fee', () => {
   const bd = makeBreakdown({ generator_fee_cents: 0 });
   const cart: UnifiedCartItem[] = [makeProduct(GEN_ID, 'Generator', 9500)];
-  const totals = composeUnifiedQuoteTotals({ inflatableBreakdown: bd as any, cart, taxApplied: false, inflatableDepositPerUnitCents: 5000, eeOnlyDepositSettings: DEFAULT_EE_ONLY_DEPOSIT_SETTINGS });
+  const totals = composeUnifiedQuoteTotals({ inflatableBreakdown: bd as PriceBreakdown, cart, taxApplied: false, inflatableDepositPerUnitCents: 5000, eeOnlyDepositSettings: DEFAULT_EE_ONLY_DEPOSIT_SETTINGS });
   ok('generator_fee_cents = 0', totals.generatorFeeCents === 0);
   ok('ee subtotal includes generator', totals.eventEssentialsSubtotalCents === 9500);
   const items = mapCartToOrderItems(cart);
-  ok('no generator_qty on EE items', !(items[0] as any).generator_qty);
+  ok('no generator_qty on EE items', !(items[0] as { generator_qty?: number }).generator_qty);
 });
 
 // --- Runner ---

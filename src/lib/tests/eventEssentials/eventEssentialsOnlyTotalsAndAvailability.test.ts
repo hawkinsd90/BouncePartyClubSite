@@ -5,6 +5,9 @@ import { buildEventEssentialAvailabilityRequestFromOrderItems, validateAvailabil
 import { parseBookingDepositSettings, calculateRequiredDepositCents, calculateEEOnlyDepositCents, DEFAULT_EE_ONLY_DEPOSIT_SETTINGS } from '../../pricing/depositCalculation';
 import { composeUnifiedQuoteTotals } from '../../pricing/unifiedTotals';
 import { formatCurrency } from '../../pricing';
+import type { PriceBreakdown } from '../../pricing';
+import type { RequiredDepositResult } from '../../pricing/depositCalculation';
+import { asErrorLike } from '../../core/errorLike';
 import type { UnifiedCartItem } from '../../../types';
 
 let passed = 0;
@@ -15,10 +18,13 @@ function ok(label: string, condition: boolean) {
 }
 
 function test(label: string, fn: () => void) {
-  try { fn(); } catch (err: any) { failed++; console.error(`FAIL (throw): ${label}: ${err?.message || err}`); }
+  try { fn(); } catch (err) { failed++; console.error(`FAIL (throw): ${label}: ${asErrorLike(err).message || err}`); }
 }
 
-function makeBreakdown(overrides: Partial<any> = {}): any {
+// A deposit result that has already been checked to be 'calculated' (each test asserts that first).
+type Calculated = Extract<RequiredDepositResult, { status: 'calculated' }>;
+
+function makeBreakdown(overrides: Partial<PriceBreakdown> = {}): PriceBreakdown {
   return {
     travel_fee_cents: 0, travel_fee_display_name: 'Travel Fee', surface_fee_cents: 0,
     same_day_pickup_fee_cents: 0, same_day_weekday_delivery_fee_cents: 0, generator_fee_cents: 0,
@@ -43,7 +49,7 @@ test('1. Valid EE-only cart produces totals', () => {
   ok('parsed ready', parsed.status === 'ready');
   if (parsed.status !== 'ready') return;
   const bd = makeBreakdown({ subtotal_cents: 0, deposit_due_cents: 0, total_cents: 600, event_essentials_subtotal_cents: 10000, tax_cents: 600, surface_fee_cents: 0 });
-  const cart: any[] = [{ item_type: 'event_essential_product', product_id: 'p1', product_name: 'Tables', unit_price_cents: 5000, qty: 2, pricing_context: 'standalone', isAvailable: true }];
+  const cart: UnifiedCartItem[] = [{ item_type: 'event_essential_product', product_id: 'p1', product_name: 'Tables', unit_price_cents: 5000, qty: 2, pricing_context: 'standalone', isAvailable: true }];
   const totals = composeUnifiedQuoteTotals({
     inflatableBreakdown: bd,
     cart: cart as UnifiedCartItem[],
@@ -64,7 +70,7 @@ test('2. Stable inputs produce same totals', () => {
   const parsed = parseBookingDepositSettings(validSettings);
   if (parsed.status !== 'ready') { ok('parsed ready', false); return; }
   const bd = makeBreakdown();
-  const cart: any[] = [{ item_type: 'event_essential_product', product_id: 'p1', product_name: 'Tables', unit_price_cents: 5000, qty: 2, pricing_context: 'standalone', isAvailable: true }];
+  const cart: UnifiedCartItem[] = [{ item_type: 'event_essential_product', product_id: 'p1', product_name: 'Tables', unit_price_cents: 5000, qty: 2, pricing_context: 'standalone', isAvailable: true }];
   const t1 = composeUnifiedQuoteTotals({ inflatableBreakdown: bd, cart: cart as UnifiedCartItem[], taxApplied: true, eeOnlyDepositSettings: parsed.eventEssentialsDepositSettings, inflatableDepositPerUnitCents: parsed.inflatableDepositPerUnitCents });
   const t2 = composeUnifiedQuoteTotals({ inflatableBreakdown: bd, cart: cart as UnifiedCartItem[], taxApplied: true, eeOnlyDepositSettings: parsed.eventEssentialsDepositSettings, inflatableDepositPerUnitCents: parsed.inflatableDepositPerUnitCents });
   ok('totals identical', t1.totalCents === t2.totalCents && t1.depositCents === t2.depositCents);
@@ -180,7 +186,7 @@ test('10. composeUnifiedQuoteTotals requires both settings', () => {
   const parsed = parseBookingDepositSettings(validSettings);
   if (parsed.status !== 'ready') { ok('parsed ready', false); return; }
   const bd = makeBreakdown();
-  const cart: any[] = [{ item_type: 'inflatable', unit_id: 'u1', unit_name: 'Castle', unit_price_cents: 20000, qty: 1, wet_or_dry: 'dry', isAvailable: true }];
+  const cart: UnifiedCartItem[] = [{ item_type: 'inflatable', unit_id: 'u1', unit_name: 'Castle', unit_price_cents: 20000, qty: 1, wet_or_dry: 'dry', isAvailable: true }];
 
   // Valid settings produce totals
   const totals = composeUnifiedQuoteTotals({
@@ -199,12 +205,12 @@ test('10b. calculateEEOnlyDepositCents requires settings', () => {
   if (parsed.status !== 'ready') { ok('parsed ready', false); return; }
   const result = calculateEEOnlyDepositCents(10000, 10600, parsed.eventEssentialsDepositSettings);
   ok('calculated', result.status === 'calculated');
-  ok('deposit = 5000 (base, below threshold)', (result as any).depositCents === 5000);
+  ok('deposit = 5000 (base, below threshold)', (result as Calculated).depositCents === 5000);
 
   // With higher subtotal, step applies
   const result2 = calculateEEOnlyDepositCents(30000, 31800, parsed.eventEssentialsDepositSettings);
   ok('calculated 2', result2.status === 'calculated');
-  ok('deposit > base for high subtotal', (result2 as any).depositCents > 5000);
+  ok('deposit > base for high subtotal', (result2 as Calculated).depositCents > 5000);
 });
 
 // 11. EE-only order persistence maps surface to null.
@@ -232,7 +238,7 @@ test('12. Quote receives one totals object', () => {
   const parsed = parseBookingDepositSettings(validSettings);
   if (parsed.status !== 'ready') { ok('parsed ready', false); return; }
   const bd = makeBreakdown({ total_cents: 21200, tax_cents: 1200 });
-  const cart: any[] = [{ item_type: 'inflatable', unit_id: 'u1', unit_name: 'Castle', unit_price_cents: 20000, qty: 1, wet_or_dry: 'dry', isAvailable: true }];
+  const cart: UnifiedCartItem[] = [{ item_type: 'inflatable', unit_id: 'u1', unit_name: 'Castle', unit_price_cents: 20000, qty: 1, wet_or_dry: 'dry', isAvailable: true }];
   const totals = composeUnifiedQuoteTotals({
     inflatableBreakdown: bd, cart: cart as UnifiedCartItem[], taxApplied: true,
     eeOnlyDepositSettings: parsed.eventEssentialsDepositSettings,
@@ -249,7 +255,7 @@ test('13. No fallback total from subtotals+fees', () => {
   const parsed = parseBookingDepositSettings(validSettings);
   if (parsed.status !== 'ready') { ok('parsed ready', false); return; }
   const bd = makeBreakdown({ subtotal_cents: 20000, total_cents: 21200, tax_cents: 1200, travel_fee_cents: 0, surface_fee_cents: 0, generator_fee_cents: 0 });
-  const cart: any[] = [{ item_type: 'inflatable', unit_id: 'u1', unit_name: 'Castle', unit_price_cents: 20000, qty: 1, wet_or_dry: 'dry', isAvailable: true }];
+  const cart: UnifiedCartItem[] = [{ item_type: 'inflatable', unit_id: 'u1', unit_name: 'Castle', unit_price_cents: 20000, qty: 1, wet_or_dry: 'dry', isAvailable: true }];
   const totals = composeUnifiedQuoteTotals({
     inflatableBreakdown: bd, cart: cart as UnifiedCartItem[], taxApplied: true,
     eeOnlyDepositSettings: parsed.eventEssentialsDepositSettings,

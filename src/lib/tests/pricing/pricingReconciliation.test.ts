@@ -444,7 +444,8 @@ const moneyKeys = ['subtotal_cents', 'travel_fee_cents', 'surface_fee_cents', 's
   eq('receipt: the total in cents', figures.total, 25000 + 2000 + 3500 + 10500 + 2500 + 10000 + 5500 + 2400 + 500 - 1000);
   eq('receipt: the discount is one amount', figures.discountsTotal, 1000);
   ok('receipt: the weekday delivery fee and the setup fee get their own rows', /Same-Day Delivery Fee/.test(receiptExtraFeeRowsHtml(figures, (c: number) => '$' + c)) && /Setup Fee/.test(receiptExtraFeeRowsHtml(figures, (c: number) => '$' + c)));
-  eq('receipt: a stored tax is shown whatever the tax toggle says', receiptOrderFigures({ ...order, tax_waived: true }, [], []).tax, 2400);
+  const taxWaivedOrder = { ...order, tax_waived: true }; // a tax_waived flag is not part of the receipt's order type; the point is that it must not matter
+  eq('receipt: a stored tax is shown whatever the tax toggle says', receiptOrderFigures(taxWaivedOrder, [], []).tax, 2400);
 }
 
 // =====================================================================================================================

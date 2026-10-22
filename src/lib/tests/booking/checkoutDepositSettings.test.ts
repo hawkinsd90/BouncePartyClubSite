@@ -10,6 +10,7 @@ import { determineCheckoutRenderState } from '../../booking/checkoutUtils';
 import { renderOrderEmailItems } from '../../notifications/orderEmailTemplates';
 import type { PriceBreakdown } from '../../pricing';
 import type { UnifiedCartItem } from '../../../types';
+import { asErrorLike } from '../../core/errorLike';
 
 let passed = 0;
 let failed = 0;
@@ -19,7 +20,7 @@ function ok(label: string, condition: boolean) {
 }
 
 function test(label: string, fn: () => void) {
-  try { fn(); } catch (err: any) { failed++; console.error(`FAIL (throw): ${label}: ${err?.message || err}`); }
+  try { fn(); } catch (err) { failed++; console.error(`FAIL (throw): ${label}: ${asErrorLike(err).message || err}`); }
 }
 
 function makeBreakdown(overrides: Partial<PriceBreakdown> = {}): PriceBreakdown {
@@ -33,11 +34,11 @@ function makeBreakdown(overrides: Partial<PriceBreakdown> = {}): PriceBreakdown 
   };
 }
 
-function makeEEProductCart(): any[] {
-  return [{ item_type: 'event_essential_product', product_id: 'p1', product_name: 'Tables', unit_price_cents: 5000, qty: 2, isAvailable: true }];
+function makeEEProductCart(): UnifiedCartItem[] {
+  return [{ item_type: 'event_essential_product', product_id: 'p1', product_name: 'Tables', unit_price_cents: 5000, qty: 2, isAvailable: true }] as UnifiedCartItem[];
 }
 
-function makeInflatableCart(): any[] {
+function makeInflatableCart(): UnifiedCartItem[] {
   return [{ item_type: 'inflatable', unit_id: 'u1', unit_name: 'Castle', unit_price_cents: 20000, qty: 1, wet_or_dry: 'dry', isAvailable: true }];
 }
 

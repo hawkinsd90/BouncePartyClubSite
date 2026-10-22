@@ -1385,7 +1385,7 @@ function run() {
     ok(
       '77 inflatable qualification unchanged with package present',
       genLine !== undefined &&
-        (genLine as any).pricing_context === 'addon' &&
+        (genLine as EventEssentialProductCartItem).pricing_context === 'addon' &&
         genLine.unit_price_cents === 10000,
     );
   }
@@ -1417,7 +1417,7 @@ function run() {
     ok(
       '78 package same-category does not qualify product',
       tablesLine !== undefined &&
-        (tablesLine as any).pricing_context === 'standalone' &&
+        (tablesLine as EventEssentialProductCartItem).pricing_context === 'standalone' &&
         tablesLine.unit_price_cents === 10000,
     );
   }
@@ -1451,7 +1451,7 @@ function run() {
     ok(
       '79 package unrelated categories qualifies product',
       genLine !== undefined &&
-        (genLine as any).pricing_context === 'addon' &&
+        (genLine as EventEssentialProductCartItem).pricing_context === 'addon' &&
         genLine.unit_price_cents === 10000,
     );
   }

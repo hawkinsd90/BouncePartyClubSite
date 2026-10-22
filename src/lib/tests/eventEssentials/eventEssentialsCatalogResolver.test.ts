@@ -1190,7 +1190,7 @@ function runTests(): void {
       makeBundleConfigured('b_missing_join', {
         product_bundle_components: [
           { id: 'c1', bundle_id: 'b_missing_join', product_id: 'p_tables', quantity_per_bundle: 1, inventory_products: { id: 'p_tables', slug: 'p_tables', name: 'Tables', category_id: C_TABLES } },
-          { id: 'c2', bundle_id: 'b_missing_join', product_id: 'p_chairs', quantity_per_bundle: 1, inventory_products: null as any },
+          { id: 'c2', bundle_id: 'b_missing_join', product_id: 'p_chairs', quantity_per_bundle: 1, inventory_products: null },
         ],
       }),
     ];
@@ -1206,7 +1206,7 @@ function runTests(): void {
       makeBundleConfigured('b_null_cat', {
         product_bundle_components: [
           { id: 'c1', bundle_id: 'b_null_cat', product_id: 'p_tables', quantity_per_bundle: 1, inventory_products: { id: 'p_tables', slug: 'p_tables', name: 'Tables', category_id: C_TABLES } },
-          { id: 'c2', bundle_id: 'b_null_cat', product_id: 'p_chairs', quantity_per_bundle: 1, inventory_products: { id: 'p_chairs', slug: 'p_chairs', name: 'Chairs', category_id: null as any } },
+          { id: 'c2', bundle_id: 'b_null_cat', product_id: 'p_chairs', quantity_per_bundle: 1, inventory_products: { id: 'p_chairs', slug: 'p_chairs', name: 'Chairs', category_id: null } },
         ],
       }),
     ];
@@ -1253,7 +1253,7 @@ function runTests(): void {
         // One component has a null category_id -> entire package is malformed.
         product_bundle_components: [
           { id: 'c1', bundle_id: 'b_malformed_celebration', product_id: 'p_tables', quantity_per_bundle: 1, inventory_products: { id: 'p_tables', slug: 'p_tables', name: 'Tables', category_id: C_TABLES } },
-          { id: 'c2', bundle_id: 'b_malformed_celebration', product_id: 'p_chairs', quantity_per_bundle: 1, inventory_products: { id: 'p_chairs', slug: 'p_chairs', name: 'Chairs', category_id: null as any } },
+          { id: 'c2', bundle_id: 'b_malformed_celebration', product_id: 'p_chairs', quantity_per_bundle: 1, inventory_products: { id: 'p_chairs', slug: 'p_chairs', name: 'Chairs', category_id: null } },
         ],
       }),
     ];

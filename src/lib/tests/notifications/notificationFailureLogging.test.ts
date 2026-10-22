@@ -225,7 +225,7 @@ function evalLiteral(literal: string, scope: Record<string, any>): any {
   // ---------------------------------------------------------------------------
   const LINK_FAIL = async () => ({ success: false as const, error: 'link boom' });
   const LINK_OK = async () => ({ success: true as const, url: 'https://site.test/i/ab', shortCode: 'ab' });
-  const order = (customers: any) => ({ id: 'ord-1', event_date: '2026-07-04', customers, order_items: [], addresses: {} });
+  const order = (customers: any) => ({ id: 'ord-1', event_date: '2026-07-04', customers, order_items: [], addresses: {} }) as never;
   const both = { first_name: 'Ann', last_name: 'Lee', email: 'ann@example.test', phone: '+15555550101' };
 
   for (const behavior of ['ok', 'returns-error', 'throws'] as InsertBehavior[]) {

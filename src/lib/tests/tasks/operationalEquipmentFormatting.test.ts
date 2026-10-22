@@ -247,11 +247,11 @@ function testLegacyStoredFormClearsTimes() {
     event_date: '2026-07-28',
     address_line1: '123 Main St',
   };
-  const normalized = normalizeStoredQuoteForm(legacy as any);
+  const normalized = normalizeStoredQuoteForm(legacy);
   eq('12 legacy start_window cleared', normalized.start_window, '');
   eq('12 legacy end_window cleared', normalized.end_window, '');
   eq('12 legacy event_date preserved', normalized.event_date, '2026-07-28');
-  eq('12 legacy address preserved', (normalized as any).address_line1, '123 Main St');
+  eq('12 legacy address preserved', normalized.address_line1, '123 Main St');
 }
 
 function testVersionedStoredFormPreservesTimes() {
@@ -261,7 +261,7 @@ function testVersionedStoredFormPreservesTimes() {
     end_window: '20:00',
     event_date: '2026-07-28',
   };
-  const normalized = normalizeStoredQuoteForm(versioned as any);
+  const normalized = normalizeStoredQuoteForm(versioned);
   eq('13 versioned start_window preserved', normalized.start_window, '14:00');
   eq('13 versioned end_window preserved', normalized.end_window, '20:00');
   ok('13 version stripped from output', !('_version' in normalized));

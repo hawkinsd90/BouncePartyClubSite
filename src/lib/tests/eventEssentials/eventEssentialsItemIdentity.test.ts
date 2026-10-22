@@ -6,6 +6,7 @@ import { composeUnifiedQuoteTotals } from '../../pricing/unifiedTotals';
 import { DEFAULT_EE_ONLY_DEPOSIT_SETTINGS } from '../../pricing/depositCalculation';
 import type { PriceBreakdown } from '../../pricing';
 import type { UnifiedCartItem } from '../../../types';
+import type { UnifiedQuoteTotals } from '../../pricing/unifiedTotals';
 
 let passed = 0;
 let failed = 0;
@@ -32,7 +33,7 @@ function makeProduct(id: string, name: string, price: number, qty = 1): UnifiedC
     item_type: 'event_essential_product',
     product_id: id, product_name: name,
     unit_price_cents: price, qty,
-  } as any;
+  } as UnifiedCartItem;
 }
 
 // 1. unit_id-only row is accepted as inflatable and excluded from EE request
@@ -131,14 +132,14 @@ function makeProduct(id: string, name: string, price: number, qty = 1): UnifiedC
 {
   ok('10 null totals → calculating', getQuotePricingDisplayState(null, null) === 'calculating');
   ok('10 null totals + error → error', getQuotePricingDisplayState(null, 'bad config') === 'error');
-  const fakeTotals = { inflatableSubtotalCents: 0, eventEssentialsSubtotalCents: 0, equipmentSubtotalCents: 0, travelFeeCents: 0, surfaceFeeCents: 0, sameDayPickupFeeCents: 0, sameDayWeekdayDeliveryFeeCents: 0, generatorFeeCents: 0, taxableSubtotalCents: 0, taxCents: 0, totalCents: 10000, depositCents: 5000, balanceDueCents: 5000 } as any;
+  const fakeTotals = { inflatableSubtotalCents: 0, eventEssentialsSubtotalCents: 0, equipmentSubtotalCents: 0, travelFeeCents: 0, surfaceFeeCents: 0, sameDayPickupFeeCents: 0, sameDayWeekdayDeliveryFeeCents: 0, generatorFeeCents: 0, taxableSubtotalCents: 0, taxCents: 0, totalCents: 10000, depositCents: 5000, balanceDueCents: 5000 } as UnifiedQuoteTotals;
   ok('10 totals → ready', getQuotePricingDisplayState(fakeTotals, null) === 'ready');
 }
 
 // 11. Invoice-acceptance receipt adapter receives a generated short URL
 {
   const input = buildReceiptEmailInput({
-    order: { id: 'order-123' },
+    order: { id: 'order-123' } as never,
     customer: { first_name: 'Jane' },
     address: null,
     items: [],
@@ -154,7 +155,7 @@ function makeProduct(id: string, name: string, price: number, qty = 1): UnifiedC
 {
   const result = buildEventEssentialAvailabilityRequestFromOrderItems([
     { unit_id: 123, product_id: 'p1', bundle_id: null, qty: 1 },
-  ] as any);
+  ]);
   ok('12 numeric unit_id invalid', result.status === 'invalid');
 }
 
@@ -162,7 +163,7 @@ function makeProduct(id: string, name: string, price: number, qty = 1): UnifiedC
 {
   const result = buildEventEssentialAvailabilityRequestFromOrderItems([
     { unit_id: null, product_id: {}, bundle_id: 'b1', qty: 1 },
-  ] as any);
+  ]);
   ok('13 object product_id invalid', result.status === 'invalid');
 }
 
@@ -170,7 +171,7 @@ function makeProduct(id: string, name: string, price: number, qty = 1): UnifiedC
 {
   const result = buildEventEssentialAvailabilityRequestFromOrderItems([
     { unit_id: [], product_id: null, bundle_id: null, qty: 1 },
-  ] as any);
+  ]);
   ok('14 array identity invalid', result.status === 'invalid');
 }
 

@@ -8,6 +8,7 @@
 //   - historical mixed: legacy 1 → requested 2 with EE → legacy1 + EE1
 //   - decrease removes most recently added (EE first, then legacy)
 
+/* eslint-disable @typescript-eslint/no-explicit-any -- loader harness: stubs a window and hooks Node module resolution (untyped by nature) */
 import type { GeneratorAvailabilityOutcome, CurrentGeneratorRepresentation } from '../../eventEssentials/adminGeneratorResolution';
 declare const require: (id: string) => any;
 // the module reaches the Supabase client, which reads window.localStorage when it loads; a plain script has no window

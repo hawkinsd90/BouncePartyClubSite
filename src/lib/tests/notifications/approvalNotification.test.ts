@@ -9,6 +9,7 @@
  * notificationFailureLogging.test.ts states the same rule ("provider send failures never insert client-side").
  */
 
+/* eslint-disable @typescript-eslint/no-explicit-any -- fake Supabase client, mocked senders and a require()-loaded service: untyped by nature */
 declare const require: (id: string) => any;
 // the Supabase client module (reached through the service) reads window.localStorage when it loads; a plain script has no window
 if (typeof (globalThis as any).window === 'undefined') (globalThis as any).window = { localStorage: { getItem: () => null, setItem: () => {}, removeItem: () => {} } };

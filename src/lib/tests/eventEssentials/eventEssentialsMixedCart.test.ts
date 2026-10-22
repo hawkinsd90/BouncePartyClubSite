@@ -7,6 +7,7 @@
 // jiti runner.
 
 import { composeUnifiedQuoteTotals } from '../../pricing/unifiedTotals';
+import type { PriceBreakdown } from '../../pricing';
 import { DEFAULT_EE_ONLY_DEPOSIT_SETTINGS, calculateRequiredDepositCents, initDepositOverrideState } from '../../pricing/depositCalculation';
 import { mapCartToOrderItems, hasEventEssentialsInCart, hasInflatablesInCart } from '../../eventEssentials/eventEssentialsOrderItems';
 import { getPaymentAmountCentsFromTotals } from '../../booking/checkoutUtils';
@@ -28,7 +29,21 @@ import type {
 // (browser-only). Replicate the pure arithmetic here to test the same
 // contract: subtotal_cents already includes EE — do NOT add
 // event_essentials_subtotal_cents again.
-function calculateTotalFromOrder(order: any, discounts: any[], customFees: any[]): number {
+interface OrderMoneyFields {
+  subtotal_cents?: number | null;
+  travel_fee_cents?: number | null;
+  surface_fee_cents?: number | null;
+  same_day_pickup_fee_cents?: number | null;
+  same_day_weekday_delivery_fee_cents?: number | null;
+  generator_fee_cents?: number | null;
+  tax_cents?: number | null;
+}
+
+function calculateTotalFromOrder(
+  order: OrderMoneyFields,
+  discounts: Array<{ amount_cents?: number | null; percentage?: number | null }>,
+  customFees: Array<{ amount_cents?: number | null }>,
+): number {
   const subtotal = order.subtotal_cents || 0;
   const travelFee = order.travel_fee_cents || 0;
   const surfaceFee = order.surface_fee_cents || 0;
@@ -43,6 +58,18 @@ function calculateTotalFromOrder(order: any, discounts: any[], customFees: any[]
     return s + (d.amount_cents || 0);
   }, 0);
   return subtotal + totalFees + totalCustomFees - discountTotal + tax;
+}
+
+// The breakdown fixtures leave out two fields composeUnifiedQuoteTotals does not read.
+type BreakdownFixture = Omit<PriceBreakdown, 'balance_due_cents' | 'event_essentials_subtotal_cents'>;
+
+// What the order_items select in checkAvailability returns for these fixtures.
+interface StoredOrderItem {
+  unit_id: string | null;
+  product_id: string | null;
+  bundle_id: string | null;
+  qty: number;
+  component_snapshot: { components: Array<{ product_id: string; product_name: string; quantity_per_bundle: number }> } | null;
 }
 
 let passed = 0;
@@ -104,7 +131,7 @@ function makeBundle(bundleId: string, name: string, price: number, context: 'sta
   };
 }
 
-function makeNoTaxBreakdown(overrides: Record<string, number> = {}) {
+function makeNoTaxBreakdown(overrides: Partial<BreakdownFixture> = {}): BreakdownFixture {
   return {
     subtotal_cents: 15000,
     travel_fee_cents: 11400,
@@ -126,7 +153,7 @@ function makeNoTaxBreakdown(overrides: Record<string, number> = {}) {
   };
 }
 
-function makeTaxBreakdown(overrides: Record<string, number> = {}) {
+function makeTaxBreakdown(overrides: Partial<BreakdownFixture> = {}): BreakdownFixture {
   return {
     subtotal_cents: 15000,
     travel_fee_cents: 11400,
@@ -154,7 +181,7 @@ function makeTaxBreakdown(overrides: Record<string, number> = {}) {
 test('1. EE subtotal is included once', () => {
   const bd = makeNoTaxBreakdown();
   const cart: UnifiedCartItem[] = [makeInflatable('u1', 15000), makeProduct(GEN_ID, 'Generator', 9500)];
-  const result = composeUnifiedQuoteTotals({ inflatableBreakdown: bd as any, cart, taxApplied: false, inflatableDepositPerUnitCents: 5000, eeOnlyDepositSettings: DEFAULT_EE_ONLY_DEPOSIT_SETTINGS });
+  const result = composeUnifiedQuoteTotals({ inflatableBreakdown: bd as PriceBreakdown, cart, taxApplied: false, inflatableDepositPerUnitCents: 5000, eeOnlyDepositSettings: DEFAULT_EE_ONLY_DEPOSIT_SETTINGS });
   ok('equipmentSubtotal = 24500', result.equipmentSubtotalCents === 24500);
   ok('eeSubtotal = 9500', result.eventEssentialsSubtotalCents === 9500);
   ok('inflatableSubtotal = 15000', result.inflatableSubtotalCents === 15000);
@@ -167,7 +194,7 @@ test('1. EE subtotal is included once', () => {
 test('2. Mixed no-tax fixture returns 35900', () => {
   const bd = makeNoTaxBreakdown();
   const cart: UnifiedCartItem[] = [makeInflatable('u1', 15000), makeProduct(GEN_ID, 'Generator', 9500)];
-  const result = composeUnifiedQuoteTotals({ inflatableBreakdown: bd as any, cart, taxApplied: false, inflatableDepositPerUnitCents: 5000, eeOnlyDepositSettings: DEFAULT_EE_ONLY_DEPOSIT_SETTINGS });
+  const result = composeUnifiedQuoteTotals({ inflatableBreakdown: bd as PriceBreakdown, cart, taxApplied: false, inflatableDepositPerUnitCents: 5000, eeOnlyDepositSettings: DEFAULT_EE_ONLY_DEPOSIT_SETTINGS });
   ok('total = 35900', result.totalCents === 35900);
   ok('tax = 0', result.taxCents === 0);
 });
@@ -215,7 +242,7 @@ test('4. Stored-order fixture does not return 45400', () => {
 test('5. Inflatable-only fixture is unchanged', () => {
   const bd = makeNoTaxBreakdown();
   const cart: UnifiedCartItem[] = [makeInflatable('u1', 15000)];
-  const result = composeUnifiedQuoteTotals({ inflatableBreakdown: bd as any, cart, taxApplied: false, inflatableDepositPerUnitCents: 5000, eeOnlyDepositSettings: DEFAULT_EE_ONLY_DEPOSIT_SETTINGS });
+  const result = composeUnifiedQuoteTotals({ inflatableBreakdown: bd as PriceBreakdown, cart, taxApplied: false, inflatableDepositPerUnitCents: 5000, eeOnlyDepositSettings: DEFAULT_EE_ONLY_DEPOSIT_SETTINGS });
   ok('subtotal unchanged', result.inflatableSubtotalCents === 15000);
   ok('ee subtotal 0', result.eventEssentialsSubtotalCents === 0);
   ok('equipment subtotal = inflatable', result.equipmentSubtotalCents === 15000);
@@ -347,7 +374,7 @@ test('13. Inflatable availability behavior remains unchanged', () => {
 test('14. One inflatable plus EE keeps deposit at 5000', () => {
   const bd = makeNoTaxBreakdown({ deposit_due_cents: 5000 });
   const cart: UnifiedCartItem[] = [makeInflatable('u1', 15000), makeProduct(GEN_ID, 'Generator', 9500)];
-  const result = composeUnifiedQuoteTotals({ inflatableBreakdown: bd as any, cart, taxApplied: false, inflatableDepositPerUnitCents: 5000, eeOnlyDepositSettings: DEFAULT_EE_ONLY_DEPOSIT_SETTINGS });
+  const result = composeUnifiedQuoteTotals({ inflatableBreakdown: bd as PriceBreakdown, cart, taxApplied: false, inflatableDepositPerUnitCents: 5000, eeOnlyDepositSettings: DEFAULT_EE_ONLY_DEPOSIT_SETTINGS });
   ok('deposit = 5000', result.depositCents === 5000);
 });
 
@@ -361,7 +388,7 @@ test('15. EE quantity does not increase the deposit', () => {
     makeProduct(GEN_ID, 'Generator', 9500, 'addon', 5),
     makeBundle(BUNDLE_ID, 'Package', 15000, 'addon', 3),
   ];
-  const result = composeUnifiedQuoteTotals({ inflatableBreakdown: bd as any, cart, taxApplied: false, inflatableDepositPerUnitCents: 5000, eeOnlyDepositSettings: DEFAULT_EE_ONLY_DEPOSIT_SETTINGS });
+  const result = composeUnifiedQuoteTotals({ inflatableBreakdown: bd as PriceBreakdown, cart, taxApplied: false, inflatableDepositPerUnitCents: 5000, eeOnlyDepositSettings: DEFAULT_EE_ONLY_DEPOSIT_SETTINGS });
   ok('deposit still 5000 with high EE qty', result.depositCents === 5000);
 });
 
@@ -371,7 +398,7 @@ test('15. EE quantity does not increase the deposit', () => {
 test('16. customer_selected_payment_cents remains separate', () => {
   const bd = makeNoTaxBreakdown({ deposit_due_cents: 5000 });
   const cart: UnifiedCartItem[] = [makeInflatable('u1', 15000), makeProduct(GEN_ID, 'Gen', 9500)];
-  const result = composeUnifiedQuoteTotals({ inflatableBreakdown: bd as any, cart, taxApplied: false, inflatableDepositPerUnitCents: 5000, eeOnlyDepositSettings: DEFAULT_EE_ONLY_DEPOSIT_SETTINGS });
+  const result = composeUnifiedQuoteTotals({ inflatableBreakdown: bd as PriceBreakdown, cart, taxApplied: false, inflatableDepositPerUnitCents: 5000, eeOnlyDepositSettings: DEFAULT_EE_ONLY_DEPOSIT_SETTINGS });
   const depositCents = result.depositCents;
   const totalCents = result.totalCents;
 
@@ -433,9 +460,9 @@ test('19. Quote and Checkout use the same total', () => {
   const bd = makeNoTaxBreakdown();
   const cart: UnifiedCartItem[] = [makeInflatable('u1', 15000), makeProduct(GEN_ID, 'Generator', 9500)];
   // Quote uses composeUnifiedQuoteTotals via QuoteSummarySection
-  const quoteTotals = composeUnifiedQuoteTotals({ inflatableBreakdown: bd as any, cart, taxApplied: false, inflatableDepositPerUnitCents: 5000, eeOnlyDepositSettings: DEFAULT_EE_ONLY_DEPOSIT_SETTINGS });
+  const quoteTotals = composeUnifiedQuoteTotals({ inflatableBreakdown: bd as PriceBreakdown, cart, taxApplied: false, inflatableDepositPerUnitCents: 5000, eeOnlyDepositSettings: DEFAULT_EE_ONLY_DEPOSIT_SETTINGS });
   // Checkout uses composeUnifiedQuoteTotals via Checkout.tsx
-  const checkoutTotals = composeUnifiedQuoteTotals({ inflatableBreakdown: bd as any, cart, taxApplied: false, inflatableDepositPerUnitCents: 5000, eeOnlyDepositSettings: DEFAULT_EE_ONLY_DEPOSIT_SETTINGS });
+  const checkoutTotals = composeUnifiedQuoteTotals({ inflatableBreakdown: bd as PriceBreakdown, cart, taxApplied: false, inflatableDepositPerUnitCents: 5000, eeOnlyDepositSettings: DEFAULT_EE_ONLY_DEPOSIT_SETTINGS });
   ok('quote = checkout total', quoteTotals.totalCents === checkoutTotals.totalCents);
   ok('quote = checkout subtotal', quoteTotals.equipmentSubtotalCents === checkoutTotals.equipmentSubtotalCents);
   ok('deep equal', JSON.stringify(quoteTotals) === JSON.stringify(checkoutTotals));
@@ -450,13 +477,13 @@ test('20. No legacy Generator fee is created for the EE Generator cart line', ()
   // through the legacy generator_fee_cents field.
   const bd = makeNoTaxBreakdown({ generator_fee_cents: 0 });
   const cart: UnifiedCartItem[] = [makeInflatable('u1', 15000), makeProduct(GEN_ID, 'Generator', 9500)];
-  const result = composeUnifiedQuoteTotals({ inflatableBreakdown: bd as any, cart, taxApplied: false, inflatableDepositPerUnitCents: 5000, eeOnlyDepositSettings: DEFAULT_EE_ONLY_DEPOSIT_SETTINGS });
+  const result = composeUnifiedQuoteTotals({ inflatableBreakdown: bd as PriceBreakdown, cart, taxApplied: false, inflatableDepositPerUnitCents: 5000, eeOnlyDepositSettings: DEFAULT_EE_ONLY_DEPOSIT_SETTINGS });
   ok('generator_fee_cents = 0', result.generatorFeeCents === 0);
   ok('ee subtotal includes generator', result.eventEssentialsSubtotalCents === 9500);
   ok('total includes generator via ee', result.totalCents === 35900);
 
   // Verify expandCartToProductQuantities produces the correct availability request
-  const eeCart = cart.filter((item) => !isInflatableCartItem(item)) as any[];
+  const eeCart = cart.filter((item) => !isInflatableCartItem(item)) as Array<EventEssentialProductCartItem | EventEssentialBundleCartItem>;
   const productQuantities = expandCartToProductQuantities(eeCart);
   ok('availability request has 1 product', productQuantities.length === 1);
   ok('product_id = GEN_ID', productQuantities[0].product_id === GEN_ID);
@@ -504,7 +531,7 @@ test('22. Cart type detection helpers', () => {
 test('23. Tax-enabled mixed cart total', () => {
   const bd = makeTaxBreakdown();
   const cart: UnifiedCartItem[] = [makeInflatable('u1', 15000), makeProduct(GEN_ID, 'Generator', 9500)];
-  const result = composeUnifiedQuoteTotals({ inflatableBreakdown: bd as any, cart, taxApplied: true, inflatableDepositPerUnitCents: 5000, eeOnlyDepositSettings: DEFAULT_EE_ONLY_DEPOSIT_SETTINGS });
+  const result = composeUnifiedQuoteTotals({ inflatableBreakdown: bd as PriceBreakdown, cart, taxApplied: true, inflatableDepositPerUnitCents: 5000, eeOnlyDepositSettings: DEFAULT_EE_ONLY_DEPOSIT_SETTINGS });
   // Inflatable total = 27984, EE = 9500, EE tax = round(9500 * 0.06) = 570
   // Unified = 27984 + 9500 + 570 = 38054
   ok('tax-enabled total = 38054', result.totalCents === 38054);
@@ -546,7 +573,7 @@ test('25. calculateTotalFromOrder with discounts and custom fees', () => {
   };
   const discounts = [{ name: 'Holiday', amount_cents: 2000 }];
   const customFees = [{ name: 'Setup', amount_cents: 1500 }];
-  const total = calculateTotalFromOrder(order, discounts as any, customFees as any);
+  const total = calculateTotalFromOrder(order, discounts, customFees);
   // 24500 + 11400 + 1500 - 2000 + 0 = 35400
   ok('total with discount and custom fee = 35400', total === 35400);
 });
@@ -567,7 +594,7 @@ test('26. Mixed-order approval availability splits by inventory type', () => {
   const ORDER_ID = 'e2e56a0d-2993-440e-96c1-b45f2cb358b4';
 
   // Stored order_items shape (as returned by the select in checkAvailability).
-  const orderItems: any[] = [
+  const orderItems: StoredOrderItem[] = [
     { unit_id: BLOCK_PARTY_UNIT, product_id: null, bundle_id: null, qty: 1, component_snapshot: null },
     { unit_id: null, product_id: GEN_PRODUCT, bundle_id: null, qty: 1, component_snapshot: null },
     {

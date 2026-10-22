@@ -115,7 +115,7 @@ const sql = stripSql(raw);
     const callers = withRpc(browser, fn);
     ok(`source: ${fn} is called only from Admin / staff screens (${callers.length} caller${callers.length === 1 ? '' : 's'})`, callers.length >= 1 && callers.every((c) => who.test(c)));
   }
-  ok('source: the public availability and settings functions are called from the public site', withRpc(browser, 'check_date_blackout').includes('src/lib/booking/availability.ts') && /rpc as any\)\(\s*['"`]get_public_business_settings/.test(read('src/lib/core/adminSettingsCache.ts')) && withRpc(browser, 'get_public_nav_menu_groups').length === 1);
+  ok('source: the public availability and settings functions are called from the public site', withRpc(browser, 'check_date_blackout').includes('src/lib/booking/availability.ts') && /rpc(?: as any\))?\(\s*['"`]get_public_business_settings/.test(read('src/lib/core/adminSettingsCache.ts')) && withRpc(browser, 'get_public_nav_menu_groups').length === 1);
   ok('source: no application code calls the receipt-number or receipt-group generators as an RPC (number is a column default; the group id is crypto.randomUUID())', withRpc([...browser, ...edge], 'generate_receipt_number').length === 0 && withRpc([...browser, ...edge], 'generate_receipt_group_id').length === 0);
   // The deposit / tip receipts are now written by the server (post-payment completion). The browser service that used to write them is no
   // longer imported by any screen; it must stay confined to that one file and never be wired back into approval code.
