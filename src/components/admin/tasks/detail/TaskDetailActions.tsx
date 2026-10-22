@@ -1,5 +1,7 @@
 import { Navigation, CheckCircle, Camera, MessageCircle, Star, AlertTriangle, Upload } from 'lucide-react';
 
+import { buttonLabel, workingLabel, type TaskBusyAction } from '../../../../lib/tasks/taskProgress';
+
 interface Props {
   isDropOff: boolean;
   isToday: boolean;
@@ -12,15 +14,19 @@ interface Props {
   onDropOffComplete: () => void;
   onPickupComplete: () => void;
   onPaperWaiverUpload: () => void;
+  busyAction?: TaskBusyAction | null;
 }
 
 export function TaskDetailActions({
   isDropOff, isToday, currentStatus: _currentStatus, processing, uploadingImages,
   onEnRoute, onArrived, onImageUpload, onDropOffComplete, onPickupComplete, onPaperWaiverUpload,
+  busyAction = null,
 }: Props) {
+  const working = workingLabel(busyAction, uploadingImages);
   return (
     <div className="border-t border-slate-200 pt-6">
       <h3 className="font-bold text-slate-900 mb-4">{isDropOff ? 'Delivery Actions' : 'Pickup Actions'}</h3>
+      {working && <p role="status" className="text-sm font-semibold text-slate-600 mb-3">{working}</p>}
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
         <button
           onClick={onEnRoute}
@@ -28,7 +34,7 @@ export function TaskDetailActions({
           className="flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-700 disabled:bg-slate-300 text-white font-semibold py-3 px-4 rounded-lg transition-colors"
         >
           <Navigation className="w-5 h-5" />
-          <span className="text-sm sm:text-base">En Route</span>
+          <span className="text-sm sm:text-base">{buttonLabel('En Route', 'Working...', busyAction === 'en_route')}</span>
         </button>
 
         <button
@@ -37,7 +43,7 @@ export function TaskDetailActions({
           className="flex items-center justify-center gap-2 bg-yellow-600 hover:bg-yellow-700 disabled:bg-slate-300 text-white font-semibold py-3 px-4 rounded-lg transition-colors"
         >
           <CheckCircle className="w-5 h-5" />
-          <span className="text-sm sm:text-base">Arrived</span>
+          <span className="text-sm sm:text-base">{buttonLabel('Arrived', 'Working...', busyAction === 'arrived')}</span>
         </button>
 
         {isDropOff ? (
@@ -59,7 +65,7 @@ export function TaskDetailActions({
               className="flex items-center justify-center gap-2 bg-slate-600 hover:bg-slate-700 disabled:bg-slate-300 text-white font-semibold py-3 px-4 rounded-lg transition-colors"
             >
               <MessageCircle className="w-5 h-5" />
-              <span className="text-sm sm:text-base">Leaving - Send Rules</span>
+              <span className="text-sm sm:text-base">{buttonLabel('Leaving - Send Rules', 'Working...', busyAction === 'drop_off')}</span>
             </button>
 
             {/* Upload Paper Waiver — TODO: enable when physical waiver upload is implemented */}
@@ -81,7 +87,7 @@ export function TaskDetailActions({
               className="flex items-center justify-center gap-2 bg-green-600 hover:bg-green-700 disabled:bg-slate-300 text-white font-semibold py-3 px-4 rounded-lg transition-colors"
             >
               <Star className="w-5 h-5" />
-              <span className="text-sm sm:text-base">Complete - Ask Review</span>
+              <span className="text-sm sm:text-base">{buttonLabel('Complete - Ask Review', 'Working...', busyAction === 'pickup')}</span>
             </button>
 
             <button

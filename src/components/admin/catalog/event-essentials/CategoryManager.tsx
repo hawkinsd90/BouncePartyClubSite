@@ -314,7 +314,7 @@ export function CategoryManager() {
                 <div key={cat.id} className="bg-white rounded-xl border border-slate-200 p-4">
                   <div className="flex items-start justify-between mb-2">
                     <div className="min-w-0">
-                      <div className="text-sm font-medium text-slate-900 truncate">{cat.name}</div>
+                      <div className="text-sm font-medium text-slate-900 break-words">{cat.name}</div>
                       <div className="text-xs font-mono text-slate-500">{cat.slug}</div>
                     </div>
                     <div className="text-xs text-slate-500 flex-shrink-0 ml-2">
@@ -322,7 +322,7 @@ export function CategoryManager() {
                     </div>
                   </div>
 
-                  <div className="flex items-center gap-2 mb-3">
+                  <div className="flex flex-wrap items-center gap-2 mb-3">
                     <span className={`inline-flex text-xs font-semibold px-2 py-0.5 rounded ${cat.active ? 'bg-green-100 text-green-800' : 'bg-slate-100 text-slate-600'}`}>
                       {cat.active ? 'Available' : 'Unavailable'}
                     </span>
@@ -336,34 +336,34 @@ export function CategoryManager() {
                     <button
                       onClick={() => handleMoveUp(index)}
                       disabled={index === 0 || actionLoading === 'reorder'}
-                      className="flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium text-slate-600 bg-slate-50 hover:bg-slate-100 rounded-lg transition-colors disabled:opacity-30"
+                      className="flex items-center gap-1 px-2.5 py-1.5 min-h-[44px] text-xs font-medium text-slate-600 bg-slate-50 hover:bg-slate-100 rounded-lg transition-colors disabled:opacity-30"
                     >
                       <ChevronUp className="w-3.5 h-3.5" /> Up
                     </button>
                     <button
                       onClick={() => handleMoveDown(index)}
                       disabled={index === sortedCategories.length - 1 || actionLoading === 'reorder'}
-                      className="flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium text-slate-600 bg-slate-50 hover:bg-slate-100 rounded-lg transition-colors disabled:opacity-30"
+                      className="flex items-center gap-1 px-2.5 py-1.5 min-h-[44px] text-xs font-medium text-slate-600 bg-slate-50 hover:bg-slate-100 rounded-lg transition-colors disabled:opacity-30"
                     >
                       <ChevronDown className="w-3.5 h-3.5" /> Down
                     </button>
                     <button
                       onClick={() => handleEdit(cat)}
-                      className="flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium text-blue-600 bg-blue-50 hover:bg-blue-100 rounded-lg transition-colors"
+                      className="flex items-center gap-1 px-2.5 py-1.5 min-h-[44px] text-xs font-medium text-blue-600 bg-blue-50 hover:bg-blue-100 rounded-lg transition-colors"
                     >
                       <Edit2 className="w-3.5 h-3.5" /> Edit
                     </button>
                     <button
                       onClick={() => toggleField(cat, 'active', !cat.active, 'availability')}
                       disabled={isLoading}
-                      className="flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium text-slate-600 bg-slate-50 hover:bg-slate-100 rounded-lg transition-colors disabled:opacity-50"
+                      className="flex items-center gap-1 px-2.5 py-1.5 min-h-[44px] text-xs font-medium text-slate-600 bg-slate-50 hover:bg-slate-100 rounded-lg transition-colors disabled:opacity-50"
                     >
                       <Power className="w-3.5 h-3.5" /> {cat.active ? 'Unavailable' : 'Available'}
                     </button>
                     <button
                       onClick={() => toggleField(cat, 'public_visible', !cat.public_visible, 'website visibility')}
                       disabled={isLoading}
-                      className="flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium text-slate-600 bg-slate-50 hover:bg-slate-100 rounded-lg transition-colors disabled:opacity-50"
+                      className="flex items-center gap-1 px-2.5 py-1.5 min-h-[44px] text-xs font-medium text-slate-600 bg-slate-50 hover:bg-slate-100 rounded-lg transition-colors disabled:opacity-50"
                     >
                       {cat.public_visible ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
                       {cat.public_visible ? 'Hide' : 'Show'}
@@ -371,7 +371,7 @@ export function CategoryManager() {
                     <button
                       onClick={() => handleDelete(cat)}
                       disabled={isLoading}
-                      className="flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium text-red-600 bg-red-50 hover:bg-red-100 rounded-lg transition-colors disabled:opacity-50"
+                      className="flex items-center gap-1 px-2.5 py-1.5 min-h-[44px] text-xs font-medium text-red-600 bg-red-50 hover:bg-red-100 rounded-lg transition-colors disabled:opacity-50"
                     >
                       <Trash2 className="w-3.5 h-3.5" /> Delete
                     </button>

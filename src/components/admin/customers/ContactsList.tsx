@@ -6,6 +6,7 @@ import { Mail, Phone, Calendar, CreditCard as Edit2, X, Star, TrendingUp, Trash2
 import { format } from 'date-fns';
 import { formatCurrency } from '../../../lib/pricing';
 import { useSupabaseQuery, useMutation } from '../../../hooks/core/useDataFetch';
+import { filterCustomers } from '../../../lib/core/customerSearch';
 
 interface Contact {
   id: string;
@@ -28,6 +29,7 @@ export function ContactsList() {
   const [showEditModal, setShowEditModal] = useState(false);
   const [deletingContact, setDeletingContact] = useState<Contact | null>(null);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [search, setSearch] = useState('');
 
   const fetchContacts = useCallback(async () => {
     const result = await supabase
@@ -37,12 +39,14 @@ export function ContactsList() {
     return result;
   }, []);
 
-  const { data: contactsData, loading, refetch } = useSupabaseQuery<Contact[]>(
+  const { data: contactsData, loading, error: loadError, refetch } = useSupabaseQuery<Contact[]>(
     fetchContacts as () => Promise<{ data: Contact[] | null; error: any }>,
     { errorMessage: 'Failed to load contacts' }
   );
 
-  const contacts = contactsData || [];
+  const allContacts = contactsData || [];
+  // Search by name, business, email or phone. The whole list is kept; only the rows shown change.
+  const contacts = search.trim() ? filterCustomers(allContacts, search, Number.MAX_SAFE_INTEGER).shown : allContacts;
 
   const updateContactFn = useCallback(async (contact: Contact) => {
     const { data, error } = await supabase
@@ -122,8 +126,17 @@ export function ContactsList() {
     deleteContact(deletingContact);
   }
 
-  if (loading) {
+  if (loading && !contactsData) {
     return <div className="text-center py-8">Loading contacts...</div>;
+  }
+
+  if (loadError && !contactsData) {
+    return (
+      <div className="bg-red-50 border border-red-300 rounded-lg p-4" role="alert">
+        <p className="text-sm font-semibold text-red-900">Contacts could not be loaded.</p>
+        <button type="button" onClick={() => { void refetch(); }} className="mt-3 bg-red-600 hover:bg-red-700 text-white text-sm font-semibold px-4 py-2 min-h-[44px] rounded-lg">Try again</button>
+      </div>
+    );
   }
 
   return (
@@ -132,9 +145,17 @@ export function ContactsList() {
         <div>
           <h2 className="text-xl sm:text-2xl font-bold text-slate-900">Contacts & Phonebook</h2>
           <p className="text-xs sm:text-sm text-slate-600 mt-1">
-            {contacts.length} total contacts
+            {search.trim() ? `${contacts.length} of ${allContacts.length} contacts` : `${allContacts.length} total contacts`}
           </p>
         </div>
+        <input
+          type="search"
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          placeholder="Search name, business, email or phone"
+          aria-label="Search contacts"
+          className="w-full sm:w-72 min-h-[44px] px-3 py-2 border border-slate-300 rounded-lg text-base sm:text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+        />
       </div>
 
       <div className="bg-white rounded-lg shadow overflow-x-auto -mx-4 sm:mx-0">
@@ -223,14 +244,16 @@ export function ContactsList() {
                   <div className="flex items-center gap-2">
                     <button
                       onClick={() => handleEditClick(contact)}
-                      className="inline-flex items-center px-2 sm:px-3 py-1 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-xs sm:text-sm"
+                      aria-label={`Edit ${contact.first_name} ${contact.last_name}`}
+                      className="inline-flex items-center justify-center px-2 sm:px-3 py-1 min-w-[44px] min-h-[44px] bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-xs sm:text-sm"
                     >
                       <Edit2 className="w-3 h-3 sm:w-4 sm:h-4 sm:mr-1" />
                       <span className="hidden sm:inline">Edit</span>
                     </button>
                     <button
                       onClick={() => handleDeleteClick(contact)}
-                      className="inline-flex items-center px-2 sm:px-3 py-1 bg-red-50 text-red-600 border border-red-200 rounded-lg hover:bg-red-100 transition-colors text-xs sm:text-sm"
+                      aria-label={`Delete ${contact.first_name} ${contact.last_name}`}
+                      className="inline-flex items-center justify-center px-2 sm:px-3 py-1 min-w-[44px] min-h-[44px] bg-red-50 text-red-600 border border-red-200 rounded-lg hover:bg-red-100 transition-colors text-xs sm:text-sm"
                     >
                       <Trash2 className="w-3 h-3 sm:w-4 sm:h-4 sm:mr-1" />
                       <span className="hidden sm:inline">Delete</span>

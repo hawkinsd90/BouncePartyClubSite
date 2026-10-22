@@ -25,7 +25,7 @@ export function TaskDetailHeader({
   refreshing, lastUpdated, onBack, onClose, canOpenOrder = true, onOpenOrder, onReorder, onRefreshClick,
 }: Props) {
   return (
-    <div className="sticky top-0 bg-white border-b border-slate-200 px-4 sm:px-6 py-3 sm:py-4 z-10 flex-shrink-0">
+    <div className="bg-white border-b border-slate-200 px-4 sm:px-6 py-3 sm:py-4">
       {onBack && (
         <button onClick={onBack} className="flex items-center gap-1 text-blue-600 hover:text-blue-700 font-medium text-sm mb-3 -ml-1 px-1 py-1 hover:bg-blue-50 rounded-lg transition-colors">
           <ArrowLeft className="w-4 h-4" />

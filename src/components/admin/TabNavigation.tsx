@@ -67,17 +67,17 @@ export function TabNavigation({ activeTab, onTabChange, pendingCount = 0 }: TabN
           id="admin-tab-select"
           value={activeTab}
           onChange={(e) => onTabChange(e.target.value as AdminTab)}
-          className="w-full px-4 py-3 bg-white border-2 border-slate-300 rounded-lg text-slate-900 font-medium focus:outline-none focus:border-blue-500 shadow-sm"
+          className="w-full px-4 py-3 min-h-[48px] bg-white border-2 border-slate-300 rounded-lg text-slate-900 font-medium focus:outline-none focus:border-blue-500 shadow-sm"
         >
           {tabs.map((tab) => (
             <option key={tab.id} value={tab.id}>
-              {tab.label} {tab.badge ? `(${tab.badge})` : ''}
+              {tab.badge ? `${tab.label} (${tab.badge})` : tab.label}
             </option>
           ))}
         </select>
       </div>
 
-      <div className="hidden md:flex gap-2 mb-8 overflow-x-auto">
+      <div className="hidden md:flex gap-2 mb-8 overflow-x-auto pt-3 pr-3">
         {tabs.map((tab) => {
           const isActive = activeTab === tab.id;
           const color = tab.color || 'blue';
@@ -96,8 +96,8 @@ export function TabNavigation({ activeTab, onTabChange, pendingCount = 0 }: TabN
             >
               {tab.label}
               {tab.badge && tab.badge > 0 && (
-                <span className="absolute -top-2 -right-2 bg-red-500 text-white text-xs font-bold rounded-full w-6 h-6 flex items-center justify-center">
-                  {tab.badge}
+                <span className="absolute -top-2 -right-2 bg-red-500 text-white text-xs font-bold rounded-full min-w-[1.5rem] h-6 px-1 flex items-center justify-center" aria-label={`${tab.badge} waiting`}>
+                  {tab.badge > 99 ? '99+' : tab.badge}
                 </span>
               )}
             </button>

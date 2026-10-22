@@ -343,7 +343,7 @@ export function ProductManager() {
                     </div>
                   </div>
 
-                  <div className="flex items-center gap-2 mb-3">
+                  <div className="flex flex-wrap items-center gap-2 mb-3">
                     <span className={`inline-flex text-xs font-semibold px-2 py-0.5 rounded ${product.active ? 'bg-green-100 text-green-800' : 'bg-slate-100 text-slate-600'}`}>
                       {product.active ? 'Available' : 'Unavailable'}
                     </span>
@@ -352,10 +352,10 @@ export function ProductManager() {
                     </span>
                   </div>
 
-                  <div className="flex items-center gap-2">
+                  <div className="flex flex-wrap items-center gap-2">
                     <button
                       onClick={() => handleEditProduct(product)}
-                      className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-blue-600 bg-blue-50 hover:bg-blue-100 rounded-lg transition-colors"
+                      className="flex items-center gap-1.5 px-3 py-1.5 min-h-[44px] text-xs font-medium text-blue-600 bg-blue-50 hover:bg-blue-100 rounded-lg transition-colors"
                     >
                       <Edit2 className="w-3.5 h-3.5" />
                       Edit
@@ -363,7 +363,7 @@ export function ProductManager() {
                     <button
                       onClick={() => toggleProductField(product, 'active', !product.active, 'availability')}
                       disabled={isLoading}
-                      className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-slate-600 bg-slate-50 hover:bg-slate-100 rounded-lg transition-colors disabled:opacity-50"
+                      className="flex items-center gap-1.5 px-3 py-1.5 min-h-[44px] text-xs font-medium text-slate-600 bg-slate-50 hover:bg-slate-100 rounded-lg transition-colors disabled:opacity-50"
                     >
                       <Power className="w-3.5 h-3.5" />
                       {product.active ? 'Unavailable' : 'Available'}
@@ -371,7 +371,7 @@ export function ProductManager() {
                     <button
                       onClick={() => toggleProductField(product, 'public_visible', !product.public_visible, 'website visibility')}
                       disabled={isLoading}
-                      className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-slate-600 bg-slate-50 hover:bg-slate-100 rounded-lg transition-colors disabled:opacity-50"
+                      className="flex items-center gap-1.5 px-3 py-1.5 min-h-[44px] text-xs font-medium text-slate-600 bg-slate-50 hover:bg-slate-100 rounded-lg transition-colors disabled:opacity-50"
                     >
                       {product.public_visible ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
                       {product.public_visible ? 'Hide' : 'Show'}

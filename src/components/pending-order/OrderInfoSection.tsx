@@ -1,5 +1,6 @@
 import { format } from 'date-fns';
 import { PhoneLink } from '../shared/PhoneLink';
+import { AddressLink } from '../shared/AddressLink';
 import { useState, useEffect } from 'react';
 import { CreditCard as Edit2 } from 'lucide-react';
 import { formatOrderId } from '../../lib/utils';
@@ -85,7 +86,7 @@ export function OrderInfoSection({ order, customerDisplayName, onEditClick }: Or
             </span>
             <button
               onClick={onEditClick}
-              className="flex items-center gap-1 px-3 py-1 bg-blue-600 hover:bg-blue-700 text-white rounded text-xs font-medium transition-colors whitespace-nowrap"
+              className="flex items-center gap-1 px-3 py-1 min-h-[44px] bg-blue-600 hover:bg-blue-700 text-white rounded text-xs font-medium transition-colors whitespace-nowrap"
             >
               <Edit2 className="w-3 h-3" />
               <span className="hidden sm:inline">Edit Order</span>
@@ -121,12 +122,11 @@ export function OrderInfoSection({ order, customerDisplayName, onEditClick }: Or
         </div>
         <div>
           <h4 className="text-sm font-medium text-slate-500 mb-1">Event Location</h4>
-          <p className="text-base text-slate-900">
-            {order.addresses?.line1}
-            {eventAddressLine2(order) && `, ${eventAddressLine2(order)}`}
-          </p>
-          <p className="text-sm text-slate-600">
-            {order.addresses?.city}, {order.addresses?.state} {order.addresses?.zip}
+          <p className="text-base text-slate-900 break-words">
+            <AddressLink
+              address={{ line1: order.addresses?.line1, line2: eventAddressLine2(order), city: order.addresses?.city, state: order.addresses?.state, zip: order.addresses?.zip }}
+              coords={{ lat: order.addresses?.lat, lng: order.addresses?.lng }}
+            />
           </p>
           <p className="text-sm text-slate-600 capitalize">
             {order.location_type} + {order.surface || 'Not Specified'}
@@ -135,7 +135,7 @@ export function OrderInfoSection({ order, customerDisplayName, onEditClick }: Or
       </div>
 
       <div className="mb-4 p-3 bg-white rounded-lg border border-slate-200">
-        <div className="grid grid-cols-4 gap-4 text-sm">
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 text-sm">
           <div className="text-center">
             <div className="text-xs text-slate-500 mb-1">Generator</div>
             <div className="font-medium text-slate-900">

@@ -16,6 +16,7 @@ import { useInvoiceEventDetails } from '../../hooks/invoices/useInvoiceEventDeta
 import { generateInvoice } from '../../lib/payments/invoiceService';
 import { buildInvoiceSummary } from '../../lib/payments/invoiceSummaryBuilder';
 import { checkMultipleUnitsAvailability } from '../../lib/booking/availability';
+import { invoiceBlockedReason } from '../../lib/payments/invoiceReadiness';
 
 export function CrewInvoiceBuilder() {
   const { customers, units, pricingRules, addCustomer } = useInvoiceData();
@@ -38,8 +39,8 @@ export function CrewInvoiceBuilder() {
       }
     };
 
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
+    document.addEventListener('pointerdown', handleClickOutside);
+    return () => document.removeEventListener('pointerdown', handleClickOutside);
   }, [customerManagement.showCustomerDropdown]);
 
   async function handleCreateNewCustomer() {
@@ -112,7 +113,7 @@ export function CrewInvoiceBuilder() {
       if (!customerManagement.selectedCustomer) {
         showToast('Invoice created! Copy the link below to send to your customer.', 'success');
       } else {
-        showToast(`Invoice sent to ${customer.email} and ${customer.phone}!`, 'success');
+        showToast(`Invoice sent to ${customer?.email ?? 'the customer'}${customer?.phone ? ` and ${customer.phone}` : ''}!`, 'success');
       }
 
       clearCart();
@@ -235,7 +236,7 @@ export function CrewInvoiceBuilder() {
             <button
               onClick={handleGenerateInvoice}
               disabled={saving || cartItems.length === 0}
-              className="w-full mt-6 bg-blue-600 hover:bg-blue-700 disabled:bg-slate-400 text-white font-semibold py-3 px-6 rounded-lg transition-colors flex items-center justify-center gap-2"
+              className="w-full mt-6 min-h-[48px] bg-blue-600 hover:bg-blue-700 disabled:bg-slate-400 text-white font-semibold py-3 px-6 rounded-lg transition-colors flex items-center justify-center gap-2"
             >
               <Send className="w-5 h-5" />
               {saving
@@ -244,6 +245,9 @@ export function CrewInvoiceBuilder() {
                   ? 'Send Invoice to Customer'
                   : 'Generate Shareable Link'}
             </button>
+            {invoiceBlockedReason({ saving, hasNoActiveItems: cartItems.length === 0 }) && (
+              <p role="status" className="text-xs font-medium text-amber-700 text-center mt-2">{invoiceBlockedReason({ saving, hasNoActiveItems: cartItems.length === 0 })}</p>
+            )}
             <p className="text-xs text-slate-500 text-center mt-2">
               {customerManagement.selectedCustomer
                 ? 'Invoice will be sent via email and SMS'

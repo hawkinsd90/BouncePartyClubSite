@@ -150,8 +150,8 @@ export function SingleOrderView({ orderId, openEditMode = false, onBack, onUpdat
 
   async function handleShortLink() {
     setGeneratingShortLink(true);
+    let url = shortUrl;
     try {
-      let url = shortUrl;
       if (!url) {
         // Re-check DB for an active link in case state hasn't loaded yet
         const { data: existing } = await supabase
@@ -180,10 +180,10 @@ export function SingleOrderView({ orderId, openEditMode = false, onBack, onUpdat
       setShortLinkCopied(true);
       setTimeout(() => setShortLinkCopied(false), 2000);
     } catch {
-      // clipboard fallback
-      if (shortUrl) {
+      // clipboard fallback (url is the link just made or found, which state may not hold yet)
+      if (url) {
         const el = document.createElement('textarea');
-        el.value = shortUrl;
+        el.value = url;
         document.body.appendChild(el);
         el.select();
         document.execCommand('copy');
@@ -263,7 +263,7 @@ export function SingleOrderView({ orderId, openEditMode = false, onBack, onUpdat
     }
   }
 
-  if (loading) {
+  if (loading && !order) {
     return (
       <div className="flex items-center justify-center py-12">
         <div className="text-slate-600">Loading order...</div>
@@ -271,7 +271,7 @@ export function SingleOrderView({ orderId, openEditMode = false, onBack, onUpdat
     );
   }
 
-  if (error || !order) {
+  if (!order) {
     return (
       <div className="bg-white rounded-lg shadow p-8">
         <button
@@ -298,23 +298,30 @@ export function SingleOrderView({ orderId, openEditMode = false, onBack, onUpdat
       />
 
       <div className="space-y-4">
+        {error && (
+          <div role="alert" className="bg-red-50 border border-red-300 rounded-lg p-3 text-sm text-red-800">
+            The order could not be refreshed ({error}). What you see may be out of date.
+            <button type="button" onClick={() => { void loadOrder(); }} className="ml-2 font-semibold underline min-h-[44px]">Try again</button>
+          </div>
+        )}
         <div className="flex flex-wrap items-center justify-between gap-3">
           <button
             onClick={onBack}
-            className="inline-flex items-center text-blue-600 hover:text-blue-800 font-medium transition-colors"
+            className="inline-flex items-center min-h-[44px] text-blue-600 hover:text-blue-800 font-medium transition-colors"
           >
             <ArrowLeft className="w-4 h-4 mr-2" />
             Back to Orders
           </button>
 
           <div className="flex flex-wrap items-center gap-2">
-            <div className="flex items-center gap-1.5 bg-slate-100 border border-slate-200 rounded-lg px-3 py-1.5">
+            <div className="flex items-center gap-1.5 bg-slate-100 border border-slate-200 rounded-lg px-3 py-1.5 max-w-full min-w-0">
               <span className="text-xs text-slate-500 font-medium select-none">UUID</span>
-              <span className="font-mono text-xs text-slate-700 select-all">{order.id}</span>
+              <span className="font-mono text-xs text-slate-700 select-all break-all min-w-0">{order.id}</span>
               <button
                 onClick={handleCopyUUID}
                 title="Copy UUID"
-                className="ml-1 p-0.5 rounded text-slate-400 hover:text-slate-700 transition-colors"
+                aria-label="Copy order UUID"
+                className="ml-1 p-2 min-w-[44px] min-h-[44px] flex items-center justify-center flex-shrink-0 rounded text-slate-400 hover:text-slate-700 transition-colors"
               >
                 {copied ? (
                   <Check className="w-3.5 h-3.5 text-green-600" />
@@ -328,17 +335,17 @@ export function SingleOrderView({ orderId, openEditMode = false, onBack, onUpdat
               href={buildPortalPath(order.id, { token: portalToken })}
               target="_blank"
               rel="noopener noreferrer"
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-white border border-slate-300 hover:border-blue-400 hover:bg-blue-50 text-slate-700 hover:text-blue-700 text-sm font-medium rounded-lg transition-colors"
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 min-h-[44px] bg-white border border-slate-300 hover:border-blue-400 hover:bg-blue-50 text-slate-700 hover:text-blue-700 text-sm font-medium rounded-lg transition-colors"
             >
               <ExternalLink className="w-3.5 h-3.5" />
               Customer Portal
             </a>
 
-            <div className="flex flex-col items-end gap-0.5">
+            <div className="flex flex-col items-start sm:items-end gap-0.5 min-w-0">
               <button
                 onClick={handleShortLink}
                 disabled={generatingShortLink}
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-white border border-slate-300 hover:border-teal-400 hover:bg-teal-50 text-slate-700 hover:text-teal-700 text-sm font-medium rounded-lg transition-colors disabled:opacity-50"
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 min-h-[44px] bg-white border border-slate-300 hover:border-teal-400 hover:bg-teal-50 text-slate-700 hover:text-teal-700 text-sm font-medium rounded-lg transition-colors disabled:opacity-50"
               >
                 {shortLinkCopied ? (
                   <Check className="w-3.5 h-3.5 text-green-600" />
@@ -348,7 +355,7 @@ export function SingleOrderView({ orderId, openEditMode = false, onBack, onUpdat
                 {shortLinkCopied ? 'Copied!' : generatingShortLink ? 'Generating...' : 'Copy Link'}
               </button>
               {shortUrl && (
-                <span className="text-xs text-slate-400 font-mono truncate max-w-[220px]">{shortUrl}</span>
+                <span className="text-xs text-slate-400 font-mono truncate max-w-full sm:max-w-[220px]">{shortUrl}</span>
               )}
             </div>
           </div>

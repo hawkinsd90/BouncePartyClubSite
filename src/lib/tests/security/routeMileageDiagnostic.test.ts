@@ -53,7 +53,7 @@ function makeHandler(w: World) {
   let googleCalls = 0;
   const fetchFake = async (url: string) => {
     googleCalls++;
-    const r = (w.google ?? (() => ({ ok: true, body: { status: 'OK', rows: [{ elements: [{ status: 'OK', distance: { value: MILE } }] }] } })))(url, googleCalls);
+    const r: { ok: boolean; status?: number; body: any } = (w.google ?? (() => ({ ok: true, body: { status: 'OK', rows: [{ elements: [{ status: 'OK', distance: { value: MILE } }] }] } })))(url, googleCalls);
     return { ok: r.ok, status: r.status ?? 200, json: async () => r.body };
   };
   const createClient = () => ({

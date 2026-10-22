@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { useRefetchOnReturn } from '../../hooks/core/useRefetchOnReturn';
 import { MapPin, ExternalLink, Image as ImageIcon, History } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { notifyError } from '../../lib/toasts';
@@ -34,6 +35,9 @@ export function LotPicturesDisplay({ orderId, onPromptCustomer, lotPicturesReque
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
   // lot-pictures is a private bucket: the signed-in admin asks Storage for short-lived signed URLs.
   const [signedUrls, setSignedUrls] = useState<Record<string, string>>({});
+
+  // order_lot_pictures is not published for realtime on every project: reload when the admin returns to the page.
+  useRefetchOnReturn(() => { void loadPictures(); });
 
   useEffect(() => {
     loadPictures();

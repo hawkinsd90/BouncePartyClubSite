@@ -263,7 +263,7 @@ export function PhotoDetailModal({ photo, photos, onClose, onNavigate, onPhotoSa
 
           <button
             onClick={onClose}
-            className="flex-shrink-0 w-10 h-10 flex items-center justify-center rounded-full bg-white/10 hover:bg-white/20 text-white transition-colors ml-2"
+            className="flex-shrink-0 w-11 h-11 flex items-center justify-center rounded-full bg-white/10 hover:bg-white/20 text-white transition-colors ml-2"
             aria-label="Close"
           >
             <X className="w-5 h-5" />
@@ -272,7 +272,7 @@ export function PhotoDetailModal({ photo, photos, onClose, onNavigate, onPhotoSa
 
         {/* Main image area with nav arrows */}
         <div
-          className="flex-1 relative flex items-center justify-center overflow-hidden"
+          className="flex-1 min-h-[30dvh] relative flex items-center justify-center overflow-hidden"
           onTouchStart={handleTouchStart}
           onTouchEnd={handleTouchEnd}
         >
@@ -312,7 +312,7 @@ export function PhotoDetailModal({ photo, photos, onClose, onNavigate, onPhotoSa
         </div>
 
         {/* Metadata + action panel */}
-        <div className="flex-shrink-0 bg-black/70 backdrop-blur-sm border-t border-white/10">
+        <div className="flex-shrink-0 max-h-[50dvh] overflow-y-auto overscroll-contain bg-black/70 backdrop-blur-sm border-t border-white/10">
           {/* Metadata rows */}
           <div className="px-4 pt-4 pb-2 space-y-2">
             {/* Evidence warning — delivery photos now show a softer note that promotion is still possible */}

@@ -15,6 +15,7 @@ import { formatOrderId } from '../../../lib/utils';
 import { getAllOrdersWithContacts } from '../../../lib/queries/orders';
 import { showConfirm } from '../../common/CustomModal';
 import { OrderStatusBadge } from '../../dashboard/OrderStatusBadge';
+import { OrderListCards } from './OrderListCards';
 import { categorizeOrders, filterAndSortOrders, computeTabCounts, pickDefaultTab } from '../../../lib/orders/ordersListModel';
 import type { OrderTab } from '../../../lib/orders/ordersListModel';
 
@@ -40,6 +41,7 @@ export function OrdersManager() {
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
   const [archiving, setArchiving] = useState(false);
   const orderCardsRef = useRef<Map<string, { card: HTMLElement, actionButtons: HTMLElement | null }>>(new Map());
+  const tabStripRef = useRef<HTMLDivElement>(null);
   const isRefetchingRef = useRef(false);
   const pendingRefetchRef = useRef(false);
 
@@ -269,6 +271,13 @@ export function OrdersManager() {
     };
   }, [activeTab, filteredOrders]);
 
+  // On a phone the status pills scroll sideways; the chosen one (also one chosen from the URL) is brought into view.
+  useEffect(() => {
+    const strip = tabStripRef.current;
+    const active = strip?.querySelector<HTMLElement>(`[data-tab-key="${activeTab}"]`);
+    active?.scrollIntoView?.({ inline: 'center', block: 'nearest' });
+  }, [activeTab, loading]);
+
   // Use URL params as the authority — on fresh navigation from the calendar,
   // tabFromUrl and singleOrderId are set before React state initialises.
   const isSingleOrderRoute = tabFromUrl === 'single_order' || Boolean(singleOrderId);
@@ -289,19 +298,19 @@ export function OrdersManager() {
       <div className="bg-white rounded-lg shadow p-8">
         <h3 className="text-lg font-semibold text-slate-900 mb-4">Search for an Order</h3>
         <p className="text-slate-600 mb-6">Enter an order ID to view a specific order</p>
-        <div className="flex gap-3 max-w-xl">
+        <div className="flex flex-col sm:flex-row gap-3 max-w-xl">
           <input
             type="text"
             value={singleOrderSearchId}
             onChange={(e) => setSingleOrderSearchId(e.target.value)}
             onKeyDown={(e) => e.key === 'Enter' && handleSingleOrderSearch()}
             placeholder="Enter Order ID (e.g., CDF04DF2)"
-            className="flex-1 px-4 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className="flex-1 min-w-0 px-4 py-2 min-h-[44px] border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
           />
           <button
             onClick={handleSingleOrderSearch}
             disabled={!singleOrderSearchId.trim()}
-            className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:bg-slate-300 disabled:cursor-not-allowed transition-colors"
+            className="px-6 py-2 min-h-[44px] bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:bg-slate-300 disabled:cursor-not-allowed transition-colors"
           >
             Search
           </button>
@@ -343,17 +352,21 @@ export function OrdersManager() {
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
             placeholder="Search by name, email, phone, date, or order ID..."
-            className="w-full pl-10 pr-4 py-3 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+            aria-label="Search orders"
+            inputMode="search"
+            className="w-full min-w-0 pl-10 pr-4 py-3 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
           />
         </div>
       </div>
 
-      <div className="flex gap-2 mb-6 overflow-x-auto pb-2">
+      <div ref={tabStripRef} className="flex gap-2 mb-6 overflow-x-auto pb-2 overscroll-x-contain">
         {tabs.map(tab => (
           <button
             key={tab.key}
+            data-tab-key={tab.key}
+            aria-pressed={activeTab === tab.key}
             onClick={() => handleTabChange(tab.key)}
-            className={`px-4 py-2 rounded-lg font-medium whitespace-nowrap transition-colors relative ${
+            className={`px-4 py-2 min-h-[44px] flex-shrink-0 rounded-lg font-medium whitespace-nowrap transition-colors relative ${
               activeTab === tab.key
                 ? 'bg-blue-600 text-white'
                 : 'bg-white text-slate-700 border border-slate-300 hover:border-blue-600'
@@ -374,18 +387,18 @@ export function OrdersManager() {
       </div>
 
       {(activeTab === 'past' || activeTab === 'cancelled') && (
-        <div className="flex items-center justify-between mb-4">
-          <p className="text-sm text-slate-600">
+        <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
+          <p className="text-sm text-slate-600 min-w-0">
             {showArchived
               ? 'Showing all orders including archived'
               : 'Archived orders hidden — use "Show Archived" to reveal them'}
           </p>
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             {activeTab === 'past' && (
               <button
                 onClick={handleArchiveOldOrders}
                 disabled={archiving}
-                className="flex items-center gap-2 px-3 py-1.5 rounded-lg border text-sm font-medium transition-colors bg-white text-slate-700 border-slate-300 hover:border-slate-500 disabled:opacity-50"
+                className="flex items-center gap-2 px-3 py-1.5 min-h-[44px] rounded-lg border text-sm font-medium transition-colors bg-white text-slate-700 border-slate-300 hover:border-slate-500 disabled:opacity-50"
               >
                 <ArchiveRestore className="w-4 h-4" />
                 {archiving ? 'Archiving...' : 'Archive Old Orders'}
@@ -393,7 +406,7 @@ export function OrdersManager() {
             )}
             <button
               onClick={() => setShowArchived(v => !v)}
-              className={`flex items-center gap-2 px-3 py-1.5 rounded-lg border text-sm font-medium transition-colors ${
+              className={`flex items-center gap-2 px-3 py-1.5 min-h-[44px] rounded-lg border text-sm font-medium transition-colors ${
                 showArchived
                   ? 'bg-slate-700 text-white border-slate-700 hover:bg-slate-600'
                   : 'bg-white text-slate-700 border-slate-300 hover:border-slate-500'
@@ -431,7 +444,18 @@ export function OrdersManager() {
           ))}
         </div>
       ) : (
-        <div className="bg-white rounded-lg shadow overflow-x-auto">
+        <>
+        <OrderListCards
+          orders={filteredOrders}
+          contactsMap={contactsMap}
+          onOpen={(orderId) => {
+            const params = new URLSearchParams(searchParams);
+            params.set('subtab', 'single_order');
+            params.set('orderId', orderId);
+            setSearchParams(params);
+          }}
+        />
+        <div className="hidden md:block bg-white rounded-lg shadow overflow-x-auto">
           <table className="w-full min-w-[1000px] divide-y divide-slate-200">
             <thead className="bg-slate-50">
               <tr>
@@ -561,6 +585,7 @@ export function OrdersManager() {
             </tbody>
           </table>
         </div>
+        </>
       )}
 
       {selectedOrder && (

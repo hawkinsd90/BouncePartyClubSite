@@ -17,16 +17,18 @@ export function PaymentLinkSection({
       <p className="text-xs text-slate-600 mb-3">
         Send this link to the customer to collect deposit payment:
       </p>
-      <div className="flex gap-2 mb-2">
+      <div className="flex flex-col sm:flex-row gap-2 mb-2">
         <input
           type="text"
           value={paymentUrl}
           readOnly
-          className="flex-1 px-3 py-2 border border-slate-300 rounded-lg text-sm bg-slate-50"
+          aria-label="Payment link"
+          onFocus={(e) => e.currentTarget.select()}
+          className="flex-1 min-w-0 px-3 py-2 min-h-[44px] border border-slate-300 rounded-lg text-sm bg-slate-50 text-ellipsis"
         />
         <button
           onClick={onCopyLink}
-          className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm font-medium"
+          className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 min-h-[44px] rounded-lg text-sm font-medium"
         >
           Copy Link
         </button>
@@ -34,7 +36,7 @@ export function PaymentLinkSection({
       <button
         onClick={onSendLink}
         disabled={isSending}
-        className="w-full bg-green-600 hover:bg-green-700 disabled:bg-slate-400 text-white font-semibold py-2 px-4 rounded-lg transition-colors"
+        className="w-full bg-green-600 hover:bg-green-700 disabled:bg-slate-400 text-white font-semibold py-2 px-4 min-h-[44px] rounded-lg transition-colors"
       >
         {isSending ? 'Sending...' : 'Send Payment Link via SMS'}
       </button>

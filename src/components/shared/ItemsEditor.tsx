@@ -148,7 +148,7 @@ export function ItemsEditor({
                       <div className="flex items-center gap-1.5">
                         <button
                           onClick={() => onUpdateQuantity?.(removeByIndex ? index : item, Math.max(1, item.qty - 1))}
-                          className="w-6 h-6 flex items-center justify-center bg-slate-200 hover:bg-slate-300 rounded transition-colors"
+                          className="w-9 h-9 sm:w-6 sm:h-6 flex items-center justify-center bg-slate-200 hover:bg-slate-300 rounded transition-colors"
                           title="Decrease quantity"
                         >
                           <Minus className="w-3 h-3" />
@@ -184,13 +184,13 @@ export function ItemsEditor({
                               }
                             }
                           }}
-                          className="w-12 px-1 py-1 text-center text-sm font-semibold text-slate-900 border border-slate-300 rounded focus:outline-none focus:border-blue-500"
+                          className="w-14 sm:w-12 h-9 sm:h-auto px-1 py-1 text-center text-base sm:text-sm font-semibold text-slate-900 border border-slate-300 rounded focus:outline-none focus:border-blue-500"
                           aria-label={`Quantity for ${displayName}`}
                         />
                         <button
                           onClick={() => onUpdateQuantity?.(removeByIndex ? index : item, Math.min(item.qty + 1, maxQtyForKind(qtyKindOf(item))))}
                           disabled={item.qty >= maxQtyForKind(qtyKindOf(item))}
-                          className="w-6 h-6 flex items-center justify-center bg-slate-200 hover:bg-slate-300 disabled:opacity-40 disabled:cursor-not-allowed rounded transition-colors"
+                          className="w-9 h-9 sm:w-6 sm:h-6 flex items-center justify-center bg-slate-200 hover:bg-slate-300 disabled:opacity-40 disabled:cursor-not-allowed rounded transition-colors"
                           title={item.qty >= maxQtyForKind(qtyKindOf(item)) ? `Maximum ${maxQtyForKind(qtyKindOf(item))}` : 'Increase quantity'}
                         >
                           <Plus className="w-3 h-3" />
@@ -205,9 +205,14 @@ export function ItemsEditor({
                       <input
                         type="number"
                         value={(getItemPrice(item) / 100).toFixed(2)}
-                        onChange={(e) =>
-                          onUpdatePrice?.(index, Math.round(parseFloat(e.target.value) * 100))
-                        }
+                        onChange={(e) => {
+                          // An emptied or half-typed box is not a price: ignore it instead of storing NaN
+                          const dollars = parseFloat(e.target.value);
+                          if (!Number.isFinite(dollars) || dollars < 0) return;
+                          onUpdatePrice?.(index, Math.round(dollars * 100));
+                        }}
+                        inputMode="decimal"
+                        aria-label="Price in dollars"
                         step="0.01"
                         className="w-20 px-2 py-1 border border-slate-300 rounded text-sm"
                       />

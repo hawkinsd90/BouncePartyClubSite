@@ -21,6 +21,8 @@ import { AdminRejectionModal } from '../../pending-order/AdminRejectionModal';
 import { PaymentLinkSection } from '../../pending-order/PaymentLinkSection';
 import { AlertTriangle } from 'lucide-react';
 import { formatCurrency } from '../../../lib/pricing';
+import { showToast } from '../../../lib/toasts';
+import { useRefetchOnReturn } from '../../../hooks/core/useRefetchOnReturn';
 
 export interface PendingOrderCardRef {
   card: HTMLElement;
@@ -124,6 +126,10 @@ const PendingOrderCardInner = forwardRef<PendingOrderCardRef, {
     };
   }, [order.id]);
 
+  // sms_conversations is not published for realtime, so the subscription above never fires: reload the thread when the admin returns to the page
+  // and every 45 seconds while it is open and visible.
+  useRefetchOnReturn(loadSmsConversations, 45000);
+
   async function confirmApproval() {
     setShowApprovalModal(false);
     await handleApprove();
@@ -221,7 +227,7 @@ const PendingOrderCardInner = forwardRef<PendingOrderCardRef, {
     }
     try {
       await navigator.clipboard.writeText(paymentUrl);
-      alert('Payment link copied to clipboard!');
+      showToast('Payment link copied to clipboard.', 'success', { duration: 2000 });
     } catch (error) {
       console.error('Failed to copy:', error);
       alert(`Payment link: ${paymentUrl}`);
@@ -237,7 +243,7 @@ const PendingOrderCardInner = forwardRef<PendingOrderCardRef, {
     const success = await sendSms(message);
     if (success) {
       await loadSmsConversations();
-      alert('SMS sent successfully!');
+      showToast('SMS sent.', 'success', { duration: 2000 });
     }
   }
 
@@ -381,7 +387,7 @@ const PendingOrderCardInner = forwardRef<PendingOrderCardRef, {
           <button
             onClick={() => handleReject()}
             disabled={processing}
-            className="w-full bg-red-600 hover:bg-red-700 disabled:bg-slate-400 text-white font-semibold py-3 px-6 rounded-lg transition-colors"
+            className="w-full bg-red-600 hover:bg-red-700 disabled:bg-slate-400 text-white font-semibold py-3 px-4 sm:px-6 min-h-[48px] rounded-lg transition-colors"
           >
             Cancel Order
           </button>
@@ -397,24 +403,24 @@ const PendingOrderCardInner = forwardRef<PendingOrderCardRef, {
           <button
             onClick={handleForceApproval}
             disabled={processing}
-            className="w-full bg-orange-600 hover:bg-orange-700 disabled:bg-slate-400 text-white font-semibold py-3 px-6 rounded-lg transition-colors"
+            className="w-full bg-orange-600 hover:bg-orange-700 disabled:bg-slate-400 text-white font-semibold py-3 px-4 sm:px-6 min-h-[48px] rounded-lg transition-colors"
           >
             {processing ? 'Processing...' : 'Force Approve (Admin Override)'}
           </button>
         </div>
       ) : isPendingReview ? (
-        <div ref={actionButtonsRef} className="flex gap-3">
+        <div ref={actionButtonsRef} className="flex flex-col min-[400px]:flex-row gap-3">
           <button
             onClick={() => setShowApprovalModal(true)}
             disabled={processing}
-            className="flex-1 bg-green-600 hover:bg-green-700 disabled:bg-slate-400 text-white font-semibold py-3 px-6 rounded-lg transition-colors"
+            className="flex-1 bg-green-600 hover:bg-green-700 disabled:bg-slate-400 text-white font-semibold py-3 px-4 sm:px-6 min-h-[48px] rounded-lg transition-colors"
           >
             {processing ? 'Processing...' : 'Accept'}
           </button>
           <button
             onClick={() => handleReject()}
             disabled={processing}
-            className="flex-1 bg-red-600 hover:bg-red-700 disabled:bg-slate-400 text-white font-semibold py-3 px-6 rounded-lg transition-colors"
+            className="flex-1 bg-red-600 hover:bg-red-700 disabled:bg-slate-400 text-white font-semibold py-3 px-4 sm:px-6 min-h-[48px] rounded-lg transition-colors"
           >
             Reject
           </button>

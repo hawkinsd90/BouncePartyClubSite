@@ -19,7 +19,7 @@ export function AdminFloatingOrderHeader({ order, isVisible, onEditClick }: Admi
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="bg-gradient-to-b from-blue-50 to-blue-100 border-b-4 border-blue-400 shadow-lg rounded-b-xl animate-slide-down">
           <div className="px-4 py-3">
-            <div className="flex flex-wrap items-center gap-4 text-sm">
+            <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-sm">
               <div className="flex items-center gap-2">
                 <Hash className="w-4 h-4 text-blue-600" />
                 <span className="font-mono font-bold text-blue-700">
@@ -29,7 +29,7 @@ export function AdminFloatingOrderHeader({ order, isVisible, onEditClick }: Admi
 
               <div className="flex items-center gap-2">
                 <User className="w-4 h-4 text-slate-600" />
-                <span className="font-semibold text-slate-900">
+                <span className="font-semibold text-slate-900 break-words">
                   {order.customers?.first_name} {order.customers?.last_name}
                 </span>
               </div>
@@ -48,11 +48,11 @@ export function AdminFloatingOrderHeader({ order, isVisible, onEditClick }: Admi
                 </span>
               </div>
 
-              <div className="ml-auto flex items-center gap-3">
+              <div className="ml-auto flex flex-wrap items-center justify-end gap-2 sm:gap-3">
                 {onEditClick && (
                   <button
                     onClick={onEditClick}
-                    className="flex items-center gap-1.5 px-3 py-1.5 bg-white hover:bg-blue-50 text-blue-700 font-semibold rounded-lg border-2 border-blue-400 transition-colors"
+                    className="flex items-center gap-1.5 px-3 py-1.5 min-h-[44px] bg-white hover:bg-blue-50 text-blue-700 font-semibold rounded-lg border-2 border-blue-400 transition-colors"
                   >
                     <Edit className="w-3.5 h-3.5" />
                     <span>Edit Order</span>

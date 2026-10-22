@@ -88,10 +88,10 @@ export function MenuGroupList({
                     : 'border-slate-200 opacity-60'
                 }`}
               >
-                <div className="flex items-start justify-between gap-4">
+                <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3 sm:gap-4">
                   <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 mb-1">
-                      <h3 className="text-lg font-bold text-slate-900">{group.title}</h3>
+                    <div className="flex flex-wrap items-center gap-2 mb-1">
+                      <h3 className="text-lg font-bold text-slate-900 break-words">{group.title}</h3>
                       {!group.is_enabled && (
                         <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-slate-100 text-slate-500">
                           Disabled
@@ -114,13 +114,14 @@ export function MenuGroupList({
                     </div>
                   </div>
 
-                  <div className="flex items-center gap-1 flex-shrink-0">
+                  <div className="flex items-center gap-2 sm:gap-1 flex-shrink-0">
                     <button
                       type="button"
                       onClick={() => onMove(group.id, 'up')}
                       disabled={index === 0}
-                      className="w-8 h-8 rounded-lg border border-slate-300 flex items-center justify-center text-slate-600 hover:bg-slate-100 transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+                      className="w-11 h-11 sm:w-8 sm:h-8 rounded-lg border border-slate-300 flex items-center justify-center text-slate-600 hover:bg-slate-100 transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
                       title="Move up"
+                      aria-label={`Move ${group.title} up`}
                     >
                       <ChevronUp className="w-4 h-4" />
                     </button>
@@ -128,24 +129,27 @@ export function MenuGroupList({
                       type="button"
                       onClick={() => onMove(group.id, 'down')}
                       disabled={index === groups.length - 1}
-                      className="w-8 h-8 rounded-lg border border-slate-300 flex items-center justify-center text-slate-600 hover:bg-slate-100 transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+                      className="w-11 h-11 sm:w-8 sm:h-8 rounded-lg border border-slate-300 flex items-center justify-center text-slate-600 hover:bg-slate-100 transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
                       title="Move down"
+                      aria-label={`Move ${group.title} down`}
                     >
                       <ChevronDown className="w-4 h-4" />
                     </button>
                     <button
                       type="button"
                       onClick={() => onEdit(group)}
-                      className="w-8 h-8 rounded-lg border border-slate-300 flex items-center justify-center text-slate-600 hover:bg-slate-100 transition-colors"
+                      className="w-11 h-11 sm:w-8 sm:h-8 rounded-lg border border-slate-300 flex items-center justify-center text-slate-600 hover:bg-slate-100 transition-colors"
                       title="Edit"
+                      aria-label={`Edit ${group.title}`}
                     >
                       <Pencil className="w-4 h-4" />
                     </button>
                     <button
                       type="button"
                       onClick={() => onDelete(group.id)}
-                      className="w-8 h-8 rounded-lg border border-red-200 flex items-center justify-center text-red-600 hover:bg-red-50 transition-colors"
+                      className="w-11 h-11 sm:w-8 sm:h-8 rounded-lg border border-red-200 flex items-center justify-center text-red-600 hover:bg-red-50 transition-colors"
                       title="Delete"
+                      aria-label={`Delete ${group.title}`}
                     >
                       <Trash2 className="w-4 h-4" />
                     </button>

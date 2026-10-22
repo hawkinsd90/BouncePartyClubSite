@@ -247,12 +247,14 @@ export function EventDetailsEditor({
                       <p className="text-sm text-slate-500 py-2">Loading generator information…</p>
                     ) : generatorLoadState?.status === 'failed' ? (
                       <p className="text-sm text-red-600 py-2">Unable to load Generator information. Please try again.</p>
-                    ) : generatorResolutionPending ? (
-                      <p className="text-sm text-slate-500 py-2">Resolving Generator availability…</p>
                     ) : (
+                      <>
+                      {/* The box stays mounted while availability is being checked: replacing it with a message dropped the keyboard and the caret after every digit */}
                       <input
                         type="number"
+                        inputMode="numeric"
                         min="0"
+                        aria-busy={generatorResolutionPending ? true : undefined}
                         value={editedOrder.generator_display_qty ?? editedOrder.generator_qty ?? 0}
                         onChange={(e) => {
                           const qty = parseInt(e.target.value) || 0;
@@ -262,8 +264,12 @@ export function EventDetailsEditor({
                             onOrderChange({ generator_qty: qty });
                           }
                         }}
-                        className="w-full px-3 py-2 border border-slate-300 rounded"
+                        className="w-full px-3 py-2 min-h-[44px] border border-slate-300 rounded"
                       />
+                      {generatorResolutionPending && (
+                        <p role="status" className="text-xs text-slate-500 mt-1">Resolving Generator availability…</p>
+                      )}
+                      </>
                     )}
 
                   </div>
@@ -341,12 +347,13 @@ export function EventDetailsEditor({
                   <p className="text-sm text-slate-500 py-2 break-words">Loading generator information…</p>
                 ) : generatorLoadState?.status === 'failed' ? (
                   <p className="text-sm text-red-600 py-2 break-words">Unable to load Generator information. Please try again.</p>
-                ) : generatorResolutionPending ? (
-                  <p className="text-sm text-slate-500 py-2 break-words">Resolving Generator availability…</p>
                 ) : (
+                  <>
                   <input
                     type="number"
+                    inputMode="numeric"
                     min="0"
+                    aria-busy={generatorResolutionPending ? true : undefined}
                     value={editedOrder.generator_display_qty ?? editedOrder.generator_qty ?? 0}
                     onChange={(e) => {
                       const qty = parseInt(e.target.value) || 0;
@@ -358,6 +365,10 @@ export function EventDetailsEditor({
                     }}
                     className={inputClass}
                   />
+                  {generatorResolutionPending && (
+                    <p role="status" className="text-xs text-slate-500 mt-1 break-words">Resolving Generator availability…</p>
+                  )}
+                  </>
                 )}
 
               </div>

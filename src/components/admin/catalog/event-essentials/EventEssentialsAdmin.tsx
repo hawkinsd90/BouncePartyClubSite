@@ -27,12 +27,13 @@ export function EventEssentialsAdmin() {
 
   return (
     <div className="bg-white rounded-xl shadow-md overflow-hidden">
-      <div className="border-b border-slate-200 px-6 py-4">
-        <h2 className="text-2xl font-bold text-slate-900 mb-3">Event Essentials</h2>
-        <div className="flex gap-1 bg-slate-100 p-1 rounded-lg w-fit">
+      <div className="border-b border-slate-200 px-3 sm:px-6 py-4">
+        <h2 className="text-xl sm:text-2xl font-bold text-slate-900 mb-3">Event Essentials</h2>
+        <div role="tablist" aria-label="Event Essentials sections" className="flex gap-1 bg-slate-100 p-1 rounded-lg w-full sm:w-fit overflow-x-auto">
           <button
             onClick={() => handleTabChange('products')}
-            className={`flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium transition-colors ${
+            role="tab"
+            className={`flex flex-1 sm:flex-none items-center justify-center gap-2 px-3 sm:px-4 py-2 min-h-[44px] flex-shrink-0 rounded-md text-sm font-medium transition-colors ${
               activeTab === 'products'
                 ? 'bg-white text-blue-700 shadow-sm'
                 : 'text-slate-600 hover:text-slate-900'
@@ -43,7 +44,8 @@ export function EventEssentialsAdmin() {
           </button>
           <button
             onClick={() => handleTabChange('categories')}
-            className={`flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium transition-colors ${
+            role="tab"
+            className={`flex flex-1 sm:flex-none items-center justify-center gap-2 px-3 sm:px-4 py-2 min-h-[44px] flex-shrink-0 rounded-md text-sm font-medium transition-colors ${
               activeTab === 'categories'
                 ? 'bg-white text-blue-700 shadow-sm'
                 : 'text-slate-600 hover:text-slate-900'
@@ -54,7 +56,8 @@ export function EventEssentialsAdmin() {
           </button>
           <button
             onClick={() => handleTabChange('packages')}
-            className={`flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium transition-colors ${
+            role="tab"
+            className={`flex flex-1 sm:flex-none items-center justify-center gap-2 px-3 sm:px-4 py-2 min-h-[44px] flex-shrink-0 rounded-md text-sm font-medium transition-colors ${
               activeTab === 'packages'
                 ? 'bg-white text-blue-700 shadow-sm'
                 : 'text-slate-600 hover:text-slate-900'
@@ -66,7 +69,7 @@ export function EventEssentialsAdmin() {
         </div>
       </div>
 
-      <div className="p-6">
+      <div className="p-3 sm:p-6">
         {activeTab === 'products' && <ProductManager />}
         {activeTab === 'categories' && <CategoryManager />}
         {activeTab === 'packages' && <PackageManager />}

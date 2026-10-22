@@ -3,6 +3,7 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import { ArrowLeft, Save, Upload, X, Layers } from 'lucide-react';
 import { notifyError, notifySuccess, showConfirm } from '../lib/toasts';
+import { todayLocalKey } from '../lib/core/localDate';
 
 export function UnitForm() {
   const navigate = useNavigate();
@@ -35,6 +36,9 @@ export function UnitForm() {
   const [uploadingImages, setUploadingImages] = useState(false);
   const [saving, setSaving] = useState(false);
   const [originalActive, setOriginalActive] = useState(true);
+  // An edit form that failed to load must not show the empty defaults: saving them would overwrite the real unit.
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [loadingUnit, setLoadingUnit] = useState(isEdit);
 
   useEffect(() => {
     if (isEdit) {
@@ -44,11 +48,27 @@ export function UnitForm() {
 
   async function loadUnit() {
     if (!id) return;
+    setLoadingUnit(true);
+    setLoadError(null);
 
-    const [unitRes, mediaRes] = await Promise.all([
-      supabase.from('units').select('*').eq('id', id).single(),
-      supabase.from('unit_media').select('*').eq('unit_id', id).order('sort'),
-    ]);
+    let unitRes, mediaRes;
+    try {
+      [unitRes, mediaRes] = await Promise.all([
+        supabase.from('units').select('*').eq('id', id).single(),
+        supabase.from('unit_media').select('*').eq('unit_id', id).order('sort'),
+      ]);
+    } catch (e) {
+      setLoadError(e instanceof Error ? e.message : 'Network error');
+      setLoadingUnit(false);
+      return;
+    }
+    if (unitRes.error || mediaRes.error || !unitRes.data) {
+      console.error('Error loading unit:', unitRes.error || mediaRes.error);
+      setLoadError(unitRes.error?.message || mediaRes.error?.message || 'This unit was not found.');
+      setLoadingUnit(false);
+      return;
+    }
+    setLoadingUnit(false);
 
     if (unitRes.data) {
       const unit = unitRes.data as any;
@@ -112,7 +132,7 @@ export function UnitForm() {
   }
 
   async function checkFutureBookings(unitId: string) {
-    const today = new Date().toISOString().split('T')[0];
+    const today = todayLocalKey();
 
     const { data: bookings, error } = await supabase
       .from('order_items')
@@ -380,6 +400,20 @@ export function UnitForm() {
         Back to Inventory
       </button>
 
+      {isEdit && (loadingUnit || loadError) ? (
+        <div className="bg-white rounded-2xl shadow p-6 text-center" role={loadError ? 'alert' : 'status'}>
+          {loadError ? (
+            <>
+              <p className="text-red-700 font-semibold">This unit could not be loaded.</p>
+              <p className="text-sm text-slate-600 mt-1">{loadError}. Nothing has been changed; the form stays closed so an empty form cannot replace the saved unit.</p>
+              <button type="button" onClick={() => { void loadUnit(); }} className="mt-4 bg-blue-600 hover:bg-blue-700 text-white font-semibold px-5 py-2 min-h-[44px] rounded-lg">Try again</button>
+            </>
+          ) : (
+            <p className="text-slate-600">Loading unit...</p>
+          )}
+        </div>
+      ) : (<>
+
       <div className="bg-white rounded-2xl shadow-2xl p-4 sm:p-6 md:p-10 border-2 border-slate-100">
         <h1 className="text-2xl sm:text-3xl md:text-4xl font-bold text-slate-900 mb-6 md:mb-8 tracking-tight">
           {isEdit ? 'Edit Unit' : 'Add New Unit'}
@@ -581,8 +615,8 @@ export function UnitForm() {
             </div>
           </div>
 
-          <div className="flex gap-4">
-            <label className="flex items-center">
+          <div className="flex flex-wrap gap-x-4 gap-y-1">
+            <label className="flex items-center min-h-[44px]">
               <input
                 type="checkbox"
                 checked={formData.indoor_ok}
@@ -592,7 +626,7 @@ export function UnitForm() {
               <span className="text-sm text-slate-700">Can be used indoors</span>
             </label>
 
-            <label className="flex items-center">
+            <label className="flex items-center min-h-[44px]">
               <input
                 type="checkbox"
                 checked={formData.outdoor_ok}
@@ -602,7 +636,7 @@ export function UnitForm() {
               <span className="text-sm text-slate-700">Outdoor OK</span>
             </label>
 
-            <label className="flex items-center">
+            <label className="flex items-center min-h-[44px]">
               <input
                 type="checkbox"
                 checked={formData.active}
@@ -889,6 +923,7 @@ export function UnitForm() {
           </div>
         </form>
       </div>
+      </>)}
     </div>
   );
 }

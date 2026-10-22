@@ -156,7 +156,7 @@ export function DayViewModal({
   return (
     <>
       <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-start sm:items-center justify-center p-2 sm:p-4 overflow-y-auto pt-4">
-        <div className="bg-white rounded-xl shadow-2xl max-w-4xl w-full max-h-[90vh] overflow-y-auto my-auto">
+        <div className="bg-white rounded-xl shadow-2xl max-w-4xl w-full max-h-[90dvh] overflow-y-auto overscroll-contain my-auto">
           <div className="sticky top-0 bg-white border-b border-slate-200 px-4 sm:px-6 py-3 sm:py-4 flex justify-between items-center gap-3 z-10">
             <div className="flex-1 min-w-0 pr-2">
               <h2 className="text-lg sm:text-2xl font-bold text-slate-900 break-words">
@@ -169,7 +169,8 @@ export function DayViewModal({
             </div>
             <button
               onClick={onClose}
-              className="p-2 hover:bg-slate-100 rounded-lg transition-colors flex-shrink-0"
+              aria-label="Close day view"
+              className="p-2 min-w-[44px] min-h-[44px] flex items-center justify-center hover:bg-slate-100 rounded-lg transition-colors flex-shrink-0"
             >
               <X className="w-6 h-6" />
             </button>
@@ -181,17 +182,17 @@ export function DayViewModal({
                 <MousePointer className="w-4 h-4" />
                 Click on any task below to view details and take action
               </p>
-              <div className="flex gap-2">
+              <div className="flex flex-wrap gap-2">
                 <button
                   onClick={handleStartDay}
-                  className="flex-1 flex items-center justify-center gap-2 bg-green-600 hover:bg-green-700 text-white text-sm font-medium py-2 px-3 rounded-lg transition-colors"
+                  className="flex-1 min-w-[10rem] min-h-[44px] flex items-center justify-center gap-2 bg-green-600 hover:bg-green-700 text-white text-sm font-medium py-2 px-3 rounded-lg transition-colors"
                 >
                   <Car className="w-4 h-4" />
                   Start Day Mileage
                 </button>
                 <button
                   onClick={handleEndDay}
-                  className="flex-1 flex items-center justify-center gap-2 bg-red-600 hover:bg-red-700 text-white text-sm font-medium py-2 px-3 rounded-lg transition-colors"
+                  className="flex-1 min-w-[10rem] min-h-[44px] flex items-center justify-center gap-2 bg-red-600 hover:bg-red-700 text-white text-sm font-medium py-2 px-3 rounded-lg transition-colors"
                 >
                   <Car className="w-4 h-4" />
                   End Day Mileage
@@ -247,17 +248,17 @@ export function DayViewModal({
                     Morning Route ({morning.active.length} active
                     {allMorningTasks.length > morning.active.length ? ` / ${allMorningTasks.length} total` : ''})
                   </h3>
-                  <div className="flex flex-row gap-2">
+                  <div className="flex flex-row flex-wrap gap-2">
                     <button
                       onClick={() => setShowEquipmentChecklist(true)}
-                      className="flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-3 py-2 rounded-lg text-xs sm:text-sm font-medium transition-colors whitespace-nowrap"
+                      className="flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-3 py-2 rounded-lg text-xs sm:text-sm font-medium transition-colors whitespace-nowrap min-h-[44px]"
                     >
                       <ClipboardList className="w-4 h-4 flex-shrink-0" />
                       <span>Equipment</span>
                     </button>
                     <button
                       onClick={() => handleManageRoute('drop-off')}
-                      className="flex items-center justify-center gap-2 bg-slate-600 hover:bg-slate-700 text-white px-3 py-2 rounded-lg text-xs sm:text-sm font-medium transition-colors whitespace-nowrap"
+                      className="flex items-center justify-center gap-2 bg-slate-600 hover:bg-slate-700 text-white px-3 py-2 rounded-lg text-xs sm:text-sm font-medium transition-colors whitespace-nowrap min-h-[44px]"
                     >
                       <Settings className="w-4 h-4 flex-shrink-0" />
                       <span>Manage Route</span>
@@ -409,7 +410,7 @@ export function DayViewModal({
                   </h3>
                   <button
                     onClick={() => handleManageRoute('pick-up')}
-                    className="flex items-center justify-center gap-2 bg-slate-600 hover:bg-slate-700 text-white px-3 py-2 rounded-lg text-xs sm:text-sm font-medium transition-colors whitespace-nowrap"
+                    className="flex items-center justify-center gap-2 bg-slate-600 hover:bg-slate-700 text-white px-3 py-2 rounded-lg text-xs sm:text-sm font-medium transition-colors whitespace-nowrap min-h-[44px]"
                   >
                     <Settings className="w-4 h-4 flex-shrink-0" />
                     <span>Manage Route</span>

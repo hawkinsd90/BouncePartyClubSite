@@ -7,6 +7,8 @@ import { createShortPortalLink } from '../../../lib/portal/portalShortLink';
 import type { ShortPortalLinkResult } from '../../../lib/portal/portalShortLink';
 import { decideActionRequiredSms, decideEnRouteReminders } from '../../../lib/notifications/notificationDecision';
 import { showAlert, showConfirm, showModal } from '../../common/CustomModal';
+import { showToast } from '../../../lib/toasts';
+import { type TaskBusyAction } from '../../../lib/tasks/taskProgress';
 import { getCurrentLocation, calculateETA } from '../../../lib/routing/crewLocationEta';
 import { Task } from '../../../hooks/admin/useCalendarTasks';
 import { getStopNumber } from '../../../lib/tasks/calendarUtils';
@@ -56,6 +58,9 @@ export function TaskDetailModal({ task, allTasks, onClose, onUpdate, onRefresh, 
   // Admin/Master get the money and order-management controls; crew keeps the field workflow (database policy already limits what crew can read).
   const { isAdmin } = useAuth();
   const [processing, setProcessing] = useState(false);
+  // Which slow action is running, so the buttons can say so (see taskProgress.ts).
+  const [busyAction, setBusyAction] = useState<TaskBusyAction | null>(null);
+  const [reordering, setReordering] = useState(false);
   const [uploadingImages, setUploadingImages] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [lastUpdated, setLastUpdated] = useState(new Date());
@@ -198,6 +203,7 @@ export function TaskDetailModal({ task, allTasks, onClose, onUpdate, onRefresh, 
     if (!(await passesStartMileageGate('en_route'))) return;
 
     setProcessing(true);
+    setBusyAction('en_route');
     try {
       const taskStatusId = await ensureTaskStatus();
       let etaMinutes = 30, etaDistance = '', gpsLat = 0, gpsLng = 0, etaCalcErr: string | null = null;
@@ -292,7 +298,7 @@ export function TaskDetailModal({ task, allTasks, onClose, onUpdate, onRefresh, 
       showAlert(successMsg);
       refresh();
     } catch (e: any) { console.error('Error en route:', e); showAlert('Failed to send notification: ' + e.message); }
-    finally { setProcessing(false); }
+    finally { setProcessing(false); setBusyAction(null); }
   }
 
   async function handleArrived() {
@@ -300,6 +306,7 @@ export function TaskDetailModal({ task, allTasks, onClose, onUpdate, onRefresh, 
     if (!confirmed) return;
     if (!(await passesStartMileageGate('arrived'))) return;
     setProcessing(true);
+    setBusyAction('arrived');
     try {
       const taskStatusId = await ensureTaskStatus();
       let smsWarn: string | null = null;
@@ -354,7 +361,7 @@ export function TaskDetailModal({ task, allTasks, onClose, onUpdate, onRefresh, 
       showAlert(arrivedMsg);
       refresh();
     } catch (e: any) { console.error('Error arrived:', e); showAlert('Failed to send notification: ' + e.message); }
-    finally { setProcessing(false); }
+    finally { setProcessing(false); setBusyAction(null); }
   }
 
   function handleImageUpload(isDamage?: boolean) {
@@ -410,6 +417,7 @@ export function TaskDetailModal({ task, allTasks, onClose, onUpdate, onRefresh, 
     );
     if (!confirmed) return;
     setProcessing(true);
+    setBusyAction('drop_off');
     try {
       const taskStatusId = await ensureTaskStatus();
       const msg = buildDropOffRulesMessage({ pickupPreference: task.pickupPreference, eventEndTime: task.eventEndTime, numInflatables: task.numInflatables });
@@ -428,7 +436,7 @@ export function TaskDetailModal({ task, allTasks, onClose, onUpdate, onRefresh, 
       showAlert(dropOffMsg);
       refresh();
     } catch (e: any) { console.error('Drop-off complete error:', e); showAlert('Failed to complete delivery: ' + e.message); }
-    finally { setProcessing(false); }
+    finally { setProcessing(false); setBusyAction(null); }
   }
 
   async function handlePickupComplete() {
@@ -444,6 +452,7 @@ export function TaskDetailModal({ task, allTasks, onClose, onUpdate, onRefresh, 
     }
 
     setProcessing(true);
+    setBusyAction('pickup');
     try {
       const taskStatusId = await ensureTaskStatus();
 
@@ -484,10 +493,12 @@ export function TaskDetailModal({ task, allTasks, onClose, onUpdate, onRefresh, 
       setCompletionSummary(summary);
       refresh();
     } catch (e: any) { console.error('Pickup complete error:', e); showAlert('Failed to complete pickup: ' + e.message); }
-    finally { setProcessing(false); }
+    finally { setProcessing(false); setBusyAction(null); }
   }
 
   async function handleReorder(direction: 'up' | 'down') {
+    if (reordering) return;
+    setReordering(true);
     try {
       const idx = tasksOfSameType.findIndex(t => t.id === task.id);
       if (idx === -1) return;
@@ -501,9 +512,11 @@ export function TaskDetailModal({ task, allTasks, onClose, onUpdate, onRefresh, 
       const results = await Promise.all(updates);
       const err = results.find(r => r.error)?.error;
       if (err) throw new Error('Failed to reorder: ' + err.message);
-      showAlert(`Task moved ${direction}`);
+      // A small toast, not an alert: re-ordering several stops should not need a tap on a dialog each time.
+      showToast(`Task moved ${direction}`, 'success', { duration: 1500 });
       refresh();
-    } catch (e: any) { console.error('Reorder error:', e); showAlert('Failed to reorder: ' + e.message); }
+    } catch (e: any) { console.error('Reorder error:', e); showToast('Failed to reorder: ' + e.message, 'error'); }
+    finally { setReordering(false); }
   }
 
   async function handleCashPayment(balancePaymentCents: number, tipCents: number = 0, totalReceivedCents: number = balancePaymentCents) {
@@ -718,14 +731,15 @@ export function TaskDetailModal({ task, allTasks, onClose, onUpdate, onRefresh, 
       )}
       <div className="bg-white rounded-xl shadow-2xl w-full max-w-2xl my-2 sm:my-4 mx-2 sm:mx-4 max-h-[calc(100vh-16px)] sm:max-h-[95vh] overflow-y-auto flex flex-col">
 
-        {/* Sticky header */}
+        {/* One sticky block holds the header and the phone action bar, so the bar sits directly under the header whatever its height (back link, wrapped title) */}
+        <div className="sticky top-0 z-10 flex-shrink-0 bg-white">
         <TaskDetailHeader
           isDropOff={isDropOff}
           currentStatus={currentStatus}
           statusColor={statusColor}
           orderNumber={task.orderNumber}
-          canMoveUp={canMoveUp}
-          canMoveDown={canMoveDown}
+          canMoveUp={canMoveUp && !reordering}
+          canMoveDown={canMoveDown && !reordering}
           stopNumber={stopNumber}
           activeStopsCount={activeStopsCount}
           refreshing={refreshing}
@@ -749,8 +763,10 @@ export function TaskDetailModal({ task, allTasks, onClose, onUpdate, onRefresh, 
             onImageUpload={handleImageUpload}
             onDropOffComplete={handleDropOffComplete}
             onPickupComplete={handlePickupComplete}
+            busyAction={busyAction}
           />
         )}
+        </div>
 
         <div className="p-4 sm:p-6 space-y-6">
           {/* Completed banner */}
@@ -802,6 +818,7 @@ export function TaskDetailModal({ task, allTasks, onClose, onUpdate, onRefresh, 
             onImageUpload={handleImageUpload}
             onDropOffComplete={handleDropOffComplete}
             onPickupComplete={handlePickupComplete}
+            busyAction={busyAction}
             onPaperWaiverUpload={handlePaperWaiverUpload}
           />
 

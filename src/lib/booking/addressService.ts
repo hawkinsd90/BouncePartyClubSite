@@ -199,6 +199,7 @@ export async function upsertCanonicalAddress(params: UpsertAddressParams): Promi
     .maybeSingle();
   const sharedLine2 = existingRow ? (existingRow.line2 ?? null) : (line2 ?? null);
 
+  const storedCoordinates = (lat != null && lng != null ? { lat, lng } : {}) as { lat: number | null; lng: number | null };
   const { data: upserted, error: upsertError } = await supabase
     .from('addresses')
     .upsert(
@@ -210,7 +211,7 @@ export async function upsertCanonicalAddress(params: UpsertAddressParams): Promi
         state: state.trim(),
         zip: normalizeZip(zip),
         // A failed geocode (null) must never erase coordinates already stored for this address: leave the columns out of the upsert.
-        ...(lat != null && lng != null ? { lat, lng } : {}),
+        ...storedCoordinates,
         address_key: key,
       },
       { onConflict: 'address_key', ignoreDuplicates: false }

@@ -107,13 +107,13 @@ export function PhotoFilterBar({
           placeholder="Search by order, customer, address, or unit..."
           value={searchQuery}
           onChange={(e) => onSearchChange(e.target.value)}
-          className="w-full pl-9 pr-4 py-3 bg-white border border-slate-200 rounded-xl text-sm text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent shadow-sm"
+          className="w-full pl-9 pr-4 py-3 bg-white border border-slate-200 rounded-xl text-base sm:text-sm text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent shadow-sm"
         />
       </div>
 
       {/* Filter chips + controls row */}
-      <div className="flex items-center gap-2">
-        <div className="flex-1 min-w-0 overflow-x-auto scrollbar-hide">
+      <div className="flex flex-wrap items-center gap-2">
+        <div className="basis-full sm:basis-0 sm:flex-1 min-w-0 overflow-x-auto scrollbar-hide">
           <div className="flex gap-2 pb-1">
             {FILTER_CHIPS.map(({ key, label, activeClass }) => {
               const isActive = activeFilter === key;
@@ -121,7 +121,7 @@ export function PhotoFilterBar({
                 <button
                   key={key}
                   onClick={() => onFilterChange(key)}
-                  className={`flex-shrink-0 px-4 py-2 rounded-full text-sm font-semibold whitespace-nowrap transition-all ${
+                  className={`flex-shrink-0 px-4 py-2 min-h-[44px] rounded-full text-sm font-semibold whitespace-nowrap transition-all ${
                     isActive ? activeClass : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
                   }`}
                 >
@@ -135,7 +135,7 @@ export function PhotoFilterBar({
         {/* Advanced filters toggle */}
         <button
           onClick={() => setAdvancedOpen(v => !v)}
-          className={`flex-shrink-0 flex items-center gap-1.5 px-3 py-2 rounded-xl border text-sm font-medium transition-all shadow-sm ${
+          className={`flex-shrink-0 flex items-center gap-1.5 px-3 py-2 min-h-[44px] rounded-xl border text-sm font-medium transition-all shadow-sm ${
             activeAdvanced
               ? 'bg-blue-600 border-blue-600 text-white hover:bg-blue-700'
               : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50 hover:border-slate-300'
@@ -152,7 +152,7 @@ export function PhotoFilterBar({
           <select
             value={sortOrder}
             onChange={(e) => onSortChange(e.target.value as SortOrder)}
-            className="appearance-none pl-3 pr-8 py-2 rounded-xl bg-white border border-slate-200 text-sm font-medium text-slate-600 hover:bg-slate-50 hover:border-slate-300 transition-all shadow-sm cursor-pointer focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className="appearance-none pl-3 pr-8 py-2 min-h-[44px] rounded-xl bg-white border border-slate-200 text-sm font-medium text-slate-600 hover:bg-slate-50 hover:border-slate-300 transition-all shadow-sm cursor-pointer focus:outline-none focus:ring-2 focus:ring-blue-500"
           >
             {SORT_OPTIONS.map(o => (
               <option key={o.value} value={o.value}>{o.label}</option>
@@ -174,7 +174,7 @@ export function PhotoFilterBar({
                   <button
                     key={o.value}
                     onClick={() => onDateRangeChange(o.value)}
-                    className={`text-left px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
+                    className={`text-left px-3 py-1.5 min-h-[44px] rounded-lg text-sm font-medium transition-colors ${
                       dateRange === o.value
                         ? 'bg-blue-600 text-white'
                         : 'bg-white text-slate-700 hover:bg-slate-100 border border-slate-200'
@@ -194,7 +194,7 @@ export function PhotoFilterBar({
                   <button
                     key={val}
                     onClick={() => onEvidenceFilterChange(val)}
-                    className={`text-left px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
+                    className={`text-left px-3 py-1.5 min-h-[44px] rounded-lg text-sm font-medium transition-colors ${
                       evidenceFilter === val
                         ? 'bg-blue-600 text-white'
                         : 'bg-white text-slate-700 hover:bg-slate-100 border border-slate-200'
@@ -214,7 +214,7 @@ export function PhotoFilterBar({
                   <button
                     key={val}
                     onClick={() => onSavedAddressFilterChange(val)}
-                    className={`text-left px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
+                    className={`text-left px-3 py-1.5 min-h-[44px] rounded-lg text-sm font-medium transition-colors ${
                       savedAddressFilter === val
                         ? 'bg-blue-600 text-white'
                         : 'bg-white text-slate-700 hover:bg-slate-100 border border-slate-200'
@@ -234,7 +234,7 @@ export function PhotoFilterBar({
                   <button
                     key={val}
                     onClick={() => onDisplayStatusFilterChange(val)}
-                    className={`text-left px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
+                    className={`text-left px-3 py-1.5 min-h-[44px] rounded-lg text-sm font-medium transition-colors ${
                       displayStatusFilter === val
                         ? 'bg-blue-600 text-white'
                         : 'bg-white text-slate-700 hover:bg-slate-100 border border-slate-200'

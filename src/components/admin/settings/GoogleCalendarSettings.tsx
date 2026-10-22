@@ -47,16 +47,23 @@ export function GoogleCalendarSettings() {
   const [savedCreds, setSavedCreds] = useState<Record<string, string>>({});
   const [saving, setSaving] = useState(false);
   const [saveStatus, setSaveStatus] = useState<'idle' | 'saved' | 'error'>('idle');
+  // A failed load leaves the form empty; saving from an empty form would write blanks over the stored credentials, so Save stays off.
+  const [loadFailed, setLoadFailed] = useState(false);
 
   useEffect(() => {
     loadSettings();
   }, []);
 
   async function loadSettings() {
-    const { data } = await supabase
+    const { data, error } = await supabase
       .from('admin_settings')
       .select('key, value')
       .in('key', CRED_FIELDS.map(f => f.key));
+    if (error) {
+      setLoadFailed(true);
+      return;
+    }
+    setLoadFailed(false);
 
     const loaded: Record<string, string> = {};
     for (const row of data || []) {
@@ -67,23 +74,28 @@ export function GoogleCalendarSettings() {
   }
 
   async function saveCredentials() {
+    if (loadFailed) {
+      setSaveStatus('error');
+      return;
+    }
     setSaving(true);
     setSaveStatus('idle');
     try {
       for (const [key, value] of Object.entries(creds)) {
         if (value === savedCreds[key]) continue;
 
-        const { data: existing } = await supabase
+        const { data: existing, error: lookupError } = await supabase
           .from('admin_settings')
           .select('id')
           .eq('key', key)
           .maybeSingle();
+        if (lookupError) throw lookupError;
 
-        if (existing) {
-          await supabase.from('admin_settings').update({ value }).eq('key', key);
-        } else {
-          await supabase.from('admin_settings').insert({ key, value });
-        }
+        // Every write is checked: an error used to be dropped and the screen still said Saved.
+        const { error: writeError } = existing
+          ? await supabase.from('admin_settings').update({ value }).eq('key', key)
+          : await supabase.from('admin_settings').insert({ key, value });
+        if (writeError) throw writeError;
       }
       setSavedCreds({ ...creds });
       setSaveStatus('saved');
@@ -100,8 +112,8 @@ export function GoogleCalendarSettings() {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="bg-gradient-to-r from-slate-700 to-slate-800 rounded-2xl p-6 text-white">
-        <div className="flex items-center gap-3 mb-2">
+      <div className="bg-gradient-to-r from-slate-700 to-slate-800 rounded-2xl p-4 sm:p-6 text-white">
+        <div className="flex flex-wrap items-center gap-3 mb-2">
           <Calendar className="w-6 h-6" />
           <h2 className="text-xl font-bold">Google Calendar Sync</h2>
           <span className="ml-auto px-3 py-1 bg-amber-400 text-amber-900 text-xs font-bold rounded-full">
@@ -129,6 +141,14 @@ export function GoogleCalendarSettings() {
         </div>
       )}
 
+      {loadFailed && (
+        <div className="bg-red-50 border border-red-300 rounded-xl p-4" role="alert">
+          <p className="text-sm font-semibold text-red-900">The saved credentials could not be loaded.</p>
+          <p className="text-sm text-red-800 mt-1">Saving is turned off so the empty form cannot replace them. Nothing has been changed.</p>
+          <button type="button" onClick={() => { void loadSettings(); }} className="mt-3 bg-red-600 hover:bg-red-700 text-white text-sm font-semibold px-4 py-2 min-h-[44px] rounded-lg">Try again</button>
+        </div>
+      )}
+
       {/* Credentials Form — always shown so you can set up creds */}
       <div className="bg-white rounded-xl border border-slate-200 p-5">
         <div className="flex items-center gap-2 mb-4">
@@ -153,17 +173,18 @@ export function GoogleCalendarSettings() {
                 value={creds[field.key] || ''}
                 onChange={e => setCreds(prev => ({ ...prev, [field.key]: e.target.value }))}
                 placeholder={field.placeholder}
-                className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm text-slate-900 focus:outline-none focus:border-blue-500"
+                autoComplete="off"
+                className="w-full px-3 py-2 min-h-[44px] border border-slate-300 rounded-lg text-base sm:text-sm text-slate-900 focus:outline-none focus:border-blue-500"
               />
             </div>
           ))}
         </div>
 
-        <div className="mt-4 flex items-center gap-3">
+        <div className="mt-4 flex flex-wrap items-center gap-3">
           <button
             onClick={saveCredentials}
-            disabled={saving || !hasAnyValue}
-            className="px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold rounded-lg transition-colors disabled:opacity-50"
+            disabled={saving || !hasAnyValue || loadFailed}
+            className="px-5 py-2 min-h-[44px] bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold rounded-lg transition-colors disabled:opacity-50"
           >
             {saving ? 'Saving...' : 'Save Credentials'}
           </button>

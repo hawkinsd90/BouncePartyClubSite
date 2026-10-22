@@ -523,8 +523,8 @@ export function InvoiceBuilder() {
       }
     };
 
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
+    document.addEventListener('pointerdown', handleClickOutside);
+    return () => document.removeEventListener('pointerdown', handleClickOutside);
   }, [customerManagement.showCustomerDropdown]);
 
   async function handleCreateNewCustomer() {
@@ -656,7 +656,7 @@ export function InvoiceBuilder() {
       if (!customerManagement.selectedCustomer) {
         showToast('Invoice created! Copy the link below to send to your customer.', 'success');
       } else {
-        showToast(`Invoice sent to ${customer.email} and ${customer.phone}!`, 'success');
+        showToast(`Invoice sent to ${customer?.email ?? 'the customer'}${customer?.phone ? ` and ${customer.phone}` : ''}!`, 'success');
       }
 
       clearCart();

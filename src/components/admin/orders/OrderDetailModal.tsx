@@ -1107,7 +1107,7 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
 
         <OrderDetailTabNav activeSection={activeSection} onChange={setActiveSection} />
 
-        <div className="px-3 md:px-6 py-4 md:py-6 max-h-[calc(100vh-200px)] md:max-h-[calc(100vh-300px)] overflow-y-auto">
+        <div className="px-3 md:px-6 py-4 md:py-6 md:max-h-[calc(100dvh-300px)] md:overflow-y-auto">
           {activeSection === 'details' && (
             <OrderDetailsTab
               order={order}

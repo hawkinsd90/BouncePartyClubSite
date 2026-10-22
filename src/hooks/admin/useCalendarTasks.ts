@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
+import { useRefetchOnReturn } from '../core/useRefetchOnReturn';
 import { supabase } from '../../lib/supabase';
 import { format, startOfMonth, endOfMonth, addDays } from 'date-fns';
 import { ORDER_STATUS } from '../../lib/constants/statuses';
@@ -93,6 +94,9 @@ export function useCalendarTasks(currentMonth: Date) {
       loadTasksForMonth(currentMonthRef.current, { background: true });
     }, 1000);
   });
+
+  // Realtime can miss events (a phone that slept, a table that is not published on this project): reload quietly when the person comes back.
+  useRefetchOnReturn(() => { void loadTasksForMonth(currentMonthRef.current, { background: true }); });
 
   const firstRoleRef = useRef(true);
   useEffect(() => {
