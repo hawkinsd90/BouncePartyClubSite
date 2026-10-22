@@ -553,6 +553,18 @@ const RULES_LATER = { ...RULES, surface_sandbag_fee_cents: 5000, residential_mul
     distanceFor = () => 14.2;
   }
   {
+    // 7f-bis. a legacy order with NO travel snapshot at all (rate and radius never stored) and a $0 fee: shouldReuseSavedTravel says no, but the
+    // address text is unchanged, so nothing is measured (the unchanged-address rule stands on its own; a browser value cannot change it either)
+    const w = newWorld();
+    const id = await createOrder(w);
+    await pg.exec(`UPDATE public.orders SET travel_total_miles = NULL, travel_fee_cents = 0, travel_chargeable_miles = NULL, travel_per_mile_cents = NULL, travel_base_radius_miles = NULL WHERE id = '${id}';`);
+    distanceFor = () => 77;
+    const calls0 = distanceCalls.length;
+    const r = await call(w, await editBody(id, { adminMessage: 'legacy edit without snapshot' }));
+    ok('distance: a legacy order with no travel snapshot and an unchanged address is not re-measured', r.status === 200 && distanceCalls.length === calls0);
+    distanceFor = () => 14.2;
+  }
+  {
     // 7g. the production wiring: no injected measurer, GOOGLE_MAPS_API_KEY and the Distance Matrix REST service
     const prod = (w: World) => loadHandler('staff-order-save', w, sharedProduction);
     const callProd = (w: World, body: Record<string, unknown>, bearer = 'jwt-admin') => callHandler(prod(w), body, bearer);
