@@ -1,5 +1,7 @@
 import { createContext, useContext, useEffect, useState, useCallback, useMemo } from 'react';
+import type { User } from '@supabase/supabase-js';
 import { supabase } from '../lib/supabase';
+import { asErrorLike } from '../lib/core/errorLike';
 import { createLogger } from '../lib/core/logger';
 import { isPortalTokenHash } from '../lib/portal/portalToken';
 
@@ -14,14 +16,14 @@ const drainingUserIds = new Set<string>();
 type UserRole = 'master' | 'admin' | 'crew' | 'customer' | null;
 
 interface AuthContextType {
-  user: any;
+  user: User | null;
   role: UserRole;
   roles: string[];
   loading: boolean;
   signIn: (email: string, password: string) => Promise<void>;
   signInWithGoogle: (destinationPath?: string) => Promise<void>;
   signInWithApple: (destinationPath?: string) => Promise<void>;
-  signUp: (email: string, password: string, metadata?: any) => Promise<void>;
+  signUp: (email: string, password: string, metadata?: Record<string, unknown>) => Promise<void>;
   signOut: () => Promise<void>;
   hasRole: (checkRole: string) => boolean;
   isAdmin: boolean;
@@ -31,7 +33,7 @@ interface AuthContextType {
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
-  const [user, setUser] = useState<any>(null);
+  const [user, setUser] = useState<User | null>(null);
   const [role, setRole] = useState<UserRole>(null);
   const [roles, setRoles] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
@@ -86,8 +88,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         log.debug('drainPendingConsent: drain result', json);
         // The edge function deletes the pending_signups_consent row server-side after
         // a successful drain. No client-side delete is needed.
-      } catch (err: any) {
-        log.warn('drainPendingConsent: unexpected error', err.message);
+      } catch (err) {
+        log.warn('drainPendingConsent: unexpected error', asErrorLike(err).message);
       } finally {
         drainingUserIds.delete(userId);
       }
@@ -187,7 +189,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     if (error) throw error;
   }, []);
 
-  const signUp = useCallback(async (email: string, password: string, metadata?: any) => {
+  const signUp = useCallback(async (email: string, password: string, metadata?: Record<string, unknown>) => {
     const { error } = await supabase.auth.signUp({
       email,
       password,

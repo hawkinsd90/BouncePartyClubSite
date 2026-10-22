@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { supabase } from '../../lib/supabase';
+import type { Database } from '../../lib/database.types';
 import { showToast } from '../../lib/toasts';
 
 interface NewCustomer {
@@ -26,7 +27,7 @@ export function useCustomerManagement() {
   const [newCustomer, setNewCustomer] = useState<NewCustomer>(initialCustomerState);
   const [saving, setSaving] = useState(false);
 
-  async function createNewCustomer(onSuccess?: (customer: any) => void) {
+  async function createNewCustomer(onSuccess?: (customer: Database['public']['Tables']['customers']['Row']) => void) {
     if (!newCustomer.first_name || !newCustomer.last_name || !newCustomer.email || !newCustomer.phone) {
       showToast('Please fill in all required customer fields', 'error');
       return null;

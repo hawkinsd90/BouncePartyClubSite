@@ -2,6 +2,15 @@ import { useState, useEffect } from 'react';
 import { getAllCustomers, getActiveUnits, getPricingRules } from '../../lib/queries';
 import type { PricingRules } from '../../lib/pricing';
 
+// The pricing_rules row as this mapper reads it: the same names and types as PricingRules, except the three JSON columns, which the
+// mapper narrows itself below.
+type PricingRulesRow = Omit<PricingRules, 'included_city_list_json' | 'zone_overrides_json' | 'same_day_matrix_json'> & {
+  included_city_list_json: unknown;
+  zone_overrides_json: unknown;
+  same_day_matrix_json: unknown;
+};
+type CustomerRow = NonNullable<Awaited<ReturnType<typeof getAllCustomers>>['data']>[number];
+
 export function useInvoiceData() {
   const [customers, setCustomers] = useState<any[]>([]);
   const [units, setUnits] = useState<any[]>([]);
@@ -23,7 +32,7 @@ export function useInvoiceData() {
       if (customersRes.data) setCustomers(customersRes.data);
       if (unitsRes.data) setUnits(unitsRes.data);
       if (rulesRes.data) {
-        const r = rulesRes.data as any;
+        const r = rulesRes.data as unknown as PricingRulesRow;
         setPricingRules({
           base_radius_miles: r.base_radius_miles,
           included_city_list_json: r.included_city_list_json as string[],
@@ -61,7 +70,7 @@ export function useInvoiceData() {
     }
   }
 
-  function addCustomer(customer: any) {
+  function addCustomer(customer: CustomerRow) {
     setCustomers([...customers, customer]);
   }
 

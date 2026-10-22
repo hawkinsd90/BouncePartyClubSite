@@ -28,6 +28,11 @@ export interface QuoteFormData {
   special_details: string;
 }
 
+// What is stored under 'bpc_quote_prefill' (written by Home, Catalog and the duplicate-order flow), as applyPrefillData reads it.
+export type QuotePrefillData = Partial<Pick<QuoteFormData, 'event_date' | 'location_type' | 'pickup_preference' | 'can_stake' | 'has_generator' | 'has_pets' | 'special_details' | 'start_window' | 'end_window'>> & {
+  address?: { formatted_address?: string; street?: string; line2?: string; city?: string; state?: string; zip?: string; lat?: number; lng?: number };
+};
+
 const initialFormData: QuoteFormData = {
   event_date: '',
   event_end_date: '',
@@ -63,7 +68,7 @@ export function useQuoteForm() {
   const [wasDuplicate, setWasDuplicate] = useState(false);
 
   useEffect(() => {
-    const prefillData = SafeStorage.getItem<any>('bpc_quote_prefill');
+    const prefillData = SafeStorage.getItem<QuotePrefillData>('bpc_quote_prefill');
     if (prefillData) {
       applyPrefillData(prefillData);
       SafeStorage.setItem('bpc_prefill_applied', true);
@@ -163,14 +168,14 @@ export function useQuoteForm() {
     geocodeAddress();
   }, [formData.address_line1, formData.city, formData.state, formData.zip, formData.lat, formData.lng]);
 
-  function applyPrefillData(prefillData: any) {
+  function applyPrefillData(prefillData: QuotePrefillData) {
     const isDuplicateOrder = SafeStorage.getItem<string>('bpc_duplicate_order') === 'true';
 
     if (prefillData.event_date) {
       setFormData(prev => ({
         ...prev,
-        event_date: prefillData.event_date,
-        event_end_date: prefillData.event_date,
+        event_date: prefillData.event_date as string,
+        event_end_date: prefillData.event_date as string,
       }));
     }
 
@@ -192,7 +197,7 @@ export function useQuoteForm() {
     if (prefillData.location_type) {
       setFormData(prev => ({
         ...prev,
-        location_type: prefillData.location_type,
+        location_type: prefillData.location_type as QuoteFormData['location_type'],
       }));
     }
 

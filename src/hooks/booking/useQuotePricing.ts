@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { calculatePrice, calculateDrivingDistance, isSameDayWeekdayDelivery, type PricingRules } from '../../lib/pricing';
+import { calculatePrice, calculateDrivingDistance, isSameDayWeekdayDelivery, type PricingRules, type PriceBreakdown } from '../../lib/pricing';
 import { HOME_BASE } from '../../lib/core/businessLocation';
 import { SafeStorage } from '../../lib/core/safeStorage';
 import type { QuoteFormData } from './useQuoteForm';
@@ -18,7 +18,7 @@ export function useQuotePricing(
   pricingRules: PricingRules | null,
   options?: UseQuotePricingOptions,
 ) {
-  const [priceBreakdown, setPriceBreakdown] = useState<any>(null);
+  const [priceBreakdown, setPriceBreakdown] = useState<PriceBreakdown | null>(null);
   const debounceTimerRef = useRef<NodeJS.Timeout | null>(null);
 
   const hasAnyCartItems = options?.hasAnyCartItems ?? cart.length > 0;

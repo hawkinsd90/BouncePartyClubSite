@@ -4,6 +4,8 @@ import { SafeStorage } from '../../lib/core/safeStorage';
 import { useAuth } from '../../contexts/AuthContext';
 import { useCustomerProfile } from '../../contexts/CustomerProfileContext';
 import type { UnifiedCartItem, InflatableCartItem, EventEssentialProductCartItem, EventEssentialBundleCartItem } from '../../types';
+import type { PriceBreakdown } from '../../lib/pricing';
+import type { QuoteFormData } from './useQuoteForm';
 import { isInflatableCartItem } from '../../lib/eventEssentials/unifiedCart';
 
 interface ContactData {
@@ -18,7 +20,7 @@ export function useCheckoutData(userId?: string) {
   const { user } = useAuth();
   const { sessionData, loading: profileLoading } = useCustomerProfile();
   const [quoteData, setQuoteData] = useState<any>(null);
-  const [priceBreakdown, setPriceBreakdown] = useState<any>(null);
+  const [priceBreakdown, setPriceBreakdown] = useState<PriceBreakdown | null>(null);
   const [cart, setCart] = useState<UnifiedCartItem[]>([]);
   const [contactData, setContactData] = useState<ContactData>({
     first_name: '',
@@ -69,9 +71,9 @@ export function useCheckoutData(userId?: string) {
 
   useEffect(() => {
     async function loadCheckoutData() {
-      const savedForm = SafeStorage.getItem<any>('bpc_quote_form');
-      const savedBreakdown = SafeStorage.getItem<any>('bpc_price_breakdown');
-      const savedCart = SafeStorage.getItem<any[]>('bpc_cart');
+      const savedForm = SafeStorage.getItem<QuoteFormData>('bpc_quote_form');
+      const savedBreakdown = SafeStorage.getItem<PriceBreakdown>('bpc_price_breakdown');
+      const savedCart = SafeStorage.getItem<UnifiedCartItem[]>('bpc_cart');
       const savedContactData = SafeStorage.getItem<ContactData>('bpc_contact_data');
       const savedTip = SafeStorage.getItem<string>('test_booking_tip');
 
@@ -83,7 +85,7 @@ export function useCheckoutData(userId?: string) {
       setQuoteData(savedForm);
       setPriceBreakdown(savedBreakdown);
 
-      const validCart: UnifiedCartItem[] = savedCart.filter((item: any) => {
+      const validCart: UnifiedCartItem[] = savedCart.filter((item) => {
         // Keep inflatables with valid unit_id AND Event Essential items
         if (isInflatableCartItem(item)) {
           return item.unit_id && typeof item.unit_id === 'string' && item.unit_id !== 'undefined';
@@ -113,8 +115,8 @@ export function useCheckoutData(userId?: string) {
 
           if (error) {
             console.error('Error fetching user contact data:', error);
-          } else if (data && (data as any).length > 0) {
-            const userData = (data as any)[0];
+          } else if (data && data.length > 0) {
+            const userData = data[0];
             if (userData.first_name && userData.email) {
               // console.log('Auto-filling contact info with user data from database');
               setContactData({

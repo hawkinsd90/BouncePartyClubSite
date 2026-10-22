@@ -15,7 +15,7 @@ interface CartItem {
 export function useInvoiceCart() {
   const [cartItems, setCartItems] = useState<CartItem[]>([]);
 
-  function addItemToCart(unit: any, mode: 'dry' | 'water') {
+  function addItemToCart(unit: { id: string; name: string; price_dry_cents: number; price_water_cents?: number | null; inventory_qty?: number | null }, mode: 'dry' | 'water') {
     const price = mode === 'water' && unit.price_water_cents ? unit.price_water_cents : unit.price_dry_cents;
 
     setCartItems(prev => [

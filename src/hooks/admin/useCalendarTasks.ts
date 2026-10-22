@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { useRefetchOnReturn } from '../core/useRefetchOnReturn';
 import { supabase } from '../../lib/supabase';
+import type { Database } from '../../lib/database.types';
 import { format, startOfMonth, endOfMonth, addDays } from 'date-fns';
 import { ORDER_STATUS } from '../../lib/constants/statuses';
 import { type OperationalEquipmentItem } from '../../lib/tasks/operationalEquipment';
@@ -23,7 +24,8 @@ export interface Task {
   customerEmail: string;
   address: string;
   items: string[];
-  rawOrderItems: any[];
+  // The order_items rows loaded for the order (select '*, units(name)').
+  rawOrderItems: Array<Database['public']['Tables']['order_items']['Row'] & { units?: { name: string } | null }>;
   rawEquipmentItems: OperationalEquipmentItem[];
   equipmentIds: string[];
   numInflatables: number;

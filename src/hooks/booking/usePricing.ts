@@ -18,7 +18,7 @@ export type PricingCalculationResult =
 // not deterministic: React state, the stale-result guard and revision, the Google geocoding and
 // driving-distance lookups, and the display formatting.
 export function usePricing() {
-  const [orderSummary, setOrderSummary] = useState<any>(null);
+  const [orderSummary, setOrderSummary] = useState<ReturnType<typeof formatOrderSummary> | null>(null);
   const [calculatedPricing, setCalculatedPricing] = useState<CalculatedPricing | null>(null);
   const [pricingError, setPricingError] = useState<string | null>(null);
   const [pricingPending, setPricingPending] = useState(false);

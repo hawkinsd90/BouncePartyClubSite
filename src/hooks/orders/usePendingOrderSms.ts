@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { sendSms as sendSmsNotification } from '../../lib/notifications/notificationService';
 import { showToast } from '../../lib/toasts';
+import { asErrorLike } from '../../lib/core/errorLike';
 
 export function usePendingOrderSms(orderId: string, customerPhone: string) {
   const [sendingSms, setSendingSms] = useState(false);
@@ -34,9 +35,9 @@ export function usePendingOrderSms(orderId: string, customerPhone: string) {
 
       showToast('SMS sent successfully', 'success');
       return true;
-    } catch (error: any) {
+    } catch (error) {
       console.error('Error sending SMS:', error);
-      showToast(`Failed to send SMS: ${error.message || 'Unknown error'}`, 'error');
+      showToast(`Failed to send SMS: ${asErrorLike(error).message || 'Unknown error'}`, 'error');
       return false;
     } finally {
       setSendingSms(false);

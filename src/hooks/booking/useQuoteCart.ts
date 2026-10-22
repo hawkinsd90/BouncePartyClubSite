@@ -295,8 +295,8 @@ export function useQuoteCart() {
       // date-change effect settles instead of re-triggering the RPC.
       const availabilityChanged = mergedCart.some((item, i) => {
         const prev = baseCart[i];
-        const prevAvail = (prev as any).isAvailable;
-        const newAvail = (item as any).isAvailable;
+        const prevAvail = (prev as { isAvailable?: boolean }).isAvailable;
+        const newAvail = (item as { isAvailable?: boolean }).isAvailable;
         return prevAvail !== newAvail;
       });
 

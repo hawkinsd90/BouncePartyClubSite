@@ -3,7 +3,7 @@ import type { Order } from '../../types/orders';
 import { SafeStorage } from '../../lib/core/safeStorage';
 import { eventAddressLine2 } from '../../lib/booking/eventAddress';
 import { notifyError, notifyWarning, showConfirm } from '../../lib/toasts';
-import { buildDuplicateCart, duplicateCanStake } from '../../lib/orders/duplicateOrderCart';
+import { buildDuplicateCart, duplicateCanStake, type StoredOrderLine } from '../../lib/orders/duplicateOrderCart';
 
 export function useOrderDuplication() {
   const navigate = useNavigate();
@@ -11,8 +11,8 @@ export function useOrderDuplication() {
   // Works from the order the dashboard already loaded through get_my_orders (the customer cannot read the tables directly).
   async function duplicateOrder(order: Order) {
     try {
-      const orderData = order as unknown as any;
-      const itemsData = ((order.order_items ?? []) as unknown) as any[];
+      const orderData = order;
+      const itemsData = (order.order_items ?? []) as unknown as StoredOrderLine[];
 
       if (itemsData.length === 0) {
         console.warn('[Duplicate Order] No items found in order');
@@ -54,8 +54,8 @@ export function useOrderDuplication() {
         } : null,
         location_type: orderData.location_type,
         pickup_preference: orderData.pickup_preference || 'next_day',
-        can_stake: duplicateCanStake(orderData, cartItems.some((c) => (c as any).item_type === 'inflatable' || (c as any).item_type === undefined)),
-        has_generator: orderData.generator_qty > 0,
+        can_stake: duplicateCanStake(orderData, cartItems.some((c) => (c as { item_type?: string }).item_type === 'inflatable' || (c as { item_type?: string }).item_type === undefined)),
+        has_generator: (orderData.generator_qty as number) > 0,
         has_pets: orderData.has_pets,
         special_details: orderData.special_details || '',
         address_line2: eventAddressLine2(orderData),

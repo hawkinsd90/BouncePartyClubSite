@@ -1,5 +1,6 @@
 import { useState, useCallback } from 'react';
 import { supabase } from '../../lib/supabase';
+import { asErrorLike } from '../../lib/core/errorLike';
 import { notifyError, notifySuccess, notifyWarning, showConfirm } from '../../lib/toasts';
 
 export interface TwilioSettings {
@@ -63,9 +64,9 @@ export function useAdminSettings() {
       }
 
       notifySuccess('Settings saved successfully!');
-    } catch (error: any) {
+    } catch (error) {
       console.error('Error saving settings:', error);
-      const errorMessage = error.message || 'Failed to save settings. Please try again.';
+      const errorMessage = asErrorLike(error).message || 'Failed to save settings. Please try again.';
 
       if (errorMessage.includes('row-level security')) {
         notifyError('Permission denied: You must be logged in as an admin user to update settings.');
@@ -112,9 +113,9 @@ export function useAdminSettings() {
       } else {
         notifyWarning('Stripe settings saved, but there may be an issue with the edge function. Please test a payment.');
       }
-    } catch (error: any) {
+    } catch (error) {
       console.error('Error saving Stripe settings:', error);
-      const errorMessage = error.message || 'Failed to save settings. Please try again.';
+      const errorMessage = asErrorLike(error).message || 'Failed to save settings. Please try again.';
 
       if (errorMessage.includes('row-level security')) {
         notifyError('Permission denied: You must be logged in as an admin user to update settings.');
@@ -170,9 +171,9 @@ export function useAdminSettings() {
       } else {
         throw new Error(result.error || 'Unknown error');
       }
-    } catch (error: any) {
+    } catch (error) {
       console.error('Error backfilling payment methods:', error);
-      notifyError(`Failed to backfill payment methods: ${error.message}`);
+      notifyError(`Failed to backfill payment methods: ${asErrorLike(error).message}`);
     } finally {
       setBackfillingPayments(false);
     }

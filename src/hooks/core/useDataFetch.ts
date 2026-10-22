@@ -4,7 +4,7 @@ import { shouldRaiseLoading } from '../../lib/core/loadingPolicy';
 
 interface DataFetchOptions<T> {
   onSuccess?: (data: T) => void;
-  onError?: (error: any) => void;
+  onError?: (error: unknown) => void;
   errorMessage?: string;
   autoFetch?: boolean;
   showErrorNotification?: boolean;
@@ -48,7 +48,7 @@ export function useDataFetch<T>(
       hasDataRef.current = true;
       setData(result);
       onSuccess?.(result);
-    } catch (err: any) {
+    } catch (err) {
       const errorObj = err instanceof Error ? err : new Error(String(err));
       setError(errorObj);
 
@@ -79,7 +79,7 @@ export function useDataFetch<T>(
             setData(result);
             onSuccess?.(result);
           }
-        } catch (err: any) {
+        } catch (err) {
           if (!cancelled) {
             const errorObj = err instanceof Error ? err : new Error(String(err));
             setError(errorObj);
@@ -109,7 +109,7 @@ export function useDataFetch<T>(
 
 interface MutationOptions<TData> {
   onSuccess?: (data: TData) => void;
-  onError?: (error: any) => void;
+  onError?: (error: unknown) => void;
   successMessage?: string;
   errorMessage?: string;
   showSuccessNotification?: boolean;
@@ -123,7 +123,7 @@ interface MutationResult<TData, TVariables> {
   data: TData | null;
 }
 
-export function useMutation<TData = any, TVariables = any>(
+export function useMutation<TData = unknown, TVariables = unknown>(
   mutateFn: (variables: TVariables) => Promise<TData>,
   options: MutationOptions<TData> = {}
 ): MutationResult<TData, TVariables> {
@@ -156,7 +156,7 @@ export function useMutation<TData = any, TVariables = any>(
 
         onSuccess?.(result);
         return result;
-      } catch (err: any) {
+      } catch (err) {
         const errorObj = err instanceof Error ? err : new Error(String(err));
         setError(errorObj);
 
@@ -178,9 +178,9 @@ export function useMutation<TData = any, TVariables = any>(
 }
 
 export function useSupabaseQuery<T>(
-  queryFn: () => Promise<{ data: T | null; error: any }>,
+  queryFn: () => Promise<{ data: T | null; error: { message?: string } | null }>,
   options: Omit<DataFetchOptions<T>, 'onError'> & {
-    onError?: (error: any, data: any) => void;
+    onError?: (error: { message?: string }, data: T | null) => void;
   } = {}
 ): DataFetchResult<T> {
   const {

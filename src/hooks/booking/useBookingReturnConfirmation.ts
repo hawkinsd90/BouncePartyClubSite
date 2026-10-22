@@ -5,6 +5,8 @@ import { SafeStorage } from '../../lib/core/safeStorage';
 import { sendCustomerBookingConfirmationNotifications } from '../../lib/notifications/orderNotificationService';
 import { ORDER_STATUS } from '../../lib/constants/statuses';
 import { confirmationSettled } from '../../lib/booking/confirmationRetry';
+import type { BundleComponentSnapshot } from '../../types';
+import { asErrorLike } from '../../lib/core/errorLike';
 
 interface OrderDetails {
   id: string;
@@ -48,7 +50,7 @@ interface OrderDetails {
     bundle_id: string | null;
     item_name: string | null;
     pricing_context: string | null;
-    component_snapshot: any | null;
+    component_snapshot: BundleComponentSnapshot | null;
     units: { name: string } | null;
   }>;
 }
@@ -190,9 +192,9 @@ export function useBookingReturnConfirmation(orderId: string | null, sessionId: 
 
       clearLocalStorage();
       setStatus('success');
-    } catch (err: any) {
+    } catch (err) {
       console.error('[PAYMENT-COMPLETE] Error:', err);
-      setError(err.message);
+      setError(asErrorLike(err).message as string | null);
       setStatus('error');
     }
   }

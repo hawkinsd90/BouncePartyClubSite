@@ -15,7 +15,7 @@ interface PrefillCallbacks {
 }
 
 export function useQuotePrefill(
-  user: any,
+  user: unknown,
   _formData: QuoteFormData,
   callbacks: PrefillCallbacks,
   sessionAddress?: SessionAddress

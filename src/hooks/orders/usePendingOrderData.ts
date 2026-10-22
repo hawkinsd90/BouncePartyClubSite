@@ -1,6 +1,9 @@
 import { useState, useRef } from 'react';
 import { supabase } from '../../lib/supabase';
 import { loadOrderSummary, formatOrderSummary } from '../../lib/orders/orderSummaryLoader';
+import type { Database } from '../../lib/database.types';
+
+type Tables = Database['public']['Tables'];
 
 export interface DamageRecord {
   orderId: string;
@@ -11,12 +14,12 @@ export interface DamageRecord {
 
 export function usePendingOrderData(orderId: string) {
   const [smsConversations, setSmsConversations] = useState<any[]>([]);
-  const [payments, setPayments] = useState<any[]>([]);
+  const [payments, setPayments] = useState<Tables['payments']['Row'][]>([]);
   const [refunds, setRefunds] = useState<any[]>([]);
-  const [contact, setContact] = useState<any>(null);
-  const [orderSummary, setOrderSummary] = useState<any>(null);
-  const [customFees, setCustomFees] = useState<any[]>([]);
-  const [discounts, setDiscounts] = useState<any[]>([]);
+  const [contact, setContact] = useState<Pick<Tables['contacts']['Row'], 'business_name'> | null>(null);
+  const [orderSummary, setOrderSummary] = useState<ReturnType<typeof formatOrderSummary> | null>(null);
+  const [customFees, setCustomFees] = useState<Array<Pick<Tables['order_custom_fees']['Row'], 'id' | 'amount_cents' | 'name'>>>([]);
+  const [discounts, setDiscounts] = useState<Array<Pick<Tables['order_discounts']['Row'], 'id' | 'amount_cents' | 'percentage' | 'name'>>>([]);
   const [customerDamageRecords, setCustomerDamageRecords] = useState<DamageRecord[]>([]);
   const loadingSummaryRef = useRef(false);
 
@@ -72,7 +75,7 @@ export function usePendingOrderData(orderId: string) {
 
     if (!customerOrders?.length) return;
 
-    const orderIds = customerOrders.map((o: any) => o.id);
+    const orderIds = customerOrders.map((o) => o.id);
     const { data: damagePayments } = await supabase
       .from('payments')
       .select('order_id, amount_cents, status, created_at')
@@ -81,7 +84,7 @@ export function usePendingOrderData(orderId: string) {
 
     if (damagePayments?.length) {
       setCustomerDamageRecords(
-        damagePayments.map((p: any) => ({
+        damagePayments.map((p) => ({
           orderId: p.order_id,
           amount_cents: p.amount_cents,
           status: p.status,
