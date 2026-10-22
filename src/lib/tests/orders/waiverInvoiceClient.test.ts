@@ -1,6 +1,7 @@
 // WP-07 (B7): the waiver and Admin Invoice screens, plus the signature payload rules used by save-signature.
 // PASS - LOCAL AUTOMATED (pure rules + source order assertions). Real device behaviour (URL bar, keyboard, rotation, 320-360px
 // initials row) is REQUIRES HOSTED DEV VERIFICATION: C-12..C-15, M-02.
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { readFileSync } from 'node:fs';
 import { shouldResizeCanvas } from '../../core/canvasResize';
 import { invoiceAcceptBlockers, type InvoiceAcceptState } from '../../orders/invoiceAcceptBlockers';

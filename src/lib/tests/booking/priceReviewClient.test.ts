@@ -1,5 +1,6 @@
 // WP-17 (B2): the browser side of the price review. The request carries the price the customer was shown; a PRICE_CHANGED answer is surfaced
 // with the server price; the Checkout page lets the customer accept it; the Quote page prices free cities from the same column as the server.
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { readFileSync } from 'node:fs';
 
 let passed = 0;

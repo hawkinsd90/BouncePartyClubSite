@@ -1,5 +1,6 @@
 // WP-04 (B1): editing the address text must discard the previously selected street and coordinates everywhere an address is typed.
 // Pure helper checks plus source assertions on the four editors, the Quote validation gate and the prefill geocode.
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { readFileSync } from 'node:fs';
 import {
   ADMIN_ADDRESS_EDIT_RESET,

@@ -2,6 +2,7 @@
 // refund result stays on screen.
 // PASS - LOCAL AUTOMATED (pure rules + a scripted database client + source assertions). The two-device test, the phone keyboard
 // behaviour and the Stripe TEST refund (A-15) are REQUIRES HOSTED DEV VERIFICATION: A-10..A-15, K-06.
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { readFileSync } from 'node:fs';
 import { shouldRaiseLoading } from '../../core/loadingPolicy';
 import { endMileageProblem, localDateKey } from '../../core/localDate';

@@ -1,5 +1,6 @@
 // WP-21 / WP-22 (B14): phone numbers and addresses as tap targets, and the one set of rules behind them.
 // PASS - LOCAL AUTOMATED. Tapping Call / Message / Directions on real phones (C-24, C-25, K-11, K-13) is REQUIRES HOSTED DEV VERIFICATION.
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { readFileSync } from 'node:fs';
 import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';

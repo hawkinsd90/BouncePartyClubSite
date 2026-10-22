@@ -1,5 +1,6 @@
 // WP-02 + NI-07 + NI-10 (B3): receipts and emails name Event Essentials lines, carry every fee that is in the total, and link to the site
 // this deployment serves (never a hard-coded Production origin, never a caller-chosen host).
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { readdirSync, readFileSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 import { orderItemLabel, orderItemMode, orderItemName, orderItemQtyName, ORDER_ITEM_COLUMNS } from '../../../../supabase/functions/_shared/payments/order-item-label';

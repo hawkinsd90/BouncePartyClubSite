@@ -86,8 +86,11 @@ function available(db: string): boolean {
   return true;
 }
 
-if (available('bpc_replay_prodpre')) {
-  const db = 'bpc_replay_prodpre';
+// DEFPRIV_PRODPRE_DB / DEFPRIV_DEVPRE4_DB point at SYNTHETIC copies of the repository chain when the evidence-derived databases are not on this machine (the Production-shaped one gets supabase_admin default privileges like Supabase's own). A synthetic shape proves the SQL logic, not Production's real state.
+const PRODPRE_DB = process.env.DEFPRIV_PRODPRE_DB || 'bpc_replay_prodpre';
+const DEVPRE4_DB = process.env.DEFPRIV_DEVPRE4_DB || 'bpc_replay_devpre4';
+if (available(PRODPRE_DB)) {
+  const db = PRODPRE_DB;
   let r = run(db, null)!;
   ok(`executed [Production-shaped]: real supabase_admin defaults are open before (got ${r.before})`, r.before > 0);
   ok('executed [Production-shaped, superuser operator as in the local replays]: succeeds and the postcondition holds', r.ok && r.after === 0);
@@ -102,7 +105,7 @@ if (available('bpc_replay_prodpre')) {
   r = run(db, null, sql)!;
   ok('executed [Production-shaped]: running the file twice is safe', r.ok && r.after === 0);
 }
-for (const [db, label] of [['bpc_replay_devpre4', 'Development-shaped'], ['bpc_replay_full25', 'repository chain']] as const) {
+for (const [db, label] of [[DEVPRE4_DB, 'Development-shaped'], ['bpc_replay_full25', 'repository chain']] as const) {
   if (!available(db)) continue;
   let r = run(db, null)!;
   ok(`executed [${label}]: no open public defaults before (got ${r.before}) and the file passes as a no-op for a superuser`, r.before === 0 && r.ok && r.after === 0);

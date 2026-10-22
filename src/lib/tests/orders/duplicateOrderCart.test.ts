@@ -1,5 +1,6 @@
 // WP-01 (B6): My Orders and duplication for Event Essentials orders.
 // PASS - LOCAL AUTOMATED. Manual C-04/C-05/E-03/E-04/E-15 on Dev are REQUIRES HOSTED DEV VERIFICATION.
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { readFileSync } from 'node:fs';
 import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';

@@ -1,6 +1,7 @@
 // WP-28 (B5): password recovery. Pure state machine, the browser capture module with a fake window and fake Auth client,
 // and source assertions on the page, the client setup, the App handler and the signup password rule.
 // PASS - LOCAL AUTOMATED. The real emailed link, Supabase redirect allow-list and token single-use are REQUIRES HOSTED DEV VERIFICATION.
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { readFileSync } from 'node:fs';
 import {
   EMPTY_AUTH_LINK,

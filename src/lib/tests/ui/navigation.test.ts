@@ -1,5 +1,6 @@
 // WP-19 / WP-20 (B13): one header row, the navigation links each kind of visitor sees, the menu state machine, and no stale header-height literals.
 // PASS - LOCAL AUTOMATED. Layout at 320/360/390/tablet/desktop, landscape and with the keyboard (M-01..M-04, M-10) is REQUIRES HOSTED DEV VERIFICATION.
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { readFileSync } from 'node:fs';
 import { buildNavLinks, CLOSED_NAV, menuGroupPath, navMenuReducer, nextFocusIndex, type NavInput, type NavMenuState } from '../../core/navLinks';
 import { HEADER_HEIGHT_PX, HEADER_OFFSET_PX, SCROLL_MARGIN_CSS } from '../../core/headerOffset';

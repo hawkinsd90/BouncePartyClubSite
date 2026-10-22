@@ -1,4 +1,5 @@
 // WP-18 (B2): the free-delivery city is decided from the server's verification of the street address, never from the typed city.
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { readFileSync } from 'node:fs';
 import { matchesIncludedCity, normalizeCityName, calculateTravelFeeFromDistance } from '../../pricing/travelFeeCalculator';
 import { shouldReuseSavedTravel } from '../../pricing/orderPricingCalculation';

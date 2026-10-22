@@ -1,6 +1,7 @@
 // WP-15 (B12): Event Essentials in the Admin/Crew order screens: surface choice, quantity limits, the invoice preview's pricing rules,
 // the morning equipment checklist, and wording that depends on what is in the order.
 // PASS - LOCAL AUTOMATED. E-09..E-15 and K-12 on Dev (including the printed/visible wording) are REQUIRES HOSTED DEV VERIFICATION.
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { readFileSync } from 'node:fs';
 import { buildChecklist, deliveryCountLabel, type ChecklistTask } from '../../tasks/equipmentChecklist';
 import { clampQuantity, maxQtyForKind, MAX_BUNDLE_QTY, MAX_INFLATABLE_QTY, MAX_PRODUCT_QTY, qtyKindOf, quantityLimitMessage } from '../../orders/quantityLimits';

@@ -1,6 +1,7 @@
 // WP-06 / WP-16 / NI-08 (B10): confirm dialogs, saved discount templates, order list ordering, error states and date handling.
 // PASS - LOCAL AUTOMATED / MOCKED. Real browsers (A-05 one confirmation per action) and A-18..A-21 on Dev are REQUIRES HOSTED DEV VERIFICATION;
 // the error-report email through the real relay needs a Dev send (REQUIRES HOSTED DEV VERIFICATION, WP-27 smoke test).
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { readFileSync, readdirSync, statSync, existsSync } from 'node:fs';
 import { describeTemplateValue, templateToDiscount } from '../../orders/discountTemplates';
 import { localDateKey, parseDateOnly, todayLocalKey } from '../../core/localDate';
