@@ -1,5 +1,7 @@
 // src/lib/supabase.ts
 import { createClient } from '@supabase/supabase-js';
+// Must come first: it snapshots the recovery-link URL before the client below can clear it (WP-28).
+import { installRecoveryTracking } from './auth/authLinkCapture';
 import type { Database } from './database.types';
 
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL as string;
@@ -27,3 +29,5 @@ export const supabase = createClient<Database>(finalUrl, finalKey, {
     detectSessionInUrl: true,
   },
 });
+
+installRecoveryTracking(supabase.auth);

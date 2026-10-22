@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { MIN_PASSWORD_LENGTH } from '../lib/auth/recoveryLink';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import { UserPlus, Loader2, Eye, EyeOff, ArrowLeft, AlertTriangle, Mail, Shield, CheckCircle2 } from 'lucide-react';
@@ -151,8 +152,8 @@ export function SignUp() {
       newErrors.phone = 'Phone number must be 10 digits';
     }
     if (!formData.password) newErrors.password = 'Password is required';
-    else if (formData.password.length < 6) {
-      newErrors.password = 'Password must be at least 6 characters';
+    else if (formData.password.length < MIN_PASSWORD_LENGTH) {
+      newErrors.password = `Password must be at least ${MIN_PASSWORD_LENGTH} characters`;
     }
     if (formData.password !== formData.confirmPassword) {
       newErrors.confirmPassword = 'Passwords do not match';
@@ -612,7 +613,7 @@ export function SignUp() {
                       onChange={(e) => handleChange('password', e.target.value)}
                       className={`w-full px-3 sm:px-4 py-2.5 sm:py-3 pr-12 border-2 ${errors.password ? 'border-red-300' : 'border-slate-300'} rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all text-base`}
                       placeholder="••••••••"
-                      minLength={6}
+                      minLength={MIN_PASSWORD_LENGTH}
                     />
                     <button
                       type="button"
@@ -627,8 +628,8 @@ export function SignUp() {
                   )}
                   {!errors.password && formData.password && (
                     <p className="text-slate-500 text-xs mt-1">
-                      {formData.password.length < 6
-                        ? `${6 - formData.password.length} more character${6 - formData.password.length === 1 ? '' : 's'} needed`
+                      {formData.password.length < MIN_PASSWORD_LENGTH
+                        ? `${MIN_PASSWORD_LENGTH - formData.password.length} more character${MIN_PASSWORD_LENGTH - formData.password.length === 1 ? '' : 's'} needed`
                         : 'Password meets requirements'
                       }
                     </p>
@@ -649,7 +650,7 @@ export function SignUp() {
                         isPasswordMismatch || errors.confirmPassword ? 'border-red-300' : 'border-slate-300'
                       } rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all text-base`}
                       placeholder="••••••••"
-                      minLength={6}
+                      minLength={MIN_PASSWORD_LENGTH}
                     />
                     <button
                       type="button"

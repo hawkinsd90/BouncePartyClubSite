@@ -792,7 +792,7 @@ async function call(handler: (r: Request) => Promise<Response>, bearer: string |
   ok('ShortLink: resolves through the server (resolve-link), no direct table or rpc access', /functions\.invoke\('resolve-link'/.test(shortLink) && !/invoice_links|\.rpc\(/.test(shortLink));
   ok('ShortLink: forwards the token in the fragment', /buildPortalPath\(data\.orderId, \{ token: data\.token \?\? null \}\)/.test(shortLink));
   ok('CustomerPortal: reads the credential through the single helper', /parsePortalToken\(location\.hash, location\.search\)/.test(read('src/pages/CustomerPortal.tsx')));
-  ok('no component outside the helper parses location.hash for the portal credential', !scanFiles.filter((f) => f.replace(/\\/g, '/').startsWith('src/') && !/portalToken\.ts|ResetPassword|AuthContext|Catalog|CustomerPortal\.tsx/.test(f)).some((f) => /location\.hash/.test(read(f))));
+  ok('no component outside the helper parses location.hash for the portal credential', !scanFiles.filter((f) => f.replace(/\\/g, '/').startsWith('src/') && !/portalToken\.ts|authLinkCapture|AuthContext|Catalog|CustomerPortal\.tsx/.test(f)).some((f) => /location\.hash/.test(read(f))));
 
   // Customer navigation keeps the proof
   const rpv = read('src/components/customer-portal/RegularPortalView.tsx');

@@ -10,6 +10,8 @@ import { GoogleAdsTag } from './components/common/GoogleAdsTag';
 import { Home } from './pages/Home';
 import { useAuth } from './contexts/AuthContext';
 import { safeInternalPath } from './lib/core/safeInternalPath';
+import { initialAuthLink, isRecoveryPending, subscribeRecovery } from './lib/auth/authLinkCapture';
+import { shouldOpenResetForm } from './lib/auth/recoveryLink';
 
 const Catalog = lazy(() => import('./pages/Catalog').then(m => ({ default: m.Catalog })));
 const UnitDetail = lazy(() => import('./pages/UnitDetail').then(m => ({ default: m.UnitDetail })));
@@ -56,6 +58,25 @@ function OAuthRedirectHandler() {
   return null;
 }
 
+// WP-28: a recovery link can land on any page (for example the homepage when the requesting origin is not on the Auth allow-list).
+// The Auth client signs the user in and announces PASSWORD_RECOVERY; send them to the reset form instead of leaving them on a normal page.
+function RecoveryRedirectHandler() {
+  const navigate = useNavigate();
+  const location = useLocation();
+
+  useEffect(() => {
+    const go = () => {
+      if (window.location.pathname !== '/reset-password') navigate('/reset-password', { replace: true });
+    };
+    // A recovery link that arrived here with its proof in the URL, or an event that fired before this component mounted.
+    if (shouldOpenResetForm({ snapshot: initialAuthLink, recoveryPending: isRecoveryPending(), pathname: location.pathname })) go();
+    return subscribeRecovery(go);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  return null;
+}
+
 function App() {
   return (
     <ErrorBoundary>
@@ -65,6 +86,7 @@ function App() {
             <CustomerProfileProvider>
         <GoogleAdsTag />
         <OAuthRedirectHandler />
+        <RecoveryRedirectHandler />
         <Suspense fallback={
           <div className="min-h-screen flex items-center justify-center bg-slate-50">
             <div className="text-center">
