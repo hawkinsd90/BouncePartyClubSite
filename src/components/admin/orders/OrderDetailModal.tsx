@@ -42,6 +42,7 @@ import { SimpleConfirmModal } from '../../common/SimpleConfirmModal';
 import { ORDER_STATUS } from '../../../lib/constants/statuses';
 import { showToast } from '../../../lib/toasts';
 import { loadGeneratorCategoryProductIds } from '../../../lib/eventEssentials/customerGeneratorCart';
+import { latestTravelCityReviewNote } from '../../../lib/orders/travelCityReview';
 import {
   resolveAdminGeneratorIncrease,
   decideAdminGeneratorDecrease,
@@ -61,6 +62,8 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
   const [activeSection, setActiveSection] = useState<OrderDetailSection>('details');
   const [orderItems, setOrderItems] = useState<any[]>([]);
   const [changelog, setChangelog] = useState<any[]>([]);
+  // WP-18: the server records an unconfirmed free city as a changelog row; the banner shows the newest one.
+  const travelReviewNote = latestTravelCityReviewNote(changelog);
   const [notes] = useState<any[]>([]);
   const [workflowEvents] = useState<any[]>([]);
   const [availableUnits, setAvailableUnits] = useState<any[]>([]);
@@ -1108,6 +1111,12 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
         <OrderDetailTabNav activeSection={activeSection} onChange={setActiveSection} />
 
         <div className="px-3 md:px-6 py-4 md:py-6 md:max-h-[calc(100dvh-300px)] md:overflow-y-auto">
+          {travelReviewNote && (
+            <div className="mb-4 bg-amber-50 border border-amber-300 rounded-lg p-3 text-sm text-amber-900" role="alert">
+              <p className="font-semibold">Travel fee needs a look</p>
+              <p className="mt-1 break-words">{travelReviewNote}</p>
+            </div>
+          )}
           {activeSection === 'details' && (
             <OrderDetailsTab
               order={order}

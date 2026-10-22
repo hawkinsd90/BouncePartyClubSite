@@ -128,7 +128,7 @@ async function main() {
   const allOrders = queries.slice(queries.indexOf('export async function getAllOrdersWithContacts'));
   ok('the capped orders list is newest-first, so the cap drops the oldest history', /\.order\('event_date', \{ ascending: false \}\);\n\n\s+if \(limit\)/.test(allOrders));
   const admin = read('src/pages/Admin.tsx');
-  ok('Admin loads pending-review orders with their own query (never crowded out by newer confirmed/draft orders)', /\.eq\('status', ORDER_STATUS\.PENDING\)\.order\('created_at', \{ ascending: false \}\)\.limit\(200\)/.test(admin) && /\.in\('status', \[ORDER_STATUS\.DRAFT, ORDER_STATUS\.CONFIRMED\]\)/.test(admin));
+  ok('Admin loads pending-review orders with their own query (never crowded out by newer confirmed/draft orders)', /\.eq\('status', ORDER_STATUS\.PENDING\)(\.eq\('order_changelog\.change_type', 'travel_city_review'\))?\.order\('created_at', \{ ascending: false \}\)\.limit\(200\)/.test(admin) && /\.in\('status', \[ORDER_STATUS\.DRAFT, ORDER_STATUS\.CONFIRMED\]\)/.test(admin));
   ok('Admin merges both lists and surfaces either error', /if \(pendingRes\.error\) throw pendingRes\.error;/.test(admin) && /if \(otherRes\.error\) throw otherRes\.error;/.test(admin) && /\[\.\.\.\(pendingRes\.data \|\| \[\]\), \.\.\.\(otherRes\.data \|\| \[\]\)\]/.test(admin));
   ok('Admin shows a retry screen when the first load failed (instead of an empty "No pending bookings")', /if \(loadError && !data\)/.test(admin) && /The admin data could not be loaded/.test(admin));
   ok('Admin pricing tab says so when the rules did not load', /activeTab === 'pricing' && !pricingRules/.test(admin) && /pricing rules could not be loaded/.test(admin));

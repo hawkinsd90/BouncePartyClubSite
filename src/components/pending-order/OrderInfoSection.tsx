@@ -5,6 +5,7 @@ import { useState, useEffect } from 'react';
 import { CreditCard as Edit2 } from 'lucide-react';
 import { formatOrderId } from '../../lib/utils';
 import { eventAddressLine2 } from '../../lib/booking/eventAddress';
+import { latestTravelCityReviewNote } from '../../lib/orders/travelCityReview';
 import { ORDER_STATUS_LABELS } from '../../lib/constants/statuses';
 import { hasGeneratorInOrderItemsByCategory, loadGeneratorCategoryProductIds } from '../../lib/eventEssentials/customerGeneratorCart';
 
@@ -67,8 +68,16 @@ export function OrderInfoSection({ order, customerDisplayName, onEditClick }: Or
     generatorDisplay = '—';
   }
 
+  const travelReviewNote = latestTravelCityReviewNote(order.order_changelog);
+
   return (
     <>
+      {travelReviewNote && (
+            <div className="mb-4 bg-amber-50 border border-amber-300 rounded-lg p-3 text-sm text-amber-900" role="alert">
+              <p className="font-semibold">Travel fee needs a look</p>
+              <p className="mt-1 break-words">{travelReviewNote}</p>
+            </div>
+          )}
       <div className="flex flex-col sm:flex-row justify-between items-start gap-4 mb-4">
         <div className="flex-1 min-w-0">
           <h3 className="text-base md:text-lg font-semibold text-slate-900 truncate">

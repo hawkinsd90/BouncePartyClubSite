@@ -188,9 +188,28 @@ function emulateCreateBookingRequest(w: World, args: any) {
   }
 }
 
+// order_changelog as the service role sees it: filterable reads and inserts (the travel-city review row, WP-18).
+function changelogTable(w: World): any {
+  const rows: any[] = ((w.db as any).order_changelog ??= []);
+  const filters: Array<[string, unknown]> = [];
+  const api: any = {
+    select: () => api,
+    eq: (c: string, v: unknown) => (filters.push([c, v]), api),
+    order: () => api,
+    limit: () => api,
+    insert: async (row: any) => {
+      if ((w as any).changelogInsertFails) return { error: { message: 'insert failed' } };
+      rows.push({ id: 'cl-' + (rows.length + 1), created_at: new Date().toISOString(), ...row });
+      return { error: null };
+    },
+    then: (res: any, rej: any) => Promise.resolve({ data: rows.filter((r) => filters.every(([c, v]) => r[c] === v)), error: null }).then(res, rej),
+  };
+  return api;
+}
+
 function makeDb(w: World) {
   return {
-    from: (t: string) => ({ select: async () => ({ data: w.tables[t] ?? null, error: w.tables[t] ? null : { message: 'no table' } }) }),
+    from: (t: string) => (t === 'order_changelog' ? changelogTable(w) : { select: async () => ({ data: w.tables[t] ?? null, error: w.tables[t] ? null : { message: 'no table' } }) }),
     rpc: async (name: string, args: any) => (name === 'create_booking_request' ? emulateCreateBookingRequest(w, args) : { data: null, error: { message: 'unknown rpc' } }),
   };
 }
@@ -1008,6 +1027,42 @@ const noRows = (w: World, snapshot: string) => JSON.stringify(w.db) === snapshot
     const w7 = withFreeList(makeWorld());
     const r7 = await bookV(w7, baseRequest({ ...farRequest('Detroit'), payment: { selection_type: 'deposit', claimed_total_cents: (r1.body as any).totals.totalCents } }), async () => ({ status: 'unverified', reason: 'x' }));
     ok('verify: a free price shown to the customer but not verified by the server is a PRICE_CHANGED review', r7.status === 409 && r7.body.code === 'PRICE_CHANGED' && w7.db.orders.length === 0);
+  }
+
+  // =============================================================================================================
+  // WP-18: an unconfirmed typed free city leaves an Admin-visible review row (existing order_changelog table)
+  // =============================================================================================================
+  {
+    const farRequest = (typedCity: string) => baseRequest({ event: { ...baseRequest().event, distance_miles: 40, address: { line1: '1 Main St', city: typedCity, state: 'MI', zip: '48315', lat: 42.3, lng: -83.4 } } });
+    const withFreeList = (w: World) => ((w.tables.pricing_rules = [{ ...RULES, included_city_list_json: ['Detroit'], included_cities: ['Detroit'] }]), w);
+    const reviewsOf = (w: World) => (((w.db as any).order_changelog ?? []) as any[]).filter((r) => r.change_type === 'travel_city_review');
+    const bookV = (w: World, body: any, verifyAddress?: any) =>
+      createBookingRequest({ db: makeDb(w), availability: makePort(), callerUserId: null, meta: { ip_address: '203.0.113.7', user_agent: 'T' }, now: NOW, verifyAddress }, body);
+
+    const wU = withFreeList(makeWorld());
+    const rU = await bookV(wU, farRequest('Detroit'), async () => ({ status: 'unverified', reason: 'timeout' }));
+    const rowsU = reviewsOf(wU);
+    ok('review: an unconfirmed typed free city records exactly one review row for the new order', rU.status === 200 && rowsU.length === 1 && rowsU[0].order_id === rU.body.orderId && rowsU[0].new_value === 'typed_free_city_not_verified' && rowsU[0].user_id === null);
+    ok('review: the row keeps the typed city and tells the Admin what to do', rowsU[0].old_value === 'Detroit' && /Detroit/.test(rowsU[0].notes) && /waive the travel fee with a reason/.test(rowsU[0].notes));
+
+    const wM = withFreeList(makeWorld());
+    const rM = await bookV(wM, farRequest('Detroit'), async () => ({ status: 'verified_mismatch', city: 'Utica' }));
+    ok('review: a typed free city that the address contradicts records the contradiction and names the real city', rM.status === 200 && reviewsOf(wM).length === 1 && reviewsOf(wM)[0].new_value === 'typed_free_city_contradicted' && /Utica/.test(reviewsOf(wM)[0].notes));
+
+    const wOk = withFreeList(makeWorld());
+    await bookV(wOk, farRequest('Detroit'), async () => ({ status: 'verified_match', city: 'Detroit' }));
+    eq('review: a confirmed city records nothing', reviewsOf(wOk).length, 0);
+    const wNoList = makeWorld();
+    await bookV(wNoList, farRequest('Detroit'), async () => ({ status: 'unverified', reason: 'x' }));
+    eq('review: with no free list nothing is checked or recorded', reviewsOf(wNoList).length, 0);
+    const wNotFree = withFreeList(makeWorld());
+    await bookV(wNotFree, farRequest('Wayne'), async () => ({ status: 'unverified', reason: 'x' }));
+    eq('review: an unverified city that was never on the free list needs no review', reviewsOf(wNotFree).length, 0);
+
+    const wFail = withFreeList(makeWorld());
+    (wFail as any).changelogInsertFails = true;
+    const rF = await bookV(wFail, farRequest('Detroit'), async () => ({ status: 'unverified', reason: 'x' }));
+    ok('review: a failed review write never blocks the booking or changes the price', rF.status === 200 && rF.body.success === true && (rF.body as any).totals.totalCents === (rU.body as any).totals.totalCents && wFail.db.orders.length === 1);
   }
 
   console.log(`Public booking security tests: ${passed} passed, ${failed} failed`);

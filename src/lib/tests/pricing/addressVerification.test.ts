@@ -136,7 +136,7 @@ eq('no verifier result at all (undefined) with a free list => no grant', resolve
   eq('create-booking verifies once, before pricing, only when a free list exists', create.includes('includedCities.length > 0 && deps.verifyAddress') && create.indexOf('deps.verifyAddress(') < create.indexOf('buildBooking(parsed.value, catalog, now, verification)'), true);
   eq('the Edge Function wires the Google verifier with the server key', read('supabase/functions/create-booking/index.ts').includes('createGoogleAddressVerifier({ apiKey: Deno.env.get("GOOGLE_MAPS_API_KEY") ?? "" })'), true);
   const staff = read('supabase/functions/_shared/orders/staff-order-save.ts');
-  eq('staff save verifies only a new or changed address', staff.includes('if (existing && sameAddressText(e, existing.addresses)) return undefined;'), true);
+  eq('staff save verifies only a new or changed address', staff.includes('if (existing && sameAddressText(e, existing.addresses)) return { city: undefined, trusted: null };'), true);
   eq('staff save passes the verified city to the pricing engine on both paths', (staff.match(/verifiedTravelCity \}\)/g) || []).length === 2, true);
   eq('the engine never reads the typed city for the free test when a verified one is supplied', read('src/lib/pricing/orderPricingCalculation.ts').includes('resolved.verifiedTravelCity === undefined ? eventDetails.address_city'), true);
 

@@ -565,6 +565,25 @@ const RULES_LATER = { ...RULES, surface_sandbag_fee_cents: 5000, residential_mul
     distanceFor = () => 14.2;
   }
   {
+    // 7h. WP-18: a typed free city (Plymouth) that the server cannot confirm leaves an Admin-visible review row (order history, pending card,
+    // new-booking alert) in the EXISTING order_changelog table; a non-free city, or a confirmed one, leaves none
+    const w = newWorld();
+    const reviewRows = async (id: string) => (await rowsOf('order_changelog', id)).filter((r: any) => r.change_type === 'travel_city_review');
+    const plymouth = await createOrder(w, { eventDetails: eventBase({ city: 'Plymouth' }) });
+    let rows = await reviewRows(plymouth);
+    ok('travel review: an unconfirmed typed free city on a new staff invoice records one review row', rows.length === 1 && rows[0].new_value === 'typed_free_city_not_verified' && rows[0].old_value === 'Plymouth' && rows[0].field_changed === 'travel_city');
+    ok('travel review: the note tells the Admin what to do (check the address / waive with a reason) and names the typed city', /Plymouth/.test(rows[0].notes) && /waive the travel fee with a reason/.test(rows[0].notes));
+    ok('travel review: the row carries the acting staff member', rows[0].user_id === w.users['jwt-admin']);
+    ok('travel review: the distance fee was applied, not a free grant', Number((await orderRow(plymouth)).travel_fee_cents) > 0);
+    const detroit = await createOrder(w);
+    eq('travel review: a city that is not on the free list records nothing', (await reviewRows(detroit)).length, 0);
+    // moving the address and typing the free city again: one row per outcome, not one per save
+    const mv = await editBody(plymouth);
+    const moved2 = await call(w, { ...mv, edited: { ...mv.edited, address_line1: `${TAG} Plymouth Road`, address_city: 'Plymouth', address_lat: 42.37, address_lng: -83.47 } });
+    ok('travel review: an address edit that still cannot be confirmed saves', moved2.status === 200);
+    eq('travel review: ...and does not repeat the same review row', (await reviewRows(plymouth)).length, 1);
+  }
+  {
     // 7g. the production wiring: no injected measurer, GOOGLE_MAPS_API_KEY and the Distance Matrix REST service
     const prod = (w: World) => loadHandler('staff-order-save', w, sharedProduction);
     const callProd = (w: World, body: Record<string, unknown>, bearer = 'jwt-admin') => callHandler(prod(w), body, bearer);

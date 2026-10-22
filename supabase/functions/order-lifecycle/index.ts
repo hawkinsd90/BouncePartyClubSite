@@ -16,6 +16,7 @@ import { evaluateCustomerConfirmation } from "../_shared/orders/lifecycle-outcom
 import { storedOrderTotalCents } from "../_shared/booking/orderMoney.ts";
 import { getOrCreatePortalLink } from "../_shared/portal-link.ts";
 import { getSiteOrigin } from "../_shared/siteOrigin.ts";
+import { escapeHtml, loadTravelCityReviewNotes, TRAVEL_CITY_REVIEW_SMS_SUFFIX } from "../_shared/booking/travelCityReview.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -496,10 +497,14 @@ async function sendAdminPendingReviewAlert(
     ? `${customer.first_name} ${customer.last_name}`
     : "Unknown customer";
 
+  // A travel-fee city review recorded at booking time (WP-18) rides along in this alert so the Admin sees it without opening the order.
+  const travelReviewNotes = await loadTravelCityReviewNotes(supabase, order.id);
+
   if (settings.phone) {
     const smsMessage =
       `NEW BOOKING REQUEST! ${customerName} for ${eventDateStr}. ` +
-      `Review in admin panel. Order #${shortId}`;
+      `Review in admin panel. Order #${shortId}` +
+      (travelReviewNotes.length > 0 ? TRAVEL_CITY_REVIEW_SMS_SUFFIX : "");
     await sendAdminSmsViaFunction(supabase, smsMessage, order.id, settings.phone);
   }
 
@@ -551,6 +556,7 @@ async function sendAdminPendingReviewAlert(
           </table>
         </td></tr>
       </table>
+      ${travelReviewNotes.length > 0 ? `<table width="100%" cellpadding="0" cellspacing="0" style="background-color:#fef3c7;border:1px solid #f59e0b;border-radius:6px;margin-bottom:20px;"><tr><td style="padding:14px 20px;"><p style="margin:0 0 6px;font-weight:bold;color:#92400e;font-size:15px;">Travel fee needs a look</p><p style="margin:0;color:#78350f;font-size:14px;">${escapeHtml(travelReviewNotes[0])}</p></td></tr></table>` : ""}
       <div style="text-align:center;margin-bottom:24px;">
         <a href="${portalLink}" style="display:inline-block;background-color:#2563eb;color:#ffffff;text-decoration:none;font-weight:bold;font-size:15px;padding:12px 32px;border-radius:6px;">Review Order in Admin</a>
       </div>

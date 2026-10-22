@@ -76,6 +76,8 @@ interface OrderWithRelations {
   created_at: string;
   customers: Customer | null;
   addresses: OrderAddress | null;
+  // Only the travel-fee city review rows are requested here (WP-18).
+  order_changelog?: Array<{ change_type: string; notes: string | null; created_at: string }>;
 }
 
 interface AdminData {
@@ -102,7 +104,8 @@ function AdminDashboard() {
     const orderSelect = `
         *,
         customers (first_name, last_name, email, phone),
-        addresses (line1, city, state, zip, lat, lng)
+        addresses (line1, city, state, zip, lat, lng),
+        order_changelog (change_type, notes, created_at)
       `;
     const [unitsRes, pendingRes, otherRes, pricingRes] = await Promise.all([
       supabase.from('units').select(`
@@ -114,8 +117,8 @@ function AdminDashboard() {
         )
       `).order('name'),
       // Pending review has its own query: it must never be pushed out of a shared 50-row window by newer confirmed or draft orders.
-      supabase.from('orders').select(orderSelect).eq('status', ORDER_STATUS.PENDING).order('created_at', { ascending: false }).limit(200),
-      supabase.from('orders').select(orderSelect).in('status', [ORDER_STATUS.DRAFT, ORDER_STATUS.CONFIRMED]).order('created_at', { ascending: false }).limit(50),
+      supabase.from('orders').select(orderSelect).eq('status', ORDER_STATUS.PENDING).eq('order_changelog.change_type', 'travel_city_review').order('created_at', { ascending: false }).limit(200),
+      supabase.from('orders').select(orderSelect).in('status', [ORDER_STATUS.DRAFT, ORDER_STATUS.CONFIRMED]).eq('order_changelog.change_type', 'travel_city_review').order('created_at', { ascending: false }).limit(50),
       supabase.from('pricing_rules').select('*').limit(1).maybeSingle(),
     ]);
 

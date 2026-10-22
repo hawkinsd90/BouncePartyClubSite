@@ -13,6 +13,7 @@ import { buildBooking, includedCitiesOf, type BookingCatalog } from "./bookingBu
 import type { AddressVerifier, CityVerification } from "./addressVerification.ts";
 import { verifyBookingAvailability, type AvailabilityPort } from "./bookingAvailability.ts";
 import { generateBookingToken, hashBookingToken, bookingProofExpiry } from "./bookingProof.ts";
+import { recordTravelCityReview } from "./travelCityReview.ts";
 
 // deno-lint-ignore no-explicit-any
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -169,9 +170,11 @@ export async function createBookingRequest(deps: CreateBookingDeps, rawBody: unk
     return json(500, { success: false, error: "We could not create your booking. Please try again.", code: "CREATE_FAILED" });
   }
 
-  // Patch A has no durable "needs review" column (that is the later snapshot patch): an address whose typed free city could not be
-  // confirmed is recorded in the function log with the order id, and the customer sees the distance fee in the price review.
+  // Patch A has no durable "needs review" column (that is the later snapshot patch, DR-8). An address whose typed free city could not be
+  // confirmed is recorded as an order_changelog row (shown in the order history, on the pending booking card and in the new-booking alert),
+  // is written to the function log, and the customer sees the distance fee in the price review. Recording never blocks the booking.
   if (plan.travelCity.review) {
+    await recordTravelCityReview(deps.db, { orderId: data.order_id, travelCity: plan.travelCity, typedCity: String(parsed.value.event.address.city ?? ""), userId: null });
     console.warn(`[create-booking] travel_city_review order=${data.order_id} review=${plan.travelCity.review} verification=${plan.travelCity.status}`);
   }
 

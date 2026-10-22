@@ -21,7 +21,8 @@ import { isSameDayWeekdayDelivery } from "../booking/pricing.ts";
 import { orderPricingState, sameOrderPricingState, type OrderPricingState } from "../booking/orderPricingState.ts";
 import { ORDER_STATUS } from "../booking/orderStatuses.ts";
 import { loadBookingCatalog } from "../booking/createBooking.ts";
-import { createGoogleAddressVerifier, resolveTrustedTravelCity, type AddressVerifier, type CityVerification } from "../booking/addressVerification.ts";
+import { createGoogleAddressVerifier, resolveTrustedTravelCity, type AddressVerifier, type CityVerification, type TrustedTravelCity } from "../booking/addressVerification.ts";
+import { recordTravelCityReview } from "../booking/travelCityReview.ts";
 import { repriceEventEssentialsCart, hasBlockingIssues } from "../booking/eventEssentialsCartRepricing.ts";
 import {
   buildProductConfigMap,
@@ -363,10 +364,10 @@ async function resolveVerifiedTravelCity(
   e: EventFields,
   existing: Any,
   orderRef: string,
-): Promise<string | undefined> {
+): Promise<{ city: string | undefined; trusted: TrustedTravelCity | null }> {
   const includedCities = includedCitiesOf(rules ?? {});
-  if (includedCities.length === 0) return undefined;
-  if (existing && sameAddressText(e, existing.addresses)) return undefined;
+  if (includedCities.length === 0) return { city: undefined, trusted: null };
+  if (existing && sameAddressText(e, existing.addresses)) return { city: undefined, trusted: null };
   const verify = deps.verifyAddress ?? defaultAddressVerifier();
   let verification: CityVerification | null = null;
   try {
@@ -378,7 +379,7 @@ async function resolveVerifiedTravelCity(
   if (trusted.review) {
     console.warn(`[staff-order-save] travel_city_review order=${orderRef} review=${trusted.review} verification=${trusted.status}`);
   }
-  return trusted.city;
+  return { city: trusted.city, trusted };
 }
 
 async function resolveDistance(
@@ -577,7 +578,8 @@ export async function saveStaffOrderChanges(deps: StaffSaveDeps, raw: unknown): 
   };
   const distance = await resolveDistance(deps, params, edited);
   if (!distance.ok) return json(503, { success: false, code: "DISTANCE_UNAVAILABLE", error: "The delivery distance for this address could not be determined. Try again shortly." });
-  const verifiedTravelCity = await resolveVerifiedTravelCity(deps, catalog.pricingRulesRow, edited, params.existingOrder, String(order.id ?? "unknown"));
+  const travelCityCheck = await resolveVerifiedTravelCity(deps, catalog.pricingRulesRow, edited, params.existingOrder, String(order.id ?? "unknown"));
+  const verifiedTravelCity = travelCityCheck.city;
   const priced = calculateOrderPricing(params, { distanceMiles: distance.miles, isSameDayWeekdayDelivery, verifiedTravelCity });
   if (priced.status !== "ok") return json(503, { success: false, code: "PRICING_UNAVAILABLE", error: "Pricing is temporarily unavailable." });
   const calculatedPricing = priced.calculatedPricing;
@@ -644,6 +646,10 @@ export async function saveStaffOrderChanges(deps: StaffSaveDeps, raw: unknown): 
   }
   if (rpc.data?.outcome === "stale") return json(409, { success: false, code: "STALE_ORDER", error: "This order changed since you opened it. Reload it and make your changes again." });
   if (rpc.data?.outcome !== "saved") return json(500, { success: false, code: "SAVE_FAILED", error: "The changes could not be saved." });
+  // The address was saved with a free city the server could not confirm: leave the Admin-visible review record (best effort, never blocks).
+  if (travelCityCheck.trusted?.review && order.id) {
+    await recordTravelCityReview(db, { orderId: String(order.id), travelCity: travelCityCheck.trusted, typedCity: edited.address_city, userId: deps.actingUserId });
+  }
 
   return json(200, {
     success: true, saved: true,
@@ -736,7 +742,8 @@ export async function createStaffInvoiceOrder(deps: StaffSaveDeps, raw: unknown)
   };
   const distance = await resolveDistance(deps, params, parsedEvent);
   if (!distance.ok) return json(503, { success: false, code: "DISTANCE_UNAVAILABLE", error: "The delivery distance for this address could not be determined. Try again shortly." });
-  const verifiedTravelCity = await resolveVerifiedTravelCity(deps, catalog.pricingRulesRow, parsedEvent, undefined, "new");
+  const travelCityCheck = await resolveVerifiedTravelCity(deps, catalog.pricingRulesRow, parsedEvent, undefined, "new");
+  const verifiedTravelCity = travelCityCheck.city;
   const priced = calculateOrderPricing(params, { distanceMiles: distance.miles, isSameDayWeekdayDelivery, verifiedTravelCity });
   if (priced.status !== "ok") return json(503, { success: false, code: "PRICING_UNAVAILABLE", error: "Pricing is temporarily unavailable." });
   const p = priced.calculatedPricing;
@@ -775,5 +782,8 @@ export async function createStaffInvoiceOrder(deps: StaffSaveDeps, raw: unknown)
   }));
   const rpc = await db.rpc("create_staff_invoice_order", { p_order: order, p_items: items, p_discounts: discountsIn.map((d) => ({ name: d.name, amount_cents: d.amount_cents, percentage: d.percentage })), p_fees: feesIn.map((f) => ({ name: f.name, amount_cents: f.amount_cents })) });
   if (rpc.error || rpc.data?.outcome !== "created") return json(500, { success: false, code: "SAVE_FAILED", error: "The invoice could not be created." });
+  if (travelCityCheck.trusted?.review) {
+    await recordTravelCityReview(db, { orderId: String(rpc.data.order_id), travelCity: travelCityCheck.trusted, typedCity: parsedEvent.address_city, userId: deps.actingUserId });
+  }
   return json(200, { success: true, orderId: rpc.data.order_id, pricing: { total_cents: p.total_cents, deposit_due_cents: p.deposit_due_cents, balance_due_cents: p.balance_due_cents } });
 }
