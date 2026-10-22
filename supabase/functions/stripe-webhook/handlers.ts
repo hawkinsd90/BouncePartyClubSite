@@ -1,8 +1,9 @@
 import Stripe from "npm:stripe@20.0.0";
 import { logTransaction } from "../_shared/transaction-logger.ts";
-import { collectPaymentDetails, finalizeOperation } from "../_shared/payments/payment-operations.ts";
+import { collectPaymentDetails, finalizeOperation, settleExpiredCheckoutSession } from "../_shared/payments/payment-operations.ts";
 import { applyProviderRefund } from "../_shared/payments/refund-operations.ts";
-import { sendCheckoutBalanceReceiptEmail, sendDepositReceiptEmail } from "./emails.ts";
+import { sendCheckoutBalanceReceiptEmail } from "./emails.ts";
+import { completePostPayment } from "../_shared/payments/post-payment.ts";
 import { ORDER_ITEM_COLUMNS } from "../_shared/payments/order-item-label.ts";
 
 export async function invokeLifecycle(
@@ -96,6 +97,26 @@ export interface ProviderPayment {
 // The one way a Stripe event applies a payment: find the operation the metadata names, then finalize it through the same
 // database function the charging request uses. Applying twice is impossible (the function reports already_applied), and
 // whichever caller applied first is the one that notifies.
+// Runs the post-payment completion and turns anything but "done" into an error, so the webhook answers 5xx and Stripe delivers the
+// event again. A lease held by another worker (the request that charged the card) is waited for briefly first.
+async function completeDepositOrFail(supabaseClient: any, paymentId: string): Promise<void> {
+  let last = await completePostPayment(supabaseClient, paymentId);
+  for (let attempt = 0; attempt < 3 && last.status === "busy"; attempt++) {
+    await new Promise((resolve) => setTimeout(resolve, 4000));
+    last = await completePostPayment(supabaseClient, paymentId);
+  }
+  if (last.status === "completed" || last.status === "already_completed" || last.status === "not_applicable" || last.status === "not_found") return;
+  throw new Error(`post-payment completion ${last.status}${last.errors.length ? `: ${last.errors.join("; ")}` : ""}`);
+}
+
+// checkout.session.expired: a customer opened a balance Checkout and walked away. The operation is settled against what Stripe says
+// about the session (cancelled only once it is really expired; a paid one is applied), so it stops blocking cash/check entry.
+export async function handleCheckoutSessionExpired(session: Stripe.Checkout.Session, supabaseClient: any, stripe: Stripe): Promise<void> {
+  if (!session?.id) return;
+  const outcome = await settleExpiredCheckoutSession(supabaseClient, stripe, session.id);
+  console.log(`[WEBHOOK] checkout.session.expired ${session.id}: ${outcome}`);
+}
+
 export async function applyProviderPayment(
   supabaseClient: any,
   stripe: Stripe,
@@ -143,24 +164,23 @@ export async function applyProviderPayment(
     await reportUnmatchedPayment(supabaseClient, p.orderId, reference, `a successful ${p.source} payment could not be applied (${fin.outcome})`);
     return "refused";
   }
-  if (!fin.applied) return "already_applied";
+  // A deposit payment is completed by the server-owned completion on EVERY delivery that finds it applied, not only the one that
+  // applied it: the request that charged the card may have been cut off before it finished (receipts, invoice, confirmation). The
+  // completion is idempotent and leases the work, so a payment that is already complete costs one cheap call.
+  // (The already-applied answer does not repeat the payment type; the completion itself ignores anything that is not an applied deposit.)
+  if (!fin.applied) {
+    await completeDepositOrFail(supabaseClient, paymentId);
+    return "already_applied";
+  }
 
-  // This delivery applied the payment, so it also notifies.
+  // This delivery applied the payment, so it also notifies. A deposit is completed by the leased completion; its failure is NOT swallowed
+  // (the event must be delivered again). Balance notifications stay best-effort.
+  if (fin.paymentType === "deposit") {
+    await completeDepositOrFail(supabaseClient, paymentId);
+    return "applied";
+  }
   try {
-    if (fin.paymentType === "deposit") {
-      if (fin.statusChanged) {
-        await invokeLifecycle(supabaseClient, "enter_confirmed", p.orderId, `webhook_${p.source}_deposit`, "charged_now", fin.previousStatus ?? undefined);
-      }
-      const order = await loadOrderForReceipt(supabaseClient, p.orderId);
-      const customer = Array.isArray(order?.customers) ? order.customers[0] : order?.customers;
-      if (customer?.email) {
-        const biz = await loadBusinessSettings(supabaseClient);
-        await sendDepositReceiptEmail(
-          supabaseClient, p.orderId, order, customer, biz,
-          p.amountReceivedCents, p.amountReceivedCents - fin.tipCents, fin.tipCents, details?.paymentBrand ?? null, details?.paymentLast4 ?? null
-        );
-      }
-    } else {
+    {
       const order = await loadOrderForReceipt(supabaseClient, p.orderId);
       if (order?.customer_id) {
         await logTransaction(supabaseClient, {

@@ -830,7 +830,6 @@ const NONE = { provider: 0, rpcs: 0, writes: 0, fetches: 0, settingsReads: 0 };
 
   // Server callers: every one authenticates with the service-role key.
   const SERVER_CALLERS: Record<string, string> = {
-    'supabase/functions/charge-deposit/index.ts': 'service-role client (functions.invoke)',
     'supabase/functions/customer-balance-payment/index.ts': 'service-role key header',
     'supabase/functions/customer-cancel-order/index.ts': 'service-role key header',
     'supabase/functions/customer-portal-action/index.ts': 'service-role key header (admin notice) and customer notice helper',
@@ -844,6 +843,8 @@ const NONE = { provider: 0, rpcs: 0, writes: 0, fetches: 0, settingsReads: 0 };
     'supabase/functions/stripe-webhook/emails.ts': 'service-role key header',
     'supabase/functions/submit-contact-inquiry/index.ts': 'service-role key header',
     'supabase/functions/_shared/transaction-logger.ts': 'caller-supplied service-role client (functions.invoke)',
+    'supabase/functions/_shared/payments/deposit-confirmation-email.ts': 'caller-supplied service-role client (functions.invoke); charge-deposit and the webhook pass service-role clients',
+    'supabase/functions/_shared/payments/post-payment.ts': 'caller-supplied service-role client (functions.invoke); charge-deposit and the webhook pass service-role clients',
     'supabase/functions/_shared/customer-notice.ts': 'service-role key header (customer confirmation helper)',
   };
   const BROWSER_STAFF: Record<string, string> = {
@@ -864,7 +865,7 @@ const NONE = { provider: 0, rpcs: 0, writes: 0, fetches: 0, settingsReads: 0 };
   for (const file of Object.keys(SERVER_CALLERS)) {
     const s = text.get(file)!;
     // The transaction logger receives its client from the caller (checked below).
-    const receivesClient = file.endsWith('transaction-logger.ts');
+    const receivesClient = file.endsWith('transaction-logger.ts') || file.endsWith('deposit-confirmation-email.ts') || file.endsWith('post-payment.ts');
     ok(`callers: ${file} authenticates with the service-role key or a service-role client`, receivesClient || /SUPABASE_SERVICE_ROLE_KEY|serviceKey/.test(s) &&!/SUPABASE_ANON_KEY\}`?\s*[,}]?[^\n]{0,40}send-(email|sms)/.test(s));
   }
   // functions.invoke callers: the client they use is a service-role client

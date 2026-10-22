@@ -18,6 +18,8 @@
 
 import "jsr:@supabase/functions-js@2/edge-runtime.d.ts";
 import { createClient } from "npm:@supabase/supabase-js@2.57.4";
+import Stripe from "npm:stripe@20.0.0";
+import { hasOpenCheckoutOperation, settleOpenCheckoutOperations } from "../_shared/payments/payment-operations.ts";
 import { formatOrderId } from "../_shared/format-order-id.ts";
 import { logTransaction } from "../_shared/transaction-logger.ts";
 import { formatCurrency, DEFAULT_PHONE } from "../_shared/fmt.ts";
@@ -97,6 +99,26 @@ Deno.serve(async (req: Request) => {
         JSON.stringify({ error: "Invalid request: checkNumber is required for check payments." }),
         { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
+    }
+
+    // ── 2b. An unfinished online (Checkout) payment must not block this entry, and a finished one must not be paid twice ──
+    // Every open Checkout operation of the order is settled against what Stripe says about its session first (paid: applied and this
+    // entry refused; open: expired and cancelled only once Stripe confirms; expired: cancelled; unreadable: stays blocked).
+    if (await hasOpenCheckoutOperation(supabaseAdmin, orderId)) {
+      const { data: stripeKeyRow } = await supabaseAdmin.from("admin_settings").select("value").eq("key", "stripe_secret_key").maybeSingle();
+      const refuse = (message: string) => new Response(JSON.stringify({ error: message }), { status: 409, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+      if (!stripeKeyRow?.value) {
+        return refuse("An online payment is open for this order and could not be checked right now. Please try again in a few minutes.");
+      }
+      const stripe = new Stripe(stripeKeyRow.value, { apiVersion: "2024-10-28.acacia" });
+      const settled = await settleOpenCheckoutOperations(supabaseAdmin, stripe, orderId);
+      if (!settled.ok) {
+        return refuse(
+          settled.reason === "paid_online"
+            ? "This order was just paid online, so no check payment was recorded. Refresh the order to see the payment."
+            : "An online payment for this order is still open (the customer can still pay it). Try again in a few minutes, or ask the customer to finish or cancel it.",
+        );
+      }
     }
 
     // ── 3. Execute all critical accounting writes atomically via DB RPC ─────

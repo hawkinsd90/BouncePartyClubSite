@@ -9,7 +9,7 @@ import {
 import { checkMultipleUnitsAvailability } from '../booking/availability';
 import { formatOrderId } from '../utils';
 import { createShortPortalLink } from '../portal/portalShortLink';
-import { logGroupedTransactions } from '../payments/transactionReceiptService';
+import { classifyApprovalFailure } from './approvalFailure';
 import { enterConfirmed } from './orderLifecycleApi';
 import { getAdminSetting, ADMIN_SETTING_KEYS } from '../core/adminSettingsCache';
 import { calculateTotalFromOrder } from './orderSummaryLoader';
@@ -28,7 +28,6 @@ export interface NotificationChannelResult {
   errors: string[];
 }
 
-const NOT_A_DECLINE_CODES = ['PAYMENT_IN_PROGRESS', 'ORDER_STATUS_NOT_PAYABLE', 'DEPOSIT_CATCH_UP_REVIEW_REQUIRED', 'PAYMENT_RECORDS_CONFLICT', 'PAYMENT_STATUS_UNKNOWN', 'PAYMENT_PROCESSING', 'PAYMENT_REQUEST_INVALID', 'ORDER_NOT_FOUND', 'NO_DEPOSIT_DUE'];
 
 export async function approveOrder(
   orderId: string,
@@ -177,12 +176,16 @@ export async function approveOrder(
         ? data.error.trim()
         : 'Failed to charge card.';
 
-      // Only a refused card is a reason to tell the customer their card was declined. A payment already in progress, an order
-      // that is not in a chargeable state, or a deposit that needs a catch-up are not declines.
-      if (typeof data?.code === 'string' && NOT_A_DECLINE_CODES.includes(data.code)) {
-        throw new Error(safePaymentReason);
+      // Only an explicit card refusal from the server is a reason to tell the customer their card was declined. Anything else (a payment
+      // already in progress, an order that is not payable, a catch-up that needs review, a database or network failure, or a charge that
+      // went through but is still being recorded) is NOT a decline, and the customer is not contacted.
+      const failure = classifyApprovalFailure(data);
+      if (failure === 'charged_pending') {
+        throw new Error('The card WAS charged, but the order update is still being completed. Do not charge it again: the system finishes the order automatically. Check the order\'s payments in a minute.');
       }
-
+      if (failure === 'not_confirmed') {
+        throw new Error(`${safePaymentReason} The order was not confirmed and the customer was not notified.`);
+      }
       let declineNotificationResult: NotificationChannelResult;
       try {
         const { data: fullOrderRaw, error: fullOrderError } = await supabase
@@ -209,140 +212,10 @@ export async function approveOrder(
       throw new Error(declineMessage);
     }
 
-    // BPC-SECURITY-HARDENING: deposit response logging removed — Stripe IDs must not appear in browser console in production.
-
-    // Get payment record to link to transaction receipt
-    const { data: paymentRecord } = await supabase
-      .from('payments')
-      .select('id')
-      .eq('stripe_payment_intent_id', data.paymentDetails?.paymentIntentId)
-      .maybeSingle();
-
-    // Get customer data for transaction receipt
-    const { data: customerData } = await supabase
-      .from('customers')
-      .select('*')
-      .eq('id', orderData.customer_id ?? '')
-      .maybeSingle();
-
-    // Use Stripe's actual charge amount as the source of truth for receipts and invoice
-    // This prevents drift between what was charged vs what we record in accounting
-    const stripeGrossCents = data.paymentDetails?.amountCents ?? null;
-    // The server reports how the charge divides into rental principal and tip; the tip charged is the one the server decided,
-    // not whatever the order row said before the charge.
-    const tipAmountCents: number =
-      typeof data.paymentDetails?.tipCents === 'number' ? data.paymentDetails.tipCents : 0;
-    // For booking approval, the charge amount is always deposit_due_cents.
-    // customer_selected_payment_cents is NOT used for the approval charge.
-    const depositAmountCents: number =
-      typeof data.paymentDetails?.principalCents === 'number'
-        ? data.paymentDetails.principalCents
-        : stripeGrossCents != null
-          ? Math.max(0, stripeGrossCents - tipAmountCents)
-          : (orderData.deposit_due_cents ?? 0);
-    const paidAmountCents: number = depositAmountCents;
-
-    // Log deposit transaction and notify admin with grouped receipts
-    if (customerData && orderData.customer_id) {
-      // Build array of transactions to log (grouped)
-      const transactions: Array<{ transactionType: 'deposit' | 'balance' | 'refund' | 'tip' | 'full_payment'; orderId: string; customerId: string; paymentId?: string; amountCents: number; paymentMethod?: string; paymentMethodBrand?: string; stripeChargeId?: string; stripePaymentIntentId?: string; notes?: string }> = [
-        {
-          transactionType: 'deposit' as const,
-          orderId,
-          customerId: orderData.customer_id as string,
-          paymentId: paymentRecord?.id,
-          amountCents: depositAmountCents,
-          paymentMethod: data.paymentDetails?.paymentMethod,
-          paymentMethodBrand: data.paymentDetails?.paymentBrand,
-          stripeChargeId: data.paymentDetails?.chargeId,
-          stripePaymentIntentId: data.paymentDetails?.paymentIntentId,
-          notes: `Deposit payment for Order ${formatOrderId(orderId)}`,
-        }
-      ];
-
-      // Add tip transaction if present
-      if (tipAmountCents > 0) {
-        transactions.push({
-          transactionType: 'tip' as const,
-          orderId,
-          customerId: orderData.customer_id as string,
-          paymentId: paymentRecord?.id,
-          amountCents: tipAmountCents,
-          paymentMethod: data.paymentDetails?.paymentMethod,
-          paymentMethodBrand: data.paymentDetails?.paymentBrand,
-          stripeChargeId: data.paymentDetails?.chargeId,
-          stripePaymentIntentId: data.paymentDetails?.paymentIntentId,
-          notes: `Crew tip for Order ${formatOrderId(orderId)}`,
-        });
-      }
-
-      // Log all transactions as a grouped receipt
-      await logGroupedTransactions(transactions, orderData, customerData);
-    }
-
-    const { data: invoiceNumberData } = await supabase.rpc('generate_invoice_number');
-    const invoiceNumber = invoiceNumberData || `INV-${Date.now()}`;
-
-    // Use effective total including relational custom fees and discounts.
-    // order_custom_fees and order_discounts are fetched at the top of this function.
-    const orderCustomFees = (orderData as any).order_custom_fees || [];
-    const orderDiscounts = (orderData as any).order_discounts || [];
-    const totalCents = calculateTotalFromOrder(orderData, orderDiscounts, orderCustomFees);
-
-    // Determine invoice status based on payment amount vs total
-    const invoiceStatus = paidAmountCents >= totalCents ? 'paid' : (paidAmountCents > 0 ? 'partial' : 'sent');
-
-    const { error: invoiceError } = await supabase.from('invoices').insert({
-      invoice_number: invoiceNumber,
-      order_id: orderId,
-      customer_id: orderData.customer_id,
-      due_date: orderData.event_date,
-      status: invoiceStatus,
-      subtotal_cents: orderData.subtotal_cents ?? 0,
-      tax_cents: orderData.tax_cents ?? 0,
-      travel_fee_cents: orderData.travel_fee_cents ?? 0,
-      surface_fee_cents: (orderData as any).surface_fee_cents ?? 0,
-      same_day_pickup_fee_cents: (orderData as any).same_day_pickup_fee_cents ?? 0,
-      generator_fee_cents: (orderData as any).generator_fee_cents ?? 0,
-      total_cents: totalCents,
-      paid_amount_cents: paidAmountCents,
-    });
-    if (invoiceError) {
-      console.error('[orderApprovalService] Invoice insert failed (non-fatal, order already confirmed):', invoiceError);
-    }
-
-    const { data: orderWithRelations, error: reloadError } = await supabase
-      .from('orders')
-      .select(`*, customers (*), addresses (*), order_items (*, units (*))`)
-      .eq('id', orderId)
-      .maybeSingle();
-
-    let notificationWarning: string | undefined;
-    if (reloadError || !orderWithRelations) {
-      notificationWarning = 'The order was approved, but confirmation details could not be loaded. Retry the notification from the order.';
-    } else {
-      try {
-        const notifResult = await sendApprovalConfirmationNotifications(
-          orderWithRelations,
-          totalCents,
-          sendSms,
-        );
-        if (notifResult.errors.length > 0) {
-          notificationWarning = notifResult.errors.join('; ');
-        }
-      } catch (notifErr: any) {
-        console.error('[orderApprovalService] confirmation notifications failed (non-fatal):', notifErr);
-        notificationWarning = (notifErr as any)?.message || 'Confirmation notification failed. Retry the notification from the order.';
-      }
-    }
-
-    try {
-      await enterConfirmed(orderId, 'admin_approve_charge_deposit', 'charged_now', orderData.status);
-    } catch (lifecycleErr) {
-      console.error('[orderApprovalService] enterConfirmed (charge-deposit) failed (non-fatal):', lifecycleErr);
-    }
-
-    return { success: true, notificationWarning };
+    // The charge succeeded. Everything that follows is done by the server (charge-deposit and the Stripe webhook run the same idempotent
+    // completion, once per payment): the order confirmation and admin alert, the deposit and tip receipts, the invoice row, and the
+    // customer's confirmation email and text. Nothing below depends on this browser tab staying open.
+    return { success: true };
   } catch (error: any) {
     console.error('Error approving order:', error);
     return { success: false, error: error.message || 'Failed to approve order' };

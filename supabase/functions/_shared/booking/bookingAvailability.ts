@@ -39,6 +39,8 @@ export interface AvailabilityPort {
     items: Array<{ product_id: string; quantity: number }>,
     start: string,
     end: string,
+    // An existing order whose own items must not count against itself (an approval re-checks an order that already holds its stock).
+    excludeOrderId?: string | null,
   ): Promise<{ data?: unknown[] | null; error?: string | null }>;
 }
 
@@ -78,6 +80,7 @@ export async function verifyBookingAvailability(
     startDate: string;
     endDate: string;
     sameDayOrder?: boolean;
+    excludeOrderId?: string | null;
   },
 ): Promise<AvailabilityVerdict> {
   const blackout = await port.blackout(req.startDate, req.endDate);
@@ -95,8 +98,8 @@ export async function verifyBookingAvailability(
 
   if (req.eeItems.length > 0) {
     const ee = await checkEventEssentialsAvailabilityWith(
-      (items, start, end) => port.productAvailability(items, start, end),
-      { items: req.eeItems, eventDate: req.startDate, eventEndDate: req.endDate, excludeOrderId: undefined },
+      (items, start, end, exclude) => port.productAvailability(items, start, end, exclude),
+      { items: req.eeItems, eventDate: req.startDate, eventEndDate: req.endDate, excludeOrderId: req.excludeOrderId ?? undefined },
     );
     if (!ee.ok) return { ok: false, reason: ee.kind === "unavailable" ? "ee_unavailable" : "unverifiable" };
   }
@@ -131,12 +134,12 @@ export function supabaseAvailabilityPort(db: any): AvailabilityPort {
         status: r.orders?.status,
       }));
     },
-    async productAvailability(items, start, end) {
+    async productAvailability(items, start, end, excludeOrderId) {
       const { data, error } = await db.rpc("check_product_availability", {
         p_requested_items: items,
         p_start_date: start,
         p_end_date: end,
-        p_exclude_order_id: null,
+        p_exclude_order_id: excludeOrderId ?? null,
       });
       return { data: data ?? null, error: error ? String(error.message ?? error) : null };
     },

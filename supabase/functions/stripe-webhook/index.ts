@@ -6,6 +6,7 @@ import {
   handleCheckoutSessionCompleted,
   handlePaymentIntentSucceeded,
   handlePaymentIntentFailed,
+  handleCheckoutSessionExpired,
   handleChargeRefunded,
   handleRefundEvent,
   handleSetupIntentSucceeded,
@@ -132,6 +133,10 @@ async function processWebhookEvent(
   switch (event.type) {
     case "checkout.session.completed":
       await handleCheckoutSessionCompleted(event.data.object as Stripe.Checkout.Session, supabaseClient, stripe);
+      break;
+    case "checkout.session.expired":
+      // A convenience that tidies up promptly; correctness never depends on it (an offline entry settles the same operation itself).
+      await handleCheckoutSessionExpired(event.data.object as Stripe.Checkout.Session, supabaseClient, stripe);
       break;
     case "payment_intent.succeeded":
       await handlePaymentIntentSucceeded(event.data.object as Stripe.PaymentIntent, supabaseClient, stripe);

@@ -590,9 +590,12 @@ export async function resolveCheckoutOperation(
     try {
       await stripe.checkout.sessions.expire(op.checkoutSessionId);
     } catch {
-      // It may have just been paid or expired; look again before deciding.
-      try { session = await stripe.checkout.sessions.retrieve(op.checkoutSessionId); } catch { /* fall through */ }
-      if (session?.payment_status === "paid") {
+      // The expire request failed: the session may have just been paid or expired, or it may still be payable. Look again, and
+      // cancel the operation ONLY if Stripe now says the session is expired. If it is still open (or cannot be read), the customer
+      // can still pay it, so the operation stays open and nothing else may start.
+      let again: Any = null;
+      try { again = await stripe.checkout.sessions.retrieve(op.checkoutSessionId); } catch { /* unknown */ }
+      if (again?.status !== "expired") {
         await releaseOperation(db, op, null);
         return { kind: "busy" };
       }
@@ -600,4 +603,77 @@ export async function resolveCheckoutOperation(
   }
   const closed = await releaseOperation(db, op, "cancelled");
   return closed ? { kind: "superseded" } : { kind: "busy" };
+}
+
+// An online (Checkout) payment that was started and never finished must not block cash/check entry, and an expired one must not stay
+// "in progress" for ever. Before an offline payment is recorded, every open Checkout operation of the order is settled against what
+// Stripe says about its session: paid -> the money is applied and the offline entry is refused; open -> expired by us and cancelled
+// only once Stripe confirms; expired -> cancelled; unreadable -> the order stays blocked (fail closed, never a duplicate payment).
+// True when an online (Checkout) payment of the order is still open, which is what blocks an offline entry.
+export async function hasOpenCheckoutOperation(db: Any, orderId: string): Promise<boolean> {
+  const { data, error } = await db
+    .from("payments")
+    .select("id")
+    .eq("order_id", orderId)
+    .eq("status", "pending")
+    .neq("stripe_checkout_session_id", "");
+  // If the question cannot be answered, assume yes: the settle step then decides with Stripe, and fails closed.
+  return error ? true : (data ?? []).length > 0;
+}
+
+export type OfflineSettleResult = { ok: true; cancelled: number } | { ok: false; reason: "paid_online" | "in_progress" };
+
+export async function settleOpenCheckoutOperations(db: Any, stripe: Any, orderId: string): Promise<OfflineSettleResult> {
+  const { data: rows, error } = await db
+    .from("payments")
+    .select("id, type, stripe_checkout_session_id, status")
+    .eq("order_id", orderId)
+    .eq("status", "pending")
+    .neq("stripe_checkout_session_id", "");
+  if (error) return { ok: false, reason: "in_progress" };
+  let cancelled = 0;
+  for (const row of (rows ?? []) as Array<{ id: string; type: string; stripe_checkout_session_id: string | null }>) {
+    if (!row.stripe_checkout_session_id) continue;
+    const claim = await claimPaymentOperation(db, {
+      orderId,
+      purpose: row.type === "deposit" ? "deposit" : "balance",
+      actor: "staff",
+      claimId: crypto.randomUUID(),
+    }, stripe);
+    if (!claim.ok) return { ok: false, reason: claim.outcome === "already_paid" ? "paid_online" : "in_progress" };
+    if (claim.op.paymentId !== row.id || !claim.op.checkoutSessionId) {
+      // The claim handed back something other than the Checkout operation we meant to settle: give its lease back and stay blocked.
+      await releaseOperation(db, claim.op, null);
+      return { ok: false, reason: "in_progress" };
+    }
+    const resolution = await resolveCheckoutOperation(db, stripe, claim.op, null);
+    if (resolution.kind === "paid") return { ok: false, reason: "paid_online" };
+    if (resolution.kind !== "superseded") return { ok: false, reason: "in_progress" };
+    cancelled++;
+  }
+  return { ok: true, cancelled };
+}
+
+// Stripe told us a Checkout session expired (the customer walked away). The same resolver decides what to do with its operation.
+export async function settleExpiredCheckoutSession(db: Any, stripe: Any, sessionId: string): Promise<"cancelled" | "paid" | "unchanged"> {
+  const { data: rows } = await db
+    .from("payments")
+    .select("id, order_id, type, status")
+    .eq("stripe_checkout_session_id", sessionId)
+    .eq("status", "pending");
+  const row = (rows ?? [])[0] as { id: string; order_id: string; type: string } | undefined;
+  if (!row) return "unchanged";
+  // Act only on what Stripe says now: an event is a hint, never the authority. A session that is still open (or cannot be read) is left
+  // alone; the resolver below would otherwise expire it.
+  let current: Any = null;
+  try { current = await stripe.checkout.sessions.retrieve(sessionId); } catch { return "unchanged"; }
+  if (current?.payment_status !== "paid" && current?.status !== "expired") return "unchanged";
+  const claim = await claimPaymentOperation(db, { orderId: row.order_id, purpose: row.type === "deposit" ? "deposit" : "balance", actor: "staff", claimId: crypto.randomUUID() }, stripe);
+  if (!claim.ok) return claim.outcome === "already_paid" ? "paid" : "unchanged";
+  if (claim.op.paymentId !== row.id || claim.op.checkoutSessionId !== sessionId) {
+    await releaseOperation(db, claim.op, null);
+    return "unchanged";
+  }
+  const resolution = await resolveCheckoutOperation(db, stripe, claim.op, null);
+  return resolution.kind === "paid" ? "paid" : resolution.kind === "superseded" ? "cancelled" : "unchanged";
 }

@@ -80,9 +80,9 @@ for (const f of ['supabase/functions/stripe-webhook/handlers.ts', 'supabase/func
 for (const f of ['supabase/functions/record-cash-payment/index.ts', 'supabase/functions/record-check-payment/index.ts']) {
   ok(`${f}: cash/check receipts select the shared item columns`, read(f).includes('order_items (${ORDER_ITEM_COLUMNS})'));
 }
-ok('charge-deposit selects the shared item columns and labels lines with them', read('supabase/functions/charge-deposit/index.ts').includes('order_items(${ORDER_ITEM_COLUMNS})') && read('supabase/functions/charge-deposit/index.ts').includes('${orderItemLabel(item)}'));
+ok('the deposit confirmation email (shared by charge-deposit and the post-payment completion) selects the shared item columns and labels lines with them', read('supabase/functions/_shared/payments/deposit-confirmation-email.ts').includes('order_items(${ORDER_ITEM_COLUMNS})') && read('supabase/functions/_shared/payments/deposit-confirmation-email.ts').includes('${orderItemLabel(item)}'));
 ok('no server email still reads units?.name directly', !/item\.units\?\.name/.test([
-  'supabase/functions/charge-deposit/index.ts', 'supabase/functions/customer-balance-payment/index.ts', 'supabase/functions/reconcile-balance-payment/index.ts',
+  'supabase/functions/_shared/payments/deposit-confirmation-email.ts', 'supabase/functions/customer-balance-payment/index.ts', 'supabase/functions/reconcile-balance-payment/index.ts',
   'supabase/functions/stripe-webhook/emails.ts', 'supabase/functions/_shared/payments/payment-receipt-email.ts',
 ].map(read).join('\n')));
 ok('complete-booking returns the fee columns the confirmation email shows', ['same_day_weekday_delivery_fee_cents', 'generator_fee_cents', 'setup_fee_cents'].every((c) => read('supabase/functions/complete-booking/index.ts').includes(c)));

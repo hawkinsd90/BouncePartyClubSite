@@ -170,6 +170,8 @@ export interface World {
   stripe: FakeStripe;
   // Tables that run against the scratch database for THIS world (default: PG_TABLES).
   pgTables?: Set<string>;
+  // A database function answered by the test instead of the scratch database (for functions whose tables the fixtures do not model).
+  rpcStubs?: Record<string, (args: Record<string, any>) => Promise<{ data: any; error: any }> | { data: any; error: any }>;
 }
 
 type Filter = { kind: 'eq' | 'neq' | 'in' | 'is' | 'gte' | 'lte' | 'not'; col: string; val: any };
@@ -348,6 +350,8 @@ export function makeClient(w: World) {
       const run = async (): Promise<{ data: any; error: any }> => {
       w.rpcCalls.push({ name, args });
       await w.beforeRpc[name]?.();
+      const stub = w.rpcStubs?.[name];
+      if (stub) return await stub(args);
       const inj = w.failRpc[name];
       if (inj && (inj.times === undefined || inj.times > 0)) {
         if (inj.times !== undefined) inj.times--;
@@ -772,7 +776,21 @@ function realSharedHelpers(): Record<string, any> {
   const labels = run('supabase/functions/_shared/payments/order-item-label.ts', {});
   const returnOrigin = run('supabase/functions/_shared/booking/returnOrigin.ts', {});
   const siteOrigin = run('supabase/functions/_shared/siteOrigin.ts', returnOrigin);
-  sharedHelpers = { labels, returnOrigin, siteOrigin };
+  const eventEssentialsAvailability = run('supabase/functions/_shared/booking/eeOrderItemAvailability.ts', {});
+  const bookingAvailability = run('supabase/functions/_shared/booking/bookingAvailability.ts', eventEssentialsAvailability);
+  // The post-payment completion and the confirmation email it sends, with REAL receipt arithmetic and a REAL receipt logger (so receipts
+  // land in the scratch database), and the same stand-ins for the portal link and the site origin the handlers get.
+  const fmt = (c: number) => `$${((c ?? 0) / 100).toFixed(2)}`;
+  const money = realMoneyScope();
+  const portal = async () => 'https://portal.fake/x';
+  const siteOriginFn = () => 'https://site.fake';
+  const txLogger = run('supabase/functions/_shared/transaction-logger.ts', { formatOrderId: (id: string) => String(id).slice(0, 8) });
+  const depositEmail = run('supabase/functions/_shared/payments/deposit-confirmation-email.ts', { formatCurrency: fmt, buildPortalUrl: portal, getSiteOrigin: siteOriginFn, ...labels, ...money });
+  const postPayment = run('supabase/functions/_shared/payments/post-payment.ts', {
+    logTransaction: txLogger.logTransaction, buildPortalUrl: portal, getSiteOrigin: siteOriginFn, formatOrderId: (id: string) => String(id).slice(0, 8),
+    receiptOrderFigures: (money as any).receiptOrderFigures, sendDepositConfirmationEmail: depositEmail.sendDepositConfirmationEmail,
+  });
+  sharedHelpers = { labels, returnOrigin, siteOrigin, txLogger, depositEmail, postPayment, eventEssentialsAvailability, bookingAvailability };
   return sharedHelpers;
 }
 
@@ -812,6 +830,10 @@ export function baseScope(w: World, extra: Record<string, unknown> = {}): Record
     portalTokenFragment: (t: string | undefined) => (t ? `#t=${t}` : ''),
     DEFAULT_PHONE: '555-0100',
     ...realSharedHelpers().labels,
+    completePostPayment: realSharedHelpers().postPayment.completePostPayment,
+    checkEventEssentialsAvailabilityWith: realSharedHelpers().eventEssentialsAvailability.checkEventEssentialsAvailabilityWith,
+    supabaseAvailabilityPort: realSharedHelpers().bookingAvailability.supabaseAvailabilityPort,
+    sendDepositConfirmationEmail: realSharedHelpers().depositEmail.sendDepositConfirmationEmail,
     getSiteOrigin: () => realSharedHelpers().siteOrigin.getSiteOrigin({ get: (k: string) => env[k] }),
     configuredOrigins: () => realSharedHelpers().siteOrigin.configuredOrigins({ get: (k: string) => env[k] }),
     ...realMoneyScope(),
@@ -869,6 +891,16 @@ export const PAY_MIGRATION_5 = 'supabase/migrations/20261023120000_refund_alloca
 export const PAY_MIGRATION_6 = 'supabase/migrations/20261024120000_refund_allocation_reservation.sql';
 // ...and the read-only refund overview the Admin refund screen uses.
 export const PAY_MIGRATION_7 = 'supabase/migrations/20261025120000_refund_overview_for_admin.sql';
+// ...and the post-payment completion lease + receipt uniqueness repair (M-4). Its cutoff ("payments created before the migration ran are
+// left alone") is the moment it runs, which would move under parallel test files that each re-apply it, so the tests apply it with the
+// cutoff at -infinity: every payment they create is new.
+export const PAY_MIGRATION_8 = 'supabase/migrations/20261027130000_payment_post_completion.sql';
+export function payMigration8Text(): string {
+  const text = fs.readFileSync(PAY_MIGRATION_8, 'utf8');
+  const marker = '$fn$, now());';
+  if (!text.includes(marker)) throw new Error('payment_post_completion cutoff marker not found');
+  return text.replace(marker, "$fn$, '-infinity'::timestamptz);");
+}
 
 // Returns a working psql for a scratch database that holds this repository's payment migration (created from the base replay
 // when absent; the migration text is idempotent and is re-applied on every run), or null when no database is reachable.
@@ -895,6 +927,6 @@ export function ensurePayDatabase(): { psql: string; db: string } | null {
     }
   }
   if (!psql) return null;
-  const applied = spawnSync(psql, [...psqlArgs(dbFull), '-v', 'ON_ERROR_STOP=1'], { input: fs.readFileSync(PAY_MIGRATION, 'utf8') + '\n' + fs.readFileSync(PAY_MIGRATION_2, 'utf8') + '\n' + fs.readFileSync(PAY_MIGRATION_3, 'utf8') + '\n' + fs.readFileSync(PAY_MIGRATION_4, 'utf8') + '\n' + fs.readFileSync(PAY_MIGRATION_5, 'utf8') + '\n' + fs.readFileSync(PAY_MIGRATION_6, 'utf8') + '\n' + fs.readFileSync(PAY_MIGRATION_7, 'utf8'), encoding: 'utf8' });
+  const applied = spawnSync(psql, [...psqlArgs(dbFull), '-v', 'ON_ERROR_STOP=1'], { input: fs.readFileSync(PAY_MIGRATION, 'utf8') + '\n' + fs.readFileSync(PAY_MIGRATION_2, 'utf8') + '\n' + fs.readFileSync(PAY_MIGRATION_3, 'utf8') + '\n' + fs.readFileSync(PAY_MIGRATION_4, 'utf8') + '\n' + fs.readFileSync(PAY_MIGRATION_5, 'utf8') + '\n' + fs.readFileSync(PAY_MIGRATION_6, 'utf8') + '\n' + fs.readFileSync(PAY_MIGRATION_7, 'utf8') + '\n' + payMigration8Text(), encoding: 'utf8' });
   return applied.status === 0 ? { psql, db: dbFull } : null;
 }

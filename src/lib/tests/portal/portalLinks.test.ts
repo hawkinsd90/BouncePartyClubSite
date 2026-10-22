@@ -723,7 +723,7 @@ async function call(handler: (r: Request) => Promise<Response>, bearer: string |
   ok('portalTokenFragment helper only emits a plausible token', pl.portalTokenFragment(T) === `#t=${T}` && pl.portalTokenFragment('a b') === '' && pl.portalTokenFragment(undefined) === '' && pl.portalTokenFragment('x'.repeat(200)) === '');
 
   for (const [file, expectedCalls] of [
-    ['supabase/functions/charge-deposit/index.ts', 1],
+    ['supabase/functions/_shared/payments/deposit-confirmation-email.ts', 1],
     ['supabase/functions/customer-balance-payment/index.ts', 1],
     ['supabase/functions/reconcile-balance-payment/index.ts', 1],
     ['supabase/functions/stripe-webhook/emails.ts', 2],

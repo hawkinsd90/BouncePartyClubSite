@@ -9,6 +9,7 @@ import { TipSelector, calculateTipCents } from '../payment/TipSelector';
 import { CustomerApprovalModal } from './CustomerApprovalModal';
 import { CustomerRejectionModal } from './CustomerRejectionModal';
 import { useBusinessSettings } from '../../contexts/BusinessContext';
+import { isDepositFullyCollected } from '../../lib/orders/depositCollected';
 
 interface RestoredPaymentState {
   paymentAmount: 'deposit' | 'full' | 'custom';
@@ -148,9 +149,7 @@ export function OrderApprovalView({
     return false;
   })();
 
-  const alreadyPaidDeposit =
-    order.stripe_payment_status === 'paid' ||
-    (order.deposit_paid_cents || 0) > 0;
+  const alreadyPaidDeposit = isDepositFullyCollected(order);
 
   return (
     <div className="min-h-screen bg-slate-50 py-8 px-4 sm:px-6 lg:px-8">

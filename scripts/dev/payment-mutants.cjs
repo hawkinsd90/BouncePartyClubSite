@@ -26,6 +26,12 @@ const REQ = 'src/lib/payments/refundAllocationRequest.ts';
 const CTL = 'src/lib/payments/refundController.ts';
 const PAN = 'src/components/admin/orders/refunds/RefundAllocationPanel.tsx';
 const MIG8 = 'supabase/migrations/20261025120000_refund_overview_for_admin.sql';
+const MIG9 = 'supabase/migrations/20261027130000_payment_post_completion.sql';
+const PP = 'supabase/functions/_shared/payments/post-payment.ts';
+const APF = 'src/lib/orders/approvalFailure.ts';
+const DEPC = 'src/lib/orders/depositCollected.ts';
+const RCASH = 'supabase/functions/record-cash-payment/index.ts';
+const RCHECK = 'supabase/functions/record-check-payment/index.ts';
 
 // exact, unique anchor
 const repl = (a, b) => (src) => {
@@ -82,8 +88,8 @@ const M = [
 
   // ---------------------------------------------------------------- single financial application
   [SQL, 'remove the already-applied guard', [repl('  IF COALESCE(v_op.order_financials_applied, false) THEN\n    IF p_claim_id IS NULL', '  IF false THEN\n    IF p_claim_id IS NULL')]],
-  [WH, 'the webhook notifies even when it did not apply the payment', [repl('  if (!fin.applied) return "already_applied";\n', '')]],
-  [CD, 'charge-deposit notifies even when the webhook applied the payment', [repl('    if (fin.applied && !isBalance) {', '    if (!isBalance) {')]],
+  [WH, 'the webhook does not complete a deposit that another request applied', [repl('  if (!fin.applied) {\n    await completeDepositOrFail(supabaseClient, paymentId);\n    return "already_applied";\n  }', '  if (!fin.applied) return "already_applied";')]],
+  [CD, 'charge-deposit does not complete the payment after the charge', [repl('    if (!isBalance) {\n      const completion = await completePostPayment(', '    if (false) {\n      const completion = await completePostPayment(')]],
   [CB, 'customer-balance-payment notifies even when it did not apply the payment', [repl('          if (fin.applied) {\n            if (order.customer_id) {', '          if (true) {\n            if (order.customer_id) {')]],
   [RC, 'reconcile notifies even when the payment was already applied', [repl('    if (!fin.applied) {\n      return new Response(', '    if (false) {\n      return new Response(')]],
   [SQL, 'finalize applies the amount the provider reported without checking the operation', [repl("  IF p_amount_received <> v_op.amount_cents THEN\n    RETURN jsonb_build_object('outcome', 'amount_mismatch', 'applied', false, 'expected_cents', v_op.amount_cents);\n  END IF;\n", '')]],
@@ -443,6 +449,26 @@ const M = [
   [CTL, "a failed refresh leaves a confirmation on screen", [repl("} else if (this.state.phase === 'review') {\n        // A confirmation shown", "} else if (false) {\n        // A confirmation shown")]],
   [CTL, "a failed refresh is reported as a change in availability", [repl("      return 'failed';", "      return 'changed';")]],
   [CTL, "a changed availability does not interrupt the review", [repl("if (loaded === 'changed' || this.state.phase !== 'ready') return;", "if (this.state.phase !== 'ready') return;")]],
+  // ---------------------------------------------------------------- B4: post-payment completion, decline classification, checkout recovery
+  [WH, 'a failed deposit completion is swallowed by the webhook (no redelivery)', [repl('  throw new Error(`post-payment completion ${last.status}', '  return; throw new Error(`post-payment completion ${last.status}')]],
+  [PP, 'a busy lease is treated as done', [repl('  if (outcome === "already_completed" || outcome === "busy" || outcome === "not_applicable" || outcome === "not_found") {', '  if (outcome === "busy") { result.status = "already_completed"; return result; }\n  if (outcome === "already_completed" || outcome === "not_applicable" || outcome === "not_found") {')]],
+  [PP, 'the invoice is created again on a retry', [repl('      } else if (existingInvoice) {', '      } else if (false) {')]],
+  [PP, 'a failed record step still sends the customer messages', [repl('    if (Object.values(result.steps).includes("failed") || result.errors.some((e) => e.startsWith("receipt"))) {', '    if (false) {')]],
+  [PP, 'the completion is never marked finished', [repl('    const { error: finishError } = await db.rpc("finish_post_payment_completion", { p_payment_id: paymentId });', '    const finishError = null;')]],
+  [PP, 'the customer text is not sent', [repl('        const res = await invoke("send-sms-notification", { to: phone, message, orderId });', '        const res = undefined;')]],
+  [MIG9, 'a completed payment is worked on again', [repl("      IF v_row.post_completed_at IS NOT NULL THEN\n        RETURN jsonb_build_object('outcome', 'already_completed');\n      END IF;\n", '')]],
+  [MIG9, 'a live lease does not stop a second worker', [repl("      IF v_row.post_claim_until IS NOT NULL AND v_row.post_claim_until > now() THEN\n        RETURN jsonb_build_object('outcome', 'busy');\n      END IF;\n", '')]],
+  [MIG9, 'a balance payment can be completed as a deposit', [repl("v_row.type IS DISTINCT FROM 'deposit' OR ", '')]],
+  [MIG9, 'a payment that did not succeed can be completed', [repl(" OR v_row.status IS DISTINCT FROM 'succeeded'", '')]],
+  [APF, 'every failure is treated as a decline', [repl("  return 'not_confirmed';\n}", "  return 'card_refused';\n}")]],
+  [DEPC, 'any deposit payment counts as fully collected', [repl("  return paid >= due && (paid > 0 || order.stripe_payment_status === 'paid');", "  return paid > 0 || order.stripe_payment_status === 'paid';")]],
+  [PO, 'an open session is cancelled even when Stripe says it is still open', [repl('      if (again?.status !== "expired") {', '      if (false) {')]],
+  [PO, 'a paid online payment does not stop an offline entry', [repl('    if (resolution.kind === "paid") return { ok: false, reason: "paid_online" };\n', '')]],
+  [PO, 'an expired-session event acts on a session that is still open', [repl('  if (current?.payment_status !== "paid" && current?.status !== "expired") return "unchanged";', '')]],
+  [RCASH, 'cash entry does not settle an open Checkout first', [repl('    if (await hasOpenCheckoutOperation(supabaseAdmin, orderId)) {', '    if (false) {')]],
+  [RCHECK, 'check entry does not settle an open Checkout first', [repl('    if (await hasOpenCheckoutOperation(supabaseAdmin, orderId)) {', '    if (false) {')]],
+  [CD, 'Event Essentials stock is not re-checked before charging', [repl('      if (eventEssentialsRows.length > 0) {', '      if (false) {')]],
+  [CD, 'the stock check counts the order against itself', [repl('            excludeOrderId: orderId,\n          },\n        );\n        if (!eeCheck.ok) {', '            excludeOrderId: undefined,\n          },\n        );\n        if (!eeCheck.ok) {')]],
 ];
 
 // The claim function is REPLACED by the second migration, so a mutant on the claim text of the first migration would be dead code.
@@ -456,12 +482,16 @@ for (const m of M) if (m[0] === SQL && LIVE_CLAIM.includes(m[1])) m[0] = SQL2;
 const SQL_FIRST = ['src/lib/tests/payments/paymentOperations.test.ts', 'src/lib/tests/payments/paymentCharging.test.ts'];
 const CODE_FIRST = ['src/lib/tests/payments/paymentCharging.test.ts', 'src/lib/tests/payments/paymentOperations.test.ts'];
 const REFUND_TESTS = ['src/lib/tests/payments/refundSafety.test.ts'];
+const B4_TESTS = ['src/lib/tests/payments/postPayment.test.ts', 'src/lib/tests/payments/paymentRecovery.test.ts'];
 const AUTHORITY_TESTS = ['src/lib/tests/payments/refundSafety.test.ts', 'src/lib/tests/security/coreDatabaseAccess.test.ts'];
 const ALLOCATION_TESTS = ['src/lib/tests/payments/refundAllocation.test.ts', 'src/lib/tests/security/coreDatabaseAccess.test.ts'];
 const ACCOUNTING_TESTS = ['src/lib/tests/payments/refundAccounting.test.ts', 'src/lib/tests/security/coreDatabaseAccess.test.ts'];
 module.exports = {
   M,
   tests: (file) => {
+    if (file.includes('20261027130000') || file.endsWith('post-payment.ts') || file.endsWith('deposit-confirmation-email.ts') || file.endsWith('record-cash-payment/index.ts') || file.endsWith('record-check-payment/index.ts')) return B4_TESTS;
+    if (file.endsWith('approvalFailure.ts') || file.endsWith('depositCollected.ts')) return ['src/lib/tests/payments/paymentRecovery.test.ts'];
+    if (file.endsWith('payment-operations.ts') || file.endsWith('charge-deposit/index.ts') || file.endsWith('stripe-webhook/handlers.ts')) return [...B4_TESTS, ...CODE_FIRST, ...REFUND_TESTS];
     if (file.includes('20261025')) return ALLOCATION_TESTS;
     if (/refundAllocationRequest|refundController|RefundAllocationPanel/.test(file)) return ['src/lib/tests/payments/refundAllocationUi.test.ts', 'src/lib/tests/payments/refundSafety.test.ts'];
     if (file.endsWith('refundOperationKey.ts')) return ['src/lib/tests/payments/refundAllocationUi.test.ts', 'src/lib/tests/payments/refundSafety.test.ts'];

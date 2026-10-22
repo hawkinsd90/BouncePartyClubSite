@@ -15,6 +15,8 @@ import { storedOrderTotalCents } from '../../lib/pricing/orderMoney';
 import { portalAction, PortalActionError } from '../../lib/portal/customerPortalApi';
 import { checkEventEssentialsAvailability } from '../../lib/queries/products';
 import { enterConfirmed } from '../../lib/orders/orderLifecycleApi';
+import { isDepositFullyCollected } from '../../lib/orders/depositCollected';
+import { classifyApprovalFailure } from '../../lib/orders/approvalFailure';
 import { COMPANY_PHONE } from '../../lib/notifications/emailTemplateBase';
 
 interface ApprovalModalProps {
@@ -204,9 +206,9 @@ export function CustomerApprovalModal({
         ? (order.customer_selected_payment_type || 'deposit')
         : paymentAmount;
 
-      const alreadyPaidDeposit =
-        order.stripe_payment_status === 'paid' ||
-        (order.deposit_paid_cents || 0) > 0;
+      // Only a deposit that covers what is NOW due is "already paid". A partial payment with a raised deposit goes through the charge below,
+      // which collects the difference (the server derives it) before the order is confirmed.
+      const alreadyPaidDeposit = isDepositFullyCollected(order);
 
       if (alreadyPaidDeposit) {
         // Already paid — persist payment selection and confirm without charging.
@@ -329,10 +331,9 @@ export function CustomerApprovalModal({
 
         const chargeData = await chargeResponse.json();
 
-        // chargeSucceeded means Stripe charged but a post-charge DB step failed.
-        // Do NOT show the decline UI — the customer was charged successfully.
-        const NOT_A_DECLINE = ['ORDER_CHANGED', 'PAYMENT_IN_PROGRESS', 'DEPOSIT_CATCH_UP_REVIEW_REQUIRED', 'ORDER_STATUS_NOT_PAYABLE', 'PAYMENT_SELECTION_INVALID', 'PAYMENT_RECORDS_CONFLICT', 'PAYMENT_STATUS_UNKNOWN', 'PAYMENT_PROCESSING', 'INVALID_TIP', 'INVALID_AMOUNT'];
-        if (!chargeData?.success && !chargeData?.chargeSucceeded && NOT_A_DECLINE.includes(chargeData?.code)) {
+        // The decline screen is for an explicit card refusal only. chargeSucceeded means Stripe charged but a post-charge DB step is pending
+        // (the customer was charged: never show the decline UI). Every other failure is the order or the request, not the card.
+        if (!chargeData?.success && !chargeData?.chargeSucceeded && classifyApprovalFailure(chargeData) !== 'card_refused') {
           // The card was not refused; the order or the request was. Say so instead of asking for a new card.
           showToast(chargeData?.error || 'This payment could not be started. Please refresh and try again.', 'error');
           if (isMountedRef.current) setSubmitting(false);
@@ -415,9 +416,7 @@ export function CustomerApprovalModal({
       ? `Card •••• ${lastFour}`
       : null;
 
-  const alreadyPaidDeposit =
-    order.stripe_payment_status === 'paid' ||
-    (order.deposit_paid_cents || 0) > 0;
+  const alreadyPaidDeposit = isDepositFullyCollected(order);
 
   const hasValidCardOnFile = !!order.has_saved_card;
 
