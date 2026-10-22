@@ -1,3 +1,4 @@
+import { useEffect } from 'react';
 import { createRoot } from 'react-dom/client';
 import { AlertCircle, Info, CheckCircle } from 'lucide-react';
 
@@ -40,9 +41,26 @@ function ConfirmModal({
 
   const Icon = icons[type];
 
+  // Escape answers "no" when there is a Cancel button, and simply dismisses an OK-only message.
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key !== 'Escape') return;
+      e.stopPropagation();
+      if (cancelText && onCancel) onCancel();
+      else onConfirm?.();
+    };
+    document.addEventListener('keydown', onKeyDown, true);
+    return () => document.removeEventListener('keydown', onKeyDown, true);
+  }, [cancelText, onCancel, onConfirm]);
+
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[10000] p-4 animate-fade-in">
-      <div className="bg-white rounded-lg shadow-2xl max-w-md w-full max-h-[90vh] overflow-y-auto animate-scale-in">
+      <div
+        role={cancelText ? 'alertdialog' : 'dialog'}
+        aria-modal="true"
+        aria-label={title ?? (cancelText ? 'Please confirm' : 'Notice')}
+        className="bg-white rounded-lg shadow-2xl max-w-md w-full max-h-[90vh] overflow-y-auto animate-scale-in"
+      >
         <div className="p-6">
           {showLogo && (
             <div className="text-center mb-4">
@@ -94,12 +112,13 @@ function ConfirmModal({
   );
 }
 
-let activeModal: { root: any; wrapper: HTMLDivElement } | null = null;
+let activeModal: { root: any; wrapper: HTMLDivElement; settle: (answer: boolean) => void } | null = null;
 
 export function showModal(options: ModalOptions): Promise<boolean> {
   return new Promise((resolve) => {
-    // Close any existing modal
+    // Replace any open modal. Its caller is still waiting for an answer, so it gets "no" (never left hanging, never taken as "yes").
     if (activeModal) {
+      activeModal.settle(false);
       activeModal.root.unmount();
       if (document.body.contains(activeModal.wrapper)) {
         document.body.removeChild(activeModal.wrapper);
@@ -112,16 +131,23 @@ export function showModal(options: ModalOptions): Promise<boolean> {
 
     const root = createRoot(wrapper);
 
+    let settled = false;
+    const settle = (answer: boolean) => {
+      if (settled) return;
+      settled = true;
+      resolve(answer);
+    };
+
     const handleConfirm = () => {
       options.onConfirm?.();
       cleanup();
-      resolve(true);
+      settle(true);
     };
 
     const handleCancel = () => {
       options.onCancel?.();
       cleanup();
-      resolve(false);
+      settle(false);
     };
 
     const cleanup = () => {
@@ -142,7 +168,7 @@ export function showModal(options: ModalOptions): Promise<boolean> {
       />
     );
 
-    activeModal = { root, wrapper };
+    activeModal = { root, wrapper, settle };
   });
 }
 

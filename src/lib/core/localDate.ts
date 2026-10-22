@@ -17,3 +17,16 @@ export function endMileageProblem(endMileage: number, startMileage: number | nul
   }
   return null;
 }
+
+// A date-only value from the database or a date input ("2026-11-10", or with a time after it) as a local calendar day, noon, so it
+// shows as that day in every time zone. `new Date("2026-11-10")` is midnight UTC, which is the evening of the 9th in Detroit.
+export function parseDateOnly(value: string): Date {
+  const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(value);
+  if (!m) return new Date(value);
+  return new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]), 12, 0, 0, 0);
+}
+
+// Today in the visitor's own time zone, as a yyyy-MM-dd string (for <input type="date" min=...>).
+export function todayLocalKey(now: Date = new Date()): string {
+  return localDateKey(now);
+}

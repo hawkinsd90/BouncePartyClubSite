@@ -277,7 +277,7 @@ async function textOf(res: Response): Promise<string> {
   const evil = '<script>alert(1)</script><img src=x onerror=alert(2)><a href="https://evil.example">click</a>';
   let e = await report({ message: evil, stack: evil, componentStack: evil, url: evil, userAgent: evil, userId: evil, additionalInfo: { note: evil }, timestamp: evil });
   const html: string = e.w.invokes[0]?.body?.html ?? '';
-  ok('send-error-notification: a report is relayed once to the configured admin address', e.res.status === 200 && e.w.invokes.length === 1 && JSON.stringify(e.w.invokes[0].body.to) === '["owner@example.test"]');
+  ok('send-error-notification: a report is relayed once to the configured admin address', e.res.status === 200 && e.w.invokes.length === 1 && e.w.invokes[0].fn === 'send-email' && e.w.invokes[0].body.to === 'owner@example.test' && e.w.invokes[0].body.skipFallback === true);
   ok('send-error-notification: no raw HTML from the caller survives in the email body', html.length > 0 && !/<script>|<img src=x|<a href="https:\/\/evil/.test(html) && /&lt;script&gt;/.test(html));
   const ts1 = await report({ message: 'boom', timestamp: '1999-01-01T00:00:00Z' });
   ok('send-error-notification: the caller-supplied timestamp is ignored (server time is used)', !(ts1.w.invokes[0]?.body?.html ?? '').includes('1999-01-01') && /20\d\d-\d\d-\d\dT/.test(ts1.w.invokes[0]?.body?.html ?? ''));
@@ -286,6 +286,7 @@ async function textOf(res: Response): Promise<string> {
   ok('send-error-notification: oversized fields are capped (the email stays small)', e.res.status === 200 && big.length < 40000 && !/x{600}/.test(big));
   e = await report({ message: 'line1\r\nBcc: attacker@example.test' });
   ok('send-error-notification: line breaks cannot reach the subject header', !/[\r\n]/.test(e.w.invokes[0]?.body?.subject ?? 'x'));
+  ok('send-error-notification (NI-08): the report goes to the guarded send-email relay, not to a function that does not exist', !/invoke\(\s*'resend'/.test(fs.readFileSync('supabase/functions/send-error-notification/index.ts', 'utf8')) && fs.existsSync('supabase/functions/send-email/index.ts') && !fs.existsSync('supabase/functions/resend'));
   e = await report({});
   ok('send-error-notification: a report without a message is 400 and sends nothing', e.res.status === 400 && e.w.invokes.length === 0);
   e = await report(null, { raw: 'not json' });

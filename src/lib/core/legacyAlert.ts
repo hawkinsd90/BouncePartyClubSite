@@ -1,7 +1,10 @@
 import { notify, notifySuccess, notifyError, notifyWarning } from '../toasts';
-import { showAlert, showConfirm } from '../../components/common/CustomModal';
+import { showAlert } from '../../components/common/CustomModal';
 
-// Automatically replace window.alert and window.confirm with custom modals
+// Automatically replace window.alert with a custom notification.
+// window.confirm is NOT replaced: a confirmation has to return an answer, which a modal can only do asynchronously. The previous
+// override showed the custom dialog, discarded its answer and then asked again with the browser's own dialog (two prompts). Code that
+// needs a confirmation awaits showConfirm() from CustomModal.
 if (typeof window !== 'undefined') {
   // Replace alert with custom modal
   (window as any).alert = (message: string) => {
@@ -24,15 +27,4 @@ if (typeof window !== 'undefined') {
     }
   };
 
-  // Replace confirm with custom modal
-  const originalConfirm = window.confirm;
-  (window as any).confirm = (message: string): boolean => {
-    // Show custom confirm modal (note: this makes it async, but we return false for now)
-    // For actual async handling, code should be refactored to use showConfirm directly
-    showConfirm(message).then((result) => {
-      return result;
-    });
-    // Fallback to original for synchronous compatibility
-    return originalConfirm(message);
-  };
 }

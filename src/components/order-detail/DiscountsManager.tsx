@@ -2,6 +2,8 @@ import { useState } from 'react';
 import { Trash2, Pencil, Check, X } from 'lucide-react';
 import { formatCurrency } from '../../lib/pricing';
 import { showToast } from '../../lib/toasts';
+import { showConfirm } from '../common/CustomModal';
+import { templateToDiscount, describeTemplateValue } from '../../lib/orders/discountTemplates';
 import { supabase } from '../../lib/supabase';
 import { useDiscountTemplates } from '../../hooks/invoices/useDiscountTemplates';
 import { dollarsToCents } from '../../lib/pricing/money';
@@ -158,8 +160,8 @@ export function DiscountsManager({
     onMarkChanges();
   }
 
-  function handleRemoveDiscount(discountId: string) {
-    if (!confirm('Remove this discount?')) return;
+  async function handleRemoveDiscount(discountId: string) {
+    if (!(await showConfirm('Remove this discount?'))) return;
     if (editingId === discountId) cancelEdit();
     onDiscountChange(discounts.filter(d => d.id !== discountId));
     onMarkChanges();
@@ -172,7 +174,7 @@ export function DiscountsManager({
     }
 
     const template = savedTemplates.find(t => t.id === selectedTemplateId);
-    if (!confirm(`Delete the discount template "${template?.name}"? This action cannot be undone.`)) {
+    if (!(await showConfirm(`Delete the discount template "${template?.name}"? This action cannot be undone.`))) {
       return;
     }
 
@@ -197,8 +199,7 @@ export function DiscountsManager({
     setSelectedTemplateId(templateId);
     const template = savedTemplates.find(t => t.id === templateId);
     if (template) {
-      const amountCents = template.discount_type === 'fixed' ? template.discount_value : 0;
-      const percentage = template.discount_type === 'percentage' ? template.discount_value : 0;
+      const { amount_cents: amountCents, percentage } = templateToDiscount(template);
 
       setNewDiscount({
         name: template.name,
@@ -333,7 +334,7 @@ export function DiscountsManager({
                 <option value="">Select a saved discount...</option>
                 {savedTemplates.map(template => (
                   <option key={template.id} value={template.id}>
-                    {template.name} - {template.discount_type === 'fixed' ? `$${(template.discount_value / 100).toFixed(2)}` : `${template.discount_value}%`}
+                    {template.name} - {describeTemplateValue(template)}
                   </option>
                 ))}
               </select>

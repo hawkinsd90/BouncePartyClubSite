@@ -1,4 +1,5 @@
 import { useEffect, useState, useCallback, useRef } from 'react';
+import { todayLocalKey } from '../lib/core/localDate';
 import { Link, useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import { SafeStorage } from '../lib/core/safeStorage';
@@ -279,7 +280,7 @@ export function Catalog() {
                 <DatePickerInput
                   value={eventDate}
                   onChange={handleDateChange}
-                  min={new Date().toISOString().split('T')[0]}
+                  min={todayLocalKey()}
                   placeholder="Select event date"
                   showIcon={true}
                 />

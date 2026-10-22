@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { parseDateOnly } from '../../lib/core/localDate';
 import { X, AlertTriangle, Loader2, CheckCircle, XCircle } from 'lucide-react';
 import { getEdgeAuthToken } from '../../lib/core/edgeAuth';
 
@@ -106,7 +107,7 @@ export function CancelOrderModal({ orderId, eventDate, invoiceLinkToken, onClose
             </div>
 
             <div className="text-center text-sm text-gray-600 mb-6">
-              <p>Event Date: {new Date(eventDate).toLocaleDateString()}</p>
+              <p>Event Date: {parseDateOnly(eventDate).toLocaleDateString()}</p>
             </div>
 
             <button
@@ -154,7 +155,7 @@ export function CancelOrderModal({ orderId, eventDate, invoiceLinkToken, onClose
               Event Date
             </label>
             <div className="bg-gray-50 rounded-lg px-4 py-3 text-gray-900">
-              {new Date(eventDate).toLocaleDateString('en-US', {
+              {parseDateOnly(eventDate).toLocaleDateString('en-US', {
                 weekday: 'long',
                 year: 'numeric',
                 month: 'long',

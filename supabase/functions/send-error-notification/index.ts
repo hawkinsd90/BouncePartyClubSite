@@ -179,9 +179,7 @@ Deno.serve(async (req: Request) => {
   }
 
   try {
-    const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
-    const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-    const supabase = createClient(supabaseUrl, supabaseServiceKey);
+    const supabase = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
 
     // Public endpoint: throttle before reading the body or touching the database. The identifier is the request address; the global
     // bucket bounds the total even if the address could be rotated. Anything the limiter cannot decide is dropped, not sent.
@@ -232,13 +230,17 @@ Deno.serve(async (req: Request) => {
     // console.log(`Sending error notification to ${adminEmail}`);
     // console.log('Error details:', errorData);
 
+    // Sent through the guarded email relay (the old call named a function called "resend", which does not exist, so no report was ever
+    // emailed). This client holds the service-role key, which the relay accepts from trusted functions. skipFallback: a failing report
+    // must not turn into an SMS to the owner for every browser error.
     const { error: sendEmailError } = await supabase.functions.invoke(
-      'resend',
+      'send-email',
       {
         body: {
-          to: [adminEmail],
+          to: adminEmail,
           subject: emailSubject,
           html: emailBody,
+          skipFallback: true,
         },
       }
     );

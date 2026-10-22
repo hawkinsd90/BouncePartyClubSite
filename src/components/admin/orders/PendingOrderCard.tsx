@@ -1,4 +1,5 @@
 import { useState, useEffect, forwardRef, useRef, useImperativeHandle, memo } from 'react';
+import { showConfirm } from '../../common/CustomModal';
 import { OrderDetailModal } from './OrderDetailModal';
 import { OrderSummary } from '../../order/OrderSummary';
 import { usePendingOrderData } from '../../../hooks/orders/usePendingOrderData';
@@ -140,7 +141,7 @@ const PendingOrderCardInner = forwardRef<PendingOrderCardRef, {
         'This will skip customer approval and mark the order as confirmed (keeping the same payment method on file). Continue?';
     }
 
-    if (!confirm(confirmMessage)) {
+    if (!(await showConfirm(confirmMessage))) {
       return;
     }
 

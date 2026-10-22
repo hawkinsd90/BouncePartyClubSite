@@ -12,9 +12,12 @@ interface PaymentsTabProps {
   customFees?: { id: string; amount_cents: number; name?: string }[];
   discounts?: { id?: string; amount_cents?: number; percentage?: number; name: string }[];
   onPaymentsUpdate: () => void;
+  // The payments could not be loaded: say so (never show "No payments / $0 paid") and offer a retry.
+  loadError?: boolean;
+  onRetryLoad?: () => void;
 }
 
-export function PaymentsTab({ orderId, customerName, payments, order, customFees = [], discounts = [], onPaymentsUpdate }: PaymentsTabProps) {
+export function PaymentsTab({ orderId, customerName, payments, order, customFees = [], discounts = [], onPaymentsUpdate, loadError = false, onRetryLoad }: PaymentsTabProps) {
   const succeededPayments = payments.filter(p => p.status === 'succeeded');
   const totalCapturedCents = succeededPayments.reduce((sum, p) => sum + p.amount_cents, 0);
 
@@ -40,6 +43,18 @@ export function PaymentsTab({ orderId, customerName, payments, order, customFees
     : (order?.balance_paid_cents || 0);
   const [showRefundForm, setShowRefundForm] = useState(false);
 
+
+  if (loadError) {
+    return (
+      <div className="bg-amber-50 border border-amber-200 rounded-lg p-4" role="alert">
+        <p className="text-sm font-semibold text-amber-900">Payments could not be loaded</p>
+        <p className="text-xs text-amber-800 mt-1">The figures below are not shown because they could be wrong. Nothing was changed.</p>
+        {onRetryLoad && (
+          <button type="button" onClick={onRetryLoad} className="mt-3 bg-amber-600 hover:bg-amber-700 text-white text-sm font-semibold px-4 py-2 rounded-lg min-h-[44px]">Try again</button>
+        )}
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-4">

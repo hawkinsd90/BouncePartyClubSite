@@ -153,7 +153,8 @@ export async function getAllOrdersWithContacts(limit?: number, options?: QueryOp
       let query = supabase
         .from('orders')
         .select(COMPACT_ORDER_SELECT)
-        .order('event_date', { ascending: true });
+        // Newest events first: a cap must drop the oldest history, never the upcoming, pending or draft orders. The screen sorts for display.
+        .order('event_date', { ascending: false });
 
       if (limit) {
         query = query.limit(limit);

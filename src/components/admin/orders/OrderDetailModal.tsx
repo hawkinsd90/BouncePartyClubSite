@@ -154,7 +154,7 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
   const [parksAcknowledgmentResolving, setParksAcknowledgmentResolving] = useState(false);
 
   const { orderSummary: updatedOrderSummary, calculatedPricing, pricingError, calculatePricing } = usePricing();
-  const { payments, pricingRules, reload: reloadOrderData } = useAdminOrderDetails(order.id);
+  const { payments, pricingRules, loadError: orderDataLoadError, reload: reloadOrderData } = useAdminOrderDetails(order.id);
   const pricingDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Pricing input signature — changes immediately when any pricing-affecting
@@ -1236,6 +1236,8 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
               order={order}
               customFees={customFees}
               discounts={discounts.filter((d: any) => !d.is_new)}
+              loadError={orderDataLoadError}
+              onRetryLoad={() => { reloadOrderData(); }}
               onPaymentsUpdate={() => {
                 reloadOrderData();
                 onUpdate();

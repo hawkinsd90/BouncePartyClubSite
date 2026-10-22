@@ -294,7 +294,7 @@ eq(
   ['src/contexts/AuthContext.tsx', 'src/pages/ForgotPassword.tsx', 'src/pages/Login.tsx', 'src/pages/SignUp.tsx'],
 );
 const errNotify = read('supabase/functions/send-error-notification/index.ts');
-ok('send-error-notification has no provider call of its own (it invokes a "resend" function that does not exist in this repository, so it fails closed)', !/api\.resend\.com|api\.twilio\.com/.test(errNotify) && /functions\.invoke\(\s*'resend'/.test(errNotify) && !fs.existsSync('supabase/functions/resend'));
+ok('send-error-notification has no provider call of its own: it sends through the guarded send-email relay (NI-08; it used to invoke a "resend" function that never existed)', !/api\.resend\.com|api\.twilio\.com/.test(errNotify) && /functions\.invoke\(\s*'send-email'/.test(errNotify) && !/'resend'/.test(errNotify) && !fs.existsSync('supabase/functions/resend'));
 ok('the deprecated auth-email-hook sends nothing', !/fetch\(/.test(read('supabase/functions/auth-email-hook/index.ts').replace(/\/\*[\s\S]*?\*\//, '')));
 
 (async () => {

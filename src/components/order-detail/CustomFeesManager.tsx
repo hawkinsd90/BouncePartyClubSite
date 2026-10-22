@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Trash2, Pencil, Check, X } from 'lucide-react';
 import { formatCurrency } from '../../lib/pricing';
 import { showToast } from '../../lib/toasts';
+import { showConfirm } from '../common/CustomModal';
 import { supabase } from '../../lib/supabase';
 import { useFeeTemplates } from '../../hooks/invoices/useFeeTemplates';
 import { dollarsToCents } from '../../lib/pricing/money';
@@ -120,8 +121,8 @@ export function CustomFeesManager({
     onMarkChanges();
   }
 
-  function handleRemoveFee(feeId: string) {
-    if (!confirm('Remove this fee?')) return;
+  async function handleRemoveFee(feeId: string) {
+    if (!(await showConfirm('Remove this fee?'))) return;
     if (editingId === feeId) cancelEdit();
     onFeeChange(customFees.filter(f => f.id !== feeId));
     onMarkChanges();
@@ -134,7 +135,7 @@ export function CustomFeesManager({
     }
 
     const template = savedTemplates.find(t => t.id === selectedTemplateId);
-    if (!confirm(`Delete the fee template "${template?.name}"? This action cannot be undone.`)) {
+    if (!(await showConfirm(`Delete the fee template "${template?.name}"? This action cannot be undone.`))) {
       return;
     }
 

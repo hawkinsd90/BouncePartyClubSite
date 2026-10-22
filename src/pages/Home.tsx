@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { todayLocalKey } from '../lib/core/localDate';
 import { useNavigate } from 'react-router-dom';
 import {
   Calendar,
@@ -294,7 +295,7 @@ export function Home() {
                       onChange={(e) => setEventDate(e.target.value)}
                       style={{ fontSize: '16px' }}
                       className="w-full pl-10 sm:pl-11 pr-3 sm:pr-4 py-3 sm:py-3.5 border-2 border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-slate-900 font-medium transition-all appearance-none"
-                      min={new Date().toISOString().split('T')[0]}
+                      min={todayLocalKey()}
                     />
                   </div>
                 </div>

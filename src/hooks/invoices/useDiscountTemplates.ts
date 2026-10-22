@@ -1,16 +1,18 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '../../lib/supabase';
 
+// The table's real columns (see lib/orders/discountTemplates.ts).
 interface DiscountTemplate {
   id: string;
   name: string;
-  discount_type: 'percentage' | 'fixed';
-  discount_value: number;
+  amount_cents: number | null;
+  percentage: number | null;
 }
 
 export function useDiscountTemplates() {
   const [templates, setTemplates] = useState<DiscountTemplate[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(false);
 
   useEffect(() => {
     loadTemplates();
@@ -19,6 +21,7 @@ export function useDiscountTemplates() {
   const loadTemplates = async () => {
     try {
       setLoading(true);
+      setError(false);
       const { data, error } = await supabase
         .from('saved_discount_templates')
         .select('*')
@@ -28,10 +31,11 @@ export function useDiscountTemplates() {
       setTemplates((data as any || []) as DiscountTemplate[]);
     } catch (err) {
       console.error('Error loading discount templates:', err);
+      setError(true);
     } finally {
       setLoading(false);
     }
   };
 
-  return { templates, loading, reload: loadTemplates };
+  return { templates, loading, error, reload: loadTemplates };
 }

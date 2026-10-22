@@ -841,6 +841,7 @@ const NONE = { provider: 0, rpcs: 0, writes: 0, fetches: 0, settingsReads: 0 };
     'supabase/functions/save-signature/index.ts': 'service-role key header',
     'supabase/functions/send-invoice/index.ts': 'service-role key header',
     'supabase/functions/stripe-webhook/emails.ts': 'service-role key header',
+    'supabase/functions/send-error-notification/index.ts': 'service-role client (functions.invoke); public report endpoint, rate-limited, recipient fixed to the admin address',
     'supabase/functions/submit-contact-inquiry/index.ts': 'service-role key header',
     'supabase/functions/_shared/transaction-logger.ts': 'caller-supplied service-role client (functions.invoke)',
     'supabase/functions/_shared/payments/deposit-confirmation-email.ts': 'caller-supplied service-role client (functions.invoke); charge-deposit and the webhook pass service-role clients',
@@ -869,7 +870,7 @@ const NONE = { provider: 0, rpcs: 0, writes: 0, fetches: 0, settingsReads: 0 };
     ok(`callers: ${file} authenticates with the service-role key or a service-role client`, receivesClient || /SUPABASE_SERVICE_ROLE_KEY|serviceKey/.test(s) &&!/SUPABASE_ANON_KEY\}`?\s*[,}]?[^\n]{0,40}send-(email|sms)/.test(s));
   }
   // functions.invoke callers: the client they use is a service-role client
-  for (const file of ['supabase/functions/charge-deposit/index.ts', 'supabase/functions/order-lifecycle/index.ts', 'supabase/functions/record-cash-payment/index.ts', 'supabase/functions/record-check-payment/index.ts']) {
+  for (const file of ['supabase/functions/charge-deposit/index.ts', 'supabase/functions/send-error-notification/index.ts', 'supabase/functions/order-lifecycle/index.ts', 'supabase/functions/record-cash-payment/index.ts', 'supabase/functions/record-check-payment/index.ts']) {
     const s = text.get(file)!;
     ok(`callers: ${file} creates the client it invokes the relays with from the service-role key`, /createClient\(\s*Deno\.env\.get\("SUPABASE_URL"\)[^)]*Deno\.env\.get\("SUPABASE_SERVICE_ROLE_KEY"\)/.test(s));
   }

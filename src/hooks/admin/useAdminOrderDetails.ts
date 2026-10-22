@@ -65,6 +65,8 @@ export function useAdminOrderDetails(orderId: string | null) {
   const [payments, setPayments] = useState<Payment[]>([]);
   const [pricingRules, setPricingRules] = useState<PricingRule | null>(null);
   const [loading, setLoading] = useState(true);
+  // A failed load must not look like "no payments / $0 paid": the screens show a message and a Retry instead.
+  const [loadError, setLoadError] = useState(false);
   const isLoadingRef = useRef(false);
   const pendingRefreshRef = useRef(false);
   const currentOrderIdRef = useRef<string | null>(null);
@@ -88,6 +90,7 @@ export function useAdminOrderDetails(orderId: string | null) {
 
     try {
       setLoading(true);
+      setLoadError(false);
       await Promise.all([
         loadOrderDetails(loadingForOrderId),
         loadPayments(loadingForOrderId),
@@ -95,6 +98,7 @@ export function useAdminOrderDetails(orderId: string | null) {
       ]);
     } catch (err) {
       console.error('Error loading order data:', err);
+      if (currentOrderIdRef.current === loadingForOrderId) setLoadError(true);
     } finally {
       if (currentOrderIdRef.current === loadingForOrderId) {
         setLoading(false);
@@ -108,14 +112,16 @@ export function useAdminOrderDetails(orderId: string | null) {
   };
 
   const loadOrderDetails = async (forOrderId: string) => {
-    const { data } = await getOrderById(forOrderId);
+    const { data, error } = await getOrderById(forOrderId);
+    if (error) throw error;
     if (data && currentOrderIdRef.current === forOrderId) {
       setOrder(data as any);
     }
   };
 
   const loadPayments = async (forOrderId: string) => {
-    const { data } = await getOrderPayments(forOrderId);
+    const { data, error } = await getOrderPayments(forOrderId);
+    if (error) throw error;
     if (data && currentOrderIdRef.current === forOrderId) {
       setPayments(data as any[]);
     }
@@ -140,6 +146,7 @@ export function useAdminOrderDetails(orderId: string | null) {
     payments,
     pricingRules,
     loading,
+    loadError,
     reload: loadData,
     setOrder,
     setPayments,

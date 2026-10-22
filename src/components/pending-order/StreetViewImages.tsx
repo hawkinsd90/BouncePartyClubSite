@@ -12,7 +12,8 @@ interface Address {
 }
 
 interface StreetViewImagesProps {
-  address: Address;
+  // An order can have no address on file: the component then renders nothing (it used to crash reading lat/lng of null).
+  address: Address | null | undefined;
   orderCreatedAt: string;
   selectedImage: { url: string; label: string } | null;
   onSelectImage: (image: { url: string; label: string } | null) => void;
@@ -72,8 +73,8 @@ function nearestCardinal(heading: number): { heading: number; label: string } {
  * street-level position, then compute the compass bearing from that position
  * toward the building. No Google Maps JS library required — pure math.
  */
-async function fetchFacingHeading(address: Address): Promise<number | null> {
-  if (!address.lat || !address.lng) return null;
+async function fetchFacingHeading(address: Address | null | undefined): Promise<number | null> {
+  if (!address || !address.lat || !address.lng) return null;
 
   const apiKey = import.meta.env.VITE_GOOGLE_MAPS_API_KEY;
   try {
@@ -116,7 +117,9 @@ export function StreetViewImages({
       setPrimaryHeading(heading);
       setLoadingHeading(false);
     });
-  }, [address.lat, address.lng]);
+  }, [address?.lat, address?.lng]);
+
+  if (!address) return null;
 
   // Only highlight a tile if we have a confident computed heading.
   const primaryCardinal =

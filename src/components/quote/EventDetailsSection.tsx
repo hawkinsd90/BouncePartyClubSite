@@ -1,4 +1,5 @@
 import { Calendar, Home, Building2, Clock, AlertCircle, Ban } from 'lucide-react';
+import { localDateKey, parseDateOnly, todayLocalKey } from '../../lib/core/localDate';
 import type { QuoteFormData } from '../../hooks/booking/useQuoteForm';
 import { DatePickerInput } from '../ui/DatePickerInput';
 import { TimePickerInput } from '../ui/TimePickerInput';
@@ -344,25 +345,25 @@ export function EventDetailsSection({ formData, onFormDataChange, validationErro
               const oldEndDate = formData.event_end_date;
 
               if (oldStartDate && oldEndDate && newStartDate) {
-                const oldStart = new Date(oldStartDate);
-                const oldEnd = new Date(oldEndDate);
+                const oldStart = parseDateOnly(oldStartDate);
+                const oldEnd = parseDateOnly(oldEndDate);
                 const dayOffset = Math.round(
                   (oldEnd.getTime() - oldStart.getTime()) / (1000 * 60 * 60 * 24)
                 );
 
-                const newStart = new Date(newStartDate);
+                const newStart = parseDateOnly(newStartDate);
                 const newEnd = new Date(newStart);
                 newEnd.setDate(newEnd.getDate() + dayOffset);
 
                 onFormDataChange({
                   event_date: newStartDate,
-                  event_end_date: newEnd.toISOString().split('T')[0],
+                  event_end_date: localDateKey(newEnd),
                 });
               } else {
                 onFormDataChange({ event_date: newStartDate });
               }
             }}
-            min={new Date().toISOString().split('T')[0]}
+            min={todayLocalKey()}
             required={true}
             showIcon={false}
             className="border-2"
@@ -374,7 +375,7 @@ export function EventDetailsSection({ formData, onFormDataChange, validationErro
             id="event-end-date"
             value={formData.event_end_date}
             onChange={(value) => onFormDataChange({ event_end_date: value })}
-            min={formData.event_date || new Date().toISOString().split('T')[0]}
+            min={formData.event_date || todayLocalKey()}
             disabled={isSameDayRestricted}
             required={true}
             showIcon={false}

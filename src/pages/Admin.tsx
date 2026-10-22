@@ -99,7 +99,12 @@ function AdminDashboard() {
   }, []);
 
   const fetchAdminData = useCallback(async () => {
-    const [unitsRes, ordersRes, pricingRes] = await Promise.all([
+    const orderSelect = `
+        *,
+        customers (first_name, last_name, email, phone),
+        addresses (line1, city, state, zip, lat, lng)
+      `;
+    const [unitsRes, pendingRes, otherRes, pricingRes] = await Promise.all([
       supabase.from('units').select(`
         *,
         unit_media (
@@ -108,16 +113,15 @@ function AdminDashboard() {
           sort
         )
       `).order('name'),
-      supabase.from('orders').select(`
-        *,
-        customers (first_name, last_name, email, phone),
-        addresses (line1, city, state, zip, lat, lng)
-      `).in('status', [ORDER_STATUS.PENDING, ORDER_STATUS.DRAFT, ORDER_STATUS.CONFIRMED]).order('created_at', { ascending: false }).limit(50),
+      // Pending review has its own query: it must never be pushed out of a shared 50-row window by newer confirmed or draft orders.
+      supabase.from('orders').select(orderSelect).eq('status', ORDER_STATUS.PENDING).order('created_at', { ascending: false }).limit(200),
+      supabase.from('orders').select(orderSelect).in('status', [ORDER_STATUS.DRAFT, ORDER_STATUS.CONFIRMED]).order('created_at', { ascending: false }).limit(50),
       supabase.from('pricing_rules').select('*').limit(1).maybeSingle(),
     ]);
 
     if (unitsRes.error) throw unitsRes.error;
-    if (ordersRes.error) throw ordersRes.error;
+    if (pendingRes.error) throw pendingRes.error;
+    if (otherRes.error) throw otherRes.error;
     if (pricingRes.error) throw pricingRes.error;
 
     // Process units to add image_url from unit_media
@@ -143,7 +147,7 @@ function AdminDashboard() {
 
     return {
       units: (unitsWithImages || []) as UnitWithMedia[],
-      orders: (ordersRes.data || []) as unknown as OrderWithRelations[],
+      orders: [...(pendingRes.data || []), ...(otherRes.data || [])] as unknown as OrderWithRelations[],
       pricingRules: pricingRes.data as unknown as PricingRules,
     };
   }, []);
@@ -152,7 +156,7 @@ function AdminDashboard() {
     handleError(error, 'Admin.loadData');
   }, []);
 
-  const { data, loading, refetch } = useDataFetch<AdminData>(
+  const { data, loading, error: loadError, refetch } = useDataFetch<AdminData>(
     fetchAdminData,
     {
       errorMessage: 'Failed to load admin data',
@@ -273,6 +277,19 @@ function AdminDashboard() {
     return (
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
         <LoadingSpinner />
+      </div>
+    );
+  }
+
+  // The first load failed: say so with a Retry. (Without this the tabs below render empty, which reads as "no pending bookings".)
+  if (loadError && !data) {
+    return (
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
+        <div className="bg-white rounded-2xl shadow-xl p-8 border-2 border-amber-200 text-center" role="alert">
+          <h2 className="text-2xl font-bold text-slate-900 mb-2">The admin data could not be loaded</h2>
+          <p className="text-slate-600 mb-6">Nothing has been changed. Check your connection and try again.</p>
+          <button onClick={refetch} className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-xl font-bold min-h-[48px]">Try again</button>
+        </div>
       </div>
     );
   }
@@ -410,6 +427,12 @@ function AdminDashboard() {
       {activeTab === 'changelog' && <ChangelogTab />}
 
       {activeTab === 'pricing' && pricingRules && <PricingRulesSection pricingRules={pricingRules as any} />}
+      {activeTab === 'pricing' && !pricingRules && (
+        <div className="bg-white rounded-2xl shadow-xl p-8 border-2 border-amber-200 text-center" role="alert">
+          <p className="text-slate-700 mb-4">The pricing rules could not be loaded, so they are not shown here.</p>
+          <button onClick={refetch} className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-xl font-bold min-h-[48px]">Try again</button>
+        </div>
+      )}
 
       {activeTab === 'branding' && <BusinessBrandingTab />}
 
