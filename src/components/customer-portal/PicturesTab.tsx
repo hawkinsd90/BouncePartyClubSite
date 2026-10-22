@@ -1,5 +1,7 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Upload, X, Image as ImageIcon } from 'lucide-react';
+import { addPendingPhotos, releaseAll, removePendingPhoto, type PendingPhoto } from '../../lib/portal/pendingPhotos';
+import { notifyError } from '../../lib/toasts';
 
 interface ExistingPicture {
   id: string;
@@ -17,43 +19,35 @@ interface PicturesTabProps {
 
 export function PicturesTab({ onSubmit, existingPictures = [] }: PicturesTabProps) {
   const [pictureNotes, setPictureNotes] = useState('');
-  const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
-  const [previewUrls, setPreviewUrls] = useState<string[]>([]);
+  // One record per picked photo (file + its own preview), removed by id: see lib/portal/pendingPhotos.ts.
+  const [selected, setSelected] = useState<PendingPhoto[]>([]);
+  const selectedRef = useRef<PendingPhoto[]>([]);
+  selectedRef.current = selected;
   const [submitting, setSubmitting] = useState(false);
+
+  // Preview URLs are released when the tab goes away.
+  useEffect(() => () => releaseAll(selectedRef.current, (u) => URL.revokeObjectURL(u)), []);
 
   function handleImageUpload(e: React.ChangeEvent<HTMLInputElement>) {
     const files = Array.from(e.target.files || []);
-
-    const validFiles = files.filter(file => {
-      if (file.size > 10 * 1024 * 1024) {
-        alert(`${file.name} is too large. Maximum file size is 10MB.`);
-        return false;
-      }
-      return true;
-    });
-
-    validFiles.forEach(file => {
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        setPreviewUrls(prev => [...prev, reader.result as string]);
-      };
-      reader.readAsDataURL(file);
-    });
-
-    setSelectedFiles(prev => [...prev, ...validFiles]);
+    const result = addPendingPhotos(selected, files, { createUrl: (f) => URL.createObjectURL(f), newId: () => crypto.randomUUID() });
+    if (result.tooLarge.length > 0) notifyError(`${result.tooLarge.join(', ')} ${result.tooLarge.length === 1 ? 'is' : 'are'} too large. Maximum file size is 10MB.`);
+    if (result.notImages.length > 0) notifyError(`${result.notImages.join(', ')} ${result.notImages.length === 1 ? 'is' : 'are'} not a picture.`);
+    setSelected(result.items);
+    // let the same file be picked again after removing it
+    e.target.value = '';
   }
 
-  function handleRemoveImage(index: number) {
-    setSelectedFiles(prev => prev.filter((_, i) => i !== index));
-    setPreviewUrls(prev => prev.filter((_, i) => i !== index));
+  function handleRemoveImage(id: string) {
+    setSelected((prev) => removePendingPhoto(prev, id, (u) => URL.revokeObjectURL(u)));
   }
 
   async function handleSubmit() {
     setSubmitting(true);
     try {
-      await onSubmit(selectedFiles, pictureNotes);
-      setSelectedFiles([]);
-      setPreviewUrls([]);
+      await onSubmit(selected.map((p) => p.file), pictureNotes);
+      releaseAll(selected, (u) => URL.revokeObjectURL(u));
+      setSelected([]);
       setPictureNotes('');
     } finally {
       setSubmitting(false);
@@ -99,7 +93,7 @@ export function PicturesTab({ onSubmit, existingPictures = [] }: PicturesTabProp
         <h3 className="text-sm font-semibold text-slate-700 mb-3">Add More Pictures</h3>
         <div>
           <label className="block text-sm font-medium text-slate-700 mb-2">
-            Upload Pictures {selectedFiles.length > 0 && <span className="text-slate-500">({selectedFiles.length} selected)</span>}
+            Upload Pictures {selected.length > 0 && <span className="text-slate-500">({selected.length} selected)</span>}
           </label>
           <input
             type="file"
@@ -113,18 +107,19 @@ export function PicturesTab({ onSubmit, existingPictures = [] }: PicturesTabProp
           </p>
         </div>
 
-        {previewUrls.length > 0 && (
+        {selected.length > 0 && (
           <div className="grid grid-cols-2 md:grid-cols-3 gap-4 mt-4">
-            {previewUrls.map((url, idx) => (
-              <div key={idx} className="relative aspect-square rounded-lg overflow-hidden border border-slate-300 group">
-                <img src={url} alt={`Upload ${idx + 1}`} className="w-full h-full object-cover" />
+            {selected.map((p, idx) => (
+              <div key={p.id} className="relative aspect-square rounded-lg overflow-hidden border border-slate-300">
+                <img src={p.url} alt={`Upload ${idx + 1}`} className="w-full h-full object-cover" />
+                {/* Always visible: a touch screen has no hover. */}
                 <button
                   type="button"
-                  onClick={() => handleRemoveImage(idx)}
-                  className="absolute top-2 right-2 bg-red-600 hover:bg-red-700 text-white rounded-full p-1.5 opacity-0 group-hover:opacity-100 transition-opacity shadow-lg"
-                  aria-label="Remove image"
+                  onClick={() => handleRemoveImage(p.id)}
+                  className="absolute top-2 right-2 bg-red-600 hover:bg-red-700 text-white rounded-full w-11 h-11 flex items-center justify-center shadow-lg"
+                  aria-label={`Remove picture ${idx + 1}`}
                 >
-                  <X className="w-4 h-4" />
+                  <X className="w-5 h-5" />
                 </button>
               </div>
             ))}
@@ -146,7 +141,7 @@ export function PicturesTab({ onSubmit, existingPictures = [] }: PicturesTabProp
 
         <button
           onClick={handleSubmit}
-          disabled={submitting || selectedFiles.length === 0}
+          disabled={submitting || selected.length === 0}
           className="w-full mt-4 bg-blue-600 hover:bg-blue-700 disabled:bg-slate-400 text-white font-semibold py-3 px-6 rounded-lg transition-colors flex items-center justify-center gap-2"
         >
           <Upload className="w-5 h-5" />

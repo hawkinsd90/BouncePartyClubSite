@@ -289,7 +289,8 @@ export function LotPicturesTab({ orderId, orderStatus, pictures, invoiceLinkToke
             {/* Close button */}
             <button
               onClick={() => setSelectedPicture(null)}
-              className="absolute -top-12 right-0 p-2 text-white hover:bg-white hover:bg-opacity-20 rounded-full transition-colors"
+              aria-label="Close picture"
+              className="absolute top-2 right-2 z-10 w-11 h-11 flex items-center justify-center text-white bg-black bg-opacity-60 hover:bg-opacity-80 rounded-full transition-colors"
             >
               <X className="w-6 h-6" />
             </button>

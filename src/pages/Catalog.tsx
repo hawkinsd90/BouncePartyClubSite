@@ -1,4 +1,7 @@
 import { useEffect, useState, useCallback, useRef } from 'react';
+import { fetchInventoryProducts, fetchProductBundles, fetchProductCategories, fetchProductPricing } from '../lib/queries/products';
+import { getPublicBusinessSettings } from '../lib/core/adminSettingsCache';
+import { buildMenuAddOns, shouldIncludeAddOns, type MenuAddOn } from '../lib/menu/menuAddOns';
 import { todayLocalKey } from '../lib/core/localDate';
 import { Link, useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
@@ -175,7 +178,28 @@ export function Catalog() {
     ? categoryFilteredUnits.filter(unit => unavailableUnitIds.has(unit.id))
     : [];
 
-  const handleExportMenu = () => {
+  // Party Add-Ons for the menu: loaded when the menu is saved, and only on the plain "everything" menu (see shouldIncludeAddOns). A failure here
+  // never blocks the menu; it is saved without the add-ons and the visitor is told.
+  const loadMenuAddOns = async (): Promise<MenuAddOn[]> => {
+    try {
+      const settings = await getPublicBusinessSettings();
+      if (!shouldIncludeAddOns({ eventEssentialsEnabled: settings.event_essentials_page_enabled, filterType, availabilityChecked })) return [];
+      const [products, pricing, bundles, categories] = await Promise.all([fetchInventoryProducts(), fetchProductPricing(), fetchProductBundles(), fetchProductCategories()]);
+      if (products.error || pricing.error || bundles.error || categories.error) throw new Error('add-on data unavailable');
+      return buildMenuAddOns({
+        products: (products.data ?? []) as any[],
+        pricing: (pricing.data ?? []) as any[],
+        bundles: (bundles.data ?? []) as any[],
+        categories: (categories.data ?? []) as any[],
+      });
+    } catch (err) {
+      console.error('Menu add-ons unavailable:', err);
+      notifyError('Party Add-Ons could not be included in the menu this time.');
+      return [];
+    }
+  };
+
+  const handleExportMenu = async () => {
     if (filteredUnits.length === 0) {
       notifyError('No units available to export');
       return;
@@ -193,10 +217,13 @@ export function Catalog() {
       ? `Available Inflatables — ${formattedDate}`
       : 'Bounce Party Club Menu';
 
+    const addOns = await loadMenuAddOns();
+
     const menuData = {
       generatedAtIso: new Date().toISOString(),
       title,
       units: filteredUnits,
+      addOns,
       availabilityChecked,
       availabilityDateFormatted: availabilityChecked ? formattedDate : null,
       activeFilter: filterType !== 'all' ? filterLabels[filterType] : null,
@@ -257,8 +284,8 @@ export function Catalog() {
     <div className="min-h-screen bg-gradient-to-br from-slate-50 to-white">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12 sm:py-16">
         <div className="mb-10 sm:mb-12">
-          <div className="flex items-start justify-between gap-4 mb-4 sm:mb-5">
-            <h1 className="text-4xl sm:text-5xl lg:text-6xl font-bold text-slate-900 tracking-tight">
+          <div className="flex flex-wrap items-start justify-between gap-3 sm:gap-4 mb-4 sm:mb-5">
+            <h1 className="min-w-0 break-words text-3xl min-[400px]:text-4xl sm:text-5xl lg:text-6xl font-bold text-slate-900 tracking-tight">
               Browse Our Inflatables
             </h1>
             <button

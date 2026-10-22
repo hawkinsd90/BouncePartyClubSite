@@ -26,7 +26,7 @@ export function EventDatesCard({
         <Calendar className="w-5 h-5 text-blue-600" />
         <h2 className="text-lg font-bold text-slate-900">Event Dates</h2>
       </div>
-      <div className="grid grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 min-[420px]:grid-cols-2 gap-3 sm:gap-4">
         <div>
           <label htmlFor="event-date" className="block text-xs font-medium text-slate-700 mb-1">
             Start Date

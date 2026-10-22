@@ -138,6 +138,8 @@ export function ContactInformationForm({ contactData, onChange }: ContactInforma
           </label>
           <input
             type="email"
+            autoComplete="email"
+            inputMode="email"
             required
             value={contactData.email}
             onChange={(e) => {
@@ -164,6 +166,8 @@ export function ContactInformationForm({ contactData, onChange }: ContactInforma
           </label>
           <input
             type="tel"
+            autoComplete="tel"
+            inputMode="tel"
             required
             value={contactData.phone}
             onChange={(e) => {

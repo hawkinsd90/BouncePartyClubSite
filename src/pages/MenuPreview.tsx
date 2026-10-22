@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { addOnPriceLabel, paginate, type MenuAddOn } from '../lib/menu/menuAddOns';
 import { useNavigate } from 'react-router-dom';
 import { ArrowLeft, Printer, Download } from 'lucide-react';
 import { notifyError } from '../lib/toasts';
@@ -21,6 +22,8 @@ type Unit = {
 type MenuPreviewData = {
   generatedAtIso: string;
   units: Unit[];
+  // Party Add-Ons (Event Essentials) section; absent or empty = none (older saved data, filtered or date-checked menus).
+  addOns?: MenuAddOn[];
   title?: string;
   availabilityChecked?: boolean;
   availabilityDateFormatted?: string | null;
@@ -133,7 +136,8 @@ function wrapText(ctx: CanvasRenderingContext2D, text: string, maxWidth: number)
 async function drawMenuToCanvas(
   data: MenuPreviewData,
   logoImg: HTMLImageElement | null,
-  unitImages: (HTMLImageElement | null)[]
+  unitImages: (HTMLImageElement | null)[],
+  addOnImages: (HTMLImageElement | null)[] = []
 ): Promise<string> {
   const SCALE = 2; // retina
   const W = 1200;
@@ -149,7 +153,15 @@ async function drawMenuToCanvas(
   const FOOTER_H = 56;
   const ROWS = Math.ceil(data.units.length / COLS);
   const GRID_H = ROWS * CARD_H + (ROWS - 1) * GAP;
-  const TOTAL_H = HEADER_H + PAD + GRID_H + PAD + FOOTER_H;
+  // Party Add-Ons section (optional): a heading band, then smaller cards in the same 3 columns.
+  const addOns = data.addOns ?? [];
+  const ADDON_HEADING_H = addOns.length > 0 ? 56 : 0;
+  const ADDON_IMG_H = 110;
+  const ADDON_CARD_H = ADDON_IMG_H + 78;
+  const ADDON_ROWS = Math.ceil(addOns.length / COLS);
+  const ADDON_GRID_H = addOns.length > 0 ? ADDON_ROWS * ADDON_CARD_H + (ADDON_ROWS - 1) * GAP : 0;
+  const ADDON_SECTION_H = addOns.length > 0 ? ADDON_HEADING_H + ADDON_GRID_H + PAD : 0;
+  const TOTAL_H = HEADER_H + PAD + GRID_H + PAD + ADDON_SECTION_H + FOOTER_H;
 
   const canvas = document.createElement('canvas');
   canvas.width = W * SCALE;
@@ -391,8 +403,83 @@ async function drawMenuToCanvas(
     }
   }
 
+  // --- Party Add-Ons ---
+  if (addOns.length > 0) {
+    const sectionY = HEADER_H + PAD + GRID_H + PAD;
+    ctx.fillStyle = '#0f766e';
+    ctx.font = `900 22px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif`;
+    ctx.textAlign = 'left';
+    ctx.fillText('Party Add-Ons', PAD, sectionY + 30);
+    ctx.fillStyle = '#64748b';
+    ctx.font = `600 12px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif`;
+    ctx.fillText('Tables, chairs, tents and more to go with your inflatables', PAD, sectionY + 48);
+    const gridTop = sectionY + ADDON_HEADING_H;
+    for (let i = 0; i < addOns.length; i++) {
+      const a = addOns[i];
+      const img = addOnImages[i];
+      const col = i % COLS;
+      const row = Math.floor(i / COLS);
+      const cx = PAD + col * (CARD_W + GAP);
+      const cy = gridTop + row * (ADDON_CARD_H + GAP);
+      ctx.fillStyle = 'rgba(15,23,42,0.07)';
+      roundRect(ctx, cx + 2, cy + 3, CARD_W, ADDON_CARD_H, 12);
+      ctx.fill();
+      ctx.fillStyle = '#ffffff';
+      roundRect(ctx, cx, cy, CARD_W, ADDON_CARD_H, 12);
+      ctx.fill();
+      ctx.strokeStyle = '#e2e8f0';
+      ctx.lineWidth = 1;
+      roundRect(ctx, cx, cy, CARD_W, ADDON_CARD_H, 12);
+      ctx.stroke();
+      ctx.save();
+      roundRect(ctx, cx, cy, CARD_W, ADDON_IMG_H, 12);
+      ctx.rect(cx, cy + ADDON_IMG_H - 12, CARD_W, 12);
+      ctx.clip();
+      if (img) {
+        const iRatio = img.naturalWidth / img.naturalHeight;
+        const cRatio = CARD_W / ADDON_IMG_H;
+        let sw = img.naturalWidth, sh = img.naturalHeight, sx = 0, sy = 0;
+        if (iRatio > cRatio) { sw = Math.round(sh * cRatio); sx = Math.round((img.naturalWidth - sw) / 2); } else { sh = Math.round(sw / cRatio); sy = Math.round((img.naturalHeight - sh) / 2); }
+        ctx.drawImage(img, sx, sy, sw, sh, cx, cy, CARD_W, ADDON_IMG_H);
+      } else {
+        ctx.fillStyle = '#ccfbf1';
+        ctx.fillRect(cx, cy, CARD_W, ADDON_IMG_H);
+        ctx.fillStyle = '#0f766e';
+        ctx.font = '500 13px sans-serif';
+        ctx.textAlign = 'center';
+        ctx.fillText('Party Add-On', cx + CARD_W / 2, cy + ADDON_IMG_H / 2 + 5);
+        ctx.textAlign = 'left';
+      }
+      ctx.restore();
+      const tx = cx + 12;
+      const textW = CARD_W - 24;
+      let ty = cy + ADDON_IMG_H + 20;
+      ctx.fillStyle = '#0f172a';
+      ctx.font = `800 14px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif`;
+      const lines = wrapText(ctx, a.name, textW);
+      lines.slice(0, 1).forEach((line) => ctx.fillText(line, tx, ty));
+      ty += 16;
+      ctx.fillStyle = '#64748b';
+      ctx.font = `700 11px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif`;
+      ctx.fillText(a.categoryName ?? '', tx, ty);
+      ty += 20;
+      ctx.fillStyle = '#f0fdfa';
+      roundRect(ctx, tx, ty - 14, textW, 24, 6);
+      ctx.fill();
+      ctx.strokeStyle = '#5eead4';
+      roundRect(ctx, tx, ty - 14, textW, 24, 6);
+      ctx.stroke();
+      ctx.fillStyle = '#115e59';
+      ctx.font = `800 12px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif`;
+      ctx.fillText(addOnPriceLabel(a), tx + 8, ty + 2);
+      ctx.textAlign = 'right';
+      ctx.fillText(formatCurrency(a.priceCents), tx + textW - 8, ty + 2);
+      ctx.textAlign = 'left';
+    }
+  }
+
   // --- Footer ---
-  const fy = HEADER_H + PAD + GRID_H + PAD;
+  const fy = HEADER_H + PAD + GRID_H + PAD + ADDON_SECTION_H;
   ctx.fillStyle = '#ffffff';
   ctx.fillRect(0, fy, W, FOOTER_H);
   ctx.strokeStyle = '#e2e8f0';
@@ -471,7 +558,7 @@ export function MenuPreview() {
 
     try {
       document.body.classList.add('print-menu-preview');
-      await preloadImages([logoUrl, ...getUnitImageUrls(data.units)]);
+      await preloadImages([logoUrl, ...getUnitImageUrls(data.units), ...(data.addOns ?? []).map((a) => a.imageUrl ?? '')]);
 
       setTimeout(() => window.print(), 50);
     } catch (e) {
@@ -490,12 +577,16 @@ export function MenuPreview() {
     try {
       const logoUrl = `${window.location.origin}/bounce party club logo.png`;
 
-      const [logoImg, ...unitImgs] = await Promise.all([
+      const addOns = data.addOns ?? [];
+      const [logoImg, ...loaded] = await Promise.all([
         loadImageForCanvas(logoUrl),
         ...data.units.map((u) => loadImageForCanvas(getUnitImageUrl(u))),
+        ...addOns.map((a) => loadImageForCanvas(a.imageUrl ?? '')),
       ]);
+      const unitImgs = loaded.slice(0, data.units.length);
+      const addOnImgs = loaded.slice(data.units.length);
 
-      const dataUrl = await drawMenuToCanvas(data, logoImg, unitImgs);
+      const dataUrl = await drawMenuToCanvas(data, logoImg, unitImgs, addOnImgs);
 
       // Convert to Blob so we can use the Web Share API (works on iOS/Android)
       // and also get an object URL for the desktop anchor download.
@@ -647,7 +738,7 @@ export function MenuPreview() {
             return pages.map((pageUnits, pageIdx) => (
               <div
                 key={pageIdx}
-                className={`menu-print-page-group${pageIdx < pages.length - 1 ? ' menu-print-page-break' : ''}`}
+                className={`menu-print-page-group${pageIdx < pages.length - 1 || (data.addOns ?? []).length > 0 ? ' menu-print-page-break' : ''}`}
               >
                 <div className="menu-print-grid">
                   {buildRows(pageUnits).map((pair, rowIdx) => (
@@ -713,6 +804,47 @@ export function MenuPreview() {
             ));
           })()}
 
+
+          {(data.addOns ?? []).length > 0 && (
+            <div className="menu-print-addons">
+              {paginate(data.addOns ?? []).map((pageItems, pageIdx, all) => (
+                <div
+                  key={`addons-${pageIdx}`}
+                  className={`menu-print-page-group${pageIdx < all.length - 1 ? ' menu-print-page-break' : ''}`}
+                >
+                  {pageIdx === 0 && (
+                    <div className="menu-addons-heading">
+                      <div className="menu-addons-title">Party Add-Ons</div>
+                      <div className="menu-addons-subtitle">Tables, chairs, tents and more to go with your inflatables</div>
+                    </div>
+                  )}
+                  <div className="menu-print-grid">
+                    {Array.from({ length: Math.ceil(pageItems.length / 2) }, (_, r) => pageItems.slice(r * 2, r * 2 + 2)).map((pair, rowIdx) => (
+                      <div key={rowIdx} className="menu-print-row">
+                        {pair.map((a) => (
+                          <div key={a.id} className="menu-unit-card">
+                            {a.imageUrl ? (
+                              <img src={a.imageUrl} alt={a.name} className="menu-unit-image" onError={(e) => ((e.currentTarget.style.display = 'none'))} />
+                            ) : null}
+                            <div className="menu-unit-name-row">
+                              <div className="menu-unit-name">{a.name}</div>
+                            </div>
+                            <div className="menu-unit-type">{a.categoryName ?? ''}</div>
+                            <div className="menu-unit-pricing">
+                              <div className="menu-price-row">
+                                <span className="menu-price-label">{addOnPriceLabel(a)}</span>
+                                <span className="menu-price-value">{formatCurrency(a.priceCents)}</span>
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
 
           <div className="menu-print-footer">
             <div>

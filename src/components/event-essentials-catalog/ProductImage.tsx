@@ -14,6 +14,8 @@ export function ProductImage({ imageUrl, alt }: Props) {
         <img
           src={imageUrl}
           alt={alt}
+          loading="lazy"
+          decoding="async"
           className="w-full h-full object-cover"
           onError={(e) => {
             const target = e.currentTarget;

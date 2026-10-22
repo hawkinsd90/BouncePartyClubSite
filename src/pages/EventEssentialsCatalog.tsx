@@ -130,7 +130,7 @@ export function EventEssentialsCatalog() {
       setSearchParams(prev => {
         prev.delete('categories');
         return prev;
-      });
+      }, { replace: true });
       return;
     }
     setSelectedCategoryKeys(prev => {
@@ -148,7 +148,7 @@ export function EventEssentialsCatalog() {
           prev.set('categories', slugs.join(','));
         }
         return prev;
-      });
+      }, { replace: true });
       return next;
     });
   }

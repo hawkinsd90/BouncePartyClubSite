@@ -100,6 +100,8 @@ export function CustomerFormFields({
         <TextInput
           label="Email"
           type="email"
+          autoComplete="email"
+          inputMode="email"
           value={data.email}
           onChange={(value) => handleChange('email', value)}
           placeholder="you@example.com"
@@ -110,6 +112,8 @@ export function CustomerFormFields({
         <TextInput
           label="Phone"
           type="tel"
+          autoComplete="tel"
+          inputMode="tel"
           value={data.phone}
           onChange={(value) => handleChange('phone', value)}
           placeholder="(313) 555-0123"

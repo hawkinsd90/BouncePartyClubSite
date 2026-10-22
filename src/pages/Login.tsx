@@ -284,6 +284,8 @@ export function Login() {
               </label>
               <input
                 type="email"
+                autoComplete="email"
+                inputMode="email"
                 required
                 value={email}
                 onChange={(e) => {
@@ -302,6 +304,7 @@ export function Login() {
               <div className="relative">
                 <input
                   type={showPassword ? 'text' : 'password'}
+                  autoComplete="current-password"
                   required
                   value={password}
                   onChange={(e) => {

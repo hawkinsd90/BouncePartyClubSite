@@ -165,6 +165,22 @@ textarea {
   }
 }
 
+.menu-preview-route .menu-addons-heading {
+  margin: 28px 0 14px;
+}
+
+.menu-preview-route .menu-addons-title {
+  font-size: 26px;
+  font-weight: 900;
+  color: #0f766e;
+}
+
+.menu-preview-route .menu-addons-subtitle {
+  font-size: 13px;
+  font-weight: 600;
+  color: #64748b;
+}
+
 .menu-preview-route .menu-unit-card {
   border: 3px solid transparent;
   background: linear-gradient(white, white) padding-box,
@@ -657,6 +673,21 @@ textarea {
   body.print-menu-preview #root .menu-print-page-break {
     break-after: page !important;
     page-break-after: always !important;
+  }
+
+  body.print-menu-preview #root .menu-addons-heading {
+    margin: 0 0 8px !important;
+  }
+
+  body.print-menu-preview #root .menu-addons-title {
+    font-size: 18px !important;
+    font-weight: 900 !important;
+    color: #0f766e !important;
+  }
+
+  body.print-menu-preview #root .menu-addons-subtitle {
+    font-size: 10px !important;
+    color: #64748b !important;
   }
 
   body.print-menu-preview #root .menu-unit-card {

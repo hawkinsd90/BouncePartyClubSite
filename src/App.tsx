@@ -39,6 +39,16 @@ const ShortLink = lazy(() => import('./pages/ShortLink').then(m => ({ default: m
 const EventEssentialsCatalog = lazy(() => import('./pages/EventEssentialsCatalog').then(m => ({ default: m.EventEssentialsCatalog })));
 
 
+// A new page opens at its top. The page-change signal is the path only (tabs and filters inside a page change the query, and a link to
+// an anchor on the page keeps its position).
+function ScrollToTop() {
+  const { pathname, hash } = useLocation();
+  useEffect(() => {
+    if (!hash) window.scrollTo(0, 0);
+  }, [pathname]);
+  return null;
+}
+
 function OAuthRedirectHandler() {
   const navigate = useNavigate();
   const location = useLocation();
@@ -85,6 +95,7 @@ function App() {
           <AuthProvider>
             <CustomerProfileProvider>
         <GoogleAdsTag />
+        <ScrollToTop />
         <OAuthRedirectHandler />
         <RecoveryRedirectHandler />
         <Suspense fallback={

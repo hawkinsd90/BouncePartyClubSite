@@ -458,6 +458,8 @@ export function SignUp() {
               </label>
               <input
                 type="email"
+                autoComplete="email"
+                inputMode="email"
                 required
                 value={formData.email}
                 onChange={(e) => handleChange('email', e.target.value)}
@@ -528,6 +530,8 @@ export function SignUp() {
               </label>
               <input
                 type="tel"
+                autoComplete="tel"
+                inputMode="tel"
                 required
                 value={formData.phone}
                 onChange={(e) => handleChange('phone', e.target.value)}
@@ -602,6 +606,7 @@ export function SignUp() {
                   <div className="relative">
                     <input
                       type={showPassword ? 'text' : 'password'}
+                      autoComplete="new-password"
                       required
                       value={formData.password}
                       onChange={(e) => handleChange('password', e.target.value)}
@@ -637,6 +642,7 @@ export function SignUp() {
                   <div className="relative">
                     <input
                       type={showConfirmPassword ? 'text' : 'password'}
+                      autoComplete="new-password"
                       required
                       value={formData.confirmPassword}
                       onChange={(e) => handleChange('confirmPassword', e.target.value)}

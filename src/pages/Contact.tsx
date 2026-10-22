@@ -128,7 +128,7 @@ export function Contact() {
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
           <div className="lg:col-span-2">
-            <div className="bg-white rounded-2xl shadow-xl border-2 border-slate-200 p-8">
+            <div className="bg-white rounded-2xl shadow-xl border-2 border-slate-200 p-4 sm:p-8">
               <h2 className="text-3xl font-bold text-slate-900 mb-8 tracking-tight">
                 Tell Us About Your Event
               </h2>
@@ -177,6 +177,8 @@ export function Contact() {
                     <input
                       id="email"
                       type="email"
+                      autoComplete="email"
+                      inputMode="email"
                       required
                       value={formData.email}
                       onChange={(e) => setFormData({ ...formData, email: e.target.value })}
@@ -192,6 +194,8 @@ export function Contact() {
                     <input
                       id="phone"
                       type="tel"
+                      autoComplete="tel"
+                      inputMode="tel"
                       required
                       value={formData.phone}
                       onChange={(e) => setFormData({ ...formData, phone: e.target.value })}

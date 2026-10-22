@@ -379,7 +379,7 @@ export default function Sign() {
             </p>
           </div>
 
-          <form onSubmit={handleSubmit} className="p-8 space-y-8">
+          <form onSubmit={handleSubmit} className="p-4 sm:p-8 space-y-8">
             <div id="waiver-section">
               <h3 className="text-xl font-semibold text-gray-900 mb-4">
                 1. Review Liability Waiver

@@ -9,6 +9,9 @@ interface TextInputProps {
   error?: string;
   helpText?: string;
   className?: string;
+  // Hints for the browser's autofill and the on-screen keyboard.
+  autoComplete?: string;
+  inputMode?: 'text' | 'email' | 'tel' | 'numeric' | 'decimal' | 'url';
 }
 
 export function TextInput({
@@ -22,6 +25,8 @@ export function TextInput({
   error,
   helpText,
   className = '',
+  autoComplete,
+  inputMode,
 }: TextInputProps) {
   return (
     <div className={className}>
@@ -31,6 +36,8 @@ export function TextInput({
       </label>
       <input
         type={type}
+        autoComplete={autoComplete}
+        inputMode={inputMode}
         value={value}
         onChange={(e) => onChange(e.target.value)}
         placeholder={placeholder}
