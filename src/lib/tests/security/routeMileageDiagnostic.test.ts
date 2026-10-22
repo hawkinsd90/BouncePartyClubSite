@@ -1,8 +1,8 @@
-// WP-13 (conditional on P0-C): LOCAL DIAGNOSTIC of supabase/functions/calculate-route-mileage/index.ts.
-// This test CHARACTERIZES the deployed function's current behavior with fixtures. It changes nothing in production code and does not claim to
-// have found the hosted failure: the hosted cause (Google key restriction, quota, a specific Production row) cannot be reproduced locally and
-// stays an open diagnostic step (P0-C: the owner runs End Day -> auto-calculate on Dev and sends the toast text).
-// PASS - LOCAL AUTOMATED / MOCKED (the real handler source, a fake database and a fake Google Distance Matrix).
+// WP-13: regression tests for supabase/functions/calculate-route-mileage/index.ts, running the REAL handler against fixtures (fake database, fake Google).
+// Corrected here (source-confirmed, independent of the hosted failure): failed task/mileage/role queries are reported as failed reads; a drop-off and a
+// pick-up of one order on one day are two stops; the requested date is the only date searched; a start reading of 0 is a reading; Google's own
+// error message is shown (key removed). NOT claimed: the hosted cause (Google key restriction, quota, Production data) - that stays REQUIRES HOSTED DEV
+// VERIFICATION (P0-C: the toast text from End Day auto-calculate on Dev). PASS - LOCAL AUTOMATED / MOCKED.
 /* eslint-disable @typescript-eslint/no-explicit-any */
 declare const require: (id: string) => any;
 const fs = require('fs');
@@ -35,7 +35,7 @@ interface World {
   startMileage?: number | null;
   mileageError?: boolean;
   taskError?: boolean;
-  tasks?: Record<string, Array<{ order_id: string; sort_order: number | null; status: string; line1?: string; lat?: number; lng?: number }>>;
+  tasks?: Record<string, Array<{ order_id: string; task_type?: string; sort_order: number | null; status: string; line1?: string; lat?: number; lng?: number }>>;
   settings?: Record<string, string>;
   key?: string | null;
   google?: (url: string, n: number) => { ok: boolean; status?: number; body: any };
@@ -78,7 +78,7 @@ function makeHandler(w: World) {
               const rows = (w.tasks ?? {})[filters.task_date] ?? [];
               out = {
                 data: rows.map((t) => ({
-                  order_id: t.order_id,
+                  order_id: t.order_id, task_type: t.task_type,
                   sort_order: t.sort_order,
                   orders: { status: t.status, addresses: t.lat != null ? { line1: t.line1 ?? 'x', city: 'Detroit', state: 'MI', zip: '48201', lat: t.lat, lng: t.lng } : { line1: t.line1 ?? '1 Main', city: 'Detroit', state: 'MI', zip: '48201', lat: null, lng: null } },
                 })),
@@ -114,11 +114,14 @@ async function main() {
     eq('healthy day: 200, 2 stops, 3 legs, 3 miles, end = start + 3', [r.status, r.json.stopCount, r.json.segments?.length, r.json.totalMiles, r.json.calculatedEndMileage, r.json.usedNearbyDate], [200, 2, 3, 3, 103, false]);
     eq('healthy day: one Google request per leg (sequential)', h.googleCalls(), 3);
   }
-  // 2. FACT: the same order on the same day (a drop-off and a pick-up) is counted ONCE, contradicting the two-stop rule.
+  // 2. CORRECTED (was the order-id de-dupe): the same order twice on the same day (a drop-off and a pick-up) is TWO stops.
   {
-    const h = makeHandler({ tasks: { [D]: [stop('a', 1), stop('a', 2)] } });
+    const h = makeHandler({ tasks: { [D]: [{ ...stop('a', 1), task_type: 'drop-off' }, { ...stop('a', 2), task_type: 'pick-up' }] } });
     const r = await h.call({ date: D });
-    eq('FACT: same order twice the same day -> ONE stop (order-id de-dupe, index.ts:43-52)', [r.status, r.json.stopCount], [200, 1]);
+    eq('same order, drop-off and pick-up the same day -> TWO stops and four legs (home, a, a, home)', [r.status, r.json.stopCount, r.json.segments?.length], [200, 2, 3]);
+    eq('...labelled by visit', [r.json.segments?.[1]?.from, r.json.segments?.[1]?.to], ['x, Detroit, MI (drop-off)', 'x, Detroit, MI (pick-up)']);
+    const two = await makeHandler({ tasks: { [D]: [stop('a', 1), stop('a', 2), stop('b', 3)] } }).call({ date: D });
+    eq('three task rows are three stops, whatever the orders', two.json.stopCount, 3);
   }
   // 3. FACT: a cancelled order is excluded from the stops but its row still counts in the diagnostic text.
   {
@@ -126,30 +129,37 @@ async function main() {
     const r = await h.call({ date: D });
     ok('FACT: only a cancelled order that day -> 422 naming the statuses found', r.status === 422 && /1 task\(s\) on 2026-07-10 but none qualify — statuses found: cancelled/.test(r.json.error));
   }
-  // 4. FACT: a failed task query is swallowed and reported as "No tasks scheduled".
+  // 4. CORRECTED: a failed task query is reported as a failed read (500, TASKS_LOAD_FAILED), never as "No tasks scheduled".
   {
     const r = await makeHandler({ taskError: true }).call({ date: D });
-    ok('FACT: a database error reads as "No tasks scheduled" (index.ts:37)', r.status === 422 && /No tasks scheduled on 2026-07-10\./.test(r.json.error));
+    ok('a database error is reported as a failed task load, naming the date and the database message', r.status === 500 && r.json.code === 'TASKS_LOAD_FAILED' && /Could not load the tasks for 2026-07-10: relation error/.test(r.json.error) && !/No tasks scheduled/.test(r.json.error));
   }
-  // 5. FACT: with no tasks on the date the function silently uses a task up to 3 days away and says so only in the toast suffix.
+  // 5. CORRECTED: the requested date and no other; tasks on a neighbouring day are a different day's route.
   {
-    const h = makeHandler({ tasks: { '2026-07-12': [stop('a', 1)] } });
-    const r = await h.call({ date: D });
-    eq('FACT: no tasks on the date, one two days later -> 200 with usedNearbyDate', [r.status, r.json.usedNearbyDate, r.json.resolvedDate], [200, true, '2026-07-12']);
-    const far = await makeHandler({ tasks: { '2026-07-14': [stop('a', 1)] } }).call({ date: D });
-    eq('four days away is not found', far.status, 422);
+    for (const near of ['2026-07-12', '2026-07-09', '2026-07-11', '2026-07-13']) {
+      const h = makeHandler({ tasks: { [near]: [stop('a', 1)] } });
+      const r = await h.call({ date: D });
+      ok(`tasks only on ${near} -> 422 NO_QUALIFYING_TASKS (no silent neighbouring-day search) and no Google request`, r.status === 422 && r.json.code === 'NO_QUALIFYING_TASKS' && /No tasks scheduled on 2026-07-10\./.test(r.json.error) && h.googleCalls() === 0);
+    }
+    const ok1 = await makeHandler({ tasks: { [D]: [stop('a', 1)] } }).call({ date: D });
+    eq('the requested date is always the resolved date', [ok1.json.resolvedDate, ok1.json.usedNearbyDate], [D, false]);
   }
-  // 6. start-of-day reading: 0, missing and a failed lookup all read "must be recorded".
-  for (const [label, w] of [['null', { startMileage: null }], ['zero', { startMileage: 0 }], ['lookup error', { mileageError: true }]] as const) {
-    const r = await makeHandler({ ...w, tasks: { [D]: [stop('a', 1)] } }).call({ date: D });
-    ok(`FACT: start reading ${label} -> 422 "Start of day mileage must be recorded" (a lookup error is swallowed, index.ts:135-147)`, r.status === 422 && /Start of day mileage must be recorded/.test(r.json.error));
+  // 6. start-of-day reading: only a MISSING reading is missing; 0 is a reading; a failed lookup is a failed lookup.
+  {
+    const missing = await makeHandler({ startMileage: null, tasks: { [D]: [stop('a', 1)] } }).call({ date: D });
+    ok('no reading -> 422 START_MILEAGE_MISSING', missing.status === 422 && missing.json.code === 'START_MILEAGE_MISSING' && /Start of day mileage must be recorded/.test(missing.json.error));
+    const zero = await makeHandler({ startMileage: 0, tasks: { [D]: [stop('a', 1)] } }).call({ date: D });
+    eq('a start reading of 0 is accepted: end = 0 + 2 miles (one stop, two legs)', [zero.status, zero.json.startMileage, zero.json.calculatedEndMileage], [200, 0, 2]);
+    const lookup = await makeHandler({ mileageError: true, tasks: { [D]: [stop('a', 1)] } }).call({ date: D });
+    ok('a failed mileage lookup is reported as such (500 MILEAGE_LOOKUP_FAILED), not as a missing reading', lookup.status === 500 && lookup.json.code === 'MILEAGE_LOOKUP_FAILED' && !/must be recorded/.test(lookup.json.error));
   }
   // 7. roles.
   {
     eq('crew is allowed', (await makeHandler({ role: 'crew', tasks: { [D]: [stop('a', 1)] } }).call({ date: D })).status, 200);
     eq('customer is refused', (await makeHandler({ role: 'customer' }).call({ date: D })).status, 403);
     eq('no role row is refused', (await makeHandler({ role: null }).call({ date: D })).status, 403);
-    eq('FACT: a role lookup error (e.g. two role rows) is read as "no role" -> 403 (REFUTED for Production: no duplicate rows)', (await makeHandler({ roleError: true }).call({ date: D })).status, 403);
+    const roleFail = await makeHandler({ roleError: true }).call({ date: D });
+    ok('a failed role lookup is reported as such (500 ROLE_LOOKUP_FAILED), not as "forbidden"', roleFail.status === 500 && roleFail.json.code === 'ROLE_LOOKUP_FAILED' && /Could not verify your role/.test(roleFail.json.error));
     eq('missing date is a 400', (await makeHandler({}).call({})).status, 400);
     eq('missing bearer token is a 401', (await makeHandler({}).call({ date: D }, '')).status, 401);
   }
@@ -157,7 +167,9 @@ async function main() {
   {
     const denied = makeHandler({ tasks: { [D]: [stop('a', 1)] }, google: () => ({ ok: true, body: { status: 'REQUEST_DENIED', error_message: 'API key restricted', rows: [] } }) });
     const r = await denied.call({ date: D });
-    ok('a restricted or denied Google key reads "API status: REQUEST_DENIED, Element status: unknown" with the waypoints (the error_message itself is NOT shown)', r.status === 422 && /API status: REQUEST_DENIED, Element status: unknown/.test(r.json.error) && !/restricted/.test(r.json.error));
+    ok('a denied Google key shows the status AND Google\'s own explanation, and exposes both as fields', r.status === 422 && /API status: REQUEST_DENIED, Element status: unknown/.test(r.json.error) && /Google says: API key restricted/.test(r.json.error) && r.json.providerStatus === 'REQUEST_DENIED' && r.json.providerMessage === 'API key restricted');
+    const echo = await makeHandler({ tasks: { [D]: [stop('a', 1)] }, key: 'SECRETKEY123', google: () => ({ ok: true, body: { status: 'REQUEST_DENIED', error_message: 'The key SECRETKEY123 is invalid', rows: [] } }) }).call({ date: D });
+    ok('the server key is never echoed back, even if the provider includes it', echo.status === 422 && !JSON.stringify(echo.json).includes('SECRETKEY123') && /\[key\] is invalid/.test(echo.json.error));
     const http = await makeHandler({ tasks: { [D]: [stop('a', 1)] }, google: () => ({ ok: false, status: 403, body: {} }) }).call({ date: D });
     ok('an HTTP failure from Google reads "HTTP 403" for the segment', http.status === 502 && /segment 1: HTTP 403/.test(http.json.error));
     const zero = await makeHandler({ tasks: { [D]: [stop('a', 1)] }, google: () => ({ ok: true, body: { status: 'OK', rows: [{ elements: [{ status: 'ZERO_RESULTS' }] }] } }) }).call({ date: D });

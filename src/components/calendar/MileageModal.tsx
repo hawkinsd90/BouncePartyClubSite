@@ -61,7 +61,7 @@ export function MileageModal({ isOpen, date, type, onClose, onSuccess }: Mileage
   }
 
   async function handleAutoCalculate() {
-    if (!existingLog?.start_mileage) {
+    if (existingLog?.start_mileage === null || existingLog?.start_mileage === undefined) {
       showToast('Start of day mileage must be recorded before auto-calculating', 'error');
       return;
     }
@@ -164,7 +164,7 @@ export function MileageModal({ isOpen, date, type, onClose, onSuccess }: Mileage
 
   if (!isOpen) return null;
 
-  const canAutoCalculate = type === 'end' && !!existingLog?.start_mileage;
+  const canAutoCalculate = type === 'end' && existingLog?.start_mileage !== null && existingLog?.start_mileage !== undefined;
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 z-[70] overflow-y-auto">

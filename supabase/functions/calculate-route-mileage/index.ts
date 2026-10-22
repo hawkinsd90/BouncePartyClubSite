@@ -15,7 +15,20 @@ interface TaskStop {
   label: string;
 }
 
-/** Fetch task rows for a specific date and return driveable stops with coordinates. */
+/** Thrown when the database could not be read, so the caller says so instead of reporting an unrelated cause. */
+class DataLoadError extends Error {
+  code: string;
+  constructor(code: string, message: string) {
+    super(message);
+    this.code = code;
+  }
+}
+
+function jsonResponse(status: number, body: Record<string, unknown>): Response {
+  return new Response(JSON.stringify(body), { status, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+}
+
+/** Fetch task rows for a specific date and return driveable stops with coordinates. One stop per task row. */
 async function getTaskStopsForDate(
   supabaseAdmin: ReturnType<typeof createClient>,
   date: string
@@ -24,6 +37,7 @@ async function getTaskStopsForDate(
     .from("task_status")
     .select(`
       order_id,
+      task_type,
       sort_order,
       orders (
         status,
@@ -34,27 +48,26 @@ async function getTaskStopsForDate(
     .order("sort_order", { ascending: true, nullsFirst: false })
     .order("order_id", { ascending: true });
 
-  if (error || !taskRows) return { stops: [], allRows: 0, allStatuses: [] };
+  // A failed read is reported as a failed read, never as "no tasks scheduled".
+  if (error) throw new DataLoadError("TASKS_LOAD_FAILED", `Could not load the tasks for ${date}: ${error.message}`);
+  if (!taskRows) return { stops: [], allRows: 0, allStatuses: [] };
 
   const allStatuses = taskRows
     .map((r: any) => r.orders?.status)
     .filter(Boolean) as string[];
 
-  const seenOrderIds = new Set<string>();
   const stops: TaskStop[] = [];
 
   for (const row of taskRows) {
     const order = row.orders as any;
     if (!order || !DRIVEABLE_STATUSES.has(order.status)) continue;
 
-    const orderId = row.order_id as string;
-    if (seenOrderIds.has(orderId)) continue;
-    seenOrderIds.add(orderId);
-
+    // One stop per task row: a drop-off and a pick-up of the same order on the same day are two visits, so two stops.
     const addr = order.addresses;
     if (!addr) continue;
 
-    const label = `${addr.line1 || ""}, ${addr.city || ""}, ${addr.state || ""}`.trim();
+    const kind = row.task_type === "pick-up" ? " (pick-up)" : row.task_type === "drop-off" ? " (drop-off)" : "";
+    const label = `${addr.line1 || ""}, ${addr.city || ""}, ${addr.state || ""}`.trim() + kind;
 
     // Prefer lat/lng coordinates — much more reliable than address geocoding in Distance Matrix
     if (addr.lat && addr.lng) {
@@ -70,11 +83,10 @@ async function getTaskStopsForDate(
   return { stops, allRows: taskRows.length, allStatuses };
 }
 
-/** Offset a YYYY-MM-DD string by `days` days. */
-function offsetDate(dateStr: string, days: number): string {
-  const d = new Date(dateStr + "T12:00:00Z");
-  d.setUTCDate(d.getUTCDate() + days);
-  return d.toISOString().split("T")[0];
+/** Google's own explanation for a refusal, with the key removed in case the provider echoes it. */
+function providerMessage(data: any, key: string): string {
+  const raw = typeof data?.error_message === "string" ? data.error_message : "";
+  return key ? raw.split(key).join("[key]") : raw;
 }
 
 Deno.serve(async (req: Request) => {
@@ -87,10 +99,7 @@ Deno.serve(async (req: Request) => {
     const callerToken = authHeader.replace(/^Bearer\s+/i, "").trim();
 
     if (!callerToken) {
-      return new Response(
-        JSON.stringify({ error: "Unauthorized: missing bearer token." }),
-        { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
+      return jsonResponse(401, { error: "Unauthorized: missing bearer token." });
     }
 
     const supabaseAdmin = createClient(
@@ -100,89 +109,69 @@ Deno.serve(async (req: Request) => {
 
     const { data: { user }, error: userError } = await supabaseAdmin.auth.getUser(callerToken);
     if (userError || !user) {
-      return new Response(
-        JSON.stringify({ error: "Unauthorized: invalid or expired token." }),
-        { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
+      return jsonResponse(401, { error: "Unauthorized: invalid or expired token." });
     }
 
-    const { data: roleRow } = await supabaseAdmin
+    const { data: roleRow, error: roleError } = await supabaseAdmin
       .from("user_roles")
       .select("role")
       .eq("user_id", user.id)
       .maybeSingle();
 
+    // A failed role read is not "no role": say the lookup failed.
+    if (roleError) {
+      console.error("[calculate-route-mileage] role lookup failed:", roleError.message);
+      return jsonResponse(500, { error: `Could not verify your role: ${roleError.message}`, code: "ROLE_LOOKUP_FAILED" });
+    }
+
     const role = roleRow?.role?.toLowerCase() ?? "";
     if (!["master", "admin", "crew"].includes(role)) {
-      return new Response(
-        JSON.stringify({ error: "Forbidden: admin or crew role required." }),
-        { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
+      return jsonResponse(403, { error: "Forbidden: admin or crew role required." });
     }
 
     const body = await req.json();
     const { date, userId } = body;
 
     if (!date) {
-      return new Response(
-        JSON.stringify({ error: "Missing required field: date (YYYY-MM-DD)" }),
-        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
+      return jsonResponse(400, { error: "Missing required field: date (YYYY-MM-DD)" });
     }
 
     const targetUserId = userId || user.id;
 
-    const { data: mileageLog } = await supabaseAdmin
+    const { data: mileageLog, error: mileageError } = await supabaseAdmin
       .from("daily_mileage_logs")
       .select("start_mileage")
       .eq("date", date)
       .eq("user_id", targetUserId)
       .maybeSingle();
 
-    if (!mileageLog?.start_mileage) {
-      return new Response(
-        JSON.stringify({ error: "Start of day mileage must be recorded before auto-calculating end mileage." }),
-        { status: 422, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
+    if (mileageError) {
+      console.error("[calculate-route-mileage] mileage log lookup failed:", mileageError.message);
+      return jsonResponse(500, { error: `Could not load the start of day mileage: ${mileageError.message}`, code: "MILEAGE_LOOKUP_FAILED" });
     }
 
-    // Try the requested date first, then search ±1, ±2, ±3 days if no tasks are found.
-    const searchOffsets = [0, -1, 1, -2, 2, -3, 3];
-    let taskStops: TaskStop[] = [];
-    let resolvedDate = date;
-    let lastDiagnostic = "";
-
-    for (const offset of searchOffsets) {
-      const candidateDate = offsetDate(date, offset);
-      const result = await getTaskStopsForDate(supabaseAdmin, candidateDate);
-
-      if (result.stops.length > 0) {
-        taskStops = result.stops;
-        resolvedDate = candidateDate;
-        break;
-      }
-
-      if (offset === 0) {
-        if (result.allRows === 0) {
-          lastDiagnostic = `No tasks scheduled on ${date}.`;
-        } else {
-          const uniqueStatuses = [...new Set(result.allStatuses)];
-          lastDiagnostic =
-            `${result.allRows} task(s) on ${date} but none qualify — statuses found: ${uniqueStatuses.join(", ")}.`;
-        }
-      }
+    // Only a missing reading counts as missing: a start reading of 0 is a reading.
+    if (mileageLog?.start_mileage === null || mileageLog?.start_mileage === undefined) {
+      return jsonResponse(422, { error: "Start of day mileage must be recorded before auto-calculating end mileage.", code: "START_MILEAGE_MISSING" });
     }
+    const startMileage = Number(mileageLog.start_mileage);
+
+    // The requested date and no other: tasks on a neighbouring day are a different day's route.
+    const result = await getTaskStopsForDate(supabaseAdmin, date);
+    const taskStops = result.stops;
 
     if (taskStops.length === 0) {
-      return new Response(
-        JSON.stringify({
-          error:
-            `No qualifying tasks found within ±3 days of ${date}. ` +
-            lastDiagnostic +
-            ` Only confirmed, in_progress, or completed orders are included.`,
-        }),
-        { status: 422, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
+      let diagnostic: string;
+      if (result.allRows === 0) {
+        diagnostic = `No tasks scheduled on ${date}.`;
+      } else {
+        const uniqueStatuses = [...new Set(result.allStatuses)];
+        diagnostic = `${result.allRows} task(s) on ${date} but none qualify — statuses found: ${uniqueStatuses.join(", ")}.`;
+      }
+      return jsonResponse(422, {
+        error: `${diagnostic} Only confirmed, in_progress, or completed orders are included.`,
+        code: "NO_QUALIFYING_TASKS",
+      });
     }
 
     // Build home base waypoint — prefer lat/lng from settings for accuracy
@@ -214,10 +203,7 @@ Deno.serve(async (req: Request) => {
 
     const googleMapsKey = Deno.env.get("GOOGLE_MAPS_API_KEY") ?? "";
     if (!googleMapsKey) {
-      return new Response(
-        JSON.stringify({ error: "Google Maps API key not configured on the server." }),
-        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
+      return jsonResponse(500, { error: "Google Maps API key not configured on the server." });
     }
 
     // Build ordered waypoint list: home → stop1 → stop2 → ... → home
@@ -238,10 +224,7 @@ Deno.serve(async (req: Request) => {
 
       const resp = await fetch(url);
       if (!resp.ok) {
-        return new Response(
-          JSON.stringify({ error: `Google Maps API request failed for segment ${i + 1}: HTTP ${resp.status}` }),
-          { status: 502, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-        );
+        return jsonResponse(502, { error: `Google Maps API request failed for segment ${i + 1}: HTTP ${resp.status}` });
       }
 
       const data = await resp.json();
@@ -253,12 +236,16 @@ Deno.serve(async (req: Request) => {
       console.log(`[segment ${i + 1}] full response:`, JSON.stringify(data));
 
       if (!element || element.status !== "OK") {
-        return new Response(
-          JSON.stringify({
-            error: `Could not calculate distance for segment ${i + 1}: ${allWaypoints[i].label} → ${allWaypoints[i + 1].label}. API status: ${data?.status ?? "unknown"}, Element status: ${element?.status ?? "unknown"}. Waypoints used: ${allWaypoints[i].waypoint} → ${allWaypoints[i + 1].waypoint}`,
-          }),
-          { status: 422, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-        );
+        const explanation = providerMessage(data, googleMapsKey);
+        return jsonResponse(422, {
+          error:
+            `Could not calculate distance for segment ${i + 1}: ${allWaypoints[i].label} → ${allWaypoints[i + 1].label}. API status: ${data?.status ?? "unknown"}, Element status: ${element?.status ?? "unknown"}.` +
+            (explanation ? ` Google says: ${explanation}` : "") +
+            ` Waypoints used: ${allWaypoints[i].waypoint} → ${allWaypoints[i + 1].waypoint}`,
+          code: "DISTANCE_LOOKUP_FAILED",
+          providerStatus: data?.status ?? null,
+          providerMessage: explanation || null,
+        });
       }
 
       const meters = element.distance.value;
@@ -271,28 +258,27 @@ Deno.serve(async (req: Request) => {
     }
 
     const totalMiles = totalMeters * 0.000621371;
-    const calculatedEndMileage = mileageLog.start_mileage + totalMiles;
+    const calculatedEndMileage = startMileage + totalMiles;
 
-    return new Response(
-      JSON.stringify({
-        success: true,
-        totalMiles: parseFloat(totalMiles.toFixed(2)),
-        calculatedEndMileage: parseFloat(calculatedEndMileage.toFixed(1)),
-        startMileage: mileageLog.start_mileage,
-        stopCount: taskStops.length,
-        segments: segmentResults,
-        resolvedDate,
-        usedNearbyDate: resolvedDate !== date,
-      }),
-      { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-    );
+    return jsonResponse(200, {
+      success: true,
+      totalMiles: parseFloat(totalMiles.toFixed(2)),
+      calculatedEndMileage: parseFloat(calculatedEndMileage.toFixed(1)),
+      startMileage,
+      stopCount: taskStops.length,
+      segments: segmentResults,
+      // Kept for the client: the requested date is always the date used.
+      resolvedDate: date,
+      usedNearbyDate: false,
+    });
 
   } catch (error: unknown) {
+    if (error instanceof DataLoadError) {
+      console.error("[calculate-route-mileage]", error.code, error.message);
+      return jsonResponse(500, { error: error.message, code: error.code });
+    }
     console.error("[calculate-route-mileage] error:", error);
     const message = error instanceof Error ? error.message : "Unknown error";
-    return new Response(
-      JSON.stringify({ error: message }),
-      { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-    );
+    return jsonResponse(500, { error: message });
   }
 });
