@@ -25,6 +25,7 @@ import * as returnOriginHelpers from '../../../../supabase/functions/_shared/boo
 import * as paymentOperationHelpers from '../../../../supabase/functions/_shared/payments/payment-operations';
 import * as itemLabelHelpers from '../../../../supabase/functions/_shared/payments/order-item-label';
 import * as siteOriginHelpers from '../../../../supabase/functions/_shared/siteOrigin';
+import * as travelCityReviewHelpers from '../../../../supabase/functions/_shared/booking/travelCityReview';
 
 let passed = 0;
 let failed = 0;
@@ -339,6 +340,7 @@ function loadHandler(fnDir: string, w: World): (req: Request) => Promise<Respons
     ...returnOriginHelpers,
     ...paymentOperationHelpers,
     ...itemLabelHelpers,
+    ...travelCityReviewHelpers,
     getSiteOrigin: () => siteOriginHelpers.getSiteOrigin({ get: (k: string) => env[k] }),
     configuredOrigins: () => siteOriginHelpers.configuredOrigins({ get: (k: string) => env[k] }),
     corsHeaders: { 'Access-Control-Allow-Origin': '*' },
