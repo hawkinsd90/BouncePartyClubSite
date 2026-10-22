@@ -88,5 +88,17 @@ ok('rejection: the custom reason also goes through the confirmation', /setPendin
 const print = read('src/components/common/PrintModal.tsx');
 ok('print preview: header wraps, zoom is hidden on phones, the Print label is short, controls are 44px, the backdrop closes it', /flex flex-wrap justify-between items-center gap-2/.test(print) && /hidden sm:flex items-center gap-2 border/.test(print) && /<span className="sm:hidden">Print<\/span>/.test(print) && (print.match(/min-h-\[44px\]/g) ?? []).length >= 2 && /e\.target === e\.currentTarget && !isProcessing\) onClose\(\)/.test(print));
 
+// The two EE catalog forms use the shared scroll class; the lightbox images use dvh and the portal lightbox close buttons are 44px.
+for (const f of ['src/components/admin/catalog/event-essentials/ProductForm.tsx', 'src/components/admin/catalog/event-essentials/PackageForm.tsx']) {
+  const src = read(f);
+  ok(f + ' panel uses MODAL_PANEL_SCROLL, not a vh cap', src.includes('${MODAL_PANEL_SCROLL}') && !src.includes('90vh'));
+}
+{
+  const delivery = read('src/components/customer-portal/DeliveryTab.tsx');
+  const lot = read('src/components/customer-portal/LotPicturesTab.tsx');
+  ok('portal photo lightboxes: images are capped in dvh', delivery.includes('max-h-[90dvh]') && lot.includes('max-h-[90dvh]') && !(delivery + lot).includes('90vh'));
+  ok('portal photo lightboxes: the close buttons are 44px, inside the screen and labelled', delivery.includes('top-2 right-2') && delivery.includes('w-11 h-11') && delivery.includes('aria-label="Close photo"') && lot.includes('w-11 h-11') && lot.includes('aria-label="Close picture"'));
+}
+
 console.log(`mobileDialogs: ${passed} passed, ${failed} failed`);
 if (failed > 0) throw new Error(`${failed} mobile dialog test(s) failed`);

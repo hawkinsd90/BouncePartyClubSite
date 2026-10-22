@@ -1,4 +1,5 @@
 import { UserX, Trash2 } from 'lucide-react';
+import { PhoneLink } from '../../shared/PhoneLink';
 
 interface BlackoutContact {
   id: string;
@@ -29,7 +30,7 @@ export function BlackoutContactsList({ contacts, onDelete }: BlackoutContactsLis
                 </span>
               </div>
               {contact.email && <p className="text-slate-700"><strong>Email:</strong> {contact.email}</p>}
-              {contact.phone && <p className="text-slate-700"><strong>Phone:</strong> {contact.phone}</p>}
+              {contact.phone && <p className="text-slate-700"><strong>Phone:</strong> <PhoneLink phone={contact.phone} /></p>}
               <p className="text-slate-700"><strong>Reason:</strong> {contact.reason}</p>
               {contact.notes && <p className="text-sm text-slate-600 mt-1">{contact.notes}</p>}
               <p className="text-xs text-slate-500 mt-2">Added: {new Date(contact.created_at).toLocaleString()}</p>

@@ -17,6 +17,7 @@ import type {
   ProductAdminFormData,
 } from '../../../../types';
 import { AdminImageUpload } from './AdminImageUpload';
+import { MODAL_PANEL_SCROLL } from '../../../../lib/core/modalClasses';
 import { useEventEssentialsImageLifecycle } from './useEventEssentialsImageLifecycle';
 
 interface ProductFormProps {
@@ -233,7 +234,7 @@ export function ProductForm({
 
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4 overflow-y-auto">
-      <div className="bg-white rounded-xl shadow-xl max-w-2xl w-full my-8 max-h-[90vh] overflow-y-auto">
+      <div className={`bg-white rounded-xl shadow-xl max-w-2xl w-full my-8 ${MODAL_PANEL_SCROLL}`}>
         <div className="sticky top-0 bg-white border-b border-slate-200 px-6 py-4 flex items-center justify-between rounded-t-xl z-10">
           <h3 className="text-xl font-bold text-slate-900">
             {isEdit ? 'Edit Product' : 'Add Product'}

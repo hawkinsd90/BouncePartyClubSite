@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { PhoneLink } from '../components/shared/PhoneLink';
+import { AddressLink } from '../components/shared/AddressLink';
 import { useParams } from 'react-router-dom';
 import { format } from 'date-fns';
 import { AlertCircle, Printer } from 'lucide-react';
@@ -247,7 +248,7 @@ export function Receipt() {
                 <p>
                   <span className="text-slate-600">Location: </span>
                   <span className="font-medium text-slate-900">
-                    {order.addresses.line1}, {order.addresses.city}, {order.addresses.state} {order.addresses.zip}
+                    <AddressLink address={{ line1: order.addresses.line1, line2: order.event_address_line2 ?? order.addresses.line2, city: order.addresses.city, state: order.addresses.state, zip: order.addresses.zip }} coords={{ lat: order.addresses.lat, lng: order.addresses.lng }} />
                   </span>
                 </p>
               )}

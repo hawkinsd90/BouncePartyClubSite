@@ -6,6 +6,7 @@ import { supabase } from '../../lib/supabase';
 import { showToast } from '../../lib/toasts';
 import { sortTasksByOrder, isTaskActiveRouteStop, isDropOffPlanningOnly } from '../../lib/tasks/calendarUtils';
 import { SimpleConfirmModal } from '../common/SimpleConfirmModal';
+import { AddressLink } from '../shared/AddressLink';
 import type { RouteOriginOptions } from '../../lib/routing/routeOptimization';
 import { getOrCreateTaskStatusRow } from '../../lib/tasks/taskStatusService';
 import { planRouteSave, runRouteSave } from '../../lib/tasks/routeSave';
@@ -518,7 +519,7 @@ export function RouteManagementModal({
                         <h3 className="font-semibold text-slate-900 text-sm mb-1">
                           {task.customerName}
                         </h3>
-                        <p className="text-sm text-slate-600 truncate mb-2">{task.address}</p>
+                        <div className="text-sm text-slate-600 mb-2 min-w-0"><AddressLink address={task.address} coords={{ lat: task.lat, lng: task.lng }} className="break-words" /></div>
                         {task.items && task.items.length > 0 && (
                           <div className="bg-white border border-slate-200 rounded p-2 mb-2">
                             <p className="text-xs font-semibold text-slate-700 mb-1">Equipment:</p>
@@ -561,7 +562,7 @@ export function RouteManagementModal({
                         )}
                         <div className="flex-1 min-w-0">
                           <span className="font-semibold text-sm text-slate-600">{task.customerName}</span>
-                          <p className="text-xs text-slate-400 truncate">{task.address}</p>
+                          <div className="text-xs text-slate-400 min-w-0"><AddressLink address={task.address} coords={{ lat: task.lat, lng: task.lng }} className="break-words" /></div>
                         </div>
                         <button
                           onClick={() => addBackTask(task.id)}
@@ -592,7 +593,7 @@ export function RouteManagementModal({
                       <CheckCircle className="w-4 h-4 text-green-600 flex-shrink-0" />
                       <div className="flex-1 min-w-0">
                         <span className="font-semibold text-sm text-slate-700">{task.customerName}</span>
-                        <p className="text-xs text-slate-500 truncate">{task.address}</p>
+                        <div className="text-xs text-slate-500 min-w-0"><AddressLink address={task.address} coords={{ lat: task.lat, lng: task.lng }} className="break-words" /></div>
                       </div>
                       <span className="text-xs font-semibold text-green-700 bg-green-100 px-2 py-0.5 rounded">
                         DONE
@@ -618,7 +619,7 @@ export function RouteManagementModal({
                       <AlertTriangle className="w-4 h-4 text-amber-500 flex-shrink-0 mt-0.5" />
                       <div className="flex-1 min-w-0">
                         <span className="font-semibold text-sm text-slate-800">{task.customerName}</span>
-                        <p className="text-xs text-slate-500 truncate mb-1">{task.address}</p>
+                        <div className="text-xs text-slate-500 mb-1 min-w-0"><AddressLink address={task.address} coords={{ lat: task.lat, lng: task.lng }} className="break-words" /></div>
                         {task.pickupBlockReason && (
                           <span className="text-xs font-medium text-amber-700 bg-amber-100 px-2 py-0.5 rounded">
                             {task.pickupBlockReason}
@@ -646,7 +647,7 @@ export function RouteManagementModal({
                       <Clock className="w-4 h-4 text-slate-400 flex-shrink-0 mt-0.5" />
                       <div className="flex-1 min-w-0">
                         <span className="font-semibold text-sm text-slate-600">{task.customerName}</span>
-                        <p className="text-xs text-slate-400 truncate mb-1">{task.address}</p>
+                        <div className="text-xs text-slate-400 mb-1 min-w-0"><AddressLink address={task.address} coords={{ lat: task.lat, lng: task.lng }} className="break-words" /></div>
                         {task.pickupBlockReason && (
                           <span className="text-xs text-slate-500 bg-slate-100 px-2 py-0.5 rounded">
                             {task.pickupBlockReason}
@@ -674,7 +675,7 @@ export function RouteManagementModal({
                       <Clock className="w-4 h-4 text-slate-400 flex-shrink-0 mt-0.5" />
                       <div className="flex-1 min-w-0">
                         <span className="font-semibold text-sm text-slate-600">{task.customerName}</span>
-                        <p className="text-xs text-slate-400 truncate mb-1">{task.address}</p>
+                        <div className="text-xs text-slate-400 mb-1 min-w-0"><AddressLink address={task.address} coords={{ lat: task.lat, lng: task.lng }} className="break-words" /></div>
                         <span className="text-xs text-slate-500 bg-slate-100 px-2 py-0.5 rounded">
                           Awaiting confirmation
                         </span>

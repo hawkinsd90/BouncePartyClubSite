@@ -120,5 +120,18 @@ ok('the "No phone" placeholder is gone from the task assembly', !/'No phone'/.te
 const edge = read('src/components/admin/tasks/detail/taskEdgeRequests.ts');
 ok('a task text with a missing or placeholder recipient never reaches the relay', /'to' in body && !isUsablePhone\(body\.to\)/.test(edge) && edge.indexOf("'to' in body") < edge.indexOf('await currentAccessToken()'));
 
+// WP-22 / WP-21 remaining call sites: addresses are directions links with the unit, customer phones open the Call/Message/Copy menu.
+{
+  const route = read('src/components/calendar/RouteManagementModal.tsx');
+  ok('route manager: all six task addresses are AddressLink with the task coordinates and none is plain text', route.split('<AddressLink address={task.address} coords={{ lat: task.lat, lng: task.lng }}').length - 1 === 6 && !route.includes('{task.address}</p>'));
+  for (const f of ['src/components/dashboard/OrderCard.tsx', 'src/components/dashboard/ReceiptModal.tsx', 'src/pages/Receipt.tsx', 'src/components/customer-portal/RegularPortalView.tsx']) {
+    const src = read(f);
+    ok(f + ': the event address is an AddressLink with its coordinates', src.includes('<AddressLink address={{ line1: order.addresses.line1') && src.includes('coords={{ lat: order.addresses.lat, lng: order.addresses.lng }}'));
+  }
+  ok('invoice contact phone and blackout contact phone use PhoneLink', read('src/components/shared/SimpleInvoiceDisplay.tsx').includes('<PhoneLink phone={contactData.phone} />') && read('src/components/admin/blackout/BlackoutContactsList.tsx').includes('<PhoneLink phone={contact.phone} />'));
+  // Intentional: the print-only invoice and the BUSINESS phone (header, footer, contact page) stay plain tel: links - one tap to call the business, no Message/Copy menu.
+  ok('the print-only invoice keeps plain text (no interactive menu on paper)', !read('src/components/invoice/PrintableInvoice.tsx').includes('PhoneLink'));
+}
+
 console.log(`contactLinks: ${passed} passed, ${failed} failed`);
 if (failed > 0) throw new Error(`${failed} contact link test(s) failed`);

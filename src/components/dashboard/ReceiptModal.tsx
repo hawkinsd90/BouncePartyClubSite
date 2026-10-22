@@ -1,5 +1,6 @@
 import { format } from 'date-fns';
 import { PhoneLink } from '../shared/PhoneLink';
+import { AddressLink } from '../shared/AddressLink';
 import { Order, Payment } from '../../types/orders';
 import { OrderSummary } from '../order/OrderSummary';
 import { OrderSummaryDisplay } from '../../lib/orders/orderSummaryLoader';
@@ -164,7 +165,7 @@ export function ReceiptModal({ order, payment, summary, loading, onClose }: Rece
                   <p>
                     <span className="text-gray-600">Location: </span>
                     <span className="font-medium text-gray-900">
-                      {order.addresses.line1}, {order.addresses.city}, {order.addresses.state} {order.addresses.zip}
+                      <AddressLink address={{ line1: order.addresses.line1, line2: order.event_address_line2 ?? order.addresses.line2, city: order.addresses.city, state: order.addresses.state, zip: order.addresses.zip }} coords={{ lat: order.addresses.lat, lng: order.addresses.lng }} />
                     </span>
                   </p>
                 )}

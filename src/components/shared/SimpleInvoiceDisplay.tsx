@@ -1,4 +1,5 @@
 import { Printer } from 'lucide-react';
+import { PhoneLink } from './PhoneLink';
 import { onlyEventEssentials } from '../../lib/orders/equipmentCopy';
 import { useNavigate } from 'react-router-dom';
 import { formatCurrency } from '../../lib/pricing';
@@ -130,7 +131,7 @@ export function SimpleInvoiceDisplay({
               </p>
             )}
             {contactData.email && <p className="text-slate-700">{contactData.email}</p>}
-            {contactData.phone && <p className="text-slate-700">{contactData.phone}</p>}
+            {contactData.phone && <p className="text-slate-700"><PhoneLink phone={contactData.phone} /></p>}
           </div>
         </div>
       )}

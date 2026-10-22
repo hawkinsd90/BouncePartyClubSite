@@ -1,6 +1,7 @@
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { supabase } from '../../../lib/supabase';
 import { formatCurrency } from '../../../lib/pricing';
+import { todayLocalKey } from '../../../lib/core/localDate';
 import { Plus, Edit2, Trash2, Wind, PartyPopper } from 'lucide-react';
 import { notifyError, notifySuccess, showConfirm } from '../../../lib/toasts';
 import { EventEssentialsAdmin } from './event-essentials/EventEssentialsAdmin';
@@ -45,7 +46,7 @@ export function InventorySection({ units, onRefetch }: InventorySectionProps) {
   }
 
   async function checkFutureBookings(unitId: string) {
-    const today = new Date().toISOString().split('T')[0];
+    const today = todayLocalKey();
 
     const { data: bookings, error } = await supabase
       .from('order_items')

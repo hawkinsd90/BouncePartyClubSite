@@ -18,6 +18,7 @@ import { DeliveryTab } from './DeliveryTab';
 import { showToast } from '../../lib/toasts';
 import { OrderStatusBadge } from '../dashboard/OrderStatusBadge';
 import { ORDER_STATUS, CANCELLABLE_STATUSES } from '../../lib/constants/statuses';
+import { AddressLink } from '../shared/AddressLink';
 
 function formatTimeStr(time: string): string {
   if (!time) return '';
@@ -468,12 +469,9 @@ export function RegularPortalView({ order, orderId, orderItems: _orderItems, ord
                       <p className="text-xs text-slate-600 mb-1">Event Location</p>
                       <div className="flex items-start gap-2">
                         <MapPinIcon className="w-4 h-4 text-blue-600 mt-0.5" />
-                        <p className="font-medium text-slate-900">
-                          {order.addresses.line1}
-                          {order.addresses.line2 && `, ${order.addresses.line2}`}
-                          <br />
-                          {order.addresses.city}, {order.addresses.state} {order.addresses.zip}
-                        </p>
+                        <div className="font-medium text-slate-900 min-w-0">
+                          <AddressLink address={{ line1: order.addresses.line1, line2: order.addresses.line2, city: order.addresses.city, state: order.addresses.state, zip: order.addresses.zip }} coords={{ lat: order.addresses.lat, lng: order.addresses.lng }} />
+                        </div>
                       </div>
                     </div>
                   )}

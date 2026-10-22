@@ -104,11 +104,12 @@ export function DeliveryTab({ delivery }: DeliveryTabProps) {
             <img
               src={lightboxUrl}
               alt="Delivery photo fullscreen"
-              className="max-w-full max-h-[90vh] object-contain rounded-lg shadow-2xl"
+              className="max-w-full max-h-[90dvh] object-contain rounded-lg shadow-2xl"
             />
             <button
               onClick={() => setLightboxUrl(null)}
-              className="absolute -top-3 -right-3 bg-white text-slate-800 rounded-full w-8 h-8 flex items-center justify-center font-bold text-lg shadow-lg hover:bg-slate-100 transition-colors"
+              aria-label="Close photo"
+              className="absolute top-2 right-2 bg-white text-slate-800 rounded-full w-11 h-11 flex items-center justify-center font-bold text-xl shadow-lg hover:bg-slate-100 transition-colors"
             >
               ×
             </button>

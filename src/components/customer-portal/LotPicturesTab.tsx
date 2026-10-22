@@ -299,7 +299,7 @@ export function LotPicturesTab({ orderId, orderStatus, pictures, invoiceLinkToke
             <img
               src={getPictureUrl(selectedPicture)}
               alt={selectedPicture.file_name}
-              className="max-w-full max-h-[90vh] object-contain rounded-lg"
+              className="max-w-full max-h-[90dvh] object-contain rounded-lg"
               onClick={(e) => e.stopPropagation()}
             />
 

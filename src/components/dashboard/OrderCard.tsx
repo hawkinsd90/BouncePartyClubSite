@@ -1,4 +1,5 @@
 import { format } from 'date-fns';
+import { AddressLink } from '../shared/AddressLink';
 import { MapPin, DollarSign, Clock, Package, FileText, CheckCircle, Eye, Copy, XCircle } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { formatOrderId } from '../../lib/utils';
@@ -60,9 +61,7 @@ export function OrderCard({ order, onViewReceipt, onDuplicateOrder, onCancelOrde
           <div className="flex items-start gap-2 text-xs sm:text-sm text-gray-600">
             <MapPin className="w-4 h-4 mt-0.5 flex-shrink-0" />
             <div className="min-w-0">
-              <div className="break-words">{order.addresses.line1}</div>
-              {eventAddressLine2(order) && <div className="break-words">{eventAddressLine2(order)}</div>}
-              <div>{order.addresses.city}, {order.addresses.state} {order.addresses.zip}</div>
+              <AddressLink address={{ line1: order.addresses.line1, line2: eventAddressLine2(order), city: order.addresses.city, state: order.addresses.state, zip: order.addresses.zip }} coords={{ lat: order.addresses.lat, lng: order.addresses.lng }} className="break-words" />
             </div>
           </div>
         )}
