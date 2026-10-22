@@ -196,7 +196,7 @@ export function useDeliveryTimingAnalytics(period: AnalyticsPeriod = 'all_time')
         p_end_date: end ? end.split('T')[0] : null,
       });
       if (error) throw error;
-      setData(result as DeliveryTimingAnalytics);
+      setData(result as unknown as DeliveryTimingAnalytics);
     } catch {
       setData(null);
     } finally {

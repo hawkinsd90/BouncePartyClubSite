@@ -117,7 +117,7 @@ export function SingleOrderView({ orderId, openEditMode = false, onBack, onUpdat
     }
     (async () => {
       const { data } = await supabase
-        .from('invoice_links' as any)
+        .from('invoice_links')
         .select('link_token')
         .eq('order_id', order.id)
         .gt('expires_at', new Date().toISOString())
@@ -132,7 +132,7 @@ export function SingleOrderView({ orderId, openEditMode = false, onBack, onUpdat
     if (!order) return;
     (async () => {
       const { data } = await supabase
-        .from('invoice_links' as any)
+        .from('invoice_links')
         .select('short_code')
         .eq('order_id', order.id)
         .eq('link_type', 'portal')
@@ -155,7 +155,7 @@ export function SingleOrderView({ orderId, openEditMode = false, onBack, onUpdat
       if (!url) {
         // Re-check DB for an active link in case state hasn't loaded yet
         const { data: existing } = await supabase
-          .from('invoice_links' as any)
+          .from('invoice_links')
           .select('short_code')
           .eq('order_id', order.id)
           .eq('link_type', 'portal')

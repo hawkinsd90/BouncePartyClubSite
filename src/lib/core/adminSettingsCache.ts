@@ -215,7 +215,7 @@ export async function getPublicMenuGroups(useCache = true): Promise<PublicMenuGr
     return [];
   }
 
-  const result = (Array.isArray(data) ? data : []) as PublicMenuGroup[];
+  const result = (Array.isArray(data) ? data : []) as unknown as PublicMenuGroup[];
   menuGroupsCache = { data: result, timestamp: now };
   return result;
 }

@@ -476,7 +476,15 @@ export interface Database {
         }
         Insert: Omit<Database['public']['Tables']['order_items']['Row'], 'id'>
         Update: Partial<Database['public']['Tables']['order_items']['Insert']>
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: 'order_items_unit_id_fkey'
+            columns: ['unit_id']
+            isOneToOne: false
+            referencedRelation: 'units'
+            referencedColumns: ['id']
+          }
+        ]
       }
       product_categories: {
         Row: {
@@ -812,8 +820,15 @@ export interface Database {
           dimensions: string | null
           capacity: string | null
           created_at: string
+          types: string[]
+          footprint_sqft: number
+          power_circuits: number | null
+          indoor_ok: boolean | null
+          outdoor_ok: boolean | null
+          dimensions_water: string | null
         }
-        Insert: Omit<Database['public']['Tables']['units']['Row'], 'id' | 'created_at'>
+        Insert: Omit<Database['public']['Tables']['units']['Row'], 'id' | 'created_at' | 'types' | 'footprint_sqft' | 'power_circuits' | 'indoor_ok' | 'outdoor_ok' | 'dimensions_water'> &
+          Partial<Pick<Database['public']['Tables']['units']['Row'], 'types' | 'footprint_sqft' | 'power_circuits' | 'indoor_ok' | 'outdoor_ok' | 'dimensions_water'>>
         Update: Partial<Database['public']['Tables']['units']['Insert']>
         Relationships: []
       }
@@ -827,10 +842,19 @@ export interface Database {
           is_featured: boolean | null
           visibility_mode: string | null
           created_at: string
+          alt: string
         }
-        Insert: Omit<Database['public']['Tables']['unit_media']['Row'], 'id' | 'created_at'> & { is_featured?: boolean | null; visibility_mode?: string | null }
+        Insert: Omit<Database['public']['Tables']['unit_media']['Row'], 'id' | 'created_at' | 'alt'> & { is_featured?: boolean | null; visibility_mode?: string | null; alt?: string }
         Update: Partial<Database['public']['Tables']['unit_media']['Insert']>
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: 'unit_media_unit_id_fkey'
+            columns: ['unit_id']
+            isOneToOne: false
+            referencedRelation: 'units'
+            referencedColumns: ['id']
+          }
+        ]
       }
       user_roles: {
         Row: {
@@ -997,6 +1021,65 @@ export interface Database {
         Update: Partial<Database['public']['Tables']['google_reviews']['Insert']>
         Relationships: []
       }
+      address_lot_pictures: {
+        Row: {
+          id: string
+          address_id: string
+          file_path: string
+          file_name: string
+          notes: string | null
+          saved_from_order_id: string | null
+          saved_from_order_lot_picture_id: string | null
+          saved_by: string | null
+          created_at: string | null
+        }
+        Insert: {
+          id?: string
+          address_id: string
+          file_path: string
+          file_name: string
+          notes?: string | null
+          saved_from_order_id?: string | null
+          saved_from_order_lot_picture_id?: string | null
+          saved_by?: string | null
+          created_at?: string | null
+        }
+        Update: Partial<Database['public']['Tables']['address_lot_pictures']['Insert']>
+        Relationships: []
+      }
+      order_refunds: {
+        Row: {
+          id: string
+          order_id: string | null
+          amount_cents: number
+          reason: string
+          stripe_refund_id: string | null
+          refunded_by: string | null
+          status: string | null
+          created_at: string | null
+          operation_key: string | null
+          operation_index: number | null
+          request_amount_cents: number | null
+          payment_id: string | null
+          stripe_payment_intent_id: string | null
+          provider_idempotency_key: string | null
+          provider_attempted_at: string | null
+          failure_reason: string | null
+          source: string | null
+          total_applied: boolean | null
+          updated_at: string | null
+          ledger_version: number | null
+          allocation_version: number | null
+          deposit_principal_refunded_cents: number | null
+          balance_principal_refunded_cents: number | null
+          tip_refunded_cents: number | null
+          unclassified_refunded_cents: number | null
+          request_allocation: string | null
+        }
+        Insert: Partial<Database['public']['Tables']['order_refunds']['Row']> & { amount_cents: number; reason: string }
+        Update: Partial<Database['public']['Tables']['order_refunds']['Row']>
+        Relationships: []
+      }
       invoice_links: {
         Row: {
           id: string
@@ -1007,8 +1090,12 @@ export interface Database {
           expires_at: string | null
           created_at: string
           updated_at: string
+          short_code: string | null
+          link_type: string
+          revoked_at: string | null
         }
-        Insert: Omit<Database['public']['Tables']['invoice_links']['Row'], 'id' | 'created_at' | 'updated_at'>
+        Insert: Omit<Database['public']['Tables']['invoice_links']['Row'], 'id' | 'created_at' | 'updated_at' | 'short_code' | 'link_type' | 'revoked_at'> &
+          Partial<Pick<Database['public']['Tables']['invoice_links']['Row'], 'short_code' | 'link_type' | 'revoked_at'>>
         Update: Partial<Database['public']['Tables']['invoice_links']['Insert']>
         Relationships: []
       }
@@ -1258,6 +1345,26 @@ export interface Database {
           name: string
           sort_order: number
         }>
+      }
+      find_order_id_by_prefix: {
+        Args: { p_prefix: string }
+        Returns: string
+      }
+      get_booking_source_analytics: {
+        Args: { p_start?: string | null; p_end?: string | null }
+        Returns: Array<{ referral_source: string | null; referral_source_detail: string | null; subtotal_cents: number | null; tax_cents: number | null }>
+      }
+      get_delivery_timing_analytics: {
+        Args: { p_start_date?: string | null; p_end_date?: string | null }
+        Returns: Json
+      }
+      get_public_nav_menu_groups: {
+        Args: Record<string, never>
+        Returns: Json
+      }
+      save_lot_picture_to_address: {
+        Args: { p_order_lot_picture_id: string }
+        Returns: string
       }
     }
     Enums: {}

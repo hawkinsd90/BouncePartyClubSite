@@ -35,7 +35,7 @@ import type { Unit, PricingRules } from '../types';
 
 interface UnitMedia {
   url: string;
-  mode: 'dry' | 'water';
+  mode: string;
   sort: number;
   is_featured?: boolean;
 }
