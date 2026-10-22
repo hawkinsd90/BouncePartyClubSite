@@ -89,6 +89,9 @@ UPDATE public.orders SET stripe_customer_id = 'cus_SECRET', stripe_payment_metho
 INSERT INTO public.booking_setup_proofs (order_id, token_hash, expires_at) VALUES ('${IDS.orderA}', 'hash-A-0000000000000000000000000000', now() + interval '1 hour');
 INSERT INTO public.task_status (order_id, task_type, task_date) VALUES ('${IDS.orderA}', 'drop-off', '2030-06-01');
 INSERT INTO public.order_changelog (order_id, field_changed, change_type) VALUES ('${IDS.orderA}', 'status', 'status_change');
+INSERT INTO public.order_changelog (order_id, field_changed, old_value, new_value, change_type, notes) VALUES
+  ('${IDS.orderA}', 'travel_city', 'Typedville', 'typed_free_city_unverified', 'travel_city_review', 'The customer entered "Typedville", which is on the free-delivery list ...'),
+  ('${IDS.orderB}', 'travel_city', 'Othertown', 'typed_free_city_contradicted', 'travel_city_review', 'The customer entered "Othertown", which is on the free-delivery list ...');
 `;
 
 export interface Scenario {
@@ -240,7 +243,7 @@ export function buildScenarios(): Scenario[] {
   add('admin: reads all payments', 'authenticated', D, cnt('payments'), '3');
   add('admin: reads all invoice links', 'authenticated', D, cnt('invoice_links'), '2');
   add('admin: reads all customers', 'authenticated', D, cnt('customers'), (v) => Number(v) >= 3);
-  add('admin: reads consent records, contacts, changelog', 'authenticated', D, `SELECT ((SELECT count(*) FROM public.consent_records) = 1 AND (SELECT count(*) FROM public.contacts) = 3 AND (SELECT count(*) FROM public.order_changelog) = 1)::text`, 'true');
+  add('admin: reads consent records, contacts, changelog', 'authenticated', D, `SELECT ((SELECT count(*) FROM public.consent_records) = 1 AND (SELECT count(*) FROM public.contacts) = 3 AND (SELECT count(*) FROM public.order_changelog) = 3)::text`, 'true');
   add('admin: can update an order', 'authenticated', D, upd(`UPDATE public.orders SET admin_message = 'hi' WHERE id = '${IDS.orderA}'`), '1');
   add('admin: can update and revoke an invoice link', 'authenticated', D, upd(`UPDATE public.invoice_links SET revoked_at = now() WHERE id = '${IDS.linkA}'`), '1');
   // (Payments are recorded by the server payment functions only; the browser-side INSERT that used to be allowed here is closed below.)
@@ -434,6 +437,35 @@ export function buildScenarios(): Scenario[] {
   add('approval timestamp: a seeded order has none before approval', 'service_role', null, `SELECT (customer_approved_at IS NULL)::text FROM public.orders WHERE id = '${IDS.orderLegacy}'`, 'true');
   add('approval timestamp: stamping it on approval stores a timestamp', 'service_role', null, `WITH u AS (UPDATE public.orders SET customer_approved_at = now() WHERE id = '${IDS.orderLegacy}' AND customer_approved_at IS NULL RETURNING customer_approved_at) SELECT (customer_approved_at IS NOT NULL)::text FROM u`, 'true');
   add('booking RPC: authenticated users and anon cannot call it directly', 'anon', null, `SELECT (NOT has_function_privilege('anon','public.create_booking_request(jsonb, text, timestamptz, uuid)','EXECUTE') AND NOT has_function_privilege('authenticated','public.create_booking_request(jsonb, text, timestamptz, uuid)','EXECUTE'))::text`, 'true');
+  // ---- order_changelog (staff-only audit trail) - executed against the real policies and grants ----
+  const CL = 'public.order_changelog';
+  const CL_REVIEW_A = `change_type = 'travel_city_review' AND order_id = '${IDS.orderA}'`;
+  add('changelog: the table has RLS enabled and anon holds no privilege at all', 'anon', null, `SELECT (SELECT relrowsecurity FROM pg_class WHERE oid = '${CL}'::regclass)::text || ':' || (has_table_privilege('anon', '${CL}', 'SELECT') OR has_table_privilege('anon', '${CL}', 'INSERT') OR has_table_privilege('anon', '${CL}', 'UPDATE') OR has_table_privilege('anon', '${CL}', 'DELETE'))::text`, 'true:false');
+  add('changelog: anon cannot read a specific order\'s history by id', 'anon', null, cnt('order_changelog', `order_id = '${IDS.orderA}'`), denied);
+  add('changelog: anon cannot insert the old customer_approval / status_change rows', 'anon', null, `INSERT INTO ${CL} (order_id, field_changed, change_type) VALUES ('${IDS.orderA}', 'status', 'customer_approval') RETURNING 'inserted'`, denied);
+  for (const [who, uid, own, other] of [['customer A', IDS.uA, IDS.orderA, IDS.orderB], ['customer B', IDS.uB, IDS.orderB, IDS.orderA]] as const) {
+    add(`changelog: ${who} sees no history without a filter`, 'authenticated', uid, cnt('order_changelog'), '0');
+    add(`changelog: ${who} cannot read another customer's history by supplying that order id`, 'authenticated', uid, cnt('order_changelog', `order_id = '${other}'`), '0');
+    add(`changelog: ${who} cannot read the history of their own order either (staff only; no customer-facing direct read exists)`, 'authenticated', uid, cnt('order_changelog', `order_id = '${own}'`), '0');
+    add(`changelog: ${who} cannot read travel-fee review rows`, 'authenticated', uid, cnt('order_changelog', `change_type = 'travel_city_review'`), '0');
+    add(`changelog: ${who} cannot append history, not even as themselves`, 'authenticated', uid, `INSERT INTO ${CL} (order_id, user_id, field_changed, change_type) VALUES ('${own}', '${uid}', 'x', 'status_change') RETURNING 'inserted'`, denied);
+    add(`changelog: ${who} cannot rewrite or delete history`, 'authenticated', uid, `SELECT (${n(`UPDATE ${CL} SET notes = 'tampered' WHERE order_id = '${own}'`)} + ${n(`DELETE FROM ${CL} WHERE order_id = '${own}'`)})::text`, '0');
+  }
+  add('changelog: crew sees no history by order id', 'authenticated', IDS.uCrew, cnt('order_changelog', `order_id = '${IDS.orderA}'`), '0');
+  add('changelog: crew cannot read travel-fee review rows', 'authenticated', IDS.uCrew, cnt('order_changelog', `change_type = 'travel_city_review'`), '0');
+  add('changelog: crew cannot rewrite or delete history', 'authenticated', IDS.uCrew, `SELECT (${n(`UPDATE ${CL} SET notes = 'tampered'`)} + ${n(`DELETE FROM ${CL}`)})::text`, '0');
+  add('changelog: crew cannot append history', 'authenticated', IDS.uCrew, `INSERT INTO ${CL} (order_id, field_changed, change_type) VALUES ('${IDS.orderA}', 'x', 'status_change') RETURNING 'inserted'`, denied);
+  add('changelog: admin reads the travel-fee review rows of every order, notes included', 'authenticated', IDS.uAdmin, `SELECT count(*)::text || ':' || bool_and(notes LIKE 'The customer entered%')::text FROM ${CL} WHERE change_type = 'travel_city_review'`, '2:true');
+  add('changelog: master reads the same rows', 'authenticated', IDS.uMaster, cnt('order_changelog', `change_type = 'travel_city_review'`), '2');
+  add('changelog: admin reads one order\'s review row', 'authenticated', IDS.uAdmin, cnt('order_changelog', CL_REVIEW_A), '1');
+  add('changelog: admin cannot rewrite or delete history (append-only)', 'authenticated', IDS.uAdmin, `SELECT (${n(`UPDATE ${CL} SET notes = 'tampered'`)} + ${n(`DELETE FROM ${CL}`)})::text`, '0');
+  add('changelog: no browser role holds TRUNCATE, TRIGGER or REFERENCES', 'anon', null, `SELECT count(*)::text FROM unnest(ARRAY['anon','authenticated']) r, unnest(ARRAY['TRUNCATE','TRIGGER','REFERENCES']) p WHERE has_table_privilege(r, '${CL}', p)`, '0');
+  add('changelog: no view exposes the table to a browser role', 'anon', null, `SELECT count(*)::text FROM pg_views v WHERE v.definition ~* 'order_changelog' AND (has_table_privilege('anon', (quote_ident(v.schemaname) || '.' || quote_ident(v.viewname)), 'SELECT') OR has_table_privilege('authenticated', (quote_ident(v.schemaname) || '.' || quote_ident(v.viewname)), 'SELECT'))`, '0');
+  add('changelog: no function a browser role can execute reads the table (the only readers are service-role Edge Functions)', 'anon', null, `SELECT count(*)::text FROM pg_proc p JOIN pg_namespace ns ON ns.oid = p.pronamespace WHERE ns.nspname = 'public' AND p.prosrc ~* '(from|join)[[:space:]]+(public[.])?order_changelog' AND (has_function_privilege('anon', p.oid, 'EXECUTE') OR has_function_privilege('authenticated', p.oid, 'EXECUTE'))`, '0');
+  add('changelog: the service role can still write a travel-fee review row (the server recorder\'s exact shape)', 'service_role', null, `INSERT INTO ${CL} (order_id, user_id, change_type, field_changed, old_value, new_value, notes) VALUES ('${IDS.orderB}', NULL, 'travel_city_review', 'travel_city', 'Typedville2', 'typed_free_city_unverified', 'The customer entered "Typedville2" ...') RETURNING 'inserted'`, 'inserted');
+  add('changelog: ...and read it back', 'service_role', null, cnt('order_changelog', `old_value = 'Typedville2'`), '1');
+  add('changelog: ...and admin now sees three review rows', 'authenticated', IDS.uAdmin, cnt('order_changelog', `change_type = 'travel_city_review'`), '3');
+  add('changelog: ...while customer B still sees none of them', 'authenticated', IDS.uB, cnt('order_changelog', `change_type = 'travel_city_review'`), '0');
   return s;
 }
 

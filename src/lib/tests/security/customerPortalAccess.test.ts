@@ -96,6 +96,8 @@ function fixture(): Harness {
   db.tables.order_custom_fees.push({ id: 'f-1', order_id: 'order-act', name: 'Extra', amount_cents: 500, internal_reason: 'staff only' });
   db.tables.order_changelog.push(
     { id: 'c-1', order_id: 'order-appr', user_id: 'u-admin', field_changed: 'order_items', old_value: '', new_value: 'Castle (dry)', change_type: 'item', created_at: '2026-10-03T00:00:00Z', notes: 'internal staff note' },
+    { id: 'c-3', order_id: 'order-appr', user_id: null, field_changed: 'travel_city', old_value: 'Typedville', new_value: 'typed_free_city_unverified', change_type: 'travel_city_review', created_at: '2026-10-03T00:00:00Z', notes: 'The customer entered Typedville ... staff only' },
+    { id: 'c-4', order_id: 'order-appr', user_id: null, field_changed: 'balance_due_cents', old_value: '1', new_value: '2', change_type: 'payment_error', created_at: '2026-10-03T00:00:00Z', notes: 'PAYMENT_EXCEEDS_AMOUNT_DUE staff only' },
     { id: 'c-2', order_id: 'order-act', user_id: 'u-admin', field_changed: 'status', old_value: 'a', new_value: 'b', change_type: 'status', created_at: '2026-10-03T00:00:00Z', notes: 'staff' },
   );
   db.tables.order_lot_pictures.push(
@@ -180,6 +182,7 @@ function fixture(): Harness {
     ok('projection: the customer\'s own discount and fee are present', p.discounts[0].name === 'Promo' && p.customFees[0].name === 'Extra');
     ok('projection: changelog is only returned for pending/approval statuses', Array.isArray(p.changelog) && p.changelog.length === 0);
     const appr = await call('jwt-A', { orderId: 'order-appr' });
+    ok('projection: staff-only history (travel-fee city review, payment mismatch) never reaches the customer, only the added-items rows do', appr.json.data.changelog.every((c: any) => c.field_changed === 'order_items') && !appr.text.includes('typed_free_city_unverified') && !appr.text.includes('travel_city') && !appr.text.includes('PAYMENT_EXCEEDS') && !appr.text.includes('Typedville'));
     ok('projection: the approval changelog carries only field / old / new / time (no staff user or notes)', appr.json.data.changelog.length === 1 && Object.keys(appr.json.data.changelog[0]).every((k) => ['field_changed', 'old_value', 'new_value', 'created_at'].includes(k)) && !appr.text.includes('internal staff note'));
     ok('projection: delivery omits damage photos and crew / admin notes', p.delivery.delivery_images.length === 1 && p.delivery.delivery_images[0].includes('/object/sign/order-evidence/order-act/t-1/delivery/') && !/not-trusted/.test(owner.text) && !/damage|crew note|crew only|admin only|gps/.test(owner.text));
     ok('projection: customer pictures carry display facts only', p.pictures.length === 1 && Object.keys(p.pictures[0]).every((k) => ['id', 'file_path', 'file_name', 'notes', 'created_at', 'url'].includes(k)));

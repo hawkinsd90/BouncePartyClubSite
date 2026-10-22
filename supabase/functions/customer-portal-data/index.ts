@@ -130,8 +130,11 @@ Deno.serve(async (req: Request) => {
       if (CHANGELOG_STATUSES.includes(order.status)) {
         const { data: rows } = await supabase
           .from("order_changelog")
-          .select("*")
+          .select("field_changed, old_value, new_value, created_at")
           .eq("order_id", orderId)
+          // The approval screen reads only which items were added. Every other history row (status changes, payment mismatches, the
+          // travel-fee city review) is staff-only audit and is never returned to a customer.
+          .eq("field_changed", "order_items")
           .order("created_at", { ascending: false });
         changelog = ((rows as Record<string, unknown>[] | null) ?? []).map(projectChangelogEntry);
       }
