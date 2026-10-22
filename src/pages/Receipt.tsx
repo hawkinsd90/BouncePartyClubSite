@@ -14,6 +14,7 @@ import { buildOrderSummaryData, formatOrderSummary } from '../lib/orders/orderSu
 import { formatTime } from '../lib/utils';
 import { LoadingSpinner } from '../components/common/LoadingSpinner';
 import { SecureAccessRequired } from '../components/customer-portal/SecureAccessRequired';
+import { eventAddressLine2 } from '../lib/booking/eventAddress';
 
 export function Receipt() {
   const { orderId, paymentId } = useParams();
@@ -248,7 +249,7 @@ export function Receipt() {
                 <p>
                   <span className="text-slate-600">Location: </span>
                   <span className="font-medium text-slate-900">
-                    <AddressLink address={{ line1: order.addresses.line1, line2: order.addresses.line2, city: order.addresses.city, state: order.addresses.state, zip: order.addresses.zip }} coords={{ lat: order.addresses.lat, lng: order.addresses.lng }} />
+                    <AddressLink address={{ line1: order.addresses.line1, line2: eventAddressLine2(order), city: order.addresses.city, state: order.addresses.state, zip: order.addresses.zip }} coords={{ lat: order.addresses.lat, lng: order.addresses.lng }} />
                   </span>
                 </p>
               )}
