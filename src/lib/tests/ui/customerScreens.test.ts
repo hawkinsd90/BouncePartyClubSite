@@ -102,7 +102,7 @@ ok('catalog heading: wraps, breaks long words and shrinks on the narrowest phone
   let n = 0;
   const revoked: string[] = [];
   const deps = { createUrl: (f: File) => `blob:${f.name}`, newId: () => `id${++n}` };
-  const f = (name: string, size = 1000, type = 'image/jpeg') => ({ name, size, type }) as any as File;
+  const f = (name: string, size = 1000, type = 'image/jpeg') => ({ name, size, type }) as unknown as File;
   const r1 = addPendingPhotos([], [f('a.jpg'), f('b.jpg'), f('c.jpg')], deps);
   eq('each pick is one record with its own preview', r1.items.map((p) => [p.id, p.file.name, p.url]), [['id1', 'a.jpg', 'blob:a.jpg'], ['id2', 'b.jpg', 'blob:b.jpg'], ['id3', 'c.jpg', 'blob:c.jpg']]);
   const r2 = removePendingPhoto(r1.items, 'id2', (u) => revoked.push(u));
@@ -140,7 +140,7 @@ ok('every password box in sign-in, sign-up and reset has an autocomplete hint', 
 
 // scroll + padding + filters
 const app = read('src/App.tsx');
-ok('a page change scrolls to the top (not for anchors), keyed on the path only', /function ScrollToTop\(\)/.test(app) && /if \(!hash\) window\.scrollTo\(0, 0\);\n\s+\}, \[pathname\]\);/.test(app) && /<ScrollToTop \/>/.test(app));
+ok('a page change scrolls to the top (not for anchors), keyed on the path only', /function ScrollToTop\(\)/.test(app) && /if \(!hash\) window\.scrollTo\(0, 0\);(\n\s+\/\/[^\n]*)*\n\s+\}, \[pathname\]\);/.test(app) && /<ScrollToTop \/>/.test(app));
 ok('nested panels use phone-sized padding', /p-4 sm:p-8">/.test(read('src/pages/Contact.tsx')) && /className="p-4 sm:p-8 space-y-8"/.test(read('src/pages/Sign.tsx')));
 const ee = read('src/pages/EventEssentialsCatalog.tsx');
 ok('Party Add-Ons category chips replace history instead of adding an entry per tap', (ee.match(/\}, \{ replace: true \}\);/g) ?? []).length === 2);

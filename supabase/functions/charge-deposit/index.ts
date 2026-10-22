@@ -477,7 +477,6 @@ Deno.serve(async (req: Request) => {
 
     // ---- The charge succeeded and the payment is applied to the order ----
     const paymentIntent = result.paymentIntent;
-    const fin = result.finalize;
     const details = result.details;
 
     // The payment is applied. What follows (order confirmation and the admin alert, the transaction receipts, the invoice row, the

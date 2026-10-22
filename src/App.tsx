@@ -45,6 +45,8 @@ function ScrollToTop() {
   const { pathname, hash } = useLocation();
   useEffect(() => {
     if (!hash) window.scrollTo(0, 0);
+    // The hash is read when the path changes but is not a trigger: moving to an anchor on the same page keeps its position.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pathname]);
   return null;
 }

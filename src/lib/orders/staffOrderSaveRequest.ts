@@ -105,7 +105,7 @@ export function buildSaveRequest(p: SaveOrderChangesParams) {
 export async function saveOrderChanges(params: SaveOrderChangesParams): Promise<void> {
   const { order, availabilityIssues, sendNotificationsFn, onComplete } = params;
   // Adding the first inflatable to an Event Essentials-only order must not silently pick grass: the surface has to be chosen.
-  const surfaceProblem = surfaceChoiceProblem({ hasInflatables: hasActiveInflatable(params.stagedItems as any[]), surface: params.editedOrder.surface });
+  const surfaceProblem = surfaceChoiceProblem({ hasInflatables: hasActiveInflatable(params.stagedItems), surface: params.editedOrder.surface });
   if (surfaceProblem) {
     showToast(surfaceProblem, 'error');
     throw new Error('Surface not chosen');

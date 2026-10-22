@@ -110,6 +110,8 @@ export function useCalendarTasks(currentMonth: Date) {
       return;
     }
     loadTasksForMonth(currentMonthRef.current, { background: true });
+    // Only a change of role reloads; the loader itself is re-created on every render and must not be a trigger.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isAdmin]);
 
   useEffect(() => {
@@ -175,7 +177,7 @@ export function useCalendarTasks(currentMonth: Date) {
         .order('event_date', { ascending: true });
 
       if (error) throw error;
-      const orders = ordersData as any[] | null;
+      const orders = ordersData as unknown as Array<{ id: string } & Record<string, unknown>> | null;
 
       if (!orders) {
         setTasks([]);

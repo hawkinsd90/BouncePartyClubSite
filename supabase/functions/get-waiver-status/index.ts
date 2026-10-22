@@ -173,9 +173,8 @@ Deno.serve(async (req: Request) => {
   }
 });
 
-// deno-lint-ignore no-explicit-any
-function pickWaiverRow(rows: any[]) {
+interface WaiverRowLike { electronic_consent_given?: boolean | null; physical_waiver_storage_path?: string | null }
+function pickWaiverRow<T extends WaiverRowLike>(rows: T[]): T | null {
   if (rows.length === 0) return null;
-  // deno-lint-ignore no-explicit-any
-  return rows.find((r: any) => r.electronic_consent_given) ?? rows.find((r: any) => r.physical_waiver_storage_path) ?? rows[0];
+  return rows.find((r) => r.electronic_consent_given) ?? rows.find((r) => r.physical_waiver_storage_path) ?? rows[0];
 }

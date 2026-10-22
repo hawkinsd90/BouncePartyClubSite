@@ -99,7 +99,7 @@ export interface ProviderPayment {
 // whichever caller applied first is the one that notifies.
 // Runs the post-payment completion and turns anything but "done" into an error, so the webhook answers 5xx and Stripe delivers the
 // event again. A lease held by another worker (the request that charged the card) is waited for briefly first.
-async function completeDepositOrFail(supabaseClient: any, paymentId: string): Promise<void> {
+async function completeDepositOrFail(supabaseClient: unknown, paymentId: string): Promise<void> {
   let last = await completePostPayment(supabaseClient, paymentId);
   for (let attempt = 0; attempt < 3 && last.status === "busy"; attempt++) {
     await new Promise((resolve) => setTimeout(resolve, 4000));
@@ -111,7 +111,7 @@ async function completeDepositOrFail(supabaseClient: any, paymentId: string): Pr
 
 // checkout.session.expired: a customer opened a balance Checkout and walked away. The operation is settled against what Stripe says
 // about the session (cancelled only once it is really expired; a paid one is applied), so it stops blocking cash/check entry.
-export async function handleCheckoutSessionExpired(session: Stripe.Checkout.Session, supabaseClient: any, stripe: Stripe): Promise<void> {
+export async function handleCheckoutSessionExpired(session: Stripe.Checkout.Session, supabaseClient: unknown, stripe: Stripe): Promise<void> {
   if (!session?.id) return;
   const outcome = await settleExpiredCheckoutSession(supabaseClient, stripe, session.id);
   console.log(`[WEBHOOK] checkout.session.expired ${session.id}: ${outcome}`);

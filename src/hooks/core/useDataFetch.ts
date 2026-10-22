@@ -35,7 +35,7 @@ export function useDataFetch<T>(
 
   const [data, setData] = useState<T | null>(null);
   const hasDataRef = useRef(false);
-  const raiseLoading = () => shouldRaiseLoading({ keepDataWhileRefetching, hasData: hasDataRef.current });
+  const raiseLoading = useCallback(() => shouldRaiseLoading({ keepDataWhileRefetching, hasData: hasDataRef.current }), [keepDataWhileRefetching]);
   const [loading, setLoading] = useState(autoFetch);
   const [error, setError] = useState<Error | null>(null);
 
@@ -61,7 +61,7 @@ export function useDataFetch<T>(
     } finally {
       setLoading(false);
     }
-  }, [fetchFn, onSuccess, onError, errorMessage, showErrorNotification, keepDataWhileRefetching]);
+  }, [fetchFn, onSuccess, onError, errorMessage, showErrorNotification, raiseLoading]);
 
   useEffect(() => {
     let cancelled = false;
@@ -102,7 +102,7 @@ export function useDataFetch<T>(
     return () => {
       cancelled = true;
     };
-  }, [autoFetch, fetchFn, onSuccess, onError, errorMessage, showErrorNotification]);
+  }, [autoFetch, fetchFn, onSuccess, onError, errorMessage, showErrorNotification, raiseLoading]);
 
   return { data, loading, error, refetch: fetchData };
 }

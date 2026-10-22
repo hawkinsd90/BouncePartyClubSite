@@ -1,7 +1,7 @@
 import { useEffect, useState, useCallback, useRef } from 'react';
 import { fetchInventoryProducts, fetchProductBundles, fetchProductCategories, fetchProductPricing } from '../lib/queries/products';
 import { getPublicBusinessSettings } from '../lib/core/adminSettingsCache';
-import { buildMenuAddOns, shouldIncludeAddOns, type MenuAddOn } from '../lib/menu/menuAddOns';
+import { buildMenuAddOns, shouldIncludeAddOns, type MenuAddOn, type MenuAddOnInput } from '../lib/menu/menuAddOns';
 import { todayLocalKey } from '../lib/core/localDate';
 import { Link, useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
@@ -187,10 +187,10 @@ export function Catalog() {
       const [products, pricing, bundles, categories] = await Promise.all([fetchInventoryProducts(), fetchProductPricing(), fetchProductBundles(), fetchProductCategories()]);
       if (products.error || pricing.error || bundles.error || categories.error) throw new Error('add-on data unavailable');
       return buildMenuAddOns({
-        products: (products.data ?? []) as any[],
-        pricing: (pricing.data ?? []) as any[],
-        bundles: (bundles.data ?? []) as any[],
-        categories: (categories.data ?? []) as any[],
+        products: (products.data ?? []) as unknown as MenuAddOnInput['products'],
+        pricing: (pricing.data ?? []) as unknown as MenuAddOnInput['pricing'],
+        bundles: (bundles.data ?? []) as unknown as MenuAddOnInput['bundles'],
+        categories: (categories.data ?? []) as unknown as MenuAddOnInput['categories'],
       });
     } catch (err) {
       console.error('Menu add-ons unavailable:', err);
