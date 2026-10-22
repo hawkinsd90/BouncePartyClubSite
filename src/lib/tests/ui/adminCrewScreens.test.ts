@@ -200,7 +200,7 @@ ok('lot pictures reload when the admin returns to the page', /useRefetchOnReturn
   const { createElement } = require('react');
   const abs = path.resolve('src/components/admin/tasks/detail/PhotoUploadNotice.tsx');
   const js = tsc.transpileModule(readFileSync(abs, 'utf8'), { compilerOptions: { jsx: tsc.JsxEmit.ReactJSX, module: tsc.ModuleKind.CommonJS, target: tsc.ScriptTarget.ES2020 } }).outputText;
-  const mod: any = { exports: {} };
+  const mod = { exports: {} as { PhotoUploadNotice: import('react').ComponentType<{ notice: unknown; onRetry(): void; onDismiss(): void }> } };
   new Function('require', 'module', 'exports', js)(require, mod, mod.exports);
   const render = (n: unknown) => renderToStaticMarkup(createElement(mod.exports.PhotoUploadNotice, { notice: n, onRetry() {}, onDismiss() {} }));
   eq('no notice renders nothing', render(null), '');
