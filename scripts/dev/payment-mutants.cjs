@@ -454,7 +454,13 @@ const M = [
   [PP, 'a busy lease is treated as done', [repl('  if (outcome === "already_completed" || outcome === "busy" || outcome === "not_applicable" || outcome === "not_found") {', '  if (outcome === "busy") { result.status = "already_completed"; return result; }\n  if (outcome === "already_completed" || outcome === "not_applicable" || outcome === "not_found") {')]],
   [PP, 'the invoice is created again on a retry', [repl('      } else if (existingInvoice) {', '      } else if (false) {')]],
   [PP, 'a failed record step still sends the customer messages', [repl('    if (Object.values(result.steps).includes("failed") || result.errors.some((e) => e.startsWith("receipt"))) {', '    if (false) {')]],
-  [PP, 'the completion is never marked finished', [repl('    const { error: finishError } = await db.rpc("finish_post_payment_completion", { p_payment_id: paymentId });', '    const finishError = null;')]],
+  [PP, 'the completion is never marked finished', [repl('    const finishError = await recordCompletion(db, paymentId, options.finishRetryDelayMs ?? 250);', '    const finishError = null;')]],
+  [PP, 'a repeat of stage B texts the customer again', [repl('    if (phone && (await confirmationSmsAlreadySent(db, orderId, typeof c.paid_at === "string" ? c.paid_at : null))) {', '    if (false) {')]],
+  [PP, 'an older text for the order suppresses this payment confirmation', [repl('    if (paidAt) query = query.gte("created_at", paidAt);', '')]],
+  [PP, 'an inbound message counts as the confirmation text', [repl('.eq("direction", "outbound")', '')]],
+  [PP, 'a text for another order suppresses this confirmation', [repl('.eq("order_id", orderId).eq("direction"', '.eq("direction"')]],
+  [PP, 'a failed text lookup suppresses the confirmation text', [repl('    if (error || !Array.isArray(data)) return false;', '    if (error || !Array.isArray(data)) return true;')]],
+  [PP, 'the completion marker is attempted only once', [repl('for (let attempt = 0; attempt < 3; attempt++) {', 'for (let attempt = 0; attempt < 1; attempt++) {')]],
   [PP, 'the customer text is not sent', [repl('        const res = await invoke("send-sms-notification", { to: phone, message, orderId });', '        const res = undefined;')]],
   [MIG9, 'a completed payment is worked on again', [repl("      IF v_row.post_completed_at IS NOT NULL THEN\n        RETURN jsonb_build_object('outcome', 'already_completed');\n      END IF;\n", '')]],
   [MIG9, 'a live lease does not stop a second worker', [repl("      IF v_row.post_claim_until IS NOT NULL AND v_row.post_claim_until > now() THEN\n        RETURN jsonb_build_object('outcome', 'busy');\n      END IF;\n", '')]],
@@ -482,7 +488,7 @@ for (const m of M) if (m[0] === SQL && LIVE_CLAIM.includes(m[1])) m[0] = SQL2;
 const SQL_FIRST = ['src/lib/tests/payments/paymentOperations.test.ts', 'src/lib/tests/payments/paymentCharging.test.ts'];
 const CODE_FIRST = ['src/lib/tests/payments/paymentCharging.test.ts', 'src/lib/tests/payments/paymentOperations.test.ts'];
 const REFUND_TESTS = ['src/lib/tests/payments/refundSafety.test.ts'];
-const B4_TESTS = ['src/lib/tests/payments/postPayment.test.ts', 'src/lib/tests/payments/paymentRecovery.test.ts'];
+const B4_TESTS = ['src/lib/tests/payments/postPayment.test.ts', 'src/lib/tests/payments/postPaymentNotificationWindow.test.ts', 'src/lib/tests/payments/paymentRecovery.test.ts'];
 const AUTHORITY_TESTS = ['src/lib/tests/payments/refundSafety.test.ts', 'src/lib/tests/security/coreDatabaseAccess.test.ts'];
 const ALLOCATION_TESTS = ['src/lib/tests/payments/refundAllocation.test.ts', 'src/lib/tests/security/coreDatabaseAccess.test.ts'];
 const ACCOUNTING_TESTS = ['src/lib/tests/payments/refundAccounting.test.ts', 'src/lib/tests/security/coreDatabaseAccess.test.ts'];

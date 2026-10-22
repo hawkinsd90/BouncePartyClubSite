@@ -10,7 +10,9 @@
 //   stage A    records that must exist: the order is confirmed through order-lifecycle (idempotent), the deposit / tip receipts, the
 //              invoice row. Each step checks what already exists, so a retry repeats nothing.
 //   stage B    notifications: the customer's confirmation email and text (an admin alert is sent by the receipt and lifecycle steps).
-//              They are attempted once; a failure is recorded by the relay (notification_failures) and is not retried.
+//              They are attempted once; a failure is recorded by the relay (notification_failures) and is not retried. If stage B has to run
+//              again (a crash, or the completion marker could not be written), the text is skipped when its sms_conversations row exists, but
+//              the email has no durable record and is sent again: delivery is at-least-once for the email, best-effort once for the text.
 //   finish     post_completed_at is set; the payment is never worked on again.
 //
 // If a stage A step fails the lease is released and the result says `incomplete`, so the next trigger retries at once. The triggers are
@@ -45,6 +47,42 @@ export interface PostPaymentOptions {
   sendConfirmationEmail?: typeof sendDepositConfirmationEmail;
   siteOrigin?: string;
   leaseSeconds?: number;
+  // Pause between attempts to record completion (test seam).
+  finishRetryDelayMs?: number;
+}
+
+// The confirmation text is recorded by send-sms-notification in sms_conversations once the provider accepted it. A repeat of stage B (a
+// crash or a failed completion marker after the text went out) finds that row and does not text the customer again. This is a
+// best-effort guard on top of the single attempt: if the row is missing (the provider accepted but the insert failed) or the lookup fails,
+// the text is sent, because a missed confirmation is worse than a repeated one.
+export async function confirmationSmsAlreadySent(db: Any, orderId: string, paidAt: string | null): Promise<boolean> {
+  try {
+    let query = db.from("sms_conversations").select("message_body, created_at").eq("order_id", orderId).eq("direction", "outbound");
+    if (paidAt) query = query.gte("created_at", paidAt);
+    const { data, error } = await query;
+    if (error || !Array.isArray(data)) return false;
+    const marker = `is confirmed! Order #${formatOrderId(orderId)}`;
+    return data.some((row: Any) => typeof row?.message_body === "string" && row.message_body.includes(marker));
+  } catch {
+    return false;
+  }
+}
+
+// Recording completion is one idempotent UPDATE; a transient database error is retried here so a blip does not make the next trigger
+// repeat the notifications that already went out.
+async function recordCompletion(db: Any, paymentId: string, delayMs: number): Promise<{ message: string } | null> {
+  let last: { message: string } | null = null;
+  for (let attempt = 0; attempt < 3; attempt++) {
+    try {
+      const { error } = await db.rpc("finish_post_payment_completion", { p_payment_id: paymentId });
+      if (!error) return null;
+      last = { message: String(error.message ?? error) };
+    } catch (err) {
+      last = { message: err instanceof Error ? err.message : String(err) };
+    }
+    if (attempt < 2 && delayMs > 0) await new Promise((resolve) => setTimeout(resolve, delayMs));
+  }
+  return last;
 }
 
 export function buildConfirmationSms(order: { id: string; event_date: string }, firstName: string, portalUrl: string): string {
@@ -244,7 +282,10 @@ export async function completePostPayment(db: Any, paymentId: string, options: P
     }
 
     const phone = typeof customer?.phone === "string" ? customer.phone.trim() : "";
-    if (phone) {
+    if (phone && (await confirmationSmsAlreadySent(db, orderId, typeof c.paid_at === "string" ? c.paid_at : null))) {
+      // A repeat of stage B: the customer was already texted for this payment.
+      result.steps.sms = "skipped";
+    } else if (phone) {
       try {
         const origin = options.siteOrigin ?? getSiteOrigin();
         const portalUrl = (await buildPortalUrl(db, orderId, origin)) ?? origin;
@@ -262,7 +303,7 @@ export async function completePostPayment(db: Any, paymentId: string, options: P
     }
 
     // ---- finish -------------------------------------------------------------------------------------------------------------
-    const { error: finishError } = await db.rpc("finish_post_payment_completion", { p_payment_id: paymentId });
+    const finishError = await recordCompletion(db, paymentId, options.finishRetryDelayMs ?? 250);
     if (finishError) {
       // Everything was sent; only the marker failed. A retry would repeat stage B, so say so plainly.
       result.errors.push(`finish: ${finishError.message}`);
