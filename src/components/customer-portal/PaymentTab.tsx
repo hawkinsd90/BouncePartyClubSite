@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { MODAL_PANEL_SCROLL } from '../../lib/core/modalClasses';
 import { CheckCircle, CreditCard, Loader2 } from 'lucide-react';
 import { storedOrderTotalCents } from '../../lib/pricing/orderMoney';
 import { formatCurrency } from '../../lib/pricing';
@@ -51,7 +52,7 @@ function ConfirmChargeModal({
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-lg shadow-xl max-w-md w-full">
+      <div className={`bg-white rounded-lg shadow-xl max-w-md w-full ${MODAL_PANEL_SCROLL}`}>
         <div className="p-5">
           <h3 className="text-lg font-bold text-slate-900 mb-1">Confirm Payment</h3>
           <p className="text-sm text-slate-600 mb-4">

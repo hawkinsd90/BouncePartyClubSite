@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { MODAL_PANEL_SCROLL } from '../../../../lib/core/modalClasses';
 import { ShieldAlert } from 'lucide-react';
 import { MIN_OVERRIDE_REASON, overrideReasonProblem } from '../../../../lib/tasks/evidenceRule';
 
@@ -17,7 +18,7 @@ export function EvidenceOverrideModal({ kind, busy = false, onSubmit, onCancel }
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 z-[10001] flex items-center justify-center p-4">
-      <div role="dialog" aria-modal="true" aria-label="Complete without a photo" className="bg-white rounded-lg shadow-2xl max-w-md w-full p-6">
+      <div role="dialog" aria-modal="true" aria-label="Complete without a photo" className={`bg-white rounded-lg shadow-2xl max-w-md w-full p-6 ${MODAL_PANEL_SCROLL}`}>
         <div className="flex items-start gap-3 mb-4">
           <ShieldAlert className="w-7 h-7 text-amber-600 flex-shrink-0" />
           <div>

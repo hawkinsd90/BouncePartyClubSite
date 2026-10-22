@@ -1,4 +1,5 @@
 import { X } from 'lucide-react';
+import { MODAL_PANEL_SCROLL } from '../../lib/core/modalClasses';
 import { useState } from 'react';
 import { supabase } from '../../lib/supabase';
 import { checkMultipleUnitsAvailability } from '../../lib/booking/availability';
@@ -155,7 +156,7 @@ export function StatusChangeDialog({
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-lg max-w-lg w-full p-6">
+      <div className={`bg-white rounded-lg max-w-lg w-full p-6 ${MODAL_PANEL_SCROLL}`}>
         <div className="flex items-center justify-between mb-4">
           <h3 className="text-lg font-semibold">Confirm Status Change</h3>
           <button onClick={onClose} className="text-gray-400 hover:text-gray-600">

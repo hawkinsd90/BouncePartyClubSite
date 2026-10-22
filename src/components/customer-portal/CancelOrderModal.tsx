@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { MODAL_PANEL_SCROLL } from '../../lib/core/modalClasses';
 import { parseDateOnly } from '../../lib/core/localDate';
 import { X, AlertTriangle, Loader2, CheckCircle, XCircle } from 'lucide-react';
 import { getEdgeAuthToken } from '../../lib/core/edgeAuth';
@@ -86,7 +87,7 @@ export function CancelOrderModal({ orderId, eventDate, invoiceLinkToken, onClose
   if (result) {
     return (
       <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-        <div className="bg-white rounded-lg shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+        <div className={`bg-white rounded-lg shadow-xl max-w-2xl w-full ${MODAL_PANEL_SCROLL}`}>
           <div className="p-6">
             <div className="flex items-center justify-center mb-6">
               <CheckCircle className="w-16 h-16 text-green-500" />
@@ -127,7 +128,7 @@ export function CancelOrderModal({ orderId, eventDate, invoiceLinkToken, onClose
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-      <div className="bg-white rounded-lg shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+      <div className={`bg-white rounded-lg shadow-xl max-w-2xl w-full ${MODAL_PANEL_SCROLL}`}>
         <div className="flex items-center justify-between p-6 border-b border-gray-200">
           <h2 className="text-2xl font-bold text-gray-900">Cancel Order</h2>
           <button

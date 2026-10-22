@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
+import { MODAL_PANEL_SCROLL } from '../../lib/core/modalClasses';
 import {
   CreditCard,
   CreditCard as Edit2,
@@ -424,7 +425,7 @@ export function CustomerApprovalModal({
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-lg shadow-xl max-w-lg w-full max-h-[90vh] overflow-y-auto">
+      <div className={`bg-white rounded-lg shadow-xl max-w-lg w-full ${MODAL_PANEL_SCROLL}`}>
         <div className="p-4 md:p-5">
           <h3 className="text-lg md:text-xl font-bold text-green-900 mb-2">
             Approve Order Changes

@@ -1,4 +1,5 @@
 import { CheckCircle, DollarSign, AlertTriangle, FileCheck, Clock } from 'lucide-react';
+import { MODAL_PANEL_SCROLL } from '../../../../lib/core/modalClasses';
 import { formatCurrency } from '../../../../lib/pricing';
 
 export interface CompletionSummaryData {
@@ -25,7 +26,7 @@ export function PickupCompletionSummary({ summary, onClose }: Props) {
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-60 z-[70] flex items-center justify-center p-4">
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md">
+      <div className={`bg-white rounded-2xl shadow-2xl w-full max-w-md ${MODAL_PANEL_SCROLL}`}>
         <div className="bg-green-600 rounded-t-2xl px-6 py-5 text-white">
           <div className="flex items-center gap-3 mb-1">
             <CheckCircle className="w-7 h-7" />

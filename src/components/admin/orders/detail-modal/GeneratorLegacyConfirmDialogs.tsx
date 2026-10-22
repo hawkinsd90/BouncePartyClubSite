@@ -2,6 +2,7 @@
 // that has no Event Essentials Generator available. Presentational: the parent
 // owns the pending state and the ownership-checked callbacks.
 
+import { MODAL_PANEL_SCROLL } from '../../../../lib/core/modalClasses';
 import { SimpleConfirmModal } from '../../../common/SimpleConfirmModal';
 
 interface GeneratorLegacyConfirmDialogsProps {
@@ -34,7 +35,7 @@ export function GeneratorLegacyConfirmDialogs({
 
       {pending && pending.isWaived && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-xl shadow-xl max-w-md w-full border-2 border-orange-600">
+          <div className={`bg-white rounded-xl shadow-xl max-w-md w-full border-2 border-orange-600 ${MODAL_PANEL_SCROLL}`}>
             <div className="flex items-center justify-between p-6 border-b border-slate-200">
               <h2 className="text-xl font-bold text-slate-900">Generator Fee Waiver</h2>
             </div>

@@ -1,4 +1,5 @@
 import { useState, useCallback } from 'react';
+import { MODAL_PANEL_SCROLL } from '../../../lib/core/modalClasses';
 import { PhoneLink } from '../../shared/PhoneLink';
 import { supabase } from '../../../lib/supabase';
 import { Mail, Phone, Calendar, CreditCard as Edit2, X, Star, TrendingUp, Trash2 } from 'lucide-react';
@@ -357,7 +358,7 @@ export function ContactsList() {
 
       {showDeleteModal && deletingContact && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-lg shadow-xl max-w-md w-full p-6">
+          <div className={`bg-white rounded-lg shadow-xl max-w-md w-full p-6 ${MODAL_PANEL_SCROLL}`}>
             <div className="flex items-start gap-4 mb-5">
               <div className="w-10 h-10 rounded-full bg-red-100 flex items-center justify-center flex-shrink-0">
                 <Trash2 className="w-5 h-5 text-red-600" />

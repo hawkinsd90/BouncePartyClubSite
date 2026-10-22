@@ -1,4 +1,5 @@
 import { Printer, X, Download, ZoomIn, ZoomOut, Loader2, AlertCircle } from 'lucide-react';
+import { MODAL_PANEL_SCROLL } from '../../lib/core/modalClasses';
 import { ReactNode, useEffect, useState, useCallback, useRef } from 'react';
 import { PrintState, PrintDocumentType, PRINT_TEMPLATES } from '../../lib/documents/printableDocument';
 
@@ -178,11 +179,12 @@ export function PrintModal({
       aria-labelledby="print-modal-title"
       ref={modalRef}
       id="print-content-wrapper"
+      onClick={(e) => { if (e.target === e.currentTarget && !isProcessing) onClose(); }}
     >
-      <div className={`bg-white rounded-lg ${maxWidthClasses[maxWidth]} w-full max-h-[90vh] overflow-y-auto relative shadow-2xl`}>
-        <div className="sticky top-0 bg-white border-b border-slate-200 p-4 flex justify-between items-center z-10 no-print">
+      <div className={`bg-white rounded-lg ${maxWidthClasses[maxWidth]} w-full ${MODAL_PANEL_SCROLL} relative shadow-2xl`}>
+        <div className="sticky top-0 bg-white border-b border-slate-200 p-3 sm:p-4 flex flex-wrap justify-between items-center gap-2 z-10 no-print">
           <div>
-            <h2 id="print-modal-title" className="text-2xl font-bold text-slate-900">{title}</h2>
+            <h2 id="print-modal-title" className="text-lg sm:text-2xl font-bold text-slate-900">{title}</h2>
             {template && (
               <p className="text-sm text-slate-600 mt-1">
                 {template.orientation} • {template.size.toUpperCase()} • {template.quality}
@@ -190,9 +192,9 @@ export function PrintModal({
             )}
           </div>
 
-          <div className="flex gap-2 items-center">
+          <div className="flex flex-wrap gap-2 items-center">
             {showZoomControls && (
-              <div className="flex items-center gap-2 border border-slate-300 rounded-lg px-3 py-2 bg-slate-50">
+              <div className="hidden sm:flex items-center gap-2 border border-slate-300 rounded-lg px-3 py-2 bg-slate-50">
                 <button
                   onClick={handleZoomOut}
                   disabled={zoom === ZOOM_LEVELS[0]}
@@ -267,7 +269,7 @@ export function PrintModal({
               ref={printButtonRef}
               onClick={handlePrint}
               disabled={isProcessing}
-              className="flex items-center bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 disabled:cursor-not-allowed text-white font-semibold py-2 px-4 rounded-lg transition-colors"
+              className="flex items-center min-h-[44px] bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 disabled:cursor-not-allowed text-white font-semibold py-2 px-4 rounded-lg transition-colors"
               aria-label={`${printButtonText}. Press Control P or Command P`}
               title="Print document (Ctrl/Cmd + P)"
             >
@@ -276,12 +278,13 @@ export function PrintModal({
               ) : (
                 <Printer className="w-4 h-4 mr-2" />
               )}
-              {printButtonText}
+              <span className="sm:hidden">Print</span>
+              <span className="hidden sm:inline">{printButtonText}</span>
             </button>
 
             <button
               onClick={onClose}
-              className="flex items-center bg-slate-200 hover:bg-slate-300 text-slate-700 font-semibold py-2 px-4 rounded-lg transition-colors"
+              className="flex items-center min-h-[44px] bg-slate-200 hover:bg-slate-300 text-slate-700 font-semibold py-2 px-4 rounded-lg transition-colors"
               aria-label="Close print preview. Press Escape"
               title="Close (Escape)"
             >

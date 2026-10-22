@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { MODAL_PANEL_SCROLL } from '../../../../lib/core/modalClasses';
 import { X, Package, ShieldAlert, Check, AlertTriangle, Sun, Droplets, Layers } from 'lucide-react';
 import { supabase } from '../../../../lib/supabase';
 import type { AdminPhoto } from '../../../../hooks/admin/useAdminPhotos';
@@ -168,7 +169,7 @@ export function PromoteToUnitModal({ photo, onClose, onSuccess }: PromoteToUnitM
 
   return (
     <div className="fixed inset-0 z-[60] bg-black/80 flex items-end sm:items-center justify-center p-0 sm:p-4">
-      <div className="w-full sm:max-w-lg bg-white rounded-t-2xl sm:rounded-2xl shadow-2xl overflow-hidden">
+      <div className={`w-full sm:max-w-lg bg-white rounded-t-2xl sm:rounded-2xl shadow-2xl ${MODAL_PANEL_SCROLL}`}>
         {/* Header */}
         <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100">
           <div className="flex items-center gap-2">
