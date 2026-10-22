@@ -1,4 +1,5 @@
 import { User, MapPin, Clock, AlertTriangle, CheckCircle, Navigation, ArrowRight, History } from 'lucide-react';
+import { balanceDueLabel, equipmentSummary, eventTimeRange, statusLabel } from '../../lib/tasks/taskCardFormat';
 import { AddressLink } from '../shared/AddressLink';
 import { PhoneLink } from '../shared/PhoneLink';
 import { Task } from '../../hooks/admin/useCalendarTasks';
@@ -91,7 +92,7 @@ export function TaskCard({ task, stopNumber, taskPosition = null, onClick }: Tas
                   task.taskStatus?.status === 'en_route' ? 'bg-blue-600 text-white' :
                   'bg-slate-200 text-slate-700'
                 }`}>
-                  {task.taskStatus?.status?.toUpperCase() || 'PENDING'}
+                  {statusLabel(task.taskStatus?.status)}
                 </span>
 
                 {isProjected && (
@@ -123,7 +124,7 @@ export function TaskCard({ task, stopNumber, taskPosition = null, onClick }: Tas
 
                 {task.balanceDue > 0 && isDropOff && !isCompletedTask && (
                   <span className="inline-block text-xs px-2 py-1 rounded-full bg-red-100 text-red-800">
-                    ${(task.balanceDue / 100).toFixed(0)} DUE
+                    {balanceDueLabel(task.balanceDue)}
                   </span>
                 )}
               </>
@@ -152,7 +153,7 @@ export function TaskCard({ task, stopNumber, taskPosition = null, onClick }: Tas
           <div className="flex items-start gap-2">
             <Clock className="w-4 h-4 text-slate-600 mt-0.5 flex-shrink-0" />
             <div className="text-slate-700 text-xs">
-              <div>Event: {task.eventStartTime} - {task.eventEndTime}</div>
+              <div>Event: {eventTimeRange(task.eventStartTime, task.eventEndTime)}</div>
             </div>
           </div>
         </div>
@@ -160,12 +161,15 @@ export function TaskCard({ task, stopNumber, taskPosition = null, onClick }: Tas
         <div>
           <div className="text-xs font-semibold text-slate-700 mb-2">Equipment:</div>
           <ul className="text-xs text-slate-700 space-y-1">
-            {task.items.slice(0, 3).map((item, idx) => (
+            {equipmentSummary(task.items).shown.map((item, idx) => (
               <li key={idx} className="flex items-start gap-2">
                 <span className={bulletColor}>•</span>
                 {item}
               </li>
             ))}
+            {equipmentSummary(task.items).more > 0 && (
+              <li className="text-slate-500 font-medium">+{equipmentSummary(task.items).more} more</li>
+            )}
           </ul>
         </div>
       </div>

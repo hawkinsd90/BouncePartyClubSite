@@ -19,18 +19,26 @@ export type TaskEvidenceViews = Record<string, { delivery: EvidenceView[]; damag
 
 const CHUNK = 200;
 
-export async function fetchTaskEvidenceViews(taskStatusIds: string[]): Promise<TaskEvidenceViews> {
+// `failed` is true when any request could not be answered (offline, server error), so a screen can offer a retry instead of showing
+// blank tiles forever.
+export async function fetchTaskEvidenceViewsChecked(taskStatusIds: string[]): Promise<{ views: TaskEvidenceViews; failed: boolean }> {
   const ids = Array.from(new Set(taskStatusIds.filter(Boolean)));
   const out: TaskEvidenceViews = {};
+  let failed = false;
   for (let i = 0; i < ids.length; i += CHUNK) {
     try {
       const { data, error } = await supabase.functions.invoke('task-evidence', {
         body: { action: 'view', taskStatusIds: ids.slice(i, i + CHUNK) },
       });
       if (!error && data?.success && data.tasks) Object.assign(out, data.tasks as TaskEvidenceViews);
+      else failed = true;
     } catch {
-      /* the screens show placeholders */
+      failed = true;
     }
   }
-  return out;
+  return { views: out, failed };
+}
+
+export async function fetchTaskEvidenceViews(taskStatusIds: string[]): Promise<TaskEvidenceViews> {
+  return (await fetchTaskEvidenceViewsChecked(taskStatusIds)).views;
 }

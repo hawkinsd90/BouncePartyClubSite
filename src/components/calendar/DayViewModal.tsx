@@ -211,11 +211,11 @@ export function DayViewModal({
                           ? (log.end_mileage - log.start_mileage).toFixed(1)
                           : null;
                       return (
-                        <div key={log.user_id} className="flex items-center justify-between bg-white rounded-lg px-3 py-1.5 text-xs">
-                          <span className="font-medium text-slate-700 truncate max-w-[120px]">
+                        <div key={log.user_id} className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 bg-white rounded-lg px-3 py-1.5 text-xs">
+                          <span className="font-medium text-slate-700 truncate max-w-[160px] sm:max-w-[220px]">
                             {userNames[log.user_id] || 'Crew Member'}
                           </span>
-                          <div className="flex items-center gap-2 text-slate-600 shrink-0">
+                          <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-slate-600">
                             {log.start_mileage != null && (
                               <span className="text-green-700">Start: {log.start_mileage.toLocaleString()}</span>
                             )}

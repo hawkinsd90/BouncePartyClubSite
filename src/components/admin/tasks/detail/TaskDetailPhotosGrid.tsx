@@ -13,13 +13,21 @@ export function TaskDetailPhotosGrid({ taskStatusId, deliveryImages, damageImage
   const urls = useTaskEvidenceUrls(taskStatusId, deliveryImages, damageImages);
   const tile = (url: string | null, alt: string, border: string) =>
     url ? (
-      <img src={url} alt={alt} className={`w-full h-24 object-cover rounded-lg border ${border}`} />
+      <img src={url} alt={alt} loading="lazy" className={`w-full h-24 object-cover rounded-lg border ${border}`} />
     ) : (
-      <div className={`w-full h-24 rounded-lg border ${border} bg-slate-100`} aria-label={alt} />
+      <div className={`w-full h-24 rounded-lg border ${border} bg-slate-100 flex items-center justify-center text-xs text-slate-500 text-center px-1`} aria-label={alt}>
+        {urls.status === 'loading' ? 'Loading…' : 'Photo unavailable'}
+      </div>
     );
   return (
     <div className="border-t border-slate-200 pt-6">
       <h3 className="font-bold text-slate-900 mb-4">Photos</h3>
+      {urls.status === 'error' && (
+        <div className="mb-4 flex items-center justify-between gap-3 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 text-sm text-amber-900" role="alert">
+          <span>The photos could not be loaded.</span>
+          <button type="button" onClick={urls.retry} className="font-semibold underline min-h-[32px]">Try again</button>
+        </div>
+      )}
       {deliveryImages && deliveryImages.length > 0 && (
         <div className="mb-4">
           <h4 className="font-semibold text-sm text-slate-700 mb-2">Delivery Photos</h4>

@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { format } from 'date-fns';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '../../../lib/supabase';
@@ -34,6 +34,7 @@ import { useAuth } from '../../../contexts/AuthContext';
 import { localDateKey } from '../../../lib/core/localDate';
 import { decideEvidence, isEvidenceRequiredError, parseEvidenceState, type EvidenceKind } from '../../../lib/tasks/evidenceRule';
 import { EvidenceOverrideModal } from './detail/EvidenceOverrideModal';
+import { ReasonModal } from './detail/ReasonModal';
 import { shouldBlockForStartMileage, START_MILEAGE_PROMPTS, type MileageGatedAction } from '../../../lib/core/startMileage';
 
 export type { Task };
@@ -69,6 +70,12 @@ export function TaskDetailModal({ task, allTasks, onClose, onUpdate, onRefresh, 
   // Admin override of the required photo: the open request (its kind and the promise to answer with the reason, or null for "go back").
   const [overrideRequest, setOverrideRequest] = useState<{ kind: EvidenceKind; answer: (reason: string | null) => void } | null>(null);
   const [overrideBusy, setOverrideBusy] = useState(false);
+  // The reason for marking a waiver signed on paper (asked in the app; the browser's built-in prompt box does not work reliably on phones).
+  const [paperWaiverAsk, setPaperWaiverAsk] = useState<{ answer: (reason: string | null) => void } | null>(null);
+  // File pickers live in the page (not created on the fly) so a phone browser keeps them across re-renders while the camera is open.
+  const photoInputRef = useRef<HTMLInputElement>(null);
+  const photoKindRef = useRef<{ isDamage?: boolean }>({});
+  const waiverInputRef = useRef<HTMLInputElement>(null);
   const [completionSummary, setCompletionSummary] = useState<CompletionSummaryData | null>(null);
   const [futureTaskOverride, setFutureTaskOverride] = useState(false);
   const currentStatus = task.taskStatus?.status || 'pending';
@@ -350,11 +357,16 @@ export function TaskDetailModal({ task, allTasks, onClose, onUpdate, onRefresh, 
     finally { setProcessing(false); }
   }
 
-  async function handleImageUpload(isDamage?: boolean) {
-    const input = document.createElement('input');
-    input.type = 'file'; input.accept = 'image/*'; input.multiple = true;
-    input.onchange = async (e: any) => {
-      const files: File[] = Array.from(e.target.files || []);
+  function handleImageUpload(isDamage?: boolean) {
+    photoKindRef.current = { isDamage };
+    photoInputRef.current?.click();
+  }
+
+  async function handlePhotoFilesChosen(e: React.ChangeEvent<HTMLInputElement>) {
+    const isDamage = photoKindRef.current.isDamage;
+    const files: File[] = Array.from(e.target.files || []);
+    e.target.value = '';
+    {
       if (files.length === 0) return;
 
       console.log(`[photos] Selected ${files.length} file(s) for ${isDamage ? 'damage' : 'delivery'} upload`);
@@ -384,8 +396,7 @@ export function TaskDetailModal({ task, allTasks, onClose, onUpdate, onRefresh, 
       } finally {
         setUploadingImages(false);
       }
-    };
-    input.click();
+    }
   }
 
   async function handleDropOffComplete() {
@@ -557,9 +568,8 @@ export function TaskDetailModal({ task, allTasks, onClose, onUpdate, onRefresh, 
   }
 
   async function handlePaperWaiver() {
-    const overrideReason = window.prompt(
-      `Mark waiver as signed in person for ${task.customerName} (no photo).\n\nProvide a reason (required):\ne.g., "Crew collected paper copy, will scan later"`
-    );
+    const overrideReason = await new Promise<string | null>((resolve) => setPaperWaiverAsk({ answer: resolve }));
+    setPaperWaiverAsk(null);
     if (!overrideReason || !overrideReason.trim()) return;
 
     setSigningWaiver(true);
@@ -582,12 +592,14 @@ export function TaskDetailModal({ task, allTasks, onClose, onUpdate, onRefresh, 
     finally { setSigningWaiver(false); }
   }
 
-  async function handlePaperWaiverUpload() {
-    const input = document.createElement('input');
-    input.type = 'file';
-    input.accept = 'image/jpeg,image/png,image/webp,application/pdf';
-    input.onchange = async () => {
-      const file = input.files?.[0];
+  function handlePaperWaiverUpload() {
+    waiverInputRef.current?.click();
+  }
+
+  async function handleWaiverFileChosen(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    {
       if (!file) return;
 
       const lowerName = file.name.toLowerCase();
@@ -615,8 +627,7 @@ export function TaskDetailModal({ task, allTasks, onClose, onUpdate, onRefresh, 
         refresh();
       } catch (e: any) { console.error('Paper waiver upload error:', e); showAlert('Failed to upload waiver: ' + e.message); }
       finally { setSigningWaiver(false); }
-    };
-    input.click();
+    }
   }
 
   async function handleChargeCard(amountCents: number) {
@@ -685,6 +696,18 @@ export function TaskDetailModal({ task, allTasks, onClose, onUpdate, onRefresh, 
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 z-[60] flex items-center justify-center overflow-y-auto">
+      <input ref={photoInputRef} type="file" accept="image/*" multiple className="hidden" onChange={handlePhotoFilesChosen} aria-hidden="true" tabIndex={-1} />
+      <input ref={waiverInputRef} type="file" accept="image/jpeg,image/png,image/webp,application/pdf" className="hidden" onChange={handleWaiverFileChosen} aria-hidden="true" tabIndex={-1} />
+      {paperWaiverAsk && (
+        <ReasonModal
+          title={`Mark waiver signed on paper for ${task.customerName}`}
+          description={'No photo will be attached. Say why, for example: Crew collected the paper copy, will scan later.'}
+          placeholder="Crew collected paper copy, will scan later"
+          confirmLabel="Mark signed"
+          onSubmit={(reason) => paperWaiverAsk.answer(reason)}
+          onCancel={() => paperWaiverAsk.answer(null)}
+        />
+      )}
       {overrideRequest && (
         <EvidenceOverrideModal
           kind={overrideRequest.kind}

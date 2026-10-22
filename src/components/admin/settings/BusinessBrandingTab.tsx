@@ -55,6 +55,8 @@ export function BusinessBrandingTab() {
   });
   const [useBusinessAddress, setUseBusinessAddress] = useState(true);
   const [loading, setLoading] = useState(true);
+  // The settings could not be read. Saving now would write the empty form over the real values, so it is blocked until a load succeeds.
+  const [loadFailed, setLoadFailed] = useState(false);
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
@@ -63,6 +65,7 @@ export function BusinessBrandingTab() {
 
   async function loadSettings() {
     try {
+      setLoadFailed(false);
       const { data, error } = await supabase
         .from('admin_settings')
         .select('key, value')
@@ -139,6 +142,7 @@ export function BusinessBrandingTab() {
         setUseBusinessAddress(useBusinessAddrForTravel);
       }
     } catch (error: any) {
+      setLoadFailed(true);
       showToast('Error loading business settings: ' + error.message, 'error');
     } finally {
       setLoading(false);
@@ -146,6 +150,10 @@ export function BusinessBrandingTab() {
   }
 
   async function handleSave() {
+    if (loadFailed) {
+      showToast('The settings did not load, so saving is turned off. Reload them first.', 'error');
+      return;
+    }
     const effectiveTravelAddress = useBusinessAddress ? parseBusinessAddress() : travelAddress;
 
     if (!effectiveTravelAddress.line1 || !effectiveTravelAddress.city || !effectiveTravelAddress.state || !effectiveTravelAddress.zip) {
@@ -252,6 +260,14 @@ export function BusinessBrandingTab() {
           <Building2 className="w-6 h-6 text-blue-600 mr-2" />
           <h2 className="text-2xl font-bold text-slate-900">Business Branding</h2>
         </div>
+
+        {loadFailed && (
+          <div className="bg-red-50 border border-red-300 rounded-lg p-4 mb-6" role="alert">
+            <p className="text-sm font-semibold text-red-900">The saved settings could not be loaded.</p>
+            <p className="text-sm text-red-800 mt-1">Saving is turned off so the empty form cannot replace your real settings. Nothing has been changed.</p>
+            <button type="button" onClick={() => { setLoading(true); void loadSettings(); }} className="mt-3 bg-red-600 hover:bg-red-700 text-white text-sm font-semibold px-4 py-2 rounded-lg min-h-[44px]">Try again</button>
+          </div>
+        )}
 
         <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
           <div className="flex items-start">
@@ -608,7 +624,7 @@ export function BusinessBrandingTab() {
         <div className="mt-6 flex justify-end">
           <button
             onClick={handleSave}
-            disabled={saving}
+            disabled={saving || loadFailed}
             className="flex items-center px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:bg-slate-400 disabled:cursor-not-allowed transition-colors"
           >
             {saving ? (
