@@ -37,7 +37,7 @@ interface EventDetails {
 interface Discount {
   name: string;
   amount_cents: number;
-  percentage: number;
+  percentage?: number;
 }
 
 interface CustomFee {
@@ -122,7 +122,7 @@ interface Customer {
   phone: string | null;
 }
 
-async function sendInvoiceToCustomer(orderId: string, customer: Customer | null) {
+async function sendInvoiceToCustomer(orderId: string, customer: Customer | null | undefined) {
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), 20_000);
 
@@ -160,7 +160,7 @@ async function sendInvoiceToCustomer(orderId: string, customer: Customer | null)
   return data;
 }
 
-export async function generateInvoice(invoiceData: InvoiceData, customer: Customer | null) {
+export async function generateInvoice(invoiceData: InvoiceData, customer: Customer | null | undefined) {
   const eeItems = invoiceData.eeProductItems || [];
   for (const item of eeItems) {
     if (item.pricing_context !== 'standalone' && item.pricing_context !== 'addon') {

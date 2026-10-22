@@ -3,11 +3,65 @@ import { useNavigate } from 'react-router-dom';
 import { Printer, AlertTriangle, ArrowLeft, Download } from 'lucide-react';
 import { SimpleInvoiceDisplay } from '../components/shared/SimpleInvoiceDisplay';
 import { buildOrderSummary } from '../lib/booking/checkoutUtils';
+import type { ComponentProps } from 'react';
+import type { QuoteFormData } from '../hooks/booking/useQuoteForm';
+import type { PriceBreakdown } from '../lib/pricing';
+import type { UnifiedCartItem } from '../types';
+import type { UnifiedQuoteTotals } from '../lib/pricing/unifiedTotals';
+
+type InvoiceDisplayProps = ComponentProps<typeof SimpleInvoiceDisplay>;
+
+// What the page reads of the event, in either format (the Portal format stores it ready-made; the Checkout format is mapped from the quote below).
+interface PreviewEventData {
+  event_date: string;
+  start_window: string;
+  end_window: string;
+  address_line1: string;
+  address_line2?: string | null;
+  city: string;
+  state: string;
+  zip: string;
+  location_type: string | null;
+  pickup_preference?: string;
+  can_use_stakes?: boolean | null;
+  generator_qty?: number;
+  tax_waived?: boolean;
+  travel_fee_waived?: boolean;
+  surface_fee_waived?: boolean;
+  generator_fee_waived?: boolean;
+  same_day_pickup_fee_waived?: boolean;
+}
+
+// The two formats stored in sessionStorage 'invoice-preview-data' (written by Checkout and by the customer's invoice screen). The runtime
+// checks in the load effect (hasCheckoutFormat / hasPortalFormat) guarantee one of them is present before the data is accepted.
+// The quote form has no fee-waiver fields (the Checkout format never carries them, so these reads are always false); they are read below anyway.
+type PreviewQuoteData = QuoteFormData & {
+  tax_waived?: boolean;
+  travel_fee_waived?: boolean;
+  surface_fee_waived?: boolean;
+  generator_fee_waived?: boolean;
+  same_day_pickup_fee_waived?: boolean;
+};
+interface CheckoutPreviewData {
+  quoteData: PreviewQuoteData;
+  priceBreakdown: PriceBreakdown;
+  cart: UnifiedCartItem[];
+  unifiedTotals?: UnifiedQuoteTotals | null;
+  contactData: InvoiceDisplayProps['contactData'];
+}
+interface PortalPreviewData {
+  quoteData?: undefined;
+  orderData: PreviewEventData;
+  orderItems: InvoiceDisplayProps['orderItems'];
+  orderSummary: InvoiceDisplayProps['orderSummary'];
+  contactData: InvoiceDisplayProps['contactData'];
+}
+type InvoicePreviewData = CheckoutPreviewData | PortalPreviewData;
 
 export function InvoicePreview() {
   const navigate = useNavigate();
 
-  const [data, setData] = useState<any>(null);
+  const [data, setData] = useState<InvoicePreviewData | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const returnTo = useMemo(() => {
@@ -113,10 +167,12 @@ export function InvoicePreview() {
 
   const isCheckoutFormat = !!data.quoteData;
 
-  let eventData, orderItems, orderSummary;
+  let eventData: PreviewEventData;
+  let orderItems: InvoiceDisplayProps['orderItems'];
+  let orderSummary: InvoiceDisplayProps['orderSummary'];
 
   if (isCheckoutFormat) {
-    const { quoteData, priceBreakdown, cart } = data;
+    const { quoteData, priceBreakdown, cart } = data as CheckoutPreviewData;
 
     eventData = {
       event_date: quoteData.event_date,
@@ -146,9 +202,10 @@ export function InvoicePreview() {
     orderItems = cart;
     orderSummary = buildOrderSummary(priceBreakdown, cart, quoteData, 0, data.unifiedTotals ?? null);
   } else {
-    eventData = data.orderData;
-    orderItems = data.orderItems;
-    orderSummary = data.orderSummary;
+    const portal = data as PortalPreviewData;
+    eventData = portal.orderData;
+    orderItems = portal.orderItems;
+    orderSummary = portal.orderSummary;
   }
 
   return (

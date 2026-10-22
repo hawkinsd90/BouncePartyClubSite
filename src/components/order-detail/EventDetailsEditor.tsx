@@ -4,14 +4,33 @@ import { TimePickerInput } from '../ui/TimePickerInput';
 import { ADMIN_ADDRESS_EDIT_RESET } from '../../lib/booking/addressEdit';
 import { surfaceControlState } from '../../lib/orders/surfaceChoice';
 
+// The fields this editor writes. Every update it sends is one or more of these (the address reset adds the three address_* columns of the Admin order editor).
+export interface EventEditorUpdates {
+  event_date?: string;
+  event_end_date?: string;
+  start_window?: string;
+  end_window?: string;
+  until_end_of_day?: boolean;
+  location_type?: 'residential' | 'commercial';
+  pickup_preference?: string;
+  address_line1?: string;
+  address_line2?: string;
+  can_stake?: boolean;
+  surface?: 'grass' | 'cement';
+  generator_qty?: number;
+  address_lat?: null;
+  address_lng?: null;
+  address_county?: null;
+}
+
 interface EventDetailsEditorProps {
   // The admin order editor, the admin invoice builder and the crew invoice builder each hold the order in their own state model, and those
   // models differ in which date/time fields can be null; typing this prop precisely needs those models aligned first.
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- three different state models (see above)
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- the date/time fields are string | null | undefined in the Admin order editor and string in the invoice builders, and the inputs bind them directly (value={...}); a truthful type would need `?? ''` here (a runtime change)
   editedOrder: any;
   pricingRules?: { same_day_pickup_fee_cents?: number | null; surface_sandbag_fee_cents?: number | null } | null;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- each of the three editors passes a handler for its own update type
-  onOrderChange: (updates: Partial<any>) => void;
+  // Declared as a method so each of the three editors can pass the handler for its own update type (method parameters are bivariant).
+  onOrderChange(updates: EventEditorUpdates): void;
   onGeneratorQtyChange?: (quantity: number) => void | Promise<void>;
   onAddressSelect: (addressData: AddressResult) => void;
   generatorLoadState?: { status: 'loading' | 'ready' | 'failed' };

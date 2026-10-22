@@ -175,7 +175,8 @@ export function Checkout() {
     setReferralError('');
 
     // Revalidate pickup_preference
-    const validPickup = quoteData.pickup_preference === 'next_day' || quoteData.pickup_preference === 'same_day';
+    // (type-only `!`: a null quote still throws here exactly as before; the page renders only when quoteData exists)
+    const validPickup = quoteData!.pickup_preference === 'next_day' || quoteData!.pickup_preference === 'same_day';
     if (!validPickup) {
       showToast('Please select a pickup preference (Next Morning or Same Day) before submitting.', 'error');
       return;

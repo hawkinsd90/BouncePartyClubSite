@@ -13,9 +13,9 @@ export interface DamageRecord {
 }
 
 export function usePendingOrderData(orderId: string) {
-  const [smsConversations, setSmsConversations] = useState<any[]>([]);
+  const [smsConversations, setSmsConversations] = useState<Tables['sms_conversations']['Row'][]>([]);
   const [payments, setPayments] = useState<Tables['payments']['Row'][]>([]);
-  const [refunds, setRefunds] = useState<any[]>([]);
+  const [refunds, setRefunds] = useState<Tables['order_refunds']['Row'][]>([]);
   const [contact, setContact] = useState<Pick<Tables['contacts']['Row'], 'business_name'> | null>(null);
   const [orderSummary, setOrderSummary] = useState<ReturnType<typeof formatOrderSummary> | null>(null);
   const [customFees, setCustomFees] = useState<Array<Pick<Tables['order_custom_fees']['Row'], 'id' | 'amount_cents' | 'name'>>>([]);

@@ -19,7 +19,7 @@ interface ContactData {
 export function useCheckoutData(userId?: string) {
   const { user } = useAuth();
   const { sessionData, loading: profileLoading } = useCustomerProfile();
-  const [quoteData, setQuoteData] = useState<any>(null);
+  const [quoteData, setQuoteData] = useState<QuoteFormData | null>(null);
   const [priceBreakdown, setPriceBreakdown] = useState<PriceBreakdown | null>(null);
   const [cart, setCart] = useState<UnifiedCartItem[]>([]);
   const [contactData, setContactData] = useState<ContactData>({

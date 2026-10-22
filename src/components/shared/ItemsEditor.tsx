@@ -26,7 +26,7 @@ export interface Item {
   bundle_id?: string | null;
   product_name?: string;
   item_name?: string;
-  pricing_context?: string;
+  pricing_context?: string | null;
   component_snapshot?: PackageContents | null;
   client_id?: string;
 }
@@ -44,12 +44,11 @@ export interface EditorUnit {
 interface ItemsEditorProps<TUnit extends EditorUnit> {
   items: Item[];
   units: TUnit[];
-  // The three callers differ: removeByIndex makes these receive the row index, otherwise the row itself (each caller's own item type).
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- index-or-item argument; typing it needs a discriminated-props redesign across all callers
-  onRemoveItem: (itemOrIndex: any) => void;
+  // The three callers differ: removeByIndex makes these receive the row index, otherwise the row itself (each caller's own item type). They are
+  // declared as methods so a caller may pass a handler typed for the index or for its own item type (method parameters are bivariant).
+  onRemoveItem(itemOrIndex: Item | number): void;
   onAddItem: (unit: TUnit, mode: 'dry' | 'water') => void;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- same index-or-item argument as onRemoveItem
-  onUpdateQuantity?: (item: any, qty: number) => void;
+  onUpdateQuantity?(item: Item | number, qty: number): void;
   onUpdatePrice?: (index: number, priceCents: number) => void;
   allowQuantityEdit?: boolean;
   allowPriceEdit?: boolean;

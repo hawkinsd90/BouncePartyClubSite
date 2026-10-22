@@ -10,10 +10,11 @@ type PricingRulesRow = Omit<PricingRules, 'included_city_list_json' | 'zone_over
   same_day_matrix_json: unknown;
 };
 type CustomerRow = NonNullable<Awaited<ReturnType<typeof getAllCustomers>>['data']>[number];
+type UnitRow = NonNullable<Awaited<ReturnType<typeof getActiveUnits>>['data']>[number];
 
 export function useInvoiceData() {
-  const [customers, setCustomers] = useState<any[]>([]);
-  const [units, setUnits] = useState<any[]>([]);
+  const [customers, setCustomers] = useState<CustomerRow[]>([]);
+  const [units, setUnits] = useState<UnitRow[]>([]);
   const [pricingRules, setPricingRules] = useState<PricingRules | null>(null);
   const [loading, setLoading] = useState(true);
 

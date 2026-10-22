@@ -86,7 +86,7 @@ export interface OrderSummaryData {
     product_name: string;
     qty: number;
     unit_price_cents: number;
-    pricing_context?: string;
+    pricing_context?: string | null;
     component_snapshot?: { components?: Array<{ product_name: string; quantity_per_bundle: number }> } | null;
     is_new?: boolean;
   }>;

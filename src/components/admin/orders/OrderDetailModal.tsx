@@ -53,6 +53,8 @@ import type { Database } from '../../../lib/database.types';
 import type { PricingRules } from '../../../lib/pricing';
 import type { AvailabilityIssue } from '../../../lib/orders/availabilityIssue';
 import type { AddressAutocomplete } from '../../order/AddressAutocomplete';
+import type { ManagedDiscount } from '../../order-detail/DiscountsManager';
+import type { ManagedFee } from '../../order-detail/CustomFeesManager';
 
 // What the address picker hands back (its result type is not exported).
 type PickedAddress = Parameters<ComponentProps<typeof AddressAutocomplete>['onSelect']>[0];
@@ -98,8 +100,8 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
       .catch(() => { if (!cancelled) setGeneratorProductIdsState({ status: 'failed', ids: new Set() }); });
     return () => { cancelled = true; };
   }, []);
-  const [discounts, setDiscounts] = useState<Array<Tables['order_discounts']['Row'] & { is_new?: boolean }>>([]);
-  const [customFees, setCustomFees] = useState<Tables['order_custom_fees']['Row'][]>([]);
+  const [discounts, setDiscounts] = useState<Array<ManagedDiscount & Partial<Tables['order_discounts']['Row']>>>([]);
+  const [customFees, setCustomFees] = useState<Array<ManagedFee & Partial<Tables['order_custom_fees']['Row']>>>([]);
   const [adminMessage, setAdminMessage] = useState(order.admin_message || '');
   const [saving, setSaving] = useState(false);
   const [hasChanges, setHasChanges] = useState(false);

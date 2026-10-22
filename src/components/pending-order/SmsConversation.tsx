@@ -4,7 +4,7 @@ import { showToast } from '../../lib/toasts';
 
 interface SmsMessage {
   id: string;
-  direction: 'inbound' | 'outbound';
+  direction: string;
   message_body: string;
   created_at: string;
 }

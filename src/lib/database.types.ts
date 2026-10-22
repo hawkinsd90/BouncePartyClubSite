@@ -6,6 +6,11 @@ export type Json =
   | { [key: string]: Json | undefined }
   | Json[]
 
+type PaymentsRowAddedFromDatabase =
+  | 'type' | 'paid_at' | 'failed_at' | 'payment_brand' | 'payment_last4' | 'ledger_sequence' | 'stripe_fee_amount' | 'stripe_net_amount' | 'currency'
+  | 'refunded_payment_id' | 'order_financials_applied' | 'operation_key' | 'principal_amount_cents' | 'tip_amount_cents' | 'deposit_principal_cents'
+  | 'balance_principal_cents' | 'claim_id' | 'claimed_at' | 'provider_attempted_at' | 'stripe_checkout_session_id' | 'stripe_refund_id'
+
 export interface Database {
   public: {
     Tables: {
@@ -759,8 +764,30 @@ export interface Database {
           error_message: string | null
           created_at: string
           updated_at: string
+          type: string
+          paid_at: string | null
+          failed_at: string | null
+          payment_brand: string | null
+          payment_last4: string | null
+          ledger_sequence: number
+          stripe_fee_amount: number | null
+          stripe_net_amount: number | null
+          currency: string | null
+          refunded_payment_id: string | null
+          order_financials_applied: boolean
+          operation_key: string | null
+          principal_amount_cents: number | null
+          tip_amount_cents: number | null
+          deposit_principal_cents: number | null
+          balance_principal_cents: number | null
+          claim_id: string | null
+          claimed_at: string | null
+          provider_attempted_at: string | null
+          stripe_checkout_session_id: string | null
+          stripe_refund_id: string | null
         }
-        Insert: Omit<Database['public']['Tables']['payments']['Row'], 'id' | 'created_at' | 'updated_at'>
+        Insert: Omit<Database['public']['Tables']['payments']['Row'], 'id' | 'created_at' | 'updated_at' | PaymentsRowAddedFromDatabase> &
+          Partial<Pick<Database['public']['Tables']['payments']['Row'], PaymentsRowAddedFromDatabase>>
         Update: Partial<Database['public']['Tables']['payments']['Insert']>
         Relationships: []
       }
@@ -821,17 +848,16 @@ export interface Database {
         Row: {
           id: string
           order_id: string | null
-          contact_id: string | null
-          from_number: string
-          to_number: string
+          from_phone: string
+          to_phone: string
           message_body: string
           direction: string
           twilio_message_sid: string | null
           status: string | null
-          error_message: string | null
+          is_admin_internal: boolean | null
           created_at: string
         }
-        Insert: Omit<Database['public']['Tables']['sms_conversations']['Row'], 'id' | 'created_at'>
+        Insert: Omit<Database['public']['Tables']['sms_conversations']['Row'], 'id' | 'created_at' | 'is_admin_internal'> & { is_admin_internal?: boolean | null }
         Update: Partial<Database['public']['Tables']['sms_conversations']['Insert']>
         Relationships: []
       }
@@ -1227,8 +1253,8 @@ export interface Database {
           reason: string
           stripe_refund_id: string | null
           refunded_by: string | null
-          status: string | null
-          created_at: string | null
+          status: string
+          created_at: string
           operation_key: string | null
           operation_index: number | null
           request_amount_cents: number | null

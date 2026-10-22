@@ -41,7 +41,7 @@ export interface StagedItem {
   qty: number;
   wet_or_dry?: 'dry' | 'water';
   unit_price_cents: number;
-  pricing_context?: string;
+  pricing_context?: string | null;
   component_snapshot?: BundleComponentSnapshot | null;
   created_at?: string;
   is_new?: boolean;

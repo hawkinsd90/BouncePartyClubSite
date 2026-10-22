@@ -5,7 +5,10 @@ import { DiscountsManager } from '../../order-detail/DiscountsManager';
 import { CardOnFileRequirement } from '../../shared/CardOnFileRequirement';
 import { CustomFeesManager } from '../../order-detail/CustomFeesManager';
 import { EventDetailsEditor } from '../../order-detail/EventDetailsEditor';
-import { ItemsEditor } from '../../shared/ItemsEditor';
+import { ItemsEditor, type Item as EditorItem } from '../../shared/ItemsEditor';
+import type { ManagedDiscount } from '../../order-detail/DiscountsManager';
+import type { StagedEEItem as PickerEEItem } from '../../order-detail/AddEventEssentialsSection';
+import type { ManagedFee } from '../../order-detail/CustomFeesManager';
 import { CustomerSelector } from '../../invoice/CustomerSelector';
 import { NewCustomerForm } from '../../invoice/NewCustomerForm';
 import { InvoiceSuccessMessage } from '../../invoice/InvoiceSuccessMessage';
@@ -33,6 +36,7 @@ import {
   removeStagedItem,
   updateStagedItemQuantity,
   type StagedItem,
+  type BundleComponentSnapshot,
 } from '../orders/detail-modal/stagedItemModel';
 import {
   sortDirectGeneratorItemsNewestFirst,
@@ -52,8 +56,7 @@ interface StagedEEItem {
   qty: number;
   unit_price_cents: number;
   pricing_context: string;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- two different BundleComponentSnapshot types (types/index and stagedItemModel) meet here; unifying them is outside this cleanup
-  component_snapshot?: any;
+  component_snapshot?: BundleComponentSnapshot | null;
   is_new?: boolean;
   is_deleted?: boolean;
 }
@@ -66,8 +69,8 @@ export function InvoiceBuilder() {
   const { eventDetails, updateEventDetails, resetEventDetails } = useInvoiceEventDetails();
 
   const [stagedEEItems, setStagedEEItems] = useState<StagedEEItem[]>([]);
-  const [discounts, setDiscounts] = useState<any[]>([]);
-  const [customFees, setCustomFees] = useState<any[]>([]);
+  const [discounts, setDiscounts] = useState<ManagedDiscount[]>([]);
+  const [customFees, setCustomFees] = useState<ManagedFee[]>([]);
   const [adminMessage, setAdminMessage] = useState('');
   const [invoiceUrl, setInvoiceUrl] = useState('');
   const [copiedLink, setCopiedLink] = useState(false);
@@ -291,11 +294,11 @@ export function InvoiceBuilder() {
     }
   }, [eventDetails.generator_qty, eventDetails.event_date, eventDetails.event_end_date, generatorProductIdsState, generatorProductIds, stagedEEItems, cartItems, units, generatorFeeWaived, updateEventDetails]);
 
-  const handleAddEEProduct = useCallback((item: any) => {
+  const handleAddEEProduct = useCallback((item: PickerEEItem) => {
     setStagedEEItems(prev => addEEProductToStagedItems(prev as StagedItem[], item, () => `new-ee-${Date.now()}-${Math.random().toString(36).slice(2)}`) as StagedEEItem[]);
   }, []);
 
-  const handleAddEEBundle = useCallback((item: any) => {
+  const handleAddEEBundle = useCallback((item: PickerEEItem) => {
     setStagedEEItems(prev => addEEBundleToStagedItems(prev as StagedItem[], item, () => `new-ee-${Date.now()}-${Math.random().toString(36).slice(2)}`) as StagedEEItem[]);
   }, []);
 
@@ -762,18 +765,18 @@ export function InvoiceBuilder() {
           <ItemsEditor
             items={[...cartItems, ...stagedEEItems]}
             units={units}
-            onRemoveItem={(item) => {
+            onRemoveItem={(item: EditorItem) => {
               if (item && (item.product_id || item.bundle_id)) {
-                handleRemoveEEItem(item);
+                handleRemoveEEItem(item as StagedItem);
               } else {
                 const idx = cartItems.findIndex(ci => ci.unit_id === item.unit_id && ci.mode === item.mode);
                 if (idx >= 0) removeItemFromCart(idx);
               }
             }}
             onAddItem={addItemToCart}
-            onUpdateQuantity={(item, qty) => {
+            onUpdateQuantity={(item: EditorItem, qty) => {
               if (item && (item.product_id || item.bundle_id)) {
-                handleUpdateEEQuantity(item, qty);
+                handleUpdateEEQuantity(item as StagedItem, qty);
               } else {
                 const idx = cartItems.findIndex(ci => ci.unit_id === item.unit_id && ci.mode === item.mode);
                 if (idx >= 0) updateItemQuantity(idx, qty);
