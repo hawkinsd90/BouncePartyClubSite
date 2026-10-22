@@ -56,7 +56,7 @@ interface StagedEEItem {
 
 export function InvoiceBuilder() {
   const { customers, units, pricingRules, addCustomer } = useInvoiceData();
-  const { cartItems, addItemToCart, removeItemFromCart, updateItemQuantity, updateItemPrice, clearCart } =
+  const { cartItems, addItemToCart, removeItemFromCart, updateItemQuantity, clearCart } =
     useInvoiceCart();
   const customerManagement = useCustomerManagement();
   const { eventDetails, updateEventDetails, resetEventDetails } = useInvoiceEventDetails();

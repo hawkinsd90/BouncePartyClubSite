@@ -106,7 +106,7 @@ const visit = (v: string) => {
 };
 for (const r of rows) visit(r.version);
 ok('predecessor graph has no cycle', !cyc);
-ok('items deferred behind October carry a P4 phase', rows.filter((r) => r.required_predecessor_versions.split(';').filter(Boolean).some((p) => byV.get(p) && byV.get(p).proposed_disposition === WITH) && [HIST, ATT].includes(r.proposed_disposition)).every((r) => r.plan_phase.startsWith('P4')));
+ok('items deferred behind October carry a P4 phase', rows.filter((r) => r.required_predecessor_versions.split(';').filter(Boolean).some((p: string) => byV.get(p) && byV.get(p).proposed_disposition === WITH) && [HIST, ATT].includes(r.proposed_disposition)).every((r) => r.plan_phase.startsWith('P4')));
 
 // EVIDENCE layer: the 58 recorded Development versions
 const hp = 'C:\\Users\\vikki\\migration-evidence\\stage-b-20261016\\dev_catalog_history.json';

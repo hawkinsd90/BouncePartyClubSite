@@ -20,9 +20,6 @@ export type PaymentOutcome =
   | 'cash';
 
 async function callLifecycle(body: object, proof?: LifecycleProof): Promise<{ success: boolean; error?: string; alreadySent?: boolean }> {
-  const { action, orderId } = body as { action?: string; orderId?: string };
-  const logPrefix = `[orderLifecycle] action=${action ?? '?'} orderId=${orderId ?? '?'}`;
-
   try {
     const response = await fetch(LIFECYCLE_URL, {
       method: 'POST',

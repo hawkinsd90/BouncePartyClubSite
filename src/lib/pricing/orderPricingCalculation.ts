@@ -62,7 +62,7 @@ export interface PricingItem {
 
 export interface EEProductItem {
   product_id: string;
-  bundle_id?: string;
+  bundle_id?: string | null;
   item_name?: string;
   product_name: string;
   qty: number;

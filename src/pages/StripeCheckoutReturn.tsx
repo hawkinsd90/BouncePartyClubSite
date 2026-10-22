@@ -13,7 +13,7 @@ export function StripeCheckoutReturn() {
   const orderId = searchParams.get('order_id');
   const sessionId = searchParams.get('session_id');
 
-  const { status, error, orderDetails, isAdminInvoice, sessionTipCents, shouldRedirectToPortal, isFirstVisit, emailSent, emailError } = useBookingReturnConfirmation(orderId, sessionId);
+  const { status, error, orderDetails, sessionTipCents, shouldRedirectToPortal, isFirstVisit, emailSent, emailError } = useBookingReturnConfirmation(orderId, sessionId);
 
   useEffect(() => {
     if (status === 'success' && orderId && isFirstVisit) {

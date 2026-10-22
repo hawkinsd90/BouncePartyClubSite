@@ -42,7 +42,7 @@ ok('exactly one canary, a plain history-only operation', ops.filter((o) => o.bat
 // ordering: execution_seq is 1..259; predecessors precede their dependents
 const seq = new Map<string, number>(ops.map((o) => [o.version, Number(o.execution_seq)]));
 ok('execution_seq is 1..259 in file order', ops.every((o, i) => Number(o.execution_seq) === i + 1));
-ok('every predecessor that is an operation precedes its dependent', ops.every((o) => o.predecessor_versions.split(';').filter(Boolean).every((p) => !seq.has(p) || (seq.get(p) as number) < (seq.get(o.version) as number))));
+ok('every predecessor that is an operation precedes its dependent', ops.every((o) => o.predecessor_versions.split(';').filter(Boolean).every((p: string) => !seq.has(p) || (seq.get(p) as number) < (seq.get(o.version) as number))));
 ok('batch ids are non-decreasing and every batch is contiguous', ops.every((o, i) => i === 0 || ops[i - 1].batch <= o.batch));
 ok('the two SQL operations are alone in their batches', ops.filter((o) => o.operation_type === 'sql-execute').every((o) => ops.filter((x) => x.batch === o.batch).length === 1));
 ok('a history-only operation never has a rule that depends on a data predicate over private records', ops.filter((o) => o.operation_type === 'history-only').every((o) => !/auth\.users/.test(rules[o.version].sql)));

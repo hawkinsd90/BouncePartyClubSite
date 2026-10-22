@@ -17,8 +17,8 @@ interface Item {
   is_new?: boolean;
   is_deleted?: boolean;
   is_updated?: boolean;
-  product_id?: string;
-  bundle_id?: string;
+  product_id?: string | null;
+  bundle_id?: string | null;
   product_name?: string;
   item_name?: string;
   pricing_context?: string;
