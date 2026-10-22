@@ -11,6 +11,12 @@
 // its own server on the same port, silently removes the databases, and every database-backed test then fails with a confusing
 // "scratch database ... is available" line. This turns that into one clear message at the start of a run, in about a second.
 const { spawnSync } = require('child_process');
+const server = require('./scratch-server.cjs');
+
+// The pipeline uses its OWN scratch server (scripts/dev/scratch-server.cjs), not the shared one on 54329 that other sessions replace. PGPORT
+// still wins when it is set (to run the same tests against another server on purpose). Must be decided before security-scratch is loaded.
+const OWN_SERVER = !process.env.PGPORT || String(process.env.PGPORT) === String(server.PORT);
+if (!process.env.PGPORT) process.env.PGPORT = server.PORT;
 const sec = require('./security-scratch.cjs');
 
 const REQUIRED = sec.DATABASES.map((d) => d[0]);
@@ -25,7 +31,12 @@ function psqlOn(db, sql) {
 // -> { ok, problems: [string], missing: [db], server: boolean }
 function preflight(databases = REQUIRED) {
   const where = `${sec.PG.host}:${sec.PG.port}`;
-  const up = psqlOn('postgres', 'select 1');
+  let up = psqlOn('postgres', 'select 1');
+  if ((up.status !== 0 || up.stdout.trim() !== '1') && OWN_SERVER && !process.env.NO_AUTOSTART) {
+    // the pipeline's own server is a plain process: after a reboot it is simply not running. Start it (a few seconds).
+    console.log('The pipeline scratch server is not running; starting it ...');
+    if (server.start()) up = psqlOn('postgres', 'select 1');
+  }
   if (up.status !== 0 || up.stdout.trim() !== '1') {
     return {
       ok: false,
@@ -33,8 +44,9 @@ function preflight(databases = REQUIRED) {
       missing: databases.slice(),
       problems: [
         `No scratch PostgreSQL is answering on ${where}.`,
-        'The scratch server is a hand-started process (not a service): a reboot or another session can stop or replace it.',
-        'Start one on that port (or set PGPORT), then build the databases:   node scripts/dev/security-scratch.cjs build',
+        OWN_SERVER
+          ? 'Start the pipeline server and build its databases:   node scripts/dev/scratch-server.cjs ensure'
+          : 'PGPORT points at another server. Start one there, then build the databases:   PGPORT=<port> node scripts/dev/security-scratch.cjs build',
       ],
     };
   }
@@ -49,8 +61,7 @@ function preflight(databases = REQUIRED) {
     missing,
     problems: [
       `The scratch server on ${where} is up but ${missing.length} required database(s) are missing or empty: ${missing.join(', ')}.`,
-      'Another session may have replaced the server, or the databases were never built here.',
-      'Rebuild them with:   node scripts/dev/security-scratch.cjs build',
+      OWN_SERVER ? 'Build what is missing (several minutes):   node scripts/dev/scratch-server.cjs ensure' : 'Rebuild them with:   PGPORT=<port> node scripts/dev/security-scratch.cjs build',
     ],
   };
 }
@@ -64,7 +75,7 @@ function requireScratch(label, databases) {
   return false;
 }
 
-module.exports = { REQUIRED, envFor, preflight, requireScratch };
+module.exports = { REQUIRED, envFor, preflight, requireScratch, PG: sec.PG, OWN_SERVER };
 
 if (require.main === module) {
   if (process.argv[2] !== 'check') {

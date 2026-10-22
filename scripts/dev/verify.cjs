@@ -7,7 +7,7 @@
 //   node scripts/dev/verify.cjs --full       everything from scratch: stored verdicts are ignored, then the new ones REPLACE the cache, so
 //                                            the next default run is cheap again. The run before the final commit.
 //   CHANGED=1  node scripts/dev/verify.cjs   only mutants whose file or test is in the current git diff (faster, less thorough)
-//   PARALLEL=n node scripts/dev/verify.cjs   how many database-free test files run at once (default 6; 1 = strictly serial)
+//   PARALLEL=n node scripts/dev/verify.cjs   how many database-free test files run at once (default 3, measured best here; 1 = strictly serial)
 //
 // Typecheck, lint and build never touch the scratch databases, so they run alongside the database-backed chain. The tests and the
 // two mutation suites share scratch databases and the same source copies, so they stay strictly one after another.
@@ -56,14 +56,24 @@ function step(name, cmd, args, env = process.env) {
 
 (async () => {
   const started = Date.now();
+  // Type check and lint keep a cache in node_modules/.cache (incremental tsc, eslint --cache). Measured on this repository the diagnostics are
+  // byte-for-byte the same as the plain commands, and a warm run takes 45 s / 15 s instead of 125 s / 112 s. --full (and STATIC_CACHE=0) run the
+  // plain commands from scratch.
+  const cachedStatic = !full && process.env.STATIC_CACHE !== '0';
+  const npx = process.platform === 'win32' ? 'npx.cmd' : 'npx';
   const staticChecks = Promise.all([
-    step('typecheck', npm, ['run', 'typecheck']),
-    step('lint', npm, ['run', 'lint']),
+    cachedStatic
+      ? step('typecheck', npx, ['tsc', '--noEmit', '-p', 'tsconfig.app.json', '--incremental', '--tsBuildInfoFile', 'node_modules/.cache/tsc/app.tsbuildinfo'])
+      : step('typecheck', npm, ['run', 'typecheck']),
+    cachedStatic
+      ? step('lint', npx, ['eslint', '.', '--cache', '--cache-location', 'node_modules/.cache/eslint/'])
+      : step('lint', npm, ['run', 'lint']),
     step('build', npm, ['run', 'build']),
   ]);
   const chain = (async () => {
-    // The test files that touch no scratch database run six at a time (PARALLEL=1 for strictly serial); the database tests stay serial.
-    const results = [await step('tests', 'node', ['scripts/dev/run-tests.cjs'], { ...process.env, PARALLEL: process.env.PARALLEL || '6' })];
+    // The test files that touch no scratch database run three at a time (PARALLEL=1 for strictly serial); the database tests stay serial.
+    // --full means everything from scratch, the tests too (it used to reach only the mutation suites, so a "full" run still skipped cached tests)
+    const results = [await step('tests', 'node', ['scripts/dev/run-tests.cjs'], { ...process.env, PARALLEL: process.env.PARALLEL || '3', ...(full ? { NO_CACHE: '1' } : {}) })];
     if (withMutants) {
       results.push(await step('payment-mutants', 'node', ['scripts/dev/mutation-runner.cjs', 'scripts/dev/payment-mutants.cjs'], mutationEnv));
       results.push(await step('pricing-mutants', 'node', ['scripts/dev/mutation-runner.cjs', 'scripts/dev/pricing-mutants.cjs'], mutationEnv));
@@ -89,10 +99,21 @@ function step(name, cmd, args, env = process.env) {
     const m = fs.readFileSync(r.log, 'utf8').match(/^mutants: (\d+) \((\d+) from cache\)/m);
     if (m) console.log(`${r.name}: ${m[1]} mutants, ${m[2]} reused from the cache, ${Number(m[1]) - Number(m[2])} run${full ? ' (--full: cache ignored)' : ''}`);
   }
+  // What did NOT run is reported, never hidden: tests skipped for lack of the evidence-derived databases, and how many were reused.
+  const testsLog = all.find((x) => x.name === 'tests');
+  const warnings = [];
+  if (testsLog) {
+    const text = fs.readFileSync(testsLog.log, 'utf8');
+    const skipped = text.match(/^SKIPPED \(needs[^\n]*\n((?:     [^\n]+\n?)+)/m);
+    if (skipped) warnings.push('tests SKIPPED, not passed (they need the evidence-derived databases, see run-tests.cjs): ' + skipped[1].split('\n').map((l) => l.trim()).filter(Boolean).join(', '));
+    const reusedTests = text.match(/^reused from the cache (\d+), ran (\d+)/m);
+    if (reusedTests) console.log(`tests: ${reusedTests[1]} reused from the cache, ${reusedTests[2]} run${full ? ' (--full: cache ignored)' : ''}`);
+  }
   console.log(`\nelapsed ${Math.round((Date.now() - started) / 1000)}s; logs in ${LOGS}`);
+  if (warnings.length) console.log('WARNINGS:\n  ' + warnings.join('\n  '));
   if (problems.length) {
     console.log('PROBLEMS:\n  ' + problems.join('\n  '));
     process.exit(1);
   }
-  console.log('ALL CLEAR');
+  console.log(warnings.length ? 'ALL CLEAR (with the warnings above)' : 'ALL CLEAR');
 })();

@@ -75,8 +75,9 @@ const WORK = path.join(os.tmpdir(), NS ? `mutwork_${NS}` : 'mutwork');
 const mutDb = (i) => `pay_mut_${NS}${i}`;
 const PRELOAD = path.join(__dirname, 'mutation-preload.cjs');
 const PSQL = process.env.PAY_DB_PSQL || (fs.existsSync('C:/Program Files/PostgreSQL/18/bin/psql.exe') ? 'C:/Program Files/PostgreSQL/18/bin/psql.exe' : 'psql');
-const DB_HOST = process.env.ROLE_DB_HOST || process.env.CORE_DB_HOST || '127.0.0.1';
-const DB_PORT = process.env.ROLE_DB_PORT || process.env.CORE_DB_PORT || '54329';
+// the scratch server is the pipeline's own (scratch-env decides the port); the old per-variable overrides still win when set
+const DB_HOST = process.env.ROLE_DB_HOST || process.env.CORE_DB_HOST || scratch.PG.host;
+const DB_PORT = process.env.ROLE_DB_PORT || process.env.CORE_DB_PORT || scratch.PG.port;
 
 const CACHE_DIR = path.join(ROOT, 'node_modules', '.cache', NS ? `mutation_${NS}` : 'mutation');
 const sha = (x) => crypto.createHash('sha256').update(x).digest('hex');
@@ -155,6 +156,11 @@ function needsMigrations(testRel) {
   return needsMigrationsMemo.get(testRel);
 }
 let migrationsDigest;
+// forget every digest taken so far: after waiting for the lock the files may have changed
+function resetDigestCaches() {
+  for (const m of [anonMemo, ndMemo, closureMemo, closureDigestMemo, needsMigrationsMemo, usesFullDbMemo]) m.clear();
+  migrationsDigest = undefined;
+}
 function migrations() {
   if (migrationsDigest) return migrationsDigest;
   const dir = path.join(ROOT, 'supabase', 'migrations');
@@ -187,7 +193,7 @@ function makeKeyer(testsFor, originals) {
   };
   const entryFor = (killerTest, detail) => ({ status: 'KILLED', detail, test: bn(killerTest), killerDigest: killerDigest(killerTest) });
   const baselineKey = (tests) => sha(JSON.stringify([KEY_VERSION, [...new Set(tests)].map(closureDigest).sort(), tests.some(needsMigrations) ? migrations() : null]));
-  return { idOf, valid, entryFor, setDigest, baselineKey };
+  return { idOf, valid, entryFor, setDigest, killerDigest, baselineKey };
 }
 
 function loadCache(spec) {
@@ -403,21 +409,30 @@ exports.runMutants = async function runMutants({ M, tests, spec = 'mutants' }) {
   }
 
   // Reuse a KILLED verdict when nothing it depends on changed. SURVIVED is never reused: survivors are the thing to look at.
-  const cache = loadCache(spec);
+  let cache = loadCache(spec);
   const results = new Array(M.length);
-  const { idOf, valid, entryFor, baselineKey: baselineKeyOf } = makeKeyer(testsFor, originals);
-  const todo = [];
+  const { idOf, valid, entryFor, killerDigest, baselineKey: baselineKeyOf } = makeKeyer(testsFor, originals);
+  // Decide what has to run. Every mutant's id is taken HERE, from the files as they are now, and kept: the worker copies are made from the
+  // same files a moment later, so a verdict is stored under the content it was actually produced from, even if someone edits the tree while
+  // the run is going.
+  let todo = [];
   let reused = 0;
-  for (const item of selected) {
-    const id = process.env.NO_CACHE ? null : idOf(item.m);
-    const hit = id ? cache.data.entries[id] : null;
-    if (valid(hit, item.m)) {
-      results[item.index] = { name: item.m[1], status: 'KILLED', detail: hit.detail, cached: true };
-      reused++;
-    } else {
-      todo.push(item);
+  const plan = () => {
+    todo = [];
+    reused = 0;
+    for (const item of selected) {
+      item.id = idOf(item.m);
+      const hit = process.env.NO_CACHE || !item.id ? null : cache.data.entries[item.id];
+      if (valid(hit, item.m)) {
+        results[item.index] = { name: item.m[1], status: 'KILLED', detail: hit.detail, cached: true };
+        reused++;
+      } else {
+        results[item.index] = undefined;
+        todo.push(item);
+      }
     }
-  }
+  };
+  plan();
   if (reused) console.log(`${reused} mutant(s) reused from the cache (unchanged inputs); ${todo.length} to run`);
   if (process.env.PLAN) {
     // what this change would cost, without running anything
@@ -431,19 +446,41 @@ exports.runMutants = async function runMutants({ M, tests, spec = 'mutants' }) {
     // The worker databases have fixed names, so two runners at once would drop and fill each other's databases and every verdict
     // would be debris. Refuse to start beside another runner of this tool.
     const lock = path.join(require('os').tmpdir(), NS ? `bpc-mutation-runner-${NS}.lock` : 'bpc-mutation-runner.lock');
-    let other = 0;
-    try { other = Number(fs.readFileSync(lock, 'utf8')); } catch { /* no lock */ }
-    if (other && other !== process.pid) {
-      let alive = true;
-      try { process.kill(other, 0); } catch { alive = false; }
-      if (alive) {
-        console.error(`ANOTHER mutation runner (pid ${other}) is using the scratch worker databases; wait for it or stop it. Refusing to run.`);
-        process.exit(2);
+    // Several sessions use this tool on one machine, so a second runner QUEUES behind the first (it does not abort): it waits for the lock,
+    // then re-reads the cache (the first run has usually recorded much of what this one needs) and plans again from the files as they are
+    // THEN. RUNNER_LOCK_WAIT_MIN (default 240) bounds the wait.
+    const holder = () => {
+      let other = 0;
+      try { other = Number(fs.readFileSync(lock, 'utf8')); } catch { return 0; }
+      if (!other || other === process.pid) return 0;
+      try { process.kill(other, 0); return other; } catch { return 0; } // not running: a stale lock
+    };
+    const waitStart = Date.now();
+    let told = 0;
+    for (;;) {
+      try { fs.writeFileSync(lock, String(process.pid), { flag: 'wx' }); break; } catch (e) {
+        if (e.code !== 'EEXIST') throw e;
+        const other = holder();
+        if (!other) { try { fs.unlinkSync(lock); } catch { /* someone else took it */ } await new Promise((r) => setTimeout(r, 200 + Math.random() * 400)); continue; }
+        if (Date.now() - waitStart > (Number(process.env.RUNNER_LOCK_WAIT_MIN) || 240) * 60000) {
+          console.error(`Gave up waiting for the mutation runner of pid ${other} (RUNNER_LOCK_WAIT_MIN).`);
+          process.exit(2);
+        }
+        if (!told || Date.now() - told > 300000) { console.log(`waiting for the other mutation runner (pid ${other}): runs queue one after another because they share the scratch worker databases`); told = Date.now(); }
+        await new Promise((r) => setTimeout(r, Number(process.env.RUNNER_LOCK_POLL_MS) || 15000));
       }
     }
-    fs.writeFileSync(lock, String(process.pid));
     process.on('exit', () => { try { if (Number(fs.readFileSync(lock, 'utf8')) === process.pid) fs.unlinkSync(lock); } catch { /* gone */ } });
+    if (Date.now() - waitStart > 5000) {
+      console.log('the lock is free now; reading the cache and the files again');
+      resetDigestCaches();
+      cache = loadCache(spec);
+      plan();
+      if (reused) console.log(`${reused} mutant(s) reused from the cache (unchanged inputs); ${todo.length} to run`);
+    }
   }
+  // the ids and digests used when the verdicts are stored are fixed now, before the worker copies are made
+  for (const t of new Set(todo.flatMap(({ m }) => testsFor(m[0])))) killerDigest(t);
   const used = Math.min(workers, Math.max(1, todo.length));
   const dirs = Array.from({ length: used }, (_, i) => path.join(WORK, `w${i}`));
   if (todo.length) for (const d of dirs) sync(d);
@@ -461,8 +498,20 @@ exports.runMutants = async function runMutants({ M, tests, spec = 'mutants' }) {
   if (todo.length && !process.env.SKIP_BASELINE && !process.env.NO_CACHE && cache.data.baseline === baselineKey) {
     console.log('baseline reused (no input changed since it last passed)');
   } else if (todo.length && !process.env.SKIP_BASELINE) {
-    dropDb(mutDb(0));
-    const base = await runTests(dirs[0], baselineTests, 0);
+    // The unmutated baseline, spread over all workers (each test file alone, on its worker's own pristine database) instead of one after
+    // another on a single worker: the tests are independent, and they used to be the first several idle-core minutes of every run.
+    let nextBaseline = 0;
+    let base = { killed: false };
+    await Promise.all(
+      dirs.map(async (dir, idx) => {
+        while (!base.killed && !base.error && nextBaseline < baselineTests.length) {
+          const t = baselineTests[nextBaseline++];
+          dropDb(mutDb(idx));
+          const r = await runTests(dir, [t], idx);
+          if (r.killed || r.error) base = { ...r, test: r.test || t };
+        }
+      }),
+    );
     if (base.killed || base.error) {
       console.log('BASELINE FAILS in ' + base.test + (base.error ? '\n' + base.error : '') + '\n' + base.stderr.split('\n').filter((l) => /^FAIL/.test(l)).slice(0, 8).join('\n'));
       process.exit(1);
@@ -493,7 +542,8 @@ exports.runMutants = async function runMutants({ M, tests, spec = 'mutants' }) {
   let cursor = 0;
   const worker = async (dir, idx) => {
     while (cursor < todo.length) {
-      const { m, index } = todo[cursor++];
+      const item = todo[cursor++];
+      const { m, index } = item;
       const [file, name, muts] = m;
       let src = norm(originals[file]);
       try {
@@ -543,8 +593,7 @@ exports.runMutants = async function runMutants({ M, tests, spec = 'mutants' }) {
       results[index] = { name, status: r.killed ? 'KILLED' : 'SURVIVED', detail: first.slice(0, 110), seconds: Math.round((Date.now() - t0) / 1000), file, test: r.test };
       cache.save();
       if (r.killed) {
-        const id = idOf(m);
-        if (id) cache.data.entries[id] = entryFor(r.test, first.slice(0, 110));
+        if (item.id) cache.data.entries[item.id] = entryFor(r.test, first.slice(0, 110));
         cache.data.killers[name] = bn(r.test);
         const counts = (cache.data.fileKillers[bn(file)] = cache.data.fileKillers[bn(file)] || {});
         counts[bn(r.test)] = (counts[bn(r.test)] || 0) + 1;
