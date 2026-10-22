@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { formatPhoneAsTyped } from '../lib/core/phone';
 import { MIN_PASSWORD_LENGTH } from '../lib/auth/recoveryLink';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
@@ -339,15 +340,8 @@ export function SignUp() {
     let processed = value;
 
     if (field === 'phone') {
-      const digits = value.replace(/\D/g, '');
-      if (digits.length > 10) return;
-      if (digits.length >= 6) {
-        processed = `(${digits.slice(0, 3)}) ${digits.slice(3, 6)}-${digits.slice(6)}`;
-      } else if (digits.length >= 3) {
-        processed = `(${digits.slice(0, 3)}) ${digits.slice(3)}`;
-      } else {
-        processed = digits;
-      }
+      // Typing and pasting ("+1 313 889 3860" included) both end up as (313) 889-3860; a paste is no longer dropped.
+      processed = formatPhoneAsTyped(value);
     }
 
     setFormData(prev => ({ ...prev, [field]: processed }));

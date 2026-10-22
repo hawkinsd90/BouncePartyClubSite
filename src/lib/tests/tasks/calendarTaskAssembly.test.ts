@@ -139,7 +139,7 @@ function oracleAssemble(orders: any[], orderItems: any[] | null, taskStatuses: a
       date: eventDate,
       orderNumber: formatOrderId(order.id),
       customerName,
-      customerPhone: customer?.phone || 'No phone',
+      customerPhone: customer?.phone || '',
       customerEmail: customer?.email || '',
       address,
       items,
@@ -209,7 +209,7 @@ function oracleAssemble(orders: any[], orderItems: any[] | null, taskStatuses: a
       date: pickupDate,
       orderNumber: formatOrderId(order.id),
       customerName,
-      customerPhone: customer?.phone || 'No phone',
+      customerPhone: customer?.phone || '',
       customerEmail: customer?.email || '',
       address,
       items,
@@ -350,11 +350,11 @@ const ID = 'aaaaaaaa-0000-0000-0000-000000000001';
 // ---- Customer / address ----
 {
   const noCustomer = compare('missing customer', [mkOrder({ customers: null })], [], []).actual;
-  eq('missing customer defaults', [noCustomer[0].customerName, noCustomer[0].customerPhone, noCustomer[0].customerEmail], ['Unknown Customer', 'No phone', '']);
+  eq('missing customer defaults', [noCustomer[0].customerName, noCustomer[0].customerPhone, noCustomer[0].customerEmail], ['Unknown Customer', '', '']);
   const noAddress = compare('missing address', [mkOrder({ addresses: null })], [], []).actual;
   eq('missing address defaults', [noAddress[0].address, noAddress[0].lat, noAddress[0].lng, 'lat' in noAddress[0]], ['No address', undefined, undefined, true]);
   const partialCustomer = compare('customer without phone/email', [mkOrder({ customers: { first_name: 'Bo', last_name: 'Ng' } })], [], []).actual;
-  eq('partial customer defaults', [partialCustomer[0].customerPhone, partialCustomer[0].customerEmail], ['No phone', '']);
+  eq('partial customer defaults', [partialCustomer[0].customerPhone, partialCustomer[0].customerEmail], ['', '']);
   const zeroCoords = compare('zero coordinates are kept', [mkOrder({ addresses: { ...ADDRESS, lat: 0, lng: 0 } })], [], []).actual;
   eq('zero coordinates', [zeroCoords[0].lat, zeroCoords[0].lng], [0, 0]);
   const nullCoords = compare('null coordinates', [mkOrder({ addresses: { ...ADDRESS, lat: null, lng: undefined } })], [], []).actual;

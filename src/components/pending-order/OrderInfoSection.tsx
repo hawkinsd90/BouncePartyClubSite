@@ -1,4 +1,5 @@
 import { format } from 'date-fns';
+import { PhoneLink } from '../shared/PhoneLink';
 import { useState, useEffect } from 'react';
 import { CreditCard as Edit2 } from 'lucide-react';
 import { formatOrderId } from '../../lib/utils';
@@ -73,7 +74,7 @@ export function OrderInfoSection({ order, customerDisplayName, onEditClick }: Or
             {customerDisplayName}
           </h3>
           <p className="text-xs md:text-sm text-slate-600 truncate">{order.customers?.email}</p>
-          <p className="text-xs md:text-sm text-slate-600">{order.customers?.phone}</p>
+          <p className="text-xs md:text-sm text-slate-600"><PhoneLink phone={order.customers?.phone} /></p>
         </div>
         <div className="sm:text-right w-full sm:w-auto shrink-0">
           <div className="flex items-center justify-between sm:justify-end gap-2 mb-2">

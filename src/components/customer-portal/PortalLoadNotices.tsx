@@ -1,4 +1,5 @@
 import { AlertCircle, RefreshCw, WifiOff } from 'lucide-react';
+import { PhoneLink } from '../shared/PhoneLink';
 
 // Shown when the order could not be loaded at all and nothing is on screen (offline, server trouble). This is NOT "Order Not
 // Found": the order may be perfectly fine, so the customer is offered a retry.
@@ -20,7 +21,7 @@ export function PortalLoadError({ onRetry, retrying }: { onRetry: () => void; re
           <RefreshCw className="w-5 h-5" />
           Try again
         </button>
-        <p className="text-slate-500 text-sm font-semibold mt-6">(313) 889-3860</p>
+        <p className="text-slate-500 text-sm font-semibold mt-6"><PhoneLink phone="(313) 889-3860" /></p>
       </div>
     </div>
   );

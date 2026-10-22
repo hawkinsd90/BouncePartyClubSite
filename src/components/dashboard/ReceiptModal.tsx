@@ -1,4 +1,5 @@
 import { format } from 'date-fns';
+import { PhoneLink } from '../shared/PhoneLink';
 import { Order, Payment } from '../../types/orders';
 import { OrderSummary } from '../order/OrderSummary';
 import { OrderSummaryDisplay } from '../../lib/orders/orderSummaryLoader';
@@ -132,7 +133,7 @@ export function ReceiptModal({ order, payment, summary, loading, onClose }: Rece
                 </p>
                 <p>
                   <span className="text-gray-600">Phone: </span>
-                  <span className="font-medium text-gray-900">{order.customers?.phone}</span>
+                  <span className="font-medium text-gray-900"><PhoneLink phone={order.customers?.phone} /></span>
                 </p>
               </div>
             </div>

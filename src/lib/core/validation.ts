@@ -22,9 +22,8 @@ export function validatePhone(phone: string): ValidationResult {
     return { isValid: false, error: 'Phone number is required' };
   }
 
-  const cleaned = phone.replace(/\D/g, '');
-
-  if (cleaned.length !== 10) {
+  // A pasted "+1 313 889 3860" is a valid number: the country code is dropped before counting.
+  if (nationalDigits(phone) === null) {
     return { isValid: false, error: 'Please enter a 10-digit phone number' };
   }
 
@@ -32,12 +31,7 @@ export function validatePhone(phone: string): ValidationResult {
 }
 
 export function formatPhone(phone: string): string {
-  const cleaned = phone.replace(/\D/g, '');
-
-  if (cleaned.length === 0) return '';
-  if (cleaned.length <= 3) return `(${cleaned}`;
-  if (cleaned.length <= 6) return `(${cleaned.slice(0, 3)}) ${cleaned.slice(3)}`;
-  return `(${cleaned.slice(0, 3)}) ${cleaned.slice(3, 6)}-${cleaned.slice(6, 10)}`;
+  return formatPhoneAsTyped(phone);
 }
 
 export function validateZipCode(zip: string): ValidationResult {
@@ -112,3 +106,4 @@ export function validateCustomAmount(amount: string, min: number, max: number): 
 
   return { isValid: true };
 }
+import { formatPhoneAsTyped, nationalDigits } from './phone';

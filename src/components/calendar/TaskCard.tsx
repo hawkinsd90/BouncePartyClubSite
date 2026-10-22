@@ -1,4 +1,6 @@
 import { User, MapPin, Clock, AlertTriangle, CheckCircle, Navigation, ArrowRight, History } from 'lucide-react';
+import { AddressLink } from '../shared/AddressLink';
+import { PhoneLink } from '../shared/PhoneLink';
 import { Task } from '../../hooks/admin/useCalendarTasks';
 import { ORDER_STATUS } from '../../lib/constants/statuses';
 
@@ -140,12 +142,12 @@ export function TaskCard({ task, stopNumber, taskPosition = null, onClick }: Tas
             <User className="w-4 h-4 text-slate-600 mt-0.5 flex-shrink-0" />
             <div>
               <div className="font-semibold text-slate-900">{task.customerName}</div>
-              <div className="text-slate-600 text-xs">{task.customerPhone}</div>
+              <div className="text-slate-600 text-xs"><PhoneLink phone={task.customerPhone} /></div>
             </div>
           </div>
           <div className="flex items-start gap-2">
             <MapPin className="w-4 h-4 text-slate-600 mt-0.5 flex-shrink-0" />
-            <div className="text-slate-700 text-xs">{task.address}</div>
+            <div className="text-slate-700 text-xs"><AddressLink address={task.address} coords={{ lat: task.lat, lng: task.lng }} showCopy={false} /></div>
           </div>
           <div className="flex items-start gap-2">
             <Clock className="w-4 h-4 text-slate-600 mt-0.5 flex-shrink-0" />

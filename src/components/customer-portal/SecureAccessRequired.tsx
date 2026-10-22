@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { PhoneLink } from '../shared/PhoneLink';
 import { ShieldCheck } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 
@@ -43,7 +44,7 @@ export function SecureAccessRequired({ orderId }: { orderId: string }) {
             </button>
           </>
         )}
-        <p className="text-slate-500 text-sm font-semibold mt-6">(313) 889-3860</p>
+        <p className="text-slate-500 text-sm font-semibold mt-6"><PhoneLink phone="(313) 889-3860" /></p>
       </div>
     </div>
   );

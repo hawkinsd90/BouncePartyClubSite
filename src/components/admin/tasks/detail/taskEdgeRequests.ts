@@ -73,6 +73,8 @@ export async function currentAccessToken(): Promise<string | undefined> {
 export async function postTaskSms(body: Record<string, unknown>, label: string, deps: EdgeRequestDeps = {}): Promise<TaskSmsOutcome> {
   const doFetch = deps.fetch ?? fetch;
   const baseUrl = deps.baseUrl ?? import.meta.env.VITE_SUPABASE_URL;
+  // A missing or placeholder number must never reach the relay as a recipient.
+  if ('to' in body && !isUsablePhone(body.to)) return { ok: false, warning: 'SMS not sent: no valid phone number on file', failureError: 'No valid phone number on file' };
   const accessToken = deps.accessToken ?? (await currentAccessToken());
   if (!accessToken) return { ok: false, warning: 'SMS failed: not signed in', failureError: 'Not signed in' };
   try {
@@ -90,3 +92,4 @@ export async function postTaskSms(body: Record<string, unknown>, label: string, 
     return { ok: false, warning: 'SMS failed: ' + e.message, failureError: e.message };
   }
 }
+import { isUsablePhone } from '../../../../lib/core/phone';

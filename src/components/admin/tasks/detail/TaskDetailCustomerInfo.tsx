@@ -1,4 +1,6 @@
 import { useState, useEffect } from 'react';
+import { AddressLink } from '../../../shared/AddressLink';
+import { PhoneLink } from '../../../shared/PhoneLink';
 import { RotateCcw, ExternalLink } from 'lucide-react';
 import { formatCurrency } from '../../../../lib/pricing';
 import { Task } from '../../../../hooks/admin/useCalendarTasks';
@@ -92,8 +94,8 @@ export function TaskDetailCustomerInfo({ task, isAdmin = true, onRefundChanged }
       <h3 className="font-bold text-slate-900 mb-3">Customer Information</h3>
       <div className="space-y-2 text-sm">
         <div><span className="font-semibold">Name:</span> {task.customerName}</div>
-        <div><span className="font-semibold">Phone:</span> {task.customerPhone}</div>
-        <div><span className="font-semibold">Address:</span> {task.address}</div>
+        <div><span className="font-semibold">Phone:</span> <PhoneLink phone={task.customerPhone} /></div>
+        <div><span className="font-semibold">Address:</span> <AddressLink address={task.address} coords={{ lat: task.lat, lng: task.lng }} /></div>
         <div><span className="font-semibold">Event Time:</span> {formatTimeStr(task.eventStartTime)} - {formatTimeStr(task.eventEndTime)}</div>
 
         {!task.waiverSigned ? (

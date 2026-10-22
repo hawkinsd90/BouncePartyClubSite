@@ -1,6 +1,7 @@
 import "jsr:@supabase/functions-js@2/edge-runtime.d.ts";
 import { createClient } from "npm:@supabase/supabase-js@2.57.4";
 import { formParams, twilioCandidateUrls, verifyTwilioRequest } from "../_shared/twilio-signature.ts";
+import { AUTO_REPLY, HELP_REPLY, classifyInbound, digits10, phoneLikePattern, samePhone, twiml } from "../_shared/sms/inbound.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -72,47 +73,48 @@ Deno.serve(async (req: Request) => {
       );
     }
 
-    const normalizePhone = (phone: string) => {
-      return phone.replace(/[^0-9]/g, "").slice(-10);
-    };
+    const from10 = digits10(from);
+    const to10 = digits10(to);
+    const xml = (message?: string) => new Response(twiml(message), { status: 200, headers: { "Content-Type": "text/xml" } });
+    if (!from10) return xml();
 
-    const normalizedFrom = normalizePhone(from);
-    const normalizedTo = normalizePhone(to);
+    // Twilio redelivers a message it did not get an answer for: the same MessageSid is processed once.
+    const { data: already } = await supabase.from("sms_conversations").select("id").eq("twilio_message_sid", messageSid).limit(1);
+    if (already && already.length > 0) return xml();
 
-    let orderId = null;
+    // Numbers are stored as typed ("(313) 889-3860"), so match on the digits: a pattern finds the candidates, the digits confirm them.
+    let orderId: string | null = null;
+    let customerIds: string[] = [];
 
-    const { data: recentOutbound } = await supabase
-      .from("sms_conversations")
-      .select("order_id")
-      .eq("direction", "outbound")
-      .ilike("from_phone", `%${normalizedTo}%`)
-      .ilike("to_phone", `%${normalizedFrom}%`)
-      .order("created_at", { ascending: false })
-      .limit(1);
+    const { data: customerRows } = await supabase
+      .from("customers")
+      .select("id, phone")
+      .ilike("phone", phoneLikePattern(from10));
+    customerIds = ((customerRows ?? []) as Array<{ id: string; phone: string }>).filter((c) => samePhone(c.phone, from)).map((c) => c.id);
 
-    if (recentOutbound && recentOutbound.length > 0 && recentOutbound[0].order_id) {
-      orderId = recentOutbound[0].order_id;
-    } else {
-      const { data: customers } = await supabase
-        .from("customers")
-        .select("id, phone")
-        .ilike("phone", `%${normalizedFrom}%`);
+    if (to10) {
+      const { data: recentOutbound } = await supabase
+        .from("sms_conversations")
+        .select("order_id, from_phone, to_phone")
+        .eq("direction", "outbound")
+        .ilike("from_phone", phoneLikePattern(to10))
+        .ilike("to_phone", phoneLikePattern(from10))
+        .order("created_at", { ascending: false })
+        .limit(10);
+      const match = ((recentOutbound ?? []) as Array<{ order_id: string | null; from_phone: string; to_phone: string }>)
+        .find((r) => r.order_id && samePhone(r.from_phone, to) && samePhone(r.to_phone, from));
+      if (match) orderId = match.order_id;
+    }
 
-      if (customers && customers.length > 0) {
-        const customerIds = customers.map((c: { id: string; phone: string }) => c.id);
-
-        const { data: orders } = await supabase
-          .from("orders")
-          .select("id")
-          .in("customer_id", customerIds)
-          .in("status", ["pending_review", "confirmed", "draft"])
-          .order("created_at", { ascending: false })
-          .limit(1);
-
-        if (orders && orders.length > 0) {
-          orderId = orders[0].id;
-        }
-      }
+    if (!orderId && customerIds.length > 0) {
+      const { data: orders } = await supabase
+        .from("orders")
+        .select("id")
+        .in("customer_id", customerIds)
+        .in("status", ["pending_review", "confirmed", "draft"])
+        .order("created_at", { ascending: false })
+        .limit(1);
+      if (orders && orders.length > 0) orderId = orders[0].id;
     }
 
     const { error: insertError } = await supabase
@@ -128,35 +130,29 @@ Deno.serve(async (req: Request) => {
       });
 
     if (insertError) {
+      // 23505: a concurrent delivery of the same message already stored it.
+      if ((insertError as { code?: string }).code === "23505") return xml();
       console.error("Error storing SMS:", insertError);
       throw insertError;
     }
 
-    const autoReply = "Thank you for your message! We've received it and will respond shortly. - Bounce Party Club";
+    const kind = classifyInbound(body);
 
-    await supabase
-      .from("sms_conversations")
-      .insert({
-        order_id: orderId,
-        from_phone: to,
-        to_phone: from,
-        message_body: autoReply,
-        direction: "outbound",
-        twilio_message_sid: null,
-        status: "sent",
-      });
+    if (kind === "stop") {
+      // The customer withdrew SMS consent: record it on their orders so nothing is texted to them from here on. Twilio sends the
+      // carrier-required confirmation itself, so no reply is added.
+      if (customerIds.length > 0) {
+        const { error: consentError } = await supabase.from("orders").update({ sms_consent: false }).in("customer_id", customerIds);
+        if (consentError) console.error("Error recording SMS opt-out:", consentError);
+      }
+      return xml();
+    }
+    if (kind === "start") return xml();
+    if (kind === "help") return xml(HELP_REPLY);
 
-    const twiml = `<?xml version="1.0" encoding="UTF-8"?>
-<Response>
-  <Message>${autoReply}</Message>
-</Response>`;
-
-    return new Response(twiml, {
-      status: 200,
-      headers: {
-        "Content-Type": "text/xml",
-      },
-    });
+    // The reply travels in this response and Twilio records it under its own SID. No outbound row is written here (it used to be written
+    // with no SID, so the conversation showed messages Twilio never reported).
+    return xml(AUTO_REPLY);
   } catch (error) {
     console.error("Error processing webhook:", error);
     

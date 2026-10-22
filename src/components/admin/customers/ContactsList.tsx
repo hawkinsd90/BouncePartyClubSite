@@ -1,4 +1,5 @@
 import { useState, useCallback } from 'react';
+import { PhoneLink } from '../../shared/PhoneLink';
 import { supabase } from '../../../lib/supabase';
 import { Mail, Phone, Calendar, CreditCard as Edit2, X, Star, TrendingUp, Trash2 } from 'lucide-react';
 import { format } from 'date-fns';
@@ -191,7 +192,7 @@ export function ContactsList() {
                 <td className="px-3 sm:px-6 py-3 sm:py-4 whitespace-nowrap">
                   <div className="flex items-center text-xs sm:text-sm text-slate-900">
                     <Phone className="w-3 h-3 sm:w-4 sm:h-4 mr-1 sm:mr-2 text-slate-400 flex-shrink-0" />
-                    {contact.phone || 'N/A'}
+                    <PhoneLink phone={contact.phone} emptyLabel="N/A" />
                   </div>
                 </td>
                 <td className="px-3 sm:px-6 py-3 sm:py-4 whitespace-nowrap hidden md:table-cell">

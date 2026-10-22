@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { PhoneLink } from '../components/shared/PhoneLink';
 import { useParams } from 'react-router-dom';
 import { format } from 'date-fns';
 import { AlertCircle, Printer } from 'lucide-react';
@@ -215,7 +216,7 @@ export function Receipt() {
               </p>
               <p>
                 <span className="text-slate-600">Phone: </span>
-                <span className="font-medium text-slate-900">{order.customers?.phone}</span>
+                <span className="font-medium text-slate-900"><PhoneLink phone={order.customers?.phone} /></span>
               </p>
             </div>
           </div>

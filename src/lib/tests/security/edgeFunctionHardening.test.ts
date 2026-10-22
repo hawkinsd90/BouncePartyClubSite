@@ -15,6 +15,7 @@ const ts = require('typescript');
 import * as authHelpers from '../../../../supabase/functions/_shared/auth';
 import * as twilioSig from '../../../../supabase/functions/_shared/twilio-signature';
 import * as returnOrigin from '../../../../supabase/functions/_shared/booking/returnOrigin';
+import * as smsInbound from '../../../../supabase/functions/_shared/sms/inbound';
 
 let passed = 0;
 let failed = 0;
@@ -123,6 +124,7 @@ function loadHandler(fnPath: string, w: World, env: Record<string, string> = {})
     twilioCandidateUrls: twilioSig.twilioCandidateUrls,
     verifyTwilioRequest: twilioSig.verifyTwilioRequest,
     resolveReturnOrigin: returnOrigin.resolveReturnOrigin,
+    ...smsInbound,
     getIdentifier: () => '203.0.113.7',
     buildRateLimitKey: (ip: string, _s?: string, prefix?: string) => `${prefix}|ip:${ip}`,
     checkRateLimit: async (endpoint: string) => {

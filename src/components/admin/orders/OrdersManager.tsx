@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import { PhoneLink } from '../../shared/PhoneLink';
 import { useSearchParams } from 'react-router-dom';
 import { format } from 'date-fns';
 import { Search, Calendar, User, Phone, Archive, ArchiveX, ArchiveRestore } from 'lucide-react';
@@ -508,7 +509,7 @@ export function OrdersManager() {
                         </div>
                         <div className="text-xs text-slate-500 flex items-center gap-2 mt-1">
                           <Phone className="w-3 h-3" />
-                          {order.customers?.phone}
+                          <PhoneLink phone={order.customers?.phone} />
                         </div>
                       </div>
                     </div>
