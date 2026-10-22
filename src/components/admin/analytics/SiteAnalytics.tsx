@@ -133,6 +133,7 @@ export function SiteAnalytics() {
 
   useEffect(() => {
     load();
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- reloads when the period changes; the loader reads only that value
   }, [period]);
 
   async function load() {

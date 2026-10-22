@@ -38,6 +38,7 @@ export function PermissionsTab() {
 
   useEffect(() => {
     fetchData();
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- runs once on mount
   }, []);
 
   async function fetchData() {

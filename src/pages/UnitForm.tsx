@@ -46,6 +46,7 @@ export function UnitForm() {
     if (isEdit) {
       loadUnit();
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- keyed on the id / route parameter; the loader reads only that value
   }, [id]);
 
   async function loadUnit() {

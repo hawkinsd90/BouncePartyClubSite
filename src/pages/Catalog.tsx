@@ -106,6 +106,7 @@ export function Catalog() {
       mounted = false;
       document.removeEventListener('visibilitychange', handleVisibilityChange);
     };
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- the visibility listener is intentionally a no-op
   }, []);
 
   function loadPrefillData() {

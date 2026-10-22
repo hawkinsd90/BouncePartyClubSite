@@ -44,6 +44,7 @@ export function CustomerDashboard() {
         changeTab('past', { replace: true });
       }
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- default tab chosen when the order lists / URL tab change; changeTab is recreated each render and reads only setSearchParams
   }, [activeOrders, upcomingOrders, pastOrders, urlTab]);
 
   async function openReceipt(order: Order, payment: Payment) {

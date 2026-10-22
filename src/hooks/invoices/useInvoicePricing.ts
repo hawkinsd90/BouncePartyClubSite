@@ -67,6 +67,7 @@ export function useInvoicePricing(
     ) {
       calculatePricing();
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- every value the callback reads is listed; the function itself is recreated each render
   }, [
     cartItems,
     pricingRules,

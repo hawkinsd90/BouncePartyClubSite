@@ -113,6 +113,7 @@ export function useQuoteForm() {
     if (formData.event_date && !formData.event_end_date) {
       setFormData(prev => ({ ...prev, event_end_date: prev.event_date }));
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- defaults the end date when the start date is chosen, not when the user clears the end date
   }, [formData.event_date, isInitialized]);
 
   useEffect(() => {
@@ -124,6 +125,7 @@ export function useQuoteForm() {
     } else if (formData.location_type === null) {
       setFormData(prev => ({ ...prev, pickup_preference: null }));
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- the only read is in a no-op branch
   }, [formData.location_type, isInitialized]);
 
   useEffect(() => {

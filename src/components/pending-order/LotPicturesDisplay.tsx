@@ -67,6 +67,7 @@ export function LotPicturesDisplay({ orderId, onPromptCustomer, lotPicturesReque
       if (debounceTimer) clearTimeout(debounceTimer);
       supabase.removeChannel(channel);
     };
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- keyed on the id / route parameter; the loader reads only that value
   }, [orderId]);
 
   const loadPictures = async () => {

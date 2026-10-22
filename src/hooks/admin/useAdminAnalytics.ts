@@ -90,6 +90,7 @@ export function useMileageAnalytics(period: AnalyticsPeriod = 'all_time') {
 
   useEffect(() => {
     load();
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- reloads when the period changes; the loader reads only that value
   }, [period]);
 
   async function load() {
@@ -185,6 +186,7 @@ export function useDeliveryTimingAnalytics(period: AnalyticsPeriod = 'all_time')
 
   useEffect(() => {
     load();
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- reloads when the period changes; the loader reads only that value
   }, [period]);
 
   async function load() {
@@ -214,6 +216,7 @@ export function useAdminAnalytics(period: AnalyticsPeriod = 'all_time') {
 
   useEffect(() => {
     load();
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- reloads when the period changes; the loader reads only that value
   }, [period]);
 
   async function load() {

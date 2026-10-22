@@ -124,6 +124,7 @@ export function OrderApprovalView({
     if (autoOpenApprovalModal) {
       setShowApprovalModal(true);
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- initial payment choices are set once per order; re-running would overwrite the customer's in-progress choices on a live refresh
   }, [order.id, autoOpenApprovalModal]);
 
   const newTipCents = calculateTipCents(tipAmount, customTipAmount, currentTotalCents);

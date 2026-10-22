@@ -79,6 +79,7 @@ export function useBookingReturnConfirmation(orderId: string | null, sessionId: 
     }
 
     processPayment();
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- one-shot Stripe return handling; re-running would repeat payment confirmation or a charge - do not add dependencies
   }, [orderId, sessionId]);
 
   async function processPayment() {

@@ -323,6 +323,7 @@ export function AddEventEssentialsSection({
     } finally {
       setAvailabilityChecking(false);
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- derives from the quantity inputs, which are listed
   }, [buildResolverInput, onAddProduct, stagedItems, eventDate, eventEndDate, orderId, productQtyInputs]);
 
   const handleAddBundle = useCallback(async (bundle: ProductBundleWithConfiguration) => {
@@ -398,6 +399,7 @@ export function AddEventEssentialsSection({
     } finally {
       setAvailabilityChecking(false);
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- derives from the quantity inputs, which are listed
   }, [buildResolverInput, onAddBundle, stagedItems, eventDate, eventEndDate, orderId, bundleQtyInputs]);
 
   // Build the list of active categories that have at least one product in the picker.

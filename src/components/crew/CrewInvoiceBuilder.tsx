@@ -31,17 +31,18 @@ export function CrewInvoiceBuilder() {
 
   const pricing = useInvoicePricing(cartItems, eventDetails, pricingRules, [], []);
 
+  const { showCustomerDropdown, setShowCustomerDropdown } = customerManagement;
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       const target = event.target as HTMLElement;
-      if (customerManagement.showCustomerDropdown && !target.closest('.customer-search-container')) {
-        customerManagement.setShowCustomerDropdown(false);
+      if (showCustomerDropdown && !target.closest('.customer-search-container')) {
+        setShowCustomerDropdown(false);
       }
     };
 
     document.addEventListener('pointerdown', handleClickOutside);
     return () => document.removeEventListener('pointerdown', handleClickOutside);
-  }, [customerManagement.showCustomerDropdown]);
+  }, [showCustomerDropdown, setShowCustomerDropdown]);
 
   async function handleCreateNewCustomer() {
     const customer = await customerManagement.createNewCustomer(addCustomer);

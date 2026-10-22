@@ -110,6 +110,7 @@ export default function Sign() {
   useEffect(() => {
     if (orderId) trackEvent('waiver_link_opened', { orderId });
     loadOrder();
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- keyed on the id / route parameter; the loader reads only that value
   }, [orderId]);
 
   const loadOrder = async () => {

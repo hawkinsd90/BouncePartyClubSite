@@ -82,6 +82,7 @@ export function Login() {
   useEffect(() => {
     // setIsIOS(isIOSDevice());
     if (prefillEmail) setEmail(prefillEmail);
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- runs once on mount
   }, []);
 
   // Clean up cooldown timer on unmount

@@ -32,6 +32,7 @@ export function MileageModal({ isOpen, date, type, onClose, onSuccess }: Mileage
     let cancelled = false;
     loadExistingLog(() => cancelled);
     return () => { cancelled = true; };
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- every value the callback reads is listed; the function itself is recreated each render
   }, [isOpen, date, type]);
 
   async function loadExistingLog(isStale: () => boolean = () => false) {

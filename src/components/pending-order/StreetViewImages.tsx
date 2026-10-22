@@ -117,6 +117,7 @@ export function StreetViewImages({
       setPrimaryHeading(heading);
       setLoadingHeading(false);
     });
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- every value the callback reads is listed; the function itself is recreated each render
   }, [address?.lat, address?.lng]);
 
   if (!address) return null;

@@ -272,7 +272,7 @@ export function Quote() {
       }
     });
     return () => { cancelled = true; };
-  }, [formData.event_date, formData.event_end_date]);
+  }, [formData.event_date, formData.event_end_date, setFormData]);
 
   const handleClearAll = () => {
     clearCart();

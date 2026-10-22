@@ -299,6 +299,7 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
     loadOrderDetails(targetOrderId, requestId);
     loadAdminSettings();
     setDepositOverrideState(initDepositOverrideState(order.custom_deposit_cents));
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- resets only when a different order opens; re-running would discard unsaved edits
   }, [order.id]);
 
   // Initialize staged items from order items (inflatables and EE products).
@@ -353,7 +354,7 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
     return () => {
       if (pricingDebounceRef.current) clearTimeout(pricingDebounceRef.current);
     };
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- the debounced pricing run reads the listed inputs; the calculation helper is recreated each render
   }, [
     discounts,
     customFees,
@@ -392,6 +393,7 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
         setEditedOrder((prev) => ({ ...prev, pickup_preference: 'next_day' }));
       }
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- pickup is forced to next_day only when the dates change; same-day pickup sets end = start itself
   }, [editedOrder.event_date, editedOrder.event_end_date]);
 
   // Sync surface with can_stake
@@ -401,6 +403,7 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
     } else if (!editedOrder.can_stake && editedOrder.surface === 'grass') {
       setEditedOrder((prev) => ({ ...prev, surface: 'cement' }));
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- surface follows can_stake only when can_stake changes; listing surface would undo direct surface choices
   }, [editedOrder.can_stake]);
 
   // Check availability when dates or items change
@@ -416,6 +419,7 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
       }, 500); // Debounce for 500ms
       return () => clearTimeout(timer);
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- every value the callback reads is listed; the function itself is recreated each render
   }, [editedOrder.event_date, editedOrder.event_end_date, stagedItems]);
 
   // Re-resolve county when the event address changes while Parks Acknowledgment is enabled

@@ -38,7 +38,7 @@ export function useTaskEvidenceUrls(taskStatusId: string | undefined, deliveryRe
     return () => {
       cancelled = true;
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- reloads when the evidence key (task + attempt) changes; the task list itself is read through the key
   }, [key]);
 
   if (urls && urls.key === key) return { ...urls.value, retry };

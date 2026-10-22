@@ -58,6 +58,7 @@ export function ChangelogTab() {
 
   useEffect(() => {
     fetchChangelog();
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- reloads when the limit changes; the loader reads only that value
   }, [limit]);
 
   async function fetchChangelog() {

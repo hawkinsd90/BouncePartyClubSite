@@ -103,6 +103,7 @@ export function useCalendarTasks(currentMonth: Date) {
   const firstRoleRef = useRef(true);
   useEffect(() => {
     loadTasksForMonth(currentMonth);
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- loads the month; role changes are reloaded by the separate [isAdmin] effect
   }, [currentMonth]);
 
   // The first load can run before the roles are known: load again, quietly, once the role is resolved.

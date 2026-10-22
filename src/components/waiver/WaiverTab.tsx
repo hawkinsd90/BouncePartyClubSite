@@ -53,6 +53,7 @@ export default function WaiverTab({ orderId, token, onWaiverChange }: WaiverTabP
 
   useEffect(() => {
     loadSignatureData();
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- keyed on orderId; the portal token is stable for the page
   }, [orderId]);
 
   const loadSignatureData = async () => {

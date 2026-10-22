@@ -47,6 +47,7 @@ export function DayViewModal({
 
   useEffect(() => {
     loadMileageLogs();
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- reloads when the selected date changes; the loader reads only that value
   }, [selectedDate]);
 
   async function loadMileageLogs() {

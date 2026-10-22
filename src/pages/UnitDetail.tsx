@@ -53,6 +53,7 @@ export function UnitDetail() {
     if (slug) {
       loadUnit(slug);
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- keyed on the id / route parameter; the loader reads only that value
   }, [slug]);
 
   // Escape closes the photo viewer.

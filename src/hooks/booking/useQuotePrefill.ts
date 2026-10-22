@@ -46,6 +46,7 @@ export function useQuotePrefill(
       state: sessionAddress.state || 'MI',
       zip: sessionAddress.zip || '',
     });
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- one-shot: applies the saved default address the first time it appears
   }, [user, sessionAddress?.addressLine1]);
 
   return {};

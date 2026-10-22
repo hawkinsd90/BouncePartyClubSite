@@ -233,6 +233,7 @@ export function CustomerProfileProvider({ children }: { children: ReactNode }) {
         clearTimeout(retryTimerRef.current);
       }
     };
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- loads the profile when the signed-in user changes; the loader is recreated each render, so it must not be a dependency
   }, [user]);
 
   const updateSessionData = (data: Partial<SessionData>) => {

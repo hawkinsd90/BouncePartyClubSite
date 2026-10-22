@@ -75,8 +75,8 @@ export function OrdersManager() {
     }
   );
 
-  const orders = data?.orders || [];
-  const contactsMap = data?.contactsMap || new Map();
+  const orders = useMemo(() => data?.orders || [], [data]);
+  const contactsMap = useMemo(() => data?.contactsMap || new Map(), [data]);
 
   useEffect(() => {
     let debounceTimer: ReturnType<typeof setTimeout> | null = null;
@@ -159,6 +159,7 @@ export function OrdersManager() {
       // Determine default tab based on counts
       setActiveTab(pickDefaultTab(tabCounts));
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- the default tab is chosen when the order count changes, not whenever tab counts change
   }, [orders.length, tabFromUrl, singleOrderId]);
 
   useEffect(() => {
@@ -181,6 +182,7 @@ export function OrdersManager() {
         setSearchParams(params);
       }
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- opens the ?order= order once; the search params are only used to consume the parameter
   }, [orderIdFromUrl, orders, selectedOrder]);
 
   function getTabCount(tab: OrderTab): number {

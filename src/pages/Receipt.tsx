@@ -31,6 +31,7 @@ export function Receipt() {
 
   useEffect(() => {
     loadReceiptData();
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- keyed on the id / route parameter; the loader reads only that value
   }, [orderId, paymentId]);
 
   async function loadReceiptData() {

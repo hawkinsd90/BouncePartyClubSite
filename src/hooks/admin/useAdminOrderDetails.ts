@@ -26,6 +26,7 @@ export function useAdminOrderDetails(orderId: string | null) {
     if (orderId) {
       loadData();
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- keyed on the id / route parameter; the loader reads only that value
   }, [orderId]);
 
   const loadData = async () => {

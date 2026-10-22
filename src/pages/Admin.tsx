@@ -67,6 +67,7 @@ function AdminDashboard() {
     if (!tabFromUrl) {
       setSearchParams({ tab: 'pending' });
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- runs once on mount
   }, []);
 
   const fetchAdminData = useCallback(async () => {
@@ -146,6 +147,7 @@ function AdminDashboard() {
     if (tabFromUrl && tabFromUrl !== activeTab) {
       setActiveTab(tabFromUrl);
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- URL to state sync only when the URL tab changes; listing activeTab would undo tab clicks
   }, [tabFromUrl]);
 
   function handleEditFromFloatingHeader() {

@@ -83,7 +83,7 @@ function RecoveryRedirectHandler() {
     // A recovery link that arrived here with its proof in the URL, or an event that fired before this component mounted.
     if (shouldOpenResetForm({ snapshot: initialAuthLink, recoveryPending: isRecoveryPending(), pathname: location.pathname })) go();
     return subscribeRecovery(go);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- registers once on mount; the recovery snapshot is taken before the Auth client starts
   }, []);
 
   return null;

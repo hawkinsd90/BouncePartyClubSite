@@ -188,6 +188,7 @@ export function CustomerPortal() {
     } else {
       reloadPortalData();
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- one-shot Stripe return handling; re-running would repeat payment confirmation or a charge - do not add dependencies
   }, [orderId, token, isInvoiceLink, reloadPortalData]);
 
   const handleReload = async () => {

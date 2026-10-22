@@ -39,6 +39,7 @@ export function HeroCarousel({ adminControls }: HeroCarouselProps) {
 
   useEffect(() => {
     loadMedia();
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- runs once on mount
   }, []);
 
   useEffect(() => {

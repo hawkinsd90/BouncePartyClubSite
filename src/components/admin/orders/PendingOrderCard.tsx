@@ -103,6 +103,7 @@ const PendingOrderCardInner = forwardRef<PendingOrderCardRef, {
       .select('id', { count: 'exact', head: true })
       .eq('order_id', order.id)
       .then(({ count }) => setLotPicturesCount(count ?? 0));
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- loads this card's data when the order changes
   }, [order.id]);
 
   useEffect(() => {
@@ -125,6 +126,7 @@ const PendingOrderCardInner = forwardRef<PendingOrderCardRef, {
     return () => {
       supabase.removeChannel(channel);
     };
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- loads this card's data when the order changes
   }, [order.id]);
 
   // sms_conversations is not published for realtime, so the subscription above never fires: reload the thread when the admin returns to the page

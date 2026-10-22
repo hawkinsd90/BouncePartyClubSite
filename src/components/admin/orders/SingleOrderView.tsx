@@ -30,6 +30,7 @@ export function SingleOrderView({ orderId, openEditMode = false, onBack, onUpdat
 
   useEffect(() => {
     loadOrder();
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- keyed on the id / route parameter; the loader reads only that value
   }, [orderId]);
 
   async function loadOrder() {
@@ -130,6 +131,7 @@ export function SingleOrderView({ orderId, openEditMode = false, onBack, onUpdat
         .maybeSingle();
       setPortalToken(data?.link_token ?? null);
     })();
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- reads only the listed order fields
   }, [order?.id, order?.status]);
 
   useEffect(() => {
@@ -150,6 +152,7 @@ export function SingleOrderView({ orderId, openEditMode = false, onBack, onUpdat
         setShortUrl(`${window.location.origin}/i/${data.short_code}`);
       }
     })();
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- reads only the listed order fields
   }, [order?.id]);
 
   async function handleShortLink() {

@@ -62,6 +62,7 @@ export function BusinessBrandingTab() {
 
   useEffect(() => {
     loadSettings();
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- runs once on mount
   }, []);
 
   async function loadSettings() {

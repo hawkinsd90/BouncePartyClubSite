@@ -27,6 +27,7 @@ export function AdminCalendar() {
 
   useEffect(() => {
     loadMonthMileage();
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- reloads when the month changes; the loader reads only that value
   }, [currentMonth]);
 
   async function loadMonthMileage() {

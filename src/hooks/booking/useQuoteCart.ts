@@ -309,6 +309,7 @@ export function useQuoteCart() {
       persistCart(mergedCart);
       return { cart: mergedCart, eventEssentialsCheckFailed };
     },
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- persistCart touches only constants; the callback must stay referentially stable
     [],
   );
 

@@ -234,6 +234,7 @@ export function useGeneratorCheckbox(params: UseGeneratorCheckboxParams): UseGen
         }
         return;
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- onFormDataChange wraps a functional setState, so an older copy behaves identically
   }, [
     isInitialized,
     configurationReady,
@@ -263,6 +264,7 @@ export function useGeneratorCheckbox(params: UseGeneratorCheckboxParams): UseGen
 
     autoConversionAttempted.current = true;
     void performLegacyConversion();
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- one-shot conversion guarded by autoConversionAttempted
   }, [
     legacyConversionNeeded,
     conversionCompleted,

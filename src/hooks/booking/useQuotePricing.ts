@@ -60,6 +60,7 @@ export function useQuotePricing(
         clearTimeout(debounceTimerRef.current);
       }
     };
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- every value the callback reads is listed; the function itself is recreated each render
   }, [cart, pricingRules, formData, hasAnyCartItems, hasInflatables]);
 
   async function calculatePricing() {

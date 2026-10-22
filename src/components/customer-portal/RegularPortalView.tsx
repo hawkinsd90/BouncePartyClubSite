@@ -124,7 +124,7 @@ export function RegularPortalView({ order, orderId, orderItems: _orderItems, ord
       next.delete('payment');
       setSearchParams(next, { replace: true });
     }
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps -- reads the payment result from the URL once on mount, then removes the parameter
 
   async function handleSubmitPictures(files: File[], notes: string) {
     try {
@@ -268,7 +268,7 @@ export function RegularPortalView({ order, orderId, orderItems: _orderItems, ord
       }
       setSearchParams(next, { replace: true });
     }
-  }, [activeTab]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [activeTab]); // eslint-disable-line react-hooks/exhaustive-deps -- keeps the URL tab in step with the active tab only when the tab changes
 
   // Handle tab click — push to URL history (not replace).
   function handleTabSelect(tab: TabKey) {

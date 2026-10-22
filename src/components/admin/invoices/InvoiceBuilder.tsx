@@ -452,6 +452,7 @@ export function InvoiceBuilder() {
   // Check availability whenever cart items or dates change
   useEffect(() => {
     checkAvailability();
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- every value the callback reads is listed; the function itself is recreated each render
   }, [cartItems, stagedEEItems, eventDetails.event_date, eventDetails.event_end_date]);
 
   async function checkAvailability() {
@@ -522,17 +523,18 @@ export function InvoiceBuilder() {
     }
   }
 
+  const { showCustomerDropdown, setShowCustomerDropdown } = customerManagement;
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       const target = event.target as HTMLElement;
-      if (customerManagement.showCustomerDropdown && !target.closest('.customer-search-container')) {
-        customerManagement.setShowCustomerDropdown(false);
+      if (showCustomerDropdown && !target.closest('.customer-search-container')) {
+        setShowCustomerDropdown(false);
       }
     };
 
     document.addEventListener('pointerdown', handleClickOutside);
     return () => document.removeEventListener('pointerdown', handleClickOutside);
-  }, [customerManagement.showCustomerDropdown]);
+  }, [showCustomerDropdown, setShowCustomerDropdown]);
 
   async function handleCreateNewCustomer() {
     const customer = await customerManagement.createNewCustomer(addCustomer);
