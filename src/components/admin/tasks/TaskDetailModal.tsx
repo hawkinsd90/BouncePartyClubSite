@@ -401,7 +401,7 @@ export function TaskDetailModal({ task, allTasks, onClose, onUpdate, onRefresh, 
     setProcessing(true);
     try {
       const taskStatusId = await ensureTaskStatus();
-      const msg = buildDropOffRulesMessage({ pickupPreference: task.pickupPreference, eventEndTime: task.eventEndTime });
+      const msg = buildDropOffRulesMessage({ pickupPreference: task.pickupPreference, eventEndTime: task.eventEndTime, numInflatables: task.numInflatables });
 
       let smsWarn: string | null = null;
       const sms = await postTaskSms({ to: task.customerPhone, message: msg, orderId: task.orderId, mediaUrls: [] }, 'Drop-off');

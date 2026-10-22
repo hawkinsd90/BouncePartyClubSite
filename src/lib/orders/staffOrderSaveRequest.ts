@@ -1,4 +1,5 @@
 import { showToast } from '../toasts';
+import { hasActiveInflatable, surfaceChoiceProblem } from './surfaceChoice';
 import { notifyPortalRefresh } from '../portal/customerPortalRefreshSignal';
 import { callStaffOrderSave, StaffOrderSaveError } from './staffOrderSaveApi';
 import type { OrderPricingState } from '../pricing/orderPricingState';
@@ -103,6 +104,12 @@ export function buildSaveRequest(p: SaveOrderChangesParams) {
 
 export async function saveOrderChanges(params: SaveOrderChangesParams): Promise<void> {
   const { order, availabilityIssues, sendNotificationsFn, onComplete } = params;
+  // Adding the first inflatable to an Event Essentials-only order must not silently pick grass: the surface has to be chosen.
+  const surfaceProblem = surfaceChoiceProblem({ hasInflatables: hasActiveInflatable(params.stagedItems as any[]), surface: params.editedOrder.surface });
+  if (surfaceProblem) {
+    showToast(surfaceProblem, 'error');
+    throw new Error('Surface not chosen');
+  }
   if (availabilityIssues.length > 0) {
     const unitNames = availabilityIssues.map(issue => issue.unitName).join(', ');
     showToast(`Cannot save: The following units are not available for the selected dates: ${unitNames}. Please adjust the dates or remove the conflicting items.`, 'error');

@@ -115,8 +115,13 @@ export function buildArrivedResultMessage({ smsWarn, workflowStatusFailed }: { s
   return arrivedMsg;
 }
 
-export function buildDropOffRulesMessage({ pickupPreference, eventEndTime }: { pickupPreference?: string; eventEndTime?: string }): string {
+// `numInflatables` is optional: when it is exactly 0 (an Event Essentials-only order) the inflatable rules are left out - "no shoes on the
+// inflatable" and the net rules mean nothing for tables and chairs. Any other value (or none) gives the full rules as before.
+export function buildDropOffRulesMessage({ pickupPreference, eventEndTime, numInflatables }: { pickupPreference?: string; eventEndTime?: string; numInflatables?: number }): string {
   const pickupTime = pickupPreference === 'same_day' ? `this evening (${eventEndTime || 'after your event'})` : 'tomorrow morning';
+  if (numInflatables === 0) {
+    return `Equipment has been delivered! You are now responsible for the equipment until ${pickupTime}.\n\nPlease take good care of it, keep it dry and clean, and call us right away if anything is damaged or missing.\n\nEnjoy your event! 🎉`;
+  }
   return `Equipment has been delivered! You are now responsible for the equipment until ${pickupTime}.\n\n⚠️ IMPORTANT RULES:\n• NO SHOES on the inflatable\n• NO FOOD or DRINKS\n• NO SHARP OBJECTS\n• NO HANGING OR CLIMBING ON THE NETS\n• Adult supervision required at all times\n\nEnjoy your event! 🎉`;
 }
 

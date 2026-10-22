@@ -1,4 +1,5 @@
 import { Printer } from 'lucide-react';
+import { onlyEventEssentials } from '../../lib/orders/equipmentCopy';
 import { useNavigate } from 'react-router-dom';
 import { formatCurrency } from '../../lib/pricing';
 import { OrderSummary } from '../order/OrderSummary';
@@ -113,7 +114,7 @@ export function SimpleInvoiceDisplay({
 
       {/* Rental Terms at top - screen only */}
       <div className="mb-8 screen-only print-section print-terms">
-        <RentalTerms />
+        <RentalTerms hasInflatables={!onlyEventEssentials(orderItems)} />
       </div>
 
       {contactData && (contactData.first_name || contactData.email) && (

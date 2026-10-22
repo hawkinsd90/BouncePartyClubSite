@@ -597,6 +597,7 @@ export function Quote() {
                   generatorState={generatorCheckbox.state}
                   onGeneratorToggle={generatorCheckbox.toggle}
                   onRetryConversion={generatorCheckbox.performLegacyConversion}
+                  hasInflatables={inflatableCart.length > 0 || cart.length === 0}
                 />
               </div>
             </div>

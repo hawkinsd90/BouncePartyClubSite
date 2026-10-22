@@ -1,9 +1,11 @@
 import { FileText } from 'lucide-react';
+import { rentalTermsCopy } from '../../lib/orders/equipmentCopy';
 import { useState, useEffect } from 'react';
 import { formatCurrency } from '../../lib/pricing';
 import { getDepositAmount, getGeneratorFeeSingle } from '../../lib/pricing/pricingCache';
 
-export function RentalTerms() {
+export function RentalTerms({ hasInflatables = true }: { hasInflatables?: boolean } = {}) {
+  const copy = rentalTermsCopy(hasInflatables);
   const [depositCents, setDepositCents] = useState(5000);
   const [generatorFeeCents, setGeneratorFeeCents] = useState(9500);
 
@@ -26,7 +28,7 @@ export function RentalTerms() {
         <div>
           <h3 className="font-semibold text-slate-900 mb-2">Deposit Information</h3>
           <p className="text-slate-700 leading-relaxed mb-2">
-            This booking requires a minimum {depositAmount} deposit per inflatable to reserve your event date with Bounce Party Club. The remaining balance is due on or before the day of your event. You may choose to pay the full amount at booking.
+            {copy.depositSentence(depositAmount)}
           </p>
           <p className="font-medium text-slate-900 mb-2">Cancellation & Weather Policy Summary</p>
           <ul className="list-disc pl-5 space-y-1 text-slate-600 mb-3">
@@ -47,11 +49,11 @@ export function RentalTerms() {
             <li>The event yard should be reasonably maintained, including clear grass, no trash, and no pet waste in the setup area</li>
             <li>We require access to a standard electrical outlet within 50 feet. If unavailable, a {generatorFee} generator rental fee applies</li>
             <li>We guarantee all deliveries will occur before 12:00 PM (noon) on the day of the event</li>
-            <li>An adult must be present between 7:00 AM and 12:00 PM to receive the inflatable and review safety information with our team</li>
+            <li>{copy.receiveLine}</li>
           </ul>
           <p className="font-medium text-slate-900 mb-1">During Pickup:</p>
           <ul className="list-disc pl-5 space-y-1 text-slate-600">
-            <li>Please ensure the inflatable remains plugged in and fully inflated for the duration of the rental period until Bounce Party Club staff arrives for pickup, unless specified otherwise</li>
+            {copy.duringPickupLine && <li>{copy.duringPickupLine}</li>}
             <li><strong>Residential Areas:</strong> The following morning between 6:00 AM and 1:30 PM</li>
             <li><strong>Commercial / High-Risk Areas</strong> (parks, churches, schools, etc.): Same-day pickup by 7:00 PM</li>
           </ul>

@@ -1,4 +1,6 @@
 import { Plus, Minus, Trash2 } from 'lucide-react';
+import { clampQuantity, maxQtyForKind, qtyKindOf, quantityLimitMessage } from '../../lib/orders/quantityLimits';
+import { showToast } from '../../lib/toasts';
 import { formatCurrency } from '../../lib/pricing';
 
 interface Item {
@@ -159,7 +161,11 @@ export function ItemsEditor({
                           onBlur={(e) => {
                             const n = Number(e.target.value.trim());
                             if (Number.isFinite(n) && Number.isInteger(n) && n >= 1) {
-                              onUpdateQuantity?.(removeByIndex ? index : item, n);
+                              const kind = qtyKindOf(item);
+                              const limit = maxQtyForKind(kind);
+                              const { qty: clamped, clamped: wasClamped } = clampQuantity(n, limit);
+                              if (wasClamped) showToast(quantityLimitMessage(kind, limit), 'error');
+                              onUpdateQuantity?.(removeByIndex ? index : item, clamped);
                             } else {
                               e.target.value = String(item.qty);
                             }
@@ -168,7 +174,11 @@ export function ItemsEditor({
                             if (e.key === 'Enter') {
                               const n = Number((e.target as HTMLInputElement).value.trim());
                               if (Number.isFinite(n) && Number.isInteger(n) && n >= 1) {
-                                onUpdateQuantity?.(removeByIndex ? index : item, n);
+                                const kind = qtyKindOf(item);
+                                const limit = maxQtyForKind(kind);
+                                const { qty: clamped, clamped: wasClamped } = clampQuantity(n, limit);
+                                if (wasClamped) showToast(quantityLimitMessage(kind, limit), 'error');
+                                onUpdateQuantity?.(removeByIndex ? index : item, clamped);
                               } else {
                                 (e.target as HTMLInputElement).value = String(item.qty);
                               }
@@ -178,9 +188,10 @@ export function ItemsEditor({
                           aria-label={`Quantity for ${displayName}`}
                         />
                         <button
-                          onClick={() => onUpdateQuantity?.(removeByIndex ? index : item, item.qty + 1)}
-                          className="w-6 h-6 flex items-center justify-center bg-slate-200 hover:bg-slate-300 rounded transition-colors"
-                          title="Increase quantity"
+                          onClick={() => onUpdateQuantity?.(removeByIndex ? index : item, Math.min(item.qty + 1, maxQtyForKind(qtyKindOf(item))))}
+                          disabled={item.qty >= maxQtyForKind(qtyKindOf(item))}
+                          className="w-6 h-6 flex items-center justify-center bg-slate-200 hover:bg-slate-300 disabled:opacity-40 disabled:cursor-not-allowed rounded transition-colors"
+                          title={item.qty >= maxQtyForKind(qtyKindOf(item)) ? `Maximum ${maxQtyForKind(qtyKindOf(item))}` : 'Increase quantity'}
                         >
                           <Plus className="w-3 h-3" />
                         </button>

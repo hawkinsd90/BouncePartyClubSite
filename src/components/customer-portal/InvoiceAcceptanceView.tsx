@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { overnightResponsibilityNoun } from '../../lib/orders/equipmentCopy';
 import { supabase } from '../../lib/supabase';
 import { formatCurrency } from '../../lib/pricing';
 import {
@@ -613,7 +614,7 @@ export function InvoiceAcceptanceView({
                     required
                   />
                   <span className="ml-3 text-sm text-slate-700">
-                    I understand the inflatable will remain on my property
+                    I understand the {overnightResponsibilityNoun(orderItems ?? [])} will remain on my property
                     overnight and I am legally responsible for its safety and
                     security until pickup the next morning. *
                   </span>

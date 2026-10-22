@@ -2,6 +2,7 @@ import { formatCurrency } from '../../lib/pricing';
 import { AddressAutocomplete } from '../order/AddressAutocomplete';
 import { TimePickerInput } from '../ui/TimePickerInput';
 import { ADMIN_ADDRESS_EDIT_RESET } from '../../lib/booking/addressEdit';
+import { surfaceControlState } from '../../lib/orders/surfaceChoice';
 
 interface EventDetailsEditorProps {
   editedOrder: any;
@@ -13,6 +14,9 @@ interface EventDetailsEditorProps {
   generatorResolutionPending?: boolean;
   compact?: boolean;
   showUntilEndOfDay?: boolean;
+  // False for an Event Essentials-only order: grass/sandbags only matter with an inflatable, so the control is replaced by a note.
+  // Screens that do not pass it keep the control as before.
+  hasInflatables?: boolean;
 }
 
 export function EventDetailsEditor({
@@ -25,7 +29,11 @@ export function EventDetailsEditor({
   generatorResolutionPending = false,
   compact = false,
   showUntilEndOfDay = false,
+  hasInflatables = true,
 }: EventDetailsEditorProps) {
+  const surfaceState = surfaceControlState({ hasInflatables, surface: editedOrder.surface, canStake: editedOrder.can_stake });
+  const grassSelected = surfaceState === 'grass';
+  const cementSelected = surfaceState === 'cement';
   const containerClass = compact ? 'bg-white rounded-lg shadow p-4 sm:p-6 min-w-0 overflow-hidden' : 'space-y-6';
   const sectionClass = compact ? 'min-w-0 overflow-hidden' : 'bg-white border border-slate-200 rounded-lg p-4';
   const labelClass = compact ? 'block text-sm font-medium text-slate-700 mb-1' : 'block text-sm font-medium text-slate-700 mb-2';
@@ -195,6 +203,9 @@ export function EventDetailsEditor({
               <div className="border-t border-slate-200 pt-4">
                 <h4 className="font-semibold text-slate-900 mb-3">Setup Details</h4>
                 <div className="space-y-4">
+                  {surfaceState === 'hidden' ? (
+                    <p className="text-sm text-slate-500">Setup surface is not needed: this order has no inflatables.</p>
+                  ) : (
                   <div>
                     <label className="block text-sm font-medium text-slate-700 mb-2">Setup Surface</label>
                     <div className="flex gap-2">
@@ -202,7 +213,7 @@ export function EventDetailsEditor({
                         type="button"
                         onClick={() => onOrderChange({ can_stake: true, surface: 'grass' })}
                         className={`flex-1 px-3 py-2 border-2 rounded font-medium transition-all ${
-                          editedOrder.can_stake
+                          grassSelected
                             ? 'border-green-600 bg-green-50 text-green-900'
                             : 'border-slate-300 bg-white text-slate-700 hover:border-green-400'
                         }`}
@@ -213,7 +224,7 @@ export function EventDetailsEditor({
                         type="button"
                         onClick={() => onOrderChange({ can_stake: false, surface: 'cement' })}
                         className={`flex-1 px-3 py-2 border-2 rounded font-medium transition-all ${
-                          !editedOrder.can_stake
+                          cementSelected
                             ? 'border-orange-600 bg-orange-50 text-orange-900'
                             : 'border-slate-300 bg-white text-slate-700 hover:border-orange-400'
                         }`}
@@ -221,10 +232,14 @@ export function EventDetailsEditor({
                         Sandbags
                       </button>
                     </div>
-                    {!editedOrder.can_stake && (
+                    {surfaceState === 'choose' && (
+                      <p className="text-xs text-amber-700 mt-1 font-medium">Choose Grass or Sandbags: this order now has an inflatable.</p>
+                    )}
+                    {cementSelected && (
                       <p className="text-xs text-amber-600 mt-1">Sandbag fee ({formatCurrency(pricingRules?.surface_sandbag_fee_cents || 3000)}) will be applied</p>
                     )}
                   </div>
+                  )}
 
                   <div>
                     <label className="block text-sm font-medium text-slate-700 mb-2">Generators</label>
@@ -280,6 +295,9 @@ export function EventDetailsEditor({
                 />
               </div>
 
+              {surfaceState === 'hidden' ? (
+                <p className="text-sm text-slate-500 min-w-0">Setup surface is not needed: this order has no inflatables.</p>
+              ) : (
               <div className="min-w-0 overflow-hidden">
                 <label className={labelClass}>Setup Surface</label>
                 <div className="flex gap-2 min-w-0">
@@ -287,7 +305,7 @@ export function EventDetailsEditor({
                     type="button"
                     onClick={() => onOrderChange({ can_stake: true, surface: 'grass' })}
                     className={`flex-1 px-3 py-2 border-2 rounded font-medium text-sm min-w-0 overflow-hidden ${
-                      editedOrder.can_stake
+                      grassSelected
                         ? 'border-green-600 bg-green-50 text-green-900'
                         : 'border-slate-300 bg-white text-slate-700'
                     }`}
@@ -298,7 +316,7 @@ export function EventDetailsEditor({
                     type="button"
                     onClick={() => onOrderChange({ can_stake: false, surface: 'cement' })}
                     className={`flex-1 px-3 py-2 border-2 rounded font-medium text-sm min-w-0 overflow-hidden ${
-                      !editedOrder.can_stake
+                      cementSelected
                         ? 'border-orange-600 bg-orange-50 text-orange-900'
                         : 'border-slate-300 bg-white text-slate-700'
                     }`}
@@ -306,12 +324,16 @@ export function EventDetailsEditor({
                     Sandbags
                   </button>
                 </div>
-                {!editedOrder.can_stake && (
+                {surfaceState === 'choose' && (
+                  <p className="text-xs text-amber-700 mt-1 font-medium break-words">Choose Grass or Sandbags: this order now has an inflatable.</p>
+                )}
+                {cementSelected && (
                   <p className="text-xs text-amber-600 mt-1 break-words">
                     Sandbag fee ({formatCurrency(pricingRules?.surface_sandbag_fee_cents || 3000)}) will be applied
                   </p>
                 )}
               </div>
+              )}
 
               <div className="min-w-0 overflow-hidden">
                 <label className={labelClass}>Generators</label>

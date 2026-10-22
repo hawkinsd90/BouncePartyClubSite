@@ -1,4 +1,5 @@
 import { Zap, AlertCircle, CheckCircle2, Anchor, CheckCircle } from 'lucide-react';
+import { generatorExplanation } from '../../lib/orders/equipmentCopy';
 import type { GeneratorCheckboxState } from '../../hooks/booking/useGeneratorCheckbox';
 
 interface SetupDetailsSectionProps {
@@ -9,9 +10,12 @@ interface SetupDetailsSectionProps {
   generatorState: GeneratorCheckboxState;
   onGeneratorToggle: (checked: boolean) => void;
   onRetryConversion: () => void;
+  // False for an Event Essentials-only cart: the stakes question is about anchoring an inflatable, so it is not asked, and the generator
+  // text does not talk about an inflatable blower. Defaults to true (unchanged for every other caller).
+  hasInflatables?: boolean;
 }
 
-export function SetupDetailsSection({ formData, onFormDataChange, generatorState, onGeneratorToggle, onRetryConversion }: SetupDetailsSectionProps) {
+export function SetupDetailsSection({ formData, onFormDataChange, generatorState, onGeneratorToggle, onRetryConversion, hasInflatables = true }: SetupDetailsSectionProps) {
   const generatorChecked = generatorState.checked;
   const packageHasGenerator = generatorState.packageContainedQty > 0;
   const directQty = generatorState.directQty;
@@ -20,6 +24,7 @@ export function SetupDetailsSection({ formData, onFormDataChange, generatorState
     <div className="bg-white rounded-xl shadow-md p-6">
       <h2 className="text-2xl font-bold text-slate-900 mb-6">Setup Details</h2>
 
+      {hasInflatables && (
       <div className="mb-6">
         <label className="block text-sm font-medium text-slate-700 mb-3">
           Can we anchor the inflatable with stakes? *
@@ -80,6 +85,7 @@ export function SetupDetailsSection({ formData, onFormDataChange, generatorState
           </button>
         </div>
       </div>
+      )}
 
       <div className="p-6 bg-amber-50 border-2 border-amber-400 rounded-xl">
         <div className="flex items-center gap-3 mb-4">
@@ -123,9 +129,7 @@ export function SetupDetailsSection({ formData, onFormDataChange, generatorState
                 I need a generator (no power outlet available)
               </p>
               <p className="text-sm text-slate-700 leading-relaxed">
-                <strong>Check this box if:</strong> There is NO standard electrical outlet within 50
-                feet of the setup location. We'll provide a generator to power the inflatable blower.
-                Each generator can power up to 2 blowers.{' '}
+                <strong>Check this box if:</strong> {generatorExplanation(hasInflatables)}{' '}
                 <strong className="text-amber-800">Additional rental fees apply.</strong>
               </p>
               {directQty > 1 && (

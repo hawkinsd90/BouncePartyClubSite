@@ -61,7 +61,11 @@ const forbiddenField = (detail: string): HttpResult => json(403, { success: fals
 const bad = (detail: string): HttpResult => json(400, { success: false, code: "INVALID_REQUEST", error: "Invalid request.", detail });
 
 const MAX_LINE_CENTS = 10_000_000;
-const MAX_QTY = 99;
+// Per-kind limits, the same as a customer booking (bookingInput.ts: MAX_INFLATABLE_QTY / MAX_BUNDLE_QTY / MAX_PRODUCT_QTY) and the staff
+// screens (src/lib/orders/quantityLimits.ts); a test keeps the three in step.
+const MAX_INFLATABLE_QTY = 50;
+const MAX_BUNDLE_QTY = 99;
+const MAX_PRODUCT_QTY = 500;
 const MAX_DISTANCE_MILES = 500;
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 const TIME_RE = /^\d{2}:\d{2}(:\d{2})?$/;
@@ -195,7 +199,7 @@ function parseItems(raw: unknown, allowPrice: boolean): ItemIntent[] | string {
   for (const it of raw) {
     if (!isObj(it) || onlyKeys(it, ["id", "kind", "unit_id", "wet_or_dry", "product_id", "bundle_id", "qty", "is_deleted", "is_updated", "unit_price_cents"])) return "items[]";
     if (it.kind !== "inflatable" && it.kind !== "product" && it.kind !== "bundle") return "items[].kind";
-    if (typeof it.qty !== "number" || !Number.isInteger(it.qty) || it.qty < 1 || it.qty > MAX_QTY) return "items[].qty";
+    if (typeof it.qty !== "number" || !Number.isInteger(it.qty) || it.qty < 1 || it.qty > (it.kind === "inflatable" ? MAX_INFLATABLE_QTY : it.kind === "bundle" ? MAX_BUNDLE_QTY : MAX_PRODUCT_QTY)) return "items[].qty";
     if (it.id !== undefined && (typeof it.id !== "string" || !UUID_RE.test(it.id))) return "items[].id";
     for (const k of ["unit_id", "product_id", "bundle_id"]) if (it[k] !== undefined && (typeof it[k] !== "string" || !UUID_RE.test(it[k] as string))) return `items[].${k}`;
     if (it.kind === "inflatable" && !it.id && (!it.unit_id || (it.wet_or_dry !== "dry" && it.wet_or_dry !== "water"))) return "items[].unit";

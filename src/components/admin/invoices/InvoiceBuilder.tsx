@@ -747,6 +747,7 @@ export function InvoiceBuilder() {
             generatorResolutionPending={generatorResolutionPending}
             compact={true}
             showUntilEndOfDay={true}
+            hasInflatables={cartItems.length > 0}
           />
 
           <InvoiceAvailabilityBanner

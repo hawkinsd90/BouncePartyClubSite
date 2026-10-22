@@ -1,4 +1,5 @@
 import { CreditCard as Edit2, AlertTriangle, CheckCircle } from 'lucide-react';
+import { hasActiveInflatable } from '../../lib/orders/surfaceChoice';
 import { formatCurrency } from '../../lib/pricing';
 import { ORDER_STATUS } from '../../lib/constants/statuses';
 import { calculateStoredOrderTotal } from '../../lib/orders/storedOrderTotals';
@@ -342,6 +343,7 @@ export function OrderDetailsTab({
         onAddressSelect={onAddressSelect}
         generatorLoadState={generatorLoadState}
         generatorResolutionPending={generatorResolutionPending}
+        hasInflatables={hasActiveInflatable(stagedItems)}
       />
 
       <ItemsEditor

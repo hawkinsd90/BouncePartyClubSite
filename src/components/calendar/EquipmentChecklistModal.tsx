@@ -1,6 +1,6 @@
 import { X, ClipboardList, Package as PackageIcon, Anchor, Boxes } from 'lucide-react';
 import { Task } from '../../hooks/admin/useCalendarTasks';
-import { aggregateEquipmentAcrossOrders, type OperationalEquipmentItem } from '../../lib/tasks/operationalEquipment';
+import { buildChecklist, deliveryCountLabel } from '../../lib/tasks/equipmentChecklist';
 
 interface EquipmentChecklistModalProps {
   isOpen: boolean;
@@ -8,56 +8,11 @@ interface EquipmentChecklistModalProps {
   onClose: () => void;
 }
 
-interface EquipmentSummary {
-  bounceHouses: { name: string; wetOrDry: string }[];
-  needsStakes: boolean;
-  needsSandbags: boolean;
-  eventEssentials: { name: string; qty: number }[];
-}
-
 export function EquipmentChecklistModal({ isOpen, tasks, onClose }: EquipmentChecklistModalProps) {
   if (!isOpen) return null;
 
-  const equipment: EquipmentSummary = {
-    bounceHouses: [],
-    needsStakes: false,
-    needsSandbags: false,
-    eventEssentials: [],
-  };
-
-  // Build per-order equipment lists from task order items
-  const orderEquipmentLists: { items: OperationalEquipmentItem[] }[] = [];
-
-  tasks.forEach(task => {
-    task.items.forEach(item => {
-      const match = item.match(/^(.+?)\s*\((Water|Dry)\)$/);
-      if (match) {
-        equipment.bounceHouses.push({
-          name: match[1],
-          wetOrDry: match[2],
-        });
-      }
-    });
-
-    if (task.surface === 'grass') {
-      equipment.needsStakes = true;
-    } else if (task.surface === 'cement') {
-      equipment.needsSandbags = true;
-    }
-
-    // Use pre-formatted equipment items (includes legacy generator_qty)
-    const rawEquipmentItems = (task as any).rawEquipmentItems;
-    if (rawEquipmentItems && Array.isArray(rawEquipmentItems)) {
-      orderEquipmentLists.push({ items: rawEquipmentItems });
-    }
-  });
-
-  // Aggregate Event Essentials across all orders
-  const aggregatedEE = aggregateEquipmentAcrossOrders(orderEquipmentLists)
-    .filter(e => e.kind === 'event_essential')
-    .map(e => ({ name: e.name, qty: e.totalQty }));
-
-  equipment.eventEssentials = aggregatedEE;
+  // Deliveries only; stakes/sandbags only for inflatables; Event Essentials added up across orders (lib/tasks/equipmentChecklist.ts).
+  const equipment = buildChecklist(tasks as any);
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 z-[60] flex items-center justify-center p-4">
@@ -79,7 +34,7 @@ export function EquipmentChecklistModal({ isOpen, tasks, onClose }: EquipmentChe
 
         <div className="p-6 space-y-6">
           <p className="text-sm text-slate-600">
-            Equipment needed for {tasks.length} delivery{tasks.length !== 1 ? 'ies' : ''}
+            Equipment needed for {deliveryCountLabel(equipment.deliveryCount)}
           </p>
 
           {/* Bounce Houses */}
@@ -134,7 +89,7 @@ export function EquipmentChecklistModal({ isOpen, tasks, onClose }: EquipmentChe
           )}
 
           {/* Stakes - Show only if needed */}
-          {equipment.needsStakes && (
+          {equipment.stakeUnits > 0 && (
             <div>
               <h3 className="text-lg font-bold text-slate-900 flex items-center gap-2 mb-3">
                 <Anchor className="w-5 h-5 text-green-600" />
@@ -146,14 +101,14 @@ export function EquipmentChecklistModal({ isOpen, tasks, onClose }: EquipmentChe
                   <strong>Stakes needed:</strong> 4 per bounce house
                 </p>
                 <p className="text-xs text-slate-600 mt-2">
-                  Total units needing stakes: {tasks.filter(t => t.surface === 'grass').reduce((sum, t) => sum + t.numInflatables, 0)}
+                  Total units needing stakes: {equipment.stakeUnits}
                 </p>
               </div>
             </div>
           )}
 
           {/* Sandbags - Show only if needed */}
-          {equipment.needsSandbags && (
+          {equipment.sandbagUnits > 0 && (
             <div>
               <h3 className="text-lg font-bold text-slate-900 flex items-center gap-2 mb-3">
                 <PackageIcon className="w-5 h-5 text-amber-600" />
@@ -165,7 +120,7 @@ export function EquipmentChecklistModal({ isOpen, tasks, onClose }: EquipmentChe
                   <strong>Sandbags needed:</strong> 4 per bounce house
                 </p>
                 <p className="text-xs text-slate-600 mt-2">
-                  Total units needing sandbags: {tasks.filter(t => t.surface === 'cement').reduce((sum, t) => sum + t.numInflatables, 0)}
+                  Total units needing sandbags: {equipment.sandbagUnits}
                 </p>
               </div>
             </div>

@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
+import { clampQuantity, MAX_BUNDLE_QTY, MAX_PRODUCT_QTY, quantityLimitMessage } from '../../lib/orders/quantityLimits';
 import { Plus, Package, ShoppingBag, Minus } from 'lucide-react';
 import { formatCurrency } from '../../lib/pricing';
 import { resolveEventEssentialsPricing } from '../../lib/eventEssentials/eventEssentialsPricing';
@@ -178,6 +179,10 @@ export function AddEventEssentialsSection({
     const qty = parseQty(raw);
     if (qty < 1) {
       setProductQtyInputs(prev => ({ ...prev, [productId]: '1' }));
+    } else if (qty > MAX_PRODUCT_QTY) {
+      // Same limit the server enforces: say so instead of failing later with a generic error.
+      setProductQtyInputs(prev => ({ ...prev, [productId]: String(MAX_PRODUCT_QTY) }));
+      setAvailabilityError(quantityLimitMessage('product', MAX_PRODUCT_QTY));
     }
   };
 
@@ -186,19 +191,22 @@ export function AddEventEssentialsSection({
     const qty = parseQty(raw);
     if (qty < 1) {
       setBundleQtyInputs(prev => ({ ...prev, [bundleId]: '1' }));
+    } else if (qty > MAX_BUNDLE_QTY) {
+      setBundleQtyInputs(prev => ({ ...prev, [bundleId]: String(MAX_BUNDLE_QTY) }));
+      setAvailabilityError(quantityLimitMessage('bundle', MAX_BUNDLE_QTY));
     }
   };
 
   const getProductQty = (productId: string): number => {
     const raw = productQtyInputs[productId] ?? '1';
     const qty = parseQty(raw);
-    return qty >= 1 ? qty : 1;
+    return qty >= 1 ? clampQuantity(qty, MAX_PRODUCT_QTY).qty : 1;
   };
 
   const getBundleQty = (bundleId: string): number => {
     const raw = bundleQtyInputs[bundleId] ?? '1';
     const qty = parseQty(raw);
-    return qty >= 1 ? qty : 1;
+    return qty >= 1 ? clampQuantity(qty, MAX_BUNDLE_QTY).qty : 1;
   };
 
   function resolveProductCandidate(product: any, qty: number) {

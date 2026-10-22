@@ -51,6 +51,9 @@ export function useInvoiceData() {
           ee_only_deposit_base_cents: r.ee_only_deposit_base_cents,
           ee_only_deposit_subtotal_step_cents: r.ee_only_deposit_subtotal_step_cents,
           ee_only_deposit_step_cents: r.ee_only_deposit_step_cents,
+          // Both were missing from this mapper: the invoice preview then used the hard-coded setup minimum and the default same-day days.
+          event_essentials_setup_minimum_cents: r.event_essentials_setup_minimum_cents,
+          same_day_delivery_fee_days: r.same_day_delivery_fee_days,
         });
       }
     } finally {
