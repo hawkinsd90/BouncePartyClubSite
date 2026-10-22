@@ -2,6 +2,16 @@
 @tailwind components;
 @tailwind utilities;
 
+/* The height of the site header (one 64px row). Everything that sits under it or scrolls to a target below it uses this, so a header
+   change is made here once. See src/lib/core/headerOffset.ts for the same value in script. */
+:root {
+  --site-header-height: 4rem;
+}
+
+html {
+  scroll-padding-top: calc(var(--site-header-height) + 1rem);
+}
+
 /* Prevent iOS zoom on input focus - apply 16px minimum font size */
 input,
 select,

@@ -342,7 +342,7 @@ function AdminDashboard() {
             onEditClick={handleEditFromFloatingHeader}
           />
 
-          <div className={`bg-white rounded-2xl shadow-xl p-8 border-2 border-slate-100 ${visibleOrder ? 'pt-20' : ''}`}>
+          <div className={`bg-white rounded-2xl shadow-xl p-8 border-2 border-slate-100 ${visibleOrder ? 'pt-[calc(var(--site-header-height)_+_1rem)]' : ''}`}>
             <div className="flex justify-between items-center mb-6">
               <h2 className="text-2xl font-bold text-slate-900">Pending Review</h2>
               <button

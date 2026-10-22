@@ -35,7 +35,7 @@ function isInflatable(item: UnifiedCartItem): item is InflatableCartItem {
 export function QuoteSummarySection({ cart, priceBreakdown, totals, pricingConfigError, isCalculating }: QuoteSummarySectionProps) {
   if (cart.length === 0) {
     return (
-      <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-4 sm:p-6 lg:sticky lg:top-24">
+      <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-4 sm:p-6 lg:sticky lg:top-[calc(var(--site-header-height)_+_2rem)]">
         <h2 className="text-xl sm:text-2xl font-bold text-slate-900 mb-4 sm:mb-6">Quote Summary</h2>
         <div className="text-center py-8">
           <p className="text-slate-600 text-sm sm:text-base">Add items to see your quote</p>
@@ -62,7 +62,7 @@ export function QuoteSummarySection({ cart, priceBreakdown, totals, pricingConfi
   const showPricingSection = totals !== null && !pricingConfigError;
 
   return (
-    <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-4 sm:p-6 lg:sticky lg:top-24">
+    <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-4 sm:p-6 lg:sticky lg:top-[calc(var(--site-header-height)_+_2rem)]">
       <h2 className="text-xl sm:text-2xl font-bold text-slate-900 mb-4 sm:mb-6">Quote Summary</h2>
 
       <div className="space-y-4">

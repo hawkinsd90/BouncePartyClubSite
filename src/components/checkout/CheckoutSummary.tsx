@@ -32,7 +32,7 @@ export function CheckoutSummary({
   onViewInvoice,
 }: CheckoutSummaryProps) {
   return (
-    <div className="bg-white rounded-xl shadow-md p-4 sm:p-6 lg:sticky lg:top-24">
+    <div className="bg-white rounded-xl shadow-md p-4 sm:p-6 lg:sticky lg:top-[calc(var(--site-header-height)_+_2rem)]">
       <h2 className="text-xl sm:text-2xl font-bold text-slate-900 mb-4 sm:mb-6">Order Summary</h2>
 
       <div className="space-y-3 sm:space-y-4 mb-4 sm:mb-6">

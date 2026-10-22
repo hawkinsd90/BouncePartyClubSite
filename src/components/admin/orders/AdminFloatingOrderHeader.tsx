@@ -15,7 +15,7 @@ export function AdminFloatingOrderHeader({ order, isVisible, onEditClick }: Admi
   }
 
   return (
-    <div className="fixed top-16 left-0 right-0 z-40">
+    <div className="fixed top-[var(--site-header-height)] left-0 right-0 z-40">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="bg-gradient-to-b from-blue-50 to-blue-100 border-b-4 border-blue-400 shadow-lg rounded-b-xl animate-slide-down">
           <div className="px-4 py-3">

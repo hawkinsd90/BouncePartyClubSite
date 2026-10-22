@@ -1,16 +1,21 @@
-import { Link, Outlet, useNavigate } from 'react-router-dom';
-import { Phone, Mail, LogOut, LogIn, ShoppingCart, Menu, X, Instagram, Facebook } from 'lucide-react';
+import { Link, Outlet, useLocation, useNavigate } from 'react-router-dom';
+import { Phone, Mail, ShoppingCart, Menu, Instagram, Facebook } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 import { SafeStorage } from '../../lib/core/safeStorage';
-import { useState, useEffect } from 'react';
+import { useCallback, useEffect, useMemo, useReducer, useState } from 'react';
 import { notifyError } from '../../lib/toasts';
 import { getPublicBusinessSettings, getPublicMenuGroups, type PublicMenuGroup } from '../../lib/core/adminSettingsCache';
+import { buildNavLinks, CLOSED_NAV, navMenuReducer } from '../../lib/core/navLinks';
+import { SiteNav } from './nav/SiteNav';
+import { AccountMenu } from './nav/AccountMenu';
+import { MobileDrawer } from './nav/MobileDrawer';
 
 export function Layout() {
   const { user, isAdmin, hasRole, signOut } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
   const [cartCount, setCartCount] = useState(0);
-  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [nav, dispatchNav] = useReducer(navMenuReducer, CLOSED_NAV);
   const [businessAddress, setBusinessAddress] = useState('');
   const [businessPhone, setBusinessPhone] = useState('(313) 889-3860');
   const [businessEmail, setBusinessEmail] = useState('admin@bouncepartyclub.com');
@@ -18,6 +23,20 @@ export function Layout() {
   const [facebookUrl, setFacebookUrl] = useState('');
   const [eventEssentialsEnabled, setEventEssentialsEnabled] = useState(false);
   const [menuGroups, setMenuGroups] = useState<PublicMenuGroup[]>([]);
+
+  const closeMenus = useCallback(() => dispatchNav({ type: 'closeAll' }), []);
+
+  // Every menu closes when the page changes, and when the screen grows past the phone layout (a drawer left open would keep the page locked).
+  useEffect(() => {
+    dispatchNav({ type: 'routeChanged' });
+  }, [location.pathname, location.search]);
+  useEffect(() => {
+    if (typeof window === 'undefined' || !window.matchMedia) return;
+    const query = window.matchMedia('(min-width: 768px)');
+    const onChange = () => { if (query.matches) dispatchNav({ type: 'resizedToDesktop' }); };
+    query.addEventListener?.('change', onChange);
+    return () => query.removeEventListener?.('change', onChange);
+  }, []);
 
   useEffect(() => {
     getPublicBusinessSettings().then(settings => {
@@ -70,17 +89,23 @@ export function Layout() {
     }
   };
 
+  const model = useMemo(
+    () => buildNavLinks({ signedIn: !!user, isAdmin, isCrew: hasRole('CREW'), eventEssentialsEnabled, menuGroups }),
+    [user, isAdmin, hasRole, eventEssentialsEnabled, menuGroups],
+  );
+
   return (
     <div className="min-h-screen bg-slate-50">
-      <header className="bg-white shadow-sm sticky top-0 z-50">
+      {/* ONE 64px row (h-16 = --site-header-height). z-40: modals (z-[60] and up) stay above it; the phone drawer (z-50) covers it. */}
+      <header className="bg-white shadow-sm sticky top-0 z-40">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex flex-wrap items-center min-h-16 h-auto">
+          <div className="flex items-center h-16">
             <Link
               to="/"
               className="shrink-0 flex items-center space-x-2 sm:space-x-3"
               onClick={() => {
                 window.scrollTo({ top: 0, behavior: 'smooth' });
-                setMobileMenuOpen(false);
+                closeMenus();
               }}
             >
               <img
@@ -88,74 +113,19 @@ export function Layout() {
                 alt="Bounce Party Club"
                 className="h-10 sm:h-12 w-auto"
               />
-              <span className="text-lg sm:text-xl font-bold text-slate-900">
+              <span className="text-lg sm:text-xl font-bold text-slate-900 hidden min-[380px]:inline">
                 Bounce Party Club
               </span>
             </Link>
 
-            <nav className="hidden md:flex order-3 basis-full flex-wrap items-center justify-center gap-x-4 gap-y-2 border-t border-slate-100 py-2 lg:gap-x-6 xl:gap-x-8">
-              <Link
-                to="/catalog"
-                className="whitespace-nowrap text-sm xl:text-base text-slate-700 hover:text-blue-600 font-medium transition-colors"
-              >
-                Inflatables
-              </Link>
-              <Link
-                to="/contact"
-                className="whitespace-nowrap text-sm xl:text-base text-slate-700 hover:text-blue-600 font-medium transition-colors"
-              >
-                Get Quote
-              </Link>
-              {eventEssentialsEnabled && (
-                <Link
-                  to="/event-essentials"
-                  className="whitespace-nowrap text-sm xl:text-base text-slate-700 hover:text-blue-600 font-medium transition-colors"
-                >
-                  Party Add-Ons
-                </Link>
-              )}
-              {eventEssentialsEnabled && menuGroups.map((group) => (
-                <Link
-                  key={group.id}
-                  to={`/event-essentials?categories=${group.category_slugs.join(',')}`}
-                  className="whitespace-nowrap text-sm xl:text-base text-slate-700 hover:text-blue-600 font-medium transition-colors"
-                >
-                  {group.title}
-                </Link>
-              ))}
-              <Link
-                to="/about"
-                className="whitespace-nowrap text-sm xl:text-base text-slate-700 hover:text-blue-600 font-medium transition-colors"
-              >
-                About Us
-              </Link>
-              {user && (
-                <Link
-                  to="/my-orders"
-                  className="whitespace-nowrap text-sm xl:text-base text-slate-700 hover:text-blue-600 font-medium transition-colors"
-                >
-                  My Orders
-                </Link>
-              )}
-              {isAdmin && (
-                <Link
-                  to="/admin"
-                  className="whitespace-nowrap text-sm xl:text-base text-slate-700 hover:text-blue-600 font-medium transition-colors"
-                >
-                  Admin
-                </Link>
-              )}
-              {(isAdmin || hasRole('CREW')) && (
-                <Link
-                  to="/crew"
-                  className="whitespace-nowrap text-sm xl:text-base text-slate-700 hover:text-blue-600 font-medium transition-colors"
-                >
-                  Crew
-                </Link>
-              )}
-            </nav>
+            <SiteNav
+              links={model.primary}
+              addOnsOpen={nav.addOnsOpen}
+              onToggleAddOns={() => dispatchNav({ type: 'toggleAddOns' })}
+              onClose={closeMenus}
+            />
 
-            <div className="order-2 ml-auto shrink-0 flex items-center space-x-2 sm:space-x-4">
+            <div className="ml-auto shrink-0 flex items-center space-x-2 sm:space-x-3">
               <a
                 href={`tel:${businessPhone.replace(/\D/g, '')}`}
                 className="hidden xl:flex items-center text-slate-600 hover:text-blue-600 transition-colors min-h-[44px]"
@@ -163,164 +133,56 @@ export function Layout() {
                 <Phone className="w-5 h-5 mr-2" />
                 <span className="font-medium">{businessPhone}</span>
               </a>
-              <div className="hidden md:flex items-center space-x-4">
-                {user ? (
-                  <div className="flex items-center space-x-3">
-                    <span className="hidden xl:inline text-sm text-slate-600 font-medium">
-                      {user.email}
-                    </span>
-                    <button
-                      onClick={handleSignOut}
-                      className="flex items-center text-slate-600 hover:text-blue-600 transition-colors min-h-[44px] px-2"
-                    >
-                      <LogOut className="w-5 h-5 mr-2" />
-                      <span className="hidden xl:inline font-medium">Sign Out</span>
-                    </button>
-                  </div>
-                ) : (
-                  <Link
-                    to="/login"
-                    className="flex items-center text-slate-600 hover:text-blue-600 transition-colors min-h-[44px] px-2"
-                  >
-                    <LogIn className="w-5 h-5 mr-2" />
-                    <span className="hidden xl:inline font-medium">Login</span>
-                  </Link>
-                )}
+              <div className="hidden md:flex items-center">
+                <AccountMenu
+                  signedIn={!!user}
+                  email={user?.email}
+                  links={model.account}
+                  open={nav.accountOpen}
+                  onToggle={() => dispatchNav({ type: 'toggleAccount' })}
+                  onClose={closeMenus}
+                  onSignOut={handleSignOut}
+                />
               </div>
               <Link
                 to="/quote"
                 className="relative flex items-center justify-center w-11 h-11 rounded-full bg-blue-600 hover:bg-blue-700 transition-colors"
                 title="View Cart"
-                onClick={() => setMobileMenuOpen(false)}
+                aria-label={cartCount > 0 ? `View cart, ${cartCount} item${cartCount === 1 ? '' : 's'}` : 'View cart'}
+                onClick={closeMenus}
               >
                 <ShoppingCart className="w-6 h-6 text-white" />
                 {cartCount > 0 && (
-                  <span className="absolute -top-1 -right-1 w-6 h-6 bg-red-500 text-white text-xs font-bold rounded-full flex items-center justify-center">
+                  <span aria-hidden="true" className="absolute -top-1 -right-1 min-w-[1.5rem] h-6 px-1 bg-red-500 text-white text-xs font-bold rounded-full flex items-center justify-center">
                     {cartCount}
                   </span>
                 )}
               </Link>
               <button
-                onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+                type="button"
+                onClick={() => dispatchNav({ type: 'toggleDrawer' })}
                 className="md:hidden flex items-center justify-center w-11 h-11 text-slate-700 hover:text-blue-600 transition-colors"
-                aria-label="Toggle menu"
+                aria-label="Open menu"
+                aria-expanded={nav.drawerOpen}
+                aria-controls="mobile-nav-drawer"
               >
-                {mobileMenuOpen ? <X className="w-7 h-7" /> : <Menu className="w-7 h-7" />}
+                <Menu className="w-7 h-7" />
               </button>
             </div>
           </div>
         </div>
-
-        {/* Mobile menu */}
-        {mobileMenuOpen && (
-          <div className="md:hidden border-t border-slate-200">
-            <nav className="px-4 py-4 space-y-1">
-              <Link
-                to="/catalog"
-                className="block text-slate-700 hover:text-blue-600 font-medium py-3 px-2 transition-colors text-base rounded-lg hover:bg-blue-50"
-                onClick={() => setMobileMenuOpen(false)}
-              >
-                Inflatables
-              </Link>
-              <Link
-                to="/contact"
-                className="block text-slate-700 hover:text-blue-600 font-medium py-3 px-2 transition-colors text-base rounded-lg hover:bg-blue-50"
-                onClick={() => setMobileMenuOpen(false)}
-              >
-                Get Quote
-              </Link>
-              {eventEssentialsEnabled && (
-                <Link
-                  to="/event-essentials"
-                  className="block text-slate-700 hover:text-blue-600 font-medium py-3 px-2 transition-colors text-base rounded-lg hover:bg-blue-50"
-                  onClick={() => setMobileMenuOpen(false)}
-                >
-                  Party Add-Ons
-                </Link>
-              )}
-              {eventEssentialsEnabled && menuGroups.map((group) => (
-                <Link
-                  key={group.id}
-                  to={`/event-essentials?categories=${group.category_slugs.join(',')}`}
-                  className="block text-slate-700 hover:text-blue-600 font-medium py-3 px-2 transition-colors text-base rounded-lg hover:bg-blue-50"
-                  onClick={() => setMobileMenuOpen(false)}
-                >
-                  {group.title}
-                </Link>
-              ))}
-              <Link
-                to="/about"
-                className="block text-slate-700 hover:text-blue-600 font-medium py-3 px-2 transition-colors text-base rounded-lg hover:bg-blue-50"
-                onClick={() => setMobileMenuOpen(false)}
-              >
-                About Us
-              </Link>
-              {user && (
-                <Link
-                  to="/my-orders"
-                  className="block text-slate-700 hover:text-blue-600 font-medium py-3 px-2 transition-colors text-base rounded-lg hover:bg-blue-50"
-                  onClick={() => setMobileMenuOpen(false)}
-                >
-                  My Orders
-                </Link>
-              )}
-              {isAdmin && (
-                <Link
-                  to="/admin"
-                  className="block text-slate-700 hover:text-blue-600 font-medium py-3 px-2 transition-colors text-base rounded-lg hover:bg-blue-50"
-                  onClick={() => setMobileMenuOpen(false)}
-                >
-                  Admin
-                </Link>
-              )}
-              {(isAdmin || hasRole('CREW')) && (
-                <Link
-                  to="/crew"
-                  className="block text-slate-700 hover:text-blue-600 font-medium py-3 px-2 transition-colors text-base rounded-lg hover:bg-blue-50"
-                  onClick={() => setMobileMenuOpen(false)}
-                >
-                  Crew
-                </Link>
-              )}
-              <div className="border-t border-slate-200 pt-3 mt-3 space-y-1">
-                <a
-                  href={`tel:${businessPhone.replace(/\D/g, '')}`}
-                  className="flex items-center text-slate-600 hover:text-blue-600 py-3 px-2 transition-colors min-h-[44px] rounded-lg hover:bg-blue-50"
-                >
-                  <Phone className="w-5 h-5 mr-3" />
-                  <span className="font-medium">{businessPhone}</span>
-                </a>
-                {user ? (
-                  <>
-                    <div className="py-3 px-2 text-sm text-slate-600 font-medium">
-                      {user.email}
-                    </div>
-                    <button
-                      onClick={() => {
-                        handleSignOut();
-                        setMobileMenuOpen(false);
-                      }}
-                      className="flex items-center text-slate-600 hover:text-blue-600 py-3 px-2 transition-colors w-full text-left min-h-[44px] rounded-lg hover:bg-blue-50"
-                    >
-                      <LogOut className="w-5 h-5 mr-3" />
-                      <span className="font-medium">Sign Out</span>
-                    </button>
-                  </>
-                ) : (
-                  <Link
-                    to="/login"
-                    className="flex items-center text-slate-600 hover:text-blue-600 py-3 px-2 transition-colors min-h-[44px] rounded-lg hover:bg-blue-50"
-                    onClick={() => setMobileMenuOpen(false)}
-                  >
-                    <LogIn className="w-5 h-5 mr-3" />
-                    <span className="font-medium">Login</span>
-                  </Link>
-                )}
-              </div>
-            </nav>
-          </div>
-        )}
       </header>
+
+      <MobileDrawer
+        open={nav.drawerOpen}
+        model={model}
+        email={user?.email}
+        businessPhone={businessPhone}
+        addOnsExpanded={nav.drawerAddOnsExpanded}
+        onToggleAddOns={() => dispatchNav({ type: 'toggleDrawerAddOns' })}
+        onClose={closeMenus}
+        onSignOut={handleSignOut}
+      />
 
       <main>
         <Outlet />
@@ -357,6 +219,13 @@ export function Layout() {
                     Get a Quote
                   </Link>
                 </li>
+                {eventEssentialsEnabled && (
+                  <li>
+                    <Link to="/event-essentials" className="hover:text-white transition-colors">
+                      Party Add-Ons
+                    </Link>
+                  </li>
+                )}
                 <li>
                   <Link to="/about" className="hover:text-white transition-colors">
                     About Us

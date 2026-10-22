@@ -11,7 +11,7 @@ export function ValidationErrorBanner({ message, onDismiss }: ValidationErrorBan
       className="mb-6 w-full mt-4"
       role="alert"
       aria-live="assertive"
-      style={{ scrollMarginTop: '100px' }}
+      style={{ scrollMarginTop: SCROLL_MARGIN_CSS }}
     >
       <div className="bg-red-50 border-4 border-red-500 rounded-xl shadow-2xl p-4 sm:p-5 flex items-start gap-3 animate-shake">
         <AlertCircle className="w-6 h-6 sm:w-7 sm:h-7 text-red-600 flex-shrink-0 mt-0.5" />
@@ -30,3 +30,4 @@ export function ValidationErrorBanner({ message, onDismiss }: ValidationErrorBan
     </div>
   );
 }
+import { SCROLL_MARGIN_CSS } from '../../lib/core/headerOffset';

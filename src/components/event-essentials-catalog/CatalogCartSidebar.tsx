@@ -13,7 +13,7 @@ interface Props {
 export function CatalogCartSidebar({ items, subtotalCents, minOrderCents, onViewQuote }: Props) {
   return (
     <div className="lg:col-span-1">
-      <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-4 sm:p-6 lg:sticky lg:top-24">
+      <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-4 sm:p-6 lg:sticky lg:top-[calc(var(--site-header-height)_+_2rem)]">
         <h2 className="text-lg font-bold text-slate-900 mb-4">Your Party Add-Ons</h2>
 
         {items.length === 0 ? (

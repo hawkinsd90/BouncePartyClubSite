@@ -1,4 +1,5 @@
 import { useEffect, useCallback, useState, useRef, useMemo } from 'react';
+import { HEADER_OFFSET_PX, SCROLL_MARGIN_CSS } from '../lib/core/headerOffset';
 import { flushSync } from 'react-dom';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Trash2, AlertCircle, X } from 'lucide-react';
@@ -211,7 +212,7 @@ export function Quote() {
     const timer = setTimeout(() => {
       const el = eventRef.current ?? document.getElementById('section-event');
       if (!el) return;
-      const top = el.getBoundingClientRect().top + window.scrollY - 100;
+      const top = el.getBoundingClientRect().top + window.scrollY - HEADER_OFFSET_PX;
       window.scrollTo({ top, behavior: 'smooth' });
     }, 400);
     return () => clearTimeout(timer);
@@ -327,7 +328,7 @@ export function Quote() {
     } catch (error) {
       // Emergency fallback: instant scroll
       const rect = element.getBoundingClientRect();
-      const fallbackTop = rect.top + window.scrollY - 100;
+      const fallbackTop = rect.top + window.scrollY - HEADER_OFFSET_PX;
       window.scrollTo({
         top: fallbackTop,
         behavior: 'auto',
@@ -396,7 +397,7 @@ export function Quote() {
     } catch (error) {
       // Emergency fallback: instant scroll
       const rect = element.getBoundingClientRect();
-      const fallbackTop = rect.top + window.scrollY - 100;
+      const fallbackTop = rect.top + window.scrollY - HEADER_OFFSET_PX;
       window.scrollTo({
         top: fallbackTop,
         behavior: 'auto',
@@ -561,7 +562,7 @@ export function Quote() {
         <form noValidate onSubmit={handleSubmit}>
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 lg:gap-10">
             <div className="lg:col-span-2 space-y-8">
-              <div ref={cartRef} id="section-cart" style={{ scrollMarginTop: '100px' }}>
+              <div ref={cartRef} id="section-cart" style={{ scrollMarginTop: SCROLL_MARGIN_CSS }}>
                 <CartSection
                   cart={cart}
                   eventDate={formData.event_date}
@@ -572,7 +573,7 @@ export function Quote() {
                 />
               </div>
 
-              <div ref={addressRef} id="section-address" style={{ scrollMarginTop: '100px' }}>
+              <div ref={addressRef} id="section-address" style={{ scrollMarginTop: SCROLL_MARGIN_CSS }}>
                 <AddressSection
                   formData={formData}
                   addressInput={addressInput}
@@ -581,7 +582,7 @@ export function Quote() {
                 />
               </div>
 
-              <div ref={eventRef} id="section-event" style={{ scrollMarginTop: '100px' }}>
+              <div ref={eventRef} id="section-event" style={{ scrollMarginTop: SCROLL_MARGIN_CSS }}>
                 <EventDetailsSection
                   formData={formData}
                   onFormDataChange={(updates) => setFormData({ ...formData, ...updates })}
@@ -590,7 +591,7 @@ export function Quote() {
                 />
               </div>
 
-              <div ref={setupRef} id="section-setup" style={{ scrollMarginTop: '100px' }}>
+              <div ref={setupRef} id="section-setup" style={{ scrollMarginTop: SCROLL_MARGIN_CSS }}>
                 <SetupDetailsSection
                   formData={formData}
                   onFormDataChange={updateFormData}

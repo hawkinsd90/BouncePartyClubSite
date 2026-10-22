@@ -1,4 +1,5 @@
 import { Calendar, Home, Building2, Clock, AlertCircle, Ban } from 'lucide-react';
+import { SCROLL_MARGIN_CSS } from '../../lib/core/headerOffset';
 import { localDateKey, parseDateOnly, todayLocalKey } from '../../lib/core/localDate';
 import type { QuoteFormData } from '../../hooks/booking/useQuoteForm';
 import { DatePickerInput } from '../ui/DatePickerInput';
@@ -174,7 +175,7 @@ export function EventDetailsSection({ formData, onFormDataChange, validationErro
                   ? 'bg-red-50 border-2 border-red-500 ring-2 ring-red-300'
                   : 'bg-amber-50 border border-amber-200'
               }`}
-              style={{ scrollMarginTop: '120px' }}
+              style={{ scrollMarginTop: SCROLL_MARGIN_CSS }}
             >
               <label htmlFor="overnight-responsibility-input" className="flex items-start cursor-pointer">
                 <input
@@ -218,7 +219,7 @@ export function EventDetailsSection({ formData, onFormDataChange, validationErro
                   ? 'bg-red-50 border-2 border-red-500 ring-2 ring-red-300'
                   : 'bg-amber-50 border border-amber-200'
               }`}
-              style={{ scrollMarginTop: '120px' }}
+              style={{ scrollMarginTop: SCROLL_MARGIN_CSS }}
             >
               <label htmlFor="same-day-responsibility-input" className="flex items-start cursor-pointer">
                 <input
@@ -296,7 +297,7 @@ export function EventDetailsSection({ formData, onFormDataChange, validationErro
                 ? 'bg-red-50 border-2 border-red-500 ring-2 ring-red-300'
                 : 'bg-amber-50 border border-amber-200'
             }`}
-            style={{ scrollMarginTop: '120px' }}
+            style={{ scrollMarginTop: SCROLL_MARGIN_CSS }}
           >
             <label htmlFor="commercial-responsibility-input" className="flex items-start cursor-pointer">
               <input

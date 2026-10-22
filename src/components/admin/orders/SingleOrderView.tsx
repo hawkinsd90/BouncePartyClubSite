@@ -290,7 +290,7 @@ export function SingleOrderView({ orderId, openEditMode = false, onBack, onUpdat
   }
 
   return (
-    <div className={showFloatingHeader ? 'pt-20' : ''}>
+    <div className={showFloatingHeader ? 'pt-[calc(var(--site-header-height)_+_1rem)]' : ''}>
       <AdminFloatingOrderHeader
         order={order}
         isVisible={showFloatingHeader}
