@@ -209,8 +209,8 @@ export async function upsertCanonicalAddress(params: UpsertAddressParams): Promi
         city: city.trim(),
         state: state.trim(),
         zip: normalizeZip(zip),
-        lat: lat ?? null,
-        lng: lng ?? null,
+        // A failed geocode (null) must never erase coordinates already stored for this address: leave the columns out of the upsert.
+        ...(lat != null && lng != null ? { lat, lng } : {}),
         address_key: key,
       },
       { onConflict: 'address_key', ignoreDuplicates: false }

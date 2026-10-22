@@ -10,6 +10,7 @@ import { format, parseISO, addDays } from 'date-fns';
 import { formatOrderId } from '../utils';
 import { ORDER_STATUS } from '../constants/statuses';
 import { formatOperationalEquipment } from './operationalEquipment';
+import { formatAddress } from '../core/address';
 import { aggregateOrderEquipment } from '../eventEssentials/customerGeneratorCart';
 import type { Task } from '../../hooks/admin/useCalendarTasks';
 
@@ -115,7 +116,7 @@ export function buildCalendarTasks({ orders, orderItems, taskStatuses, generator
 
     const addr = order.addresses as any;
     const address = addr
-      ? `${addr.line1}, ${addr.city}, ${addr.state} ${addr.zip}`
+      ? formatAddress({ line1: addr.line1, line2: (order as any).event_address_line2 ?? addr.line2, city: addr.city, state: addr.state, zip: addr.zip })
       : 'No address';
     const lat: number | undefined = addr?.lat != null ? Number(addr.lat) : undefined;
     const lng: number | undefined = addr?.lng != null ? Number(addr.lng) : undefined;

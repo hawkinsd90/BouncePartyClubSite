@@ -67,5 +67,9 @@ ok('city/ZIP centroid geocode removed', !/`\$\{formData\.city\}, \$\{formData\.s
 ok('prefill geocode uses the street address and a precision check', /address_line1\}, \$\{formData\.city\}/.test(form) && form.includes('isPreciseGeocode(result.results[0])'));
 ok('geocode effect depends on the street', form.includes('[formData.address_line1, formData.city, formData.state, formData.zip, formData.lat, formData.lng]'));
 
+// The canonical address upsert must never null out coordinates already stored when a geocode fails (plan WP-04 null-overwrite guard).
+const addressService = read('src/lib/booking/addressService.ts');
+ok('a failed geocode leaves stored lat/lng alone (columns omitted from the upsert)', addressService.includes('...(lat != null && lng != null ? { lat, lng } : {})') && !addressService.includes('lat: lat ?? null') && !addressService.includes('lng: lng ?? null'));
+
 console.log(`\nWP-04 address edit tests: ${passed} passed, ${failed} failed`);
 if (failed > 0) process.exit(1);

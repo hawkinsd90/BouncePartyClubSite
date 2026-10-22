@@ -353,6 +353,12 @@ const ID = 'aaaaaaaa-0000-0000-0000-000000000001';
   eq('missing customer defaults', [noCustomer[0].customerName, noCustomer[0].customerPhone, noCustomer[0].customerEmail], ['Unknown Customer', '', '']);
   const noAddress = compare('missing address', [mkOrder({ addresses: null })], [], []).actual;
   eq('missing address defaults', [noAddress[0].address, noAddress[0].lat, noAddress[0].lng, 'lat' in noAddress[0]], ['No address', undefined, undefined, true]);
+  // WP-22: the unit (line 2) is part of the task address - the order's own unit, else the address row's.
+  const withUnit = buildCalendarTasks({ orders: [mkOrder({ event_address_line2: 'Apt 4' })], orderItems: [], taskStatuses: [], generatorCategoryProductIds: GEN });
+  eq('task address includes the order unit', withUnit[0].address, '1 Main St, Apt 4, Tulsa, OK 74101');
+  const rowUnit = buildCalendarTasks({ orders: [mkOrder({ addresses: { ...ADDRESS, line2: 'Unit B' } })], orderItems: [], taskStatuses: [], generatorCategoryProductIds: GEN });
+  eq('task address falls back to the address row unit', rowUnit[0].address, '1 Main St, Unit B, Tulsa, OK 74101');
+  eq('no unit: the address reads as before', buildCalendarTasks({ orders: [mkOrder()], orderItems: [], taskStatuses: [], generatorCategoryProductIds: GEN })[0].address, '1 Main St, Tulsa, OK 74101');
   const partialCustomer = compare('customer without phone/email', [mkOrder({ customers: { first_name: 'Bo', last_name: 'Ng' } })], [], []).actual;
   eq('partial customer defaults', [partialCustomer[0].customerPhone, partialCustomer[0].customerEmail], ['', '']);
   const zeroCoords = compare('zero coordinates are kept', [mkOrder({ addresses: { ...ADDRESS, lat: 0, lng: 0 } })], [], []).actual;
