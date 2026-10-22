@@ -268,7 +268,6 @@ function AdminDashboard() {
     if (activeTab === 'pending') {
       computeVisibleOrderRef.current();
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pendingReviewSignature, activeTab]);
 
   function changeTab(tab: AdminTab) {

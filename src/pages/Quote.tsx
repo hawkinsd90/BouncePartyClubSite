@@ -326,7 +326,7 @@ export function Quote() {
       if (debugMode) {
         setDebugInfo((prev) => ({ ...prev!, ...debug }));
       }
-    } catch (error) {
+    } catch {
       // Emergency fallback: instant scroll
       const rect = element.getBoundingClientRect();
       const fallbackTop = rect.top + window.scrollY - HEADER_OFFSET_PX;
@@ -394,7 +394,7 @@ export function Quote() {
       if (debugMode) {
         setDebugInfo((prev) => ({ ...prev!, ...debug }));
       }
-    } catch (error) {
+    } catch {
       // Emergency fallback: instant scroll
       const rect = element.getBoundingClientRect();
       const fallbackTop = rect.top + window.scrollY - HEADER_OFFSET_PX;

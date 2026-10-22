@@ -1,4 +1,4 @@
-/* eslint-disable @typescript-eslint/ban-ts-comment, @typescript-eslint/no-explicit-any, @typescript-eslint/no-unused-vars */
+/* eslint-disable @typescript-eslint/ban-ts-comment, @typescript-eslint/no-explicit-any */
 // @ts-nocheck
 // The single permitted waiver of an `apply` confirmation: only `relays-guarded`, only when explicitly requested with a written reason,
 // recorded separately (WAIVED — NOT VERIFIED), never for the other two confirmations, and never carried to another run.

@@ -5,6 +5,9 @@ import { format } from 'date-fns';
 import { tokenFragment } from '../../lib/portal/portalToken';
 import { waiverFunctionHeaders } from '../../lib/documents/waiverAccess';
 
+// The physical-waiver upload section is intentionally switched off until the upload flow is implemented.
+const PAPER_WAIVER_UPLOAD_ENABLED = false as boolean;
+
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL as string;
 const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY as string;
 
@@ -121,7 +124,7 @@ export default function WaiverTab({ orderId, token, onWaiverChange }: WaiverTabP
       }
       await loadSignatureData();
       onWaiverChange?.();
-    } catch (err) {
+    } catch {
       setUploadError('Upload failed. Please try again.');
     } finally {
       setUploading(false);
@@ -264,7 +267,7 @@ export default function WaiverTab({ orderId, token, onWaiverChange }: WaiverTabP
       </div>
 
       {/* Physical waiver upload section — TODO: implement upload flow before enabling */}
-      {false && showUploadSection && (
+      {PAPER_WAIVER_UPLOAD_ENABLED && showUploadSection && (
         <div className="bg-white border border-slate-200 rounded-lg p-5">
           <h4 className="text-sm font-semibold text-slate-800 mb-1">Upload Signed Waiver Photo</h4>
           <p className="text-xs text-slate-500 mb-4">

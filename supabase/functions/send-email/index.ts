@@ -110,7 +110,7 @@ Deno.serve(async (req: Request) => {
     }
     relayAuthorized = true;
 
-    const { to, from, subject, html, text, attachments, context, skipFallback, templateName, orderId, replyTo } = body;
+    const { to, subject, html, text, attachments, context, skipFallback, templateName, orderId, replyTo } = body;
 
     emailTo = to;
     emailSubject = subject;

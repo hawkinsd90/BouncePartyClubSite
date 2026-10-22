@@ -250,7 +250,7 @@ async function drawMenuToCanvas(
   void logoRight;
 
   // --- Unit cards ---
-  let cardY = HEADER_H + PAD;
+  const cardY = HEADER_H + PAD;
 
   for (let i = 0; i < data.units.length; i++) {
     const unit = data.units[i];

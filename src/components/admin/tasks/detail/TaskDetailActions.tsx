@@ -18,6 +18,9 @@ interface Props {
   busyAction?: TaskBusyAction | null;
 }
 
+// The paper-waiver upload button is intentionally switched off until physical waiver upload is implemented.
+const PAPER_WAIVER_UPLOAD_ENABLED = false as boolean;
+
 export function TaskDetailActions({
   isDropOff, isToday, currentStatus: _currentStatus, processing, uploadingImages, uploadCount,
   onEnRoute, onArrived, onImageUpload, onDropOffComplete, onPickupComplete, onPaperWaiverUpload,
@@ -70,7 +73,7 @@ export function TaskDetailActions({
             </button>
 
             {/* Upload Paper Waiver — TODO: enable when physical waiver upload is implemented */}
-            {false && (
+            {PAPER_WAIVER_UPLOAD_ENABLED && (
               <button
                 onClick={onPaperWaiverUpload}
                 className="flex items-center justify-center gap-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold py-3 px-4 rounded-lg border border-slate-300 transition-colors sm:col-span-2"

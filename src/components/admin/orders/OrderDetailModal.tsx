@@ -1045,7 +1045,7 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
         setParksAcknowledgmentCounty(county);
         setHasChanges(true);
       }
-    } catch (err) {
+    } catch {
       setParksAcknowledgmentRequired(false);
       setParksAcknowledgmentCounty(null);
       setParksAcknowledgmentError(

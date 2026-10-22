@@ -148,11 +148,11 @@ test('10. Email renderer never accesses units.name for EE items', () => {
 
 test('11. Email failure does not roll back the order', () => {
   let orderCreated = false;
-  let emailSent = false;
+  const emailSent = false;
   try {
     orderCreated = true;
     throw new Error('Email service unavailable');
-  } catch (emailErr) {
+  } catch {
     // Email failure caught — order remains created
   }
   ok('order remains created', orderCreated === true);

@@ -39,22 +39,26 @@ export function CustomerFormFields({
     let error: string | undefined;
 
     switch (field) {
-      case 'first_name':
+      case 'first_name': {
         const firstNameResult = validateRequired(value, 'First name');
         error = firstNameResult.isValid ? undefined : firstNameResult.error;
         break;
-      case 'last_name':
+      }
+      case 'last_name': {
         const lastNameResult = validateRequired(value, 'Last name');
         error = lastNameResult.isValid ? undefined : lastNameResult.error;
         break;
-      case 'email':
+      }
+      case 'email': {
         const emailResult = validateEmail(value);
         error = emailResult.isValid ? undefined : emailResult.error;
         break;
-      case 'phone':
+      }
+      case 'phone': {
         const phoneResult = validatePhone(value);
         error = phoneResult.isValid ? undefined : phoneResult.error;
         break;
+      }
     }
 
     setErrors(prev => ({ ...prev, [field]: error }));

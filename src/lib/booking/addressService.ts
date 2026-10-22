@@ -177,7 +177,8 @@ export async function forwardGeocodeCounty(
 }
 
 export async function upsertCanonicalAddress(params: UpsertAddressParams): Promise<{ id: string }> {
-  let { customer_id, line1, line2, city, state, zip, lat, lng } = params;
+  const { customer_id, line1, line2, city, state, zip } = params;
+  let { lat, lng } = params;
   const key = buildAddressKey(line1, city, state, zip);
 
   // Auto-geocode when the caller didn't supply coordinates.

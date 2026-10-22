@@ -159,7 +159,6 @@ Deno.serve(async (req: Request) => {
       new_balance_due,
       status_changed,
       customer_id,
-      event_date: _event_date,
     } = result;
 
     // ── 4. Non-critical side effects (best-effort, non-atomic) ──────────────

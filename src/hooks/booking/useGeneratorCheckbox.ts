@@ -243,7 +243,7 @@ export function useGeneratorCheckbox(params: UseGeneratorCheckboxParams): UseGen
     legacyConversionNeeded,
     conversionCompleted,
     conversionInFlight,
-  ]); // eslint-disable-line react-hooks/exhaustive-deps
+  ]);
 
   // Auto-run conversion once when all readiness conditions are met.
   // Reacts to: legacy state, valid dates, configuration readiness.
@@ -273,7 +273,7 @@ export function useGeneratorCheckbox(params: UseGeneratorCheckboxParams): UseGen
     formData.event_end_date,
     formData.has_generator,
     formData.generator_qty,
-  ]); // eslint-disable-line react-hooks/exhaustive-deps
+  ]);
 
   const evaluateGenerator = useCallback(async (qty: number): Promise<{ price: number; context: PricingContext } | null> => {
     if (!generatorProduct || !resolverConfig) return null;

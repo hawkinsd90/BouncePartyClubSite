@@ -92,6 +92,7 @@ export function Catalog() {
 
     const handleVisibilityChange = () => {
       if (document.visibilityState === 'visible' && mounted && units.length > 0) {
+        // Intentionally empty: nothing is refreshed when the tab becomes visible again (the listener is kept as it was).
       }
     };
 
