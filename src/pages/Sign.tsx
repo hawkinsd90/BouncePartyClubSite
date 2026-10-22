@@ -3,6 +3,7 @@ import { useParams, useNavigate, Link } from 'react-router-dom';
 import { FileCheck, AlertCircle, Loader2 } from 'lucide-react';
 import { fetchPortalData, PortalAccessError } from '../lib/portal/customerPortalApi';
 import { trackEvent } from '../lib/core/siteEvents';
+import { SecureAccessRequired } from '../components/customer-portal/SecureAccessRequired';
 import { portalPathForCurrentVisitor, readPortalToken } from '../lib/portal/portalToken';
 import { waiverFunctionHeaders } from '../lib/documents/waiverAccess';
 import SignaturePad from '../components/waiver/SignaturePad';
@@ -47,6 +48,7 @@ export default function Sign() {
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [accessRequired, setAccessRequired] = useState(false);
   const [order, setOrder] = useState<OrderData | null>(null);
 
   const waiverViewerRef = useRef<WaiverViewerHandle>(null);
@@ -112,6 +114,7 @@ export default function Sign() {
     try {
       setLoading(true);
       setError(null);
+      setAccessRequired(false);
 
       // Secure read: the server proves this visitor holds a token for (or owns) this order.
       const { data: portal } = await fetchPortalData(orderId!, readPortalToken(), { sections: ['core'] });
@@ -149,6 +152,7 @@ export default function Sign() {
       }
     } catch (err: any) {
       console.error('Error loading order:', err);
+      if (err instanceof PortalAccessError) setAccessRequired(true);
       setError(err instanceof PortalAccessError ? 'Secure access is required to sign this waiver. Open it from your secure order link.' : (err.message || 'Failed to load order'));
     } finally {
       setLoading(false);
@@ -306,6 +310,11 @@ export default function Sign() {
         </div>
       </div>
     );
+  }
+
+  // An old or expired link: offer to email a fresh secure link to the contact on file.
+  if (accessRequired && !order && orderId) {
+    return <SecureAccessRequired orderId={orderId} />;
   }
 
   if (error && !order) {

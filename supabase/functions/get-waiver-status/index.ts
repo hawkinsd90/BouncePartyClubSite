@@ -22,7 +22,10 @@ Deno.serve(async (req: Request) => {
   }
 
   try {
-    const { orderId, token } = await req.json();
+    const { orderId, token, summaryOnly } = await req.json();
+    // summaryOnly: who signed, when, and what kind of waiver exists, with no signed file links. Callers that only show a status
+    // (the Crew task screen) ask for this so they are never handed private files they do not display.
+    const wantsSummaryOnly = summaryOnly === true;
 
     if (!orderId || typeof orderId !== "string") {
       return new Response(JSON.stringify({ error: "orderId required" }), {
@@ -72,13 +75,17 @@ Deno.serve(async (req: Request) => {
       });
     }
 
-    const { data: sig, error: sigError } = await supabaseClient
+    // An order can hold more than one signature row (a re-signed or later-uploaded waiver). maybeSingle() would fail on two rows, so
+    // read a few newest rows and pick one by precedence: a digital waiver, else a paper scan, else the newest row.
+    const { data: sigRows, error: sigError } = await supabaseClient
       .from("order_signatures")
       .select(
         "signed_at, signer_name, waiver_version, initials_data, signature_image_url, pdf_url, electronic_consent_given, physical_waiver_storage_path, physical_waiver_uploaded_at, physical_waiver_file_type, physical_waiver_upload_source, physical_waiver_override_reason"
       )
       .eq("order_id", orderId)
-      .maybeSingle();
+      .order("signed_at", { ascending: false })
+      .limit(10);
+    const sig = pickWaiverRow(Array.isArray(sigRows) ? sigRows : []);
 
     if (sigError) {
       console.error("[get-waiver-status] Signature query error:", sigError.message);
@@ -116,7 +123,7 @@ Deno.serve(async (req: Request) => {
 
     if (sig.waiver_version === "paper") {
       let signedUrl: string | null = null;
-      if (sig.physical_waiver_storage_path) {
+      if (!wantsSummaryOnly && sig.physical_waiver_storage_path) {
         const { data: urlData, error: urlError } = await supabaseClient.storage
           .from("physical-waivers")
           .createSignedUrl(sig.physical_waiver_storage_path, 3600);
@@ -136,8 +143,8 @@ Deno.serve(async (req: Request) => {
 
     // Stored references may be historical public URLs; they are converted to a bucket path and signed. An unauthorized caller
     // receives no URL at all (never the stored public URL).
-    const signatureImageUrl = await signStoredMedia(supabaseClient, "signatures", sig.signature_image_url);
-    const pdfUrl = await signStoredMedia(supabaseClient, "signed-waivers", sig.pdf_url);
+    const signatureImageUrl = wantsSummaryOnly ? null : await signStoredMedia(supabaseClient, "signatures", sig.signature_image_url);
+    const pdfUrl = wantsSummaryOnly ? null : await signStoredMedia(supabaseClient, "signed-waivers", sig.pdf_url);
 
     const responseData = {
       signed_at: sig.signed_at,
@@ -165,3 +172,10 @@ Deno.serve(async (req: Request) => {
     });
   }
 });
+
+// deno-lint-ignore no-explicit-any
+function pickWaiverRow(rows: any[]) {
+  if (rows.length === 0) return null;
+  // deno-lint-ignore no-explicit-any
+  return rows.find((r: any) => r.electronic_consent_given) ?? rows.find((r: any) => r.physical_waiver_storage_path) ?? rows[0];
+}

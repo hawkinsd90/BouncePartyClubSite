@@ -18,7 +18,7 @@ export function CustomerDashboard() {
   const [searchParams, setSearchParams] = useSearchParams();
   const { duplicateOrder } = useOrderDuplication();
 
-  const { upcomingOrders, activeOrders, pastOrders, loading, reloadOrders } = useOrders(user?.id);
+  const { upcomingOrders, activeOrders, pastOrders, loading, loadError, reloadOrders } = useOrders(user?.id);
 
   const [selectedReceipt, setSelectedReceipt] = useState<{ order: Order; payment: Payment } | null>(null);
   const [receiptSummary, setReceiptSummary] = useState<OrderSummaryDisplay | null>(null);
@@ -29,18 +29,19 @@ export function CustomerDashboard() {
   const urlTab = searchParams.get('tab') as 'active' | 'upcoming' | 'past' | null;
   const activeTab = (urlTab && ['active', 'upcoming', 'past'].includes(urlTab)) ? urlTab : 'active';
 
-  const changeTab = (tab: 'active' | 'upcoming' | 'past') => {
-    setSearchParams({ tab });
+  // `replace` keeps the tab out of the browser history, so Back leaves My Orders instead of bouncing between tabs.
+  const changeTab = (tab: 'active' | 'upcoming' | 'past', options: { replace?: boolean } = {}) => {
+    setSearchParams({ tab }, { replace: options.replace ?? true });
   };
 
   useEffect(() => {
     if (!urlTab) {
       if (activeOrders.length > 0) {
-        changeTab('active');
+        changeTab('active', { replace: true });
       } else if (upcomingOrders.length > 0) {
-        changeTab('upcoming');
+        changeTab('upcoming', { replace: true });
       } else if (pastOrders.length > 0) {
-        changeTab('past');
+        changeTab('past', { replace: true });
       }
     }
   }, [activeOrders, upcomingOrders, pastOrders, urlTab]);
@@ -106,6 +107,7 @@ export function CustomerDashboard() {
   }
 
   const totalOrders = activeOrders.length + upcomingOrders.length + pastOrders.length;
+  const failedWithNothingToShow = loadError && totalOrders === 0;
   const currentOrders = activeTab === 'active' ? activeOrders : activeTab === 'upcoming' ? upcomingOrders : pastOrders;
 
   return (
@@ -116,7 +118,26 @@ export function CustomerDashboard() {
           <p className="text-base sm:text-lg text-gray-600">View and manage your bounce house rentals</p>
         </div>
 
-        {totalOrders > 0 ? (
+        {loadError && totalOrders > 0 && (
+          <div className="mb-4 flex items-center justify-between gap-3 bg-amber-50 border border-amber-200 text-amber-900 rounded-lg px-4 py-3 text-sm" role="status">
+            <span>We couldn't refresh your orders. What you see may be out of date.</span>
+            <button type="button" onClick={() => reloadOrders()} className="font-semibold underline min-h-[32px]">Retry</button>
+          </div>
+        )}
+
+        {failedWithNothingToShow ? (
+          <div className="text-center py-12 sm:py-16 bg-white rounded-2xl shadow-xl border-2 border-gray-100" role="alert">
+            <Package className="w-16 h-16 sm:w-20 sm:h-20 text-gray-300 mx-auto mb-6" />
+            <h3 className="text-xl sm:text-3xl font-bold text-gray-900 mb-3 tracking-tight">We couldn't load your orders</h3>
+            <p className="text-base sm:text-lg text-gray-600 mb-8 px-4">Check your connection and try again. Your orders have not been changed.</p>
+            <button
+              onClick={() => reloadOrders()}
+              className="px-6 sm:px-8 py-3 sm:py-4 bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white text-sm sm:text-base font-bold rounded-xl transition-all shadow-lg hover:shadow-xl"
+            >
+              Try again
+            </button>
+          </div>
+        ) : totalOrders > 0 ? (
           <>
             <DashboardTabs
               activeTab={activeTab}

@@ -15,7 +15,7 @@ import { PaymentAmountSelector } from './PaymentAmountSelector';
 import { CustomerInfoForm } from './CustomerInfoForm';
 import { CancelOrderModal } from './CancelOrderModal';
 import { showToast } from '../../lib/toasts';
-import { portalAction } from '../../lib/portal/customerPortalApi';
+import { portalAction, PortalActionError } from '../../lib/portal/customerPortalApi';
 import { checkEventEssentialsAvailability } from '../../lib/queries/products';
 import { enterConfirmed } from '../../lib/orders/orderLifecycleApi';
 import {
@@ -190,10 +190,9 @@ export function InvoiceAcceptanceView({
         return;
       }
 
-      // Check inflatable availability
+      // Check availability on the server: inflatables and Event Essentials (it also guards the no-card path, which never charges)
       {
-        const inflatableItems = allOrderItems.filter((item: any) => item.unit_id);
-        if (inflatableItems.length > 0) {
+        if (allOrderItems.length > 0) {
           let unitsAvailable = false;
           try {
             const result = await portalAction<{ available: boolean }>(order.id, invoiceToken, 'check_unit_availability');
@@ -274,7 +273,9 @@ export function InvoiceAcceptanceView({
         } catch (confirmError) {
           console.error('Error confirming order:', confirmError instanceof Error ? confirmError.message : 'unknown');
           showToast(
-            'Failed to confirm booking. Please try again or contact support.',
+            confirmError instanceof PortalActionError && confirmError.code === 'items_unavailable'
+              ? 'Sorry, one or more items in your order are no longer available for your event date. Please contact us to reschedule.'
+              : 'Failed to confirm booking. Please try again or contact support.',
             'error'
           );
           setProcessing(false);

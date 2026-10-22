@@ -325,6 +325,29 @@ const NONE = (h: Harness) => h.db.storageSigned.length === 0;
     ok('contract: the portal tab handles a null data answer (shows the unsigned view)', /setSignatureData\(data\)/.test(walkerTab) && /!signatureData/.test(walkerTab));
   }
 
+  // ======================================================================================================================
+  // summaryOnly (B6/S4) and more than one signature row
+  // ======================================================================================================================
+  {
+    const full = (await status('jwt-A', { orderId: 'order-A' })).r.json;
+    const sum = await status('jwt-A', { orderId: 'order-A', summaryOnly: true });
+    ok('summaryOnly: the answer still says who signed, when, and what kind of waiver', sum.r.json?.signed === true && sum.r.json.data.signer_name === 'Ann Adams' && sum.r.json.data.waiver_type === 'digital' && sum.r.json.data.has_pdf === true && sum.r.json.data.has_signature_image === true);
+    ok('summaryOnly: no signed file links are handed out and nothing is signed', sum.r.json.data.pdf_url === null && sum.r.json.data.signature_image_url === null && NONE(sum.h));
+    ok('without summaryOnly the same caller still receives the links (unchanged)', !!full.data.pdf_url && !!full.data.signature_image_url);
+    const paperSum = await status('jwt-admin', { orderId: 'order-B', summaryOnly: true });
+    ok('summaryOnly: a paper waiver reports the file exists but gives no link', paperSum.r.json.data.physical_waiver?.has_file === true && paperSum.r.json.data.physical_waiver.signed_url === null && NONE(paperSum.h));
+    ok('summaryOnly never widens access: an unauthorized caller still gets the fail-closed answer', JSON.stringify((await status(ANON_KEY, { orderId: 'order-A', summaryOnly: true })).r.json) === JSON.stringify(FAIL_CLOSED));
+    ok('summaryOnly must be exactly true (a string does not switch it on)', !!(await status('jwt-A', { orderId: 'order-A', summaryOnly: 'true' })).r.json.data.pdf_url);
+
+    // Two rows for one order: the digital waiver wins over a paper row, whatever the order of the rows.
+    const h = world();
+    h.db.tables.order_signatures.push({ id: 'sig-A2', order_id: 'order-A', signed_at: '2026-10-05T10:00:00Z', signer_name: 'Paper Pat', waiver_version: 'paper', initials_data: {}, signature_image_url: '', pdf_url: null, electronic_consent_given: false, physical_waiver_storage_path: 'order-A/scan.jpg', physical_waiver_file_type: 'image', physical_waiver_uploaded_at: '2026-10-05T10:00:00Z', physical_waiver_upload_source: 'admin' });
+    const two = await status('jwt-A', { orderId: 'order-A', summaryOnly: true }, h);
+    ok('two signature rows no longer fail the request, and the digital waiver wins', two.r.status === 200 && two.r.json?.signed === true && two.r.json.data.waiver_type === 'digital' && two.r.json.data.signer_name === 'Ann Adams');
+    const src = read('supabase/functions/get-waiver-status/index.ts');
+    ok('source: the signature read is no longer maybeSingle (it would error on two rows) and is bounded', !/order_signatures[\s\S]{0,400}maybeSingle/.test(src) && /\.limit\(10\)/.test(src));
+  }
+
   void FUTURE;
   console.log(`Waiver authorization tests: ${passed} passed, ${failed} failed`);
   if (failed > 0) throw new Error(`${failed} waiver authorization test(s) failed`);

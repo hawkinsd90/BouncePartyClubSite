@@ -2,6 +2,8 @@ import "jsr:@supabase/functions-js@2/edge-runtime.d.ts";
 import { createClient } from "npm:@supabase/supabase-js@2.57.4";
 import { resolveCaller, authorizePortalOrder, hasCurrentInvoiceLink } from "../_shared/auth.ts";
 import { checkRateLimit } from "../_shared/rate-limit.ts";
+import { checkEventEssentialsAvailabilityWith } from "../_shared/booking/eeOrderItemAvailability.ts";
+import { supabaseAvailabilityPort } from "../_shared/booking/bookingAvailability.ts";
 import { sendOrderCustomerNotice, type CustomerNotice } from "../_shared/customer-notice.ts";
 import {
   validateAction,
@@ -196,6 +198,9 @@ Deno.serve(async (req: Request) => {
         if (order.status !== "draft") return wrongStatus();
         // Only an invoice that really needs no card and no deposit may use the no-card path.
         if (order.require_card_on_file !== false || (order.deposit_due_cents ?? 0) !== 0) return wrongStatus();
+        // No deposit is charged on this path, so charge-deposit's availability check never runs: check stock here before the
+        // acceptance is recorded (a draft order holds no stock).
+        if (!(await orderItemsAvailable(db, order))) return json({ success: false, error: "items_unavailable" }, 409);
         // Record the customer's acceptance and responsibility agreement. The order stays a draft: order-lifecycle
         // confirms it (outcome "waived") after this succeeds.
         const field = order.pickup_preference === "next_day" ? "overnight_responsibility_accepted" : "same_day_responsibility_accepted";
@@ -369,7 +374,7 @@ Deno.serve(async (req: Request) => {
       }
 
       case "check_unit_availability": {
-        return json({ success: true, available: await unitsAvailable(db, order) });
+        return json({ success: true, available: await orderItemsAvailable(db, order) });
       }
     }
     return badRequest();
@@ -422,6 +427,30 @@ async function hasInvoiceContext(
   if (proof.kind === "token") return proof.link?.link_type === "invoice";
   if (proof.kind !== "owner" && proof.kind !== "service") return false;
   return await hasCurrentInvoiceLink(db, orderId);
+}
+
+// Everything on the order must still be available for its dates: inflatables (unit rule below) and Event Essentials (product
+// stock, through the shared checker the booking and the charge use). Any failure to verify counts as "not available".
+async function orderItemsAvailable(db: Db, order: { id: string; event_date: string; event_end_date: string | null }): Promise<boolean> {
+  if (!(await unitsAvailable(db, order))) return false;
+  const { data: items, error } = await db
+    .from("order_items")
+    .select("unit_id, product_id, bundle_id, qty, item_name, pricing_context, component_snapshot")
+    .eq("order_id", order.id);
+  if (error) return false;
+  const eeRows = (items ?? []).filter((r: { unit_id: string | null; product_id: string | null; bundle_id: string | null }) => !r.unit_id && (r.product_id || r.bundle_id));
+  if (eeRows.length === 0) return true;
+  const port = supabaseAvailabilityPort(db);
+  const result = await checkEventEssentialsAvailabilityWith(
+    (rows, start, end, exclude) => port.productAvailability(rows, start, end, exclude),
+    {
+      items: eeRows,
+      eventDate: String(order.event_date ?? "").substring(0, 10),
+      eventEndDate: String(order.event_end_date ?? order.event_date ?? "").substring(0, 10),
+      excludeOrderId: order.id,
+    },
+  );
+  return result.ok;
 }
 
 // Same inflatable availability rule the browser used, run against this order's OWN items and dates. Any failure to

@@ -16,6 +16,7 @@ import {
   FUTURE,
   PAST,
   SERVICE_KEY,
+  USERS,
   addOrder,
   callFunction,
   loadFunction,
@@ -1065,6 +1066,75 @@ ok('approval: records the payment selection and tip but does NOT confirm the ord
     ok('leakage: the analytics path / error report redaction from the secure-link work is intact', /redactCredentialsInPath\(window\.location\.pathname\)/.test(read('src/lib/core/siteEvents.ts')) && /redactCredentialsInUrl\(window\.location\.href\)/.test(read('src/lib/core/errorReporter.ts')));
     ok('leakage: portal credentials are not placed in notification failure context', !read('src/components/customer-portal/InvoiceAcceptanceView.tsx').includes('notification_failures'));
     ok('leakage: the new endpoints are registered for the browser and checked inside', /\[functions\.customer-portal-data\]\s+verify_jwt = false/.test(read('supabase/config.toml')) && /\[functions\.customer-portal-action\]\s+verify_jwt = false/.test(read('supabase/config.toml')));
+  }
+
+  // =============================================================================================================
+  // B6: canonical ownership for the portal, and Event Essentials availability on the server
+  // =============================================================================================================
+  {
+    // A historical account: no customers.user_id, linked only through customer_profiles -> contacts.customer_id.
+    const legacyWorld = (): Harness => {
+      const h = fixture();
+      USERS['jwt-legacy-b6'] = 'u-legacy-b6';
+      USERS['jwt-profile-other-b6'] = 'u-profile-other-b6';
+      h.db.tables.customers.push({ id: 'cust-L', first_name: 'Lee', last_name: 'Legacy', email: 'lee@example.test', phone: '+15555550199', user_id: null });
+      addOrder(h.db, { id: 'order-L', customer: 'cust-A', status: 'confirmed' });
+      (h.db.tables.orders.find((o: any) => o.id === 'order-L') as any).customer_id = 'cust-L';
+      h.db.tables.contacts = [{ id: 'contact-L', customer_id: 'cust-L' }, { id: 'contact-X', customer_id: 'cust-B' }];
+      h.db.tables.customer_profiles = [{ id: 'prof-L', user_id: 'u-legacy-b6', contact_id: 'contact-L' }, { id: 'prof-X', user_id: 'u-profile-other-b6', contact_id: 'contact-X' }];
+      return h;
+    };
+    const data = async (h: Harness, bearer: string | null, orderId: string) => callFunction(loadFunction('customer-portal-data', h), bearer, { orderId, sections: ['core'] });
+    const action = async (h: Harness, bearer: string | null, orderId: string, name: string, payload: Record<string, unknown> = {}) => callFunction(loadFunction('customer-portal-action', h), bearer, { orderId, action: name, payload });
+
+    let h = legacyWorld();
+    let r = await data(h, 'jwt-legacy-b6', 'order-L');
+    ok('ownership: an account linked through its profile contact opens its own order (the order My Orders lists)', r.status === 200 && r.json?.data?.order?.id === 'order-L');
+    r = await action(legacyWorld(), 'jwt-legacy-b6', 'order-L', 'check_unit_availability');
+    ok('ownership: the same account can act on that order through customer-portal-action', r.status === 200 && r.json?.success === true);
+    r = await data(legacyWorld(), 'jwt-profile-other-b6', 'order-L');
+    ok('ownership: an account whose profile points at a different customer still gets the uniform 403', r.status === 403 && r.json?.error === 'access_required');
+    r = await data(legacyWorld(), 'jwt-legacy-b6', 'order-act2');
+    ok('ownership: the legacy account cannot open another customer order', r.status === 403);
+    r = await data(legacyWorld(), 'jwt-none', 'order-L');
+    ok('ownership: a signed-in user with no link at all gets 403', r.status === 403);
+    r = await data(legacyWorld(), ANON_KEY, 'order-L');
+    ok('ownership: the public key alone gets 403', r.status === 403);
+
+    // ---- Event Essentials availability at invoice acceptance ----------------------------------------------------------------
+    const eeWorld = (allowed: boolean | 'error' | 'missing'): Harness => {
+      const hh = fixture();
+      hh.db.tables.order_items.push({ id: 'oi-ee-1', order_id: 'order-nocard', unit_id: null, product_id: 'prod-1', bundle_id: null, qty: 4, item_name: 'Folding Chair', pricing_context: 'standalone', component_snapshot: null, unit_price_cents: 300 });
+      if (allowed === 'missing') hh.db.rpcResults.check_product_availability = [];
+      else if (allowed === 'error') hh.db.rpcResults.check_product_availability = null;
+      else hh.db.rpcResults.check_product_availability = [{ product_id: 'prod-1', is_allowed: allowed, requested_quantity: 4, available_quantity: allowed ? 10 : 1 }];
+      return hh;
+    };
+    const tNoCard = tokenFor('invoice-order-nocard');
+    const noCard = (hh: Harness) => callFunction(loadFunction('customer-portal-action', hh), ANON_KEY, { orderId: 'order-nocard', token: tNoCard, action: 'invoice_confirm_no_card', payload: {} });
+    const check = (hh: Harness) => callFunction(loadFunction('customer-portal-action', hh), ANON_KEY, { orderId: 'order-nocard', token: tNoCard, action: 'check_unit_availability', payload: {} });
+
+    h = eeWorld(true);
+    r = await check(h);
+    ok('EE availability: an Event Essentials-only order with enough stock is available', r.status === 200 && r.json?.available === true);
+    r = await noCard(h);
+    ok('EE availability: the no-card acceptance goes through when stock is available', r.status === 200 && r.json?.success === true && (h.db.tables.orders.find((o: any) => o.id === 'order-nocard') as any).invoice_accepted_at);
+    h = eeWorld(false);
+    r = await check(h);
+    ok('EE availability: an Event Essentials line without stock makes the order unavailable (was always true)', r.status === 200 && r.json?.available === false);
+    r = await noCard(h);
+    ok('EE availability: the no-card acceptance is refused with 409 items_unavailable and records nothing', r.status === 409 && r.json?.error === 'items_unavailable' && !(h.db.tables.orders.find((o: any) => o.id === 'order-nocard') as any).invoice_accepted_at);
+    h = eeWorld('error');
+    r = await check(h);
+    ok('EE availability: a check that cannot be verified counts as unavailable (fails closed)', r.json?.available === false);
+    r = await noCard(h);
+    ok('EE availability: an unverifiable check refuses the no-card acceptance', r.status === 409);
+    h = eeWorld('missing');
+    r = await check(h);
+    ok('EE availability: a result that omits the product counts as unavailable', r.json?.available === false);
+    const src = read('supabase/functions/customer-portal-action/index.ts');
+    ok('EE availability: the check excludes the order itself, so a booking never conflicts with its own lines', /excludeOrderId: order\.id/.test(src));
+    ok('EE availability: the Invoice screen asks the server whenever the order has any line (not only inflatables)', /allOrderItems\.length > 0\) \{/.test(read('src/components/customer-portal/InvoiceAcceptanceView.tsx')));
   }
 
   // makeClient is exported for reuse by other suites; reference it so the import is exercised

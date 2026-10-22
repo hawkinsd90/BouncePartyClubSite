@@ -346,7 +346,8 @@ export async function authorizePortalOrder(
   if (link) return { kind: "token", link };
 
   if (caller.kind === "user") {
-    if (await userOwnsOrder(client, caller.userId, input.orderId)) return { kind: "owner", userId: caller.userId };
+    // Canonical ownership: the same two relationships My Orders uses, so an order the dashboard lists always opens.
+    if (await userOwnsOrderCanonical(client, caller.userId, input.orderId)) return { kind: "owner", userId: caller.userId };
     if (input.allowStaffRead && isStaffAdmin(caller)) return { kind: "staff", userId: caller.userId };
   }
   return null;

@@ -12,6 +12,7 @@ import { eventAddressLine2 } from '../../lib/booking/eventAddress';
 import { calculateTotalFromOrder } from '../../lib/orders/orderSummaryLoader';
 import { fetchSignedWaiverPdfUrl } from '../../lib/documents/waiverAccess';
 import { notifyError } from '../../lib/toasts';
+import { describeOrderLine } from '../../lib/orders/duplicateOrderCart';
 
 interface OrderCardProps {
   order: Order;
@@ -86,17 +87,23 @@ export function OrderCard({ order, onViewReceipt, onDuplicateOrder, onCancelOrde
           <div className="bg-gray-50 rounded-lg p-3 border border-gray-200">
             <h4 className="text-xs font-semibold text-gray-700 mb-2">Rental Items:</h4>
             <div className="space-y-1.5">
-              {order.order_items.map((item) => (
-                <div key={item.id} className="flex items-center gap-2 text-xs">
-                  <span className="text-gray-600">
-                    {item.qty > 1 && `${item.qty}x `}
-                    {item.units.name}
-                  </span>
-                  <span className="px-1.5 py-0.5 bg-blue-100 text-blue-700 rounded text-[10px] font-medium">
-                    {item.wet_or_dry === 'water' ? 'Wet' : 'Dry'}
-                  </span>
-                </div>
-              ))}
+              {order.order_items.map((item) => {
+                // Event Essentials lines have no inflatable (units is null): show their own name and no Wet/Dry badge.
+                const line = describeOrderLine(item);
+                return (
+                  <div key={item.id} className="flex items-center gap-2 text-xs">
+                    <span className="text-gray-600">
+                      {item.qty > 1 && `${item.qty}x `}
+                      {line.name}
+                    </span>
+                    {line.badge && (
+                      <span className="px-1.5 py-0.5 bg-blue-100 text-blue-700 rounded text-[10px] font-medium">
+                        {line.badge}
+                      </span>
+                    )}
+                  </div>
+                );
+              })}
             </div>
           </div>
         )}

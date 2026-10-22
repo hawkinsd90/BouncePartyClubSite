@@ -3,6 +3,7 @@ import type { Order } from '../../types/orders';
 import { SafeStorage } from '../../lib/core/safeStorage';
 import { eventAddressLine2 } from '../../lib/booking/eventAddress';
 import { notifyError, notifyWarning, showConfirm } from '../../lib/toasts';
+import { buildDuplicateCart, duplicateCanStake } from '../../lib/orders/duplicateOrderCart';
 
 export function useOrderDuplication() {
   const navigate = useNavigate();
@@ -19,20 +20,9 @@ export function useOrderDuplication() {
         return;
       }
 
-      const validItems: any[] = [];
-      const unavailableItems: string[] = [];
+      const { cartItems, unavailable: unavailableItems } = buildDuplicateCart(itemsData);
 
-      itemsData.forEach((item: any) => {
-        if (item.units && item.units.active !== false) {
-          validItems.push(item);
-        } else {
-          const unitName = item.units?.name || 'Unknown Item';
-          unavailableItems.push(unitName);
-          console.warn('[Duplicate Order] Unavailable item:', unitName, 'active:', item.units?.active);
-        }
-      });
-
-      if (unavailableItems.length > 0 && validItems.length === 0) {
+      if (unavailableItems.length > 0 && cartItems.length === 0) {
         notifyError(
           'Unable to duplicate this order.\n\n' +
           'The following items are no longer available:\n' +
@@ -49,20 +39,6 @@ export function useOrderDuplication() {
         if (!proceed) return;
       }
 
-      const cartItems = validItems.map(item => {
-        const isCombo = (item.units?.types || []).includes('Combo') || (item.units?.types || []).includes('Water Slide') || item.units?.is_combo === true;
-        return {
-          unit_id: item.unit_id,
-          unit_name: item.units.name,
-          wet_or_dry: item.wet_or_dry as 'dry' | 'water',
-          unit_price_cents: item.unit_price_cents,
-          price_dry_cents: item.units?.price_dry_cents ?? item.unit_price_cents,
-          price_water_cents: item.units?.price_water_cents || item.units?.price_dry_cents || item.unit_price_cents,
-          qty: item.qty,
-          is_combo: isCombo,
-        };
-      });
-
       SafeStorage.setItem('bpc_cart', cartItems, { expirationDays: 7 });
       window.dispatchEvent(new CustomEvent('bpc-cart-updated'));
 
@@ -78,7 +54,7 @@ export function useOrderDuplication() {
         } : null,
         location_type: orderData.location_type,
         pickup_preference: orderData.pickup_preference || 'next_day',
-        can_stake: orderData.can_use_stakes,
+        can_stake: duplicateCanStake(orderData, cartItems.some((c) => (c as any).item_type === 'inflatable' || (c as any).item_type === undefined)),
         has_generator: orderData.generator_qty > 0,
         has_pets: orderData.has_pets,
         special_details: orderData.special_details || '',

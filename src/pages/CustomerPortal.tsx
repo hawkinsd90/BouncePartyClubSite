@@ -15,6 +15,7 @@ import { showToast } from '../lib/toasts';
 import { trackEvent } from '../lib/core/siteEvents';
 import { parsePortalToken } from '../lib/portal/portalToken';
 import { SecureAccessRequired } from '../components/customer-portal/SecureAccessRequired';
+import { PortalLoadError, PortalRefreshNotice } from '../components/customer-portal/PortalLoadNotices';
 
 export function CustomerPortal() {
   const { orderId, token } = useParams();
@@ -54,7 +55,7 @@ export function CustomerPortal() {
   const [refreshVersion, setRefreshVersion] = useState(0);
   const suppressRefreshRef = useRef(false);
 
-  const { data, loading, loadOrder, accessRequired } = useCustomerPortalOrder();
+  const { data, loading, loadOrder, accessRequired, loadError, refreshFailed } = useCustomerPortalOrder();
 
   const resolvedOrderId = orderId || (data?.order?.id);
 
@@ -73,6 +74,13 @@ export function CustomerPortal() {
       setRefreshVersion((v) => v + 1);
     }
   }, [orderId, invoiceToken, isInvoiceLink, loadOrder]);
+
+  // Coming back online: refresh straight away instead of waiting for the next poll.
+  useEffect(() => {
+    const onOnline = () => { void reloadPortalDataSilently(); };
+    window.addEventListener('online', onOnline);
+    return () => window.removeEventListener('online', onOnline);
+  }, [reloadPortalDataSilently]);
 
   useCustomerPortalRefresh({
     orderId: resolvedOrderId,
@@ -202,6 +210,10 @@ export function CustomerPortal() {
     return <SecureAccessRequired orderId={orderId} />;
   }
 
+  if (loadError && !data?.order) {
+    return <PortalLoadError onRetry={handleReload} />;
+  }
+
   if (!data?.order) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-blue-50 flex items-center justify-center p-4">
@@ -245,6 +257,8 @@ export function CustomerPortal() {
 
   if (needsApproval) {
     return (
+      <>
+      {refreshFailed && <PortalRefreshNotice onRetry={handleReload} />}
       <OrderApprovalView
         order={order}
         changelog={changelog}
@@ -261,10 +275,13 @@ export function CustomerPortal() {
         }}
         onRejectionSuccess={handleReload}
       />
+      </>
     );
   }
 
   return (
+    <>
+    {refreshFailed && <PortalRefreshNotice onRetry={handleReload} />}
     <RegularPortalView
       order={order}
       orderId={resolvedOrderId ?? orderId!}
@@ -277,5 +294,6 @@ export function CustomerPortal() {
       refreshVersion={refreshVersion}
       suppressRefreshRef={suppressRefreshRef}
     />
+    </>
   );
 }

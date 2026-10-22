@@ -20,6 +20,8 @@ import * as mediaPaths from '../../../../supabase/functions/_shared/evidence/med
 import * as evidenceMedia from '../../../../supabase/functions/_shared/evidence/evidence-media';
 import * as siteOriginHelpers from '../../../../supabase/functions/_shared/siteOrigin';
 import * as returnOriginHelpers from '../../../../supabase/functions/_shared/booking/returnOrigin';
+import * as eeAvailability from '../../../../supabase/functions/_shared/booking/eeOrderItemAvailability';
+import * as bookingAvailability from '../../../../supabase/functions/_shared/booking/bookingAvailability';
 
 export type Row = Record<string, any>;
 
@@ -319,6 +321,8 @@ export function loadFunction(fnDir: string, h: Harness): (req: Request) => Promi
     ...orderMoney,
     ...mediaPaths,
     ...evidenceMedia,
+    checkEventEssentialsAvailabilityWith: eeAvailability.checkEventEssentialsAvailabilityWith,
+    supabaseAvailabilityPort: bookingAvailability.supabaseAvailabilityPort,
     getSiteOrigin: () => siteOriginHelpers.getSiteOrigin({ get: (k: string) => env[k] }),
     configuredOrigins: () => siteOriginHelpers.configuredOrigins({ get: (k: string) => env[k] }),
     resolveReturnOrigin: returnOriginHelpers.resolveReturnOrigin,

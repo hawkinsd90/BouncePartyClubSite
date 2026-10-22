@@ -11,16 +11,23 @@ export interface Payment {
   payment_last4: string | null;
 }
 
+// An inflatable line has unit_id and units; an Event Essentials line has product_id or bundle_id, item_name, pricing_context and
+// component_snapshot, and units is null (get_my_orders).
 export interface OrderItem {
   id: string;
-  unit_id: string;
-  wet_or_dry: string;
+  unit_id: string | null;
+  product_id?: string | null;
+  bundle_id?: string | null;
+  item_name?: string | null;
+  pricing_context?: string | null;
+  component_snapshot?: unknown;
+  wet_or_dry: string | null;
   qty: number;
   unit_price_cents: number;
   units: {
     name: string;
     active?: boolean;
-  };
+  } | null;
 }
 
 export interface Order {

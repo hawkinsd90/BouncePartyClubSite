@@ -123,16 +123,16 @@ export function ReceiptModal({ order, payment, summary, loading, onClose }: Rece
                 <p>
                   <span className="text-gray-600">Name: </span>
                   <span className="font-medium text-gray-900">
-                    {order.customers.first_name} {order.customers.last_name}
+                    {order.customers?.first_name} {order.customers?.last_name}
                   </span>
                 </p>
                 <p>
                   <span className="text-gray-600">Email: </span>
-                  <span className="font-medium text-gray-900">{order.customers.email}</span>
+                  <span className="font-medium text-gray-900">{order.customers?.email}</span>
                 </p>
                 <p>
                   <span className="text-gray-600">Phone: </span>
-                  <span className="font-medium text-gray-900">{order.customers.phone}</span>
+                  <span className="font-medium text-gray-900">{order.customers?.phone}</span>
                 </p>
               </div>
             </div>

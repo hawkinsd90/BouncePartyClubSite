@@ -11,6 +11,7 @@ import type { OrderSummaryDisplay } from '../lib/orders/orderSummaryLoader';
 import { buildOrderSummaryData, formatOrderSummary } from '../lib/orders/orderSummaryLoader';
 import { formatTime } from '../lib/utils';
 import { LoadingSpinner } from '../components/common/LoadingSpinner';
+import { SecureAccessRequired } from '../components/customer-portal/SecureAccessRequired';
 
 export function Receipt() {
   const { orderId, paymentId } = useParams();
@@ -19,6 +20,7 @@ export function Receipt() {
   const [payment, setPayment] = useState<any>(null);
   const [summary, setSummary] = useState<OrderSummaryDisplay | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [accessRequired, setAccessRequired] = useState(false);
 
   useEffect(() => {
     loadReceiptData();
@@ -28,6 +30,7 @@ export function Receipt() {
     try {
       setLoading(true);
       setError(null);
+      setAccessRequired(false);
 
       // One secure read: the server proves this visitor holds a token for (or owns) this order and returns the order,
       // the requested payment and the rows the summary needs.
@@ -58,6 +61,7 @@ export function Receipt() {
       setSummary(formatOrderSummary(summaryData));
     } catch (err: any) {
       console.error('Error loading receipt:', err);
+      if (err instanceof PortalAccessError) setAccessRequired(true);
       setError(err instanceof PortalAccessError ? 'Secure access is required to view this receipt. Open it from your secure order link.' : (err.message || 'Failed to load receipt'));
     } finally {
       setLoading(false);
@@ -74,6 +78,11 @@ export function Receipt() {
         <LoadingSpinner />
       </div>
     );
+  }
+
+  // An old or expired link: offer to email a fresh secure link to the contact on file (same page the portal shows).
+  if (accessRequired && orderId) {
+    return <SecureAccessRequired orderId={orderId} />;
   }
 
   if (error || !order || !payment) {
@@ -197,16 +206,16 @@ export function Receipt() {
               <p>
                 <span className="text-slate-600">Name: </span>
                 <span className="font-medium text-slate-900">
-                  {order.customers.first_name} {order.customers.last_name}
+                  {order.customers?.first_name} {order.customers?.last_name}
                 </span>
               </p>
               <p>
                 <span className="text-slate-600">Email: </span>
-                <span className="font-medium text-slate-900">{order.customers.email}</span>
+                <span className="font-medium text-slate-900">{order.customers?.email}</span>
               </p>
               <p>
                 <span className="text-slate-600">Phone: </span>
-                <span className="font-medium text-slate-900">{order.customers.phone}</span>
+                <span className="font-medium text-slate-900">{order.customers?.phone}</span>
               </p>
             </div>
           </div>

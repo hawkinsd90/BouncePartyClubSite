@@ -8,6 +8,8 @@ export function useOrders(userId: string | undefined) {
   const [activeOrders, setActiveOrders] = useState<Order[]>([]);
   const [pastOrders, setPastOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
+  // The last load failed (offline, server error). Orders already on screen are kept; the page shows a Retry instead of "No Orders Yet".
+  const [loadError, setLoadError] = useState(false);
   const isLoadingRef = useRef(false);
   const pendingRefreshRef = useRef(false);
   const currentUserIdRef = useRef<string | undefined>(undefined);
@@ -27,6 +29,7 @@ export function useOrders(userId: string | undefined) {
     const loadingForUserId = userId;
     currentUserIdRef.current = userId;
     setLoading(true);
+    setLoadError(false);
     try {
       // The orders table is not readable by customers. get_my_orders() derives the caller's identity from their session
       // on the server (no customer id, email or contact id is sent) and returns only the customer-facing fields of their
@@ -35,6 +38,7 @@ export function useOrders(userId: string | undefined) {
 
       if (error) {
         console.error('Error loading orders:', error);
+        if (currentUserIdRef.current === loadingForUserId) setLoadError(true);
         return;
       }
 
@@ -74,6 +78,7 @@ export function useOrders(userId: string | undefined) {
       }
     } catch (error) {
       console.error('Error loading orders:', error);
+      if (currentUserIdRef.current === loadingForUserId) setLoadError(true);
     } finally {
       if (currentUserIdRef.current === loadingForUserId) {
         setLoading(false);
@@ -97,6 +102,7 @@ export function useOrders(userId: string | undefined) {
     activeOrders,
     pastOrders,
     loading,
+    loadError,
     reloadOrders: loadOrders,
   };
 }
