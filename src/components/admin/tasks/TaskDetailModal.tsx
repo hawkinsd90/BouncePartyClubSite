@@ -32,6 +32,8 @@ import { postSessionEdge, postTaskSms, currentAccessToken } from './detail/taskE
 import { getPublicBusinessSettings } from '../../../lib/core/adminSettingsCache';
 import { useAuth } from '../../../contexts/AuthContext';
 import { localDateKey } from '../../../lib/core/localDate';
+import { decideEvidence, isEvidenceRequiredError, parseEvidenceState, type EvidenceKind } from '../../../lib/tasks/evidenceRule';
+import { EvidenceOverrideModal } from './detail/EvidenceOverrideModal';
 import { shouldBlockForStartMileage, START_MILEAGE_PROMPTS, type MileageGatedAction } from '../../../lib/core/startMileage';
 
 export type { Task };
@@ -64,6 +66,9 @@ export function TaskDetailModal({ task, allTasks, onClose, onUpdate, onRefresh, 
   const [mileageLog, setMileageLog] = useState<any>(null);
   // Owner setting. Required until the setting has loaded and says otherwise (fail closed).
   const [requireStartMileage, setRequireStartMileage] = useState(true);
+  // Admin override of the required photo: the open request (its kind and the promise to answer with the reason, or null for "go back").
+  const [overrideRequest, setOverrideRequest] = useState<{ kind: EvidenceKind; answer: (reason: string | null) => void } | null>(null);
+  const [overrideBusy, setOverrideBusy] = useState(false);
   const [completionSummary, setCompletionSummary] = useState<CompletionSummaryData | null>(null);
   const [futureTaskOverride, setFutureTaskOverride] = useState(false);
   const currentStatus = task.taskStatus?.status || 'pending';
@@ -103,6 +108,39 @@ export function TaskDetailModal({ task, allTasks, onClose, onUpdate, onRefresh, 
       showAlert(START_MILEAGE_PROMPTS[action]);
     }
     return false;
+  }
+
+  // The required delivery / pickup photo (the database enforces it too). Returns true when the task may be completed.
+  async function passesEvidenceGate(kind: EvidenceKind): Promise<boolean> {
+    let state = null;
+    try {
+      const taskStatusId = await ensureTaskStatus();
+      const { data, error } = await supabase.rpc('get_task_evidence_state' as never, { p_task_status_id: taskStatusId } as never);
+      // Lookup failed (offline, or the database does not have the rule yet): carry on, the database decides.
+      if (!error) state = parseEvidenceState(data);
+      const decision = decideEvidence(state, kind, isAdmin);
+      if (decision.action === 'proceed') return true;
+      if (decision.action === 'blocked') {
+        showAlert(decision.message);
+        return false;
+      }
+      // Admin: offer the controlled override (reason recorded with name and time).
+      const reason = await new Promise<string | null>((resolve) => setOverrideRequest({ kind, answer: resolve }));
+      if (reason === null) return false;
+      setOverrideBusy(true);
+      const { error: overrideError } = await supabase.rpc('override_task_evidence' as never, { p_task_status_id: taskStatusId, p_reason: reason } as never);
+      if (overrideError) {
+        showAlert('The override could not be recorded: ' + overrideError.message);
+        return false;
+      }
+      return true;
+    } catch (e: any) {
+      showAlert('Could not check the photo requirement: ' + (e?.message ?? 'unknown error'));
+      return false;
+    } finally {
+      setOverrideBusy(false);
+      setOverrideRequest(null);
+    }
   }
 
   useEffect(() => {
@@ -352,6 +390,7 @@ export function TaskDetailModal({ task, allTasks, onClose, onUpdate, onRefresh, 
 
   async function handleDropOffComplete() {
     if (!(await passesStartMileageGate('drop_off'))) return;
+    if (!(await passesEvidenceGate('delivery'))) return;
     const hasPhotos = (task.taskStatus?.deliveryImages?.length ?? 0) > 0;
     const confirmed = await showConfirm(
       hasPhotos
@@ -369,7 +408,7 @@ export function TaskDetailModal({ task, allTasks, onClose, onUpdate, onRefresh, 
       if (!sms.ok) smsWarn = sms.warning;
 
       const { error: taskErr } = await supabase.from('task_status').update({ status: 'completed', completed_time: new Date().toISOString() }).eq('id', taskStatusId);
-      if (taskErr) throw new Error('Failed to update task status: ' + taskErr.message);
+      if (taskErr) throw new Error(isEvidenceRequiredError(taskErr) ? 'A delivery photo is required before this can be completed.' : 'Failed to update task status: ' + taskErr.message);
 
       const { error: wfErr } = await supabase.from('orders').update({ workflow_status: 'setup_completed' }).eq('id', task.orderId);
       if (wfErr) console.warn('workflow_status update failed (setup_completed):', wfErr.message);
@@ -383,6 +422,7 @@ export function TaskDetailModal({ task, allTasks, onClose, onUpdate, onRefresh, 
 
   async function handlePickupComplete() {
     if (!(await passesStartMileageGate('pickup'))) return;
+    if (!(await passesEvidenceGate('pickup'))) return;
 
     const hasBalance = task.balanceDue > 0;
     if (hasBalance) {
@@ -423,7 +463,7 @@ export function TaskDetailModal({ task, allTasks, onClose, onUpdate, onRefresh, 
       if (wfErr) throw new Error('Failed to set pickup workflow status: ' + wfErr.message);
 
       const { error: taskErr } = await supabase.from('task_status').update({ status: 'completed', completed_time: new Date().toISOString() }).eq('id', taskStatusId);
-      if (taskErr) throw new Error('Failed to update task status: ' + taskErr.message);
+      if (taskErr) throw new Error(isEvidenceRequiredError(taskErr) ? 'A pickup photo is required before this can be completed.' : 'Failed to update task status: ' + taskErr.message);
 
       if (smsWarn) {
         showAlert(`Pickup marked complete. Warning: ${smsWarn}.`);
@@ -645,6 +685,14 @@ export function TaskDetailModal({ task, allTasks, onClose, onUpdate, onRefresh, 
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 z-[60] flex items-center justify-center overflow-y-auto">
+      {overrideRequest && (
+        <EvidenceOverrideModal
+          kind={overrideRequest.kind}
+          busy={overrideBusy}
+          onSubmit={(reason) => overrideRequest.answer(reason)}
+          onCancel={() => overrideRequest.answer(null)}
+        />
+      )}
       <div className="bg-white rounded-xl shadow-2xl w-full max-w-2xl my-2 sm:my-4 mx-2 sm:mx-4 max-h-[calc(100vh-16px)] sm:max-h-[95vh] overflow-y-auto flex flex-col">
 
         {/* Sticky header */}
