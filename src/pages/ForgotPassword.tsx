@@ -36,7 +36,7 @@ export function ForgotPassword() {
     return (
       <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-blue-50 flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8">
         <div className="max-w-md w-full">
-          <div className="bg-white rounded-2xl shadow-2xl p-6 sm:p-8 border border-slate-100">
+          <div className="bg-white rounded-2xl shadow-2xl p-4 sm:p-8 border border-slate-100">
             <div className="text-center">
               <div className="inline-flex items-center justify-center w-20 h-20 bg-gradient-to-br from-green-500 to-green-700 rounded-2xl mb-4 shadow-lg">
                 <CheckCircle2 className="w-10 h-10 text-white" />
@@ -45,14 +45,14 @@ export function ForgotPassword() {
                 Check Your Email
               </h2>
               <p className="text-slate-600 mb-6">
-                If an account exists for <span className="font-semibold">{email}</span>, you will receive a password reset link shortly.
+                If an account exists for <span className="font-semibold break-all">{email}</span>, you will receive a password reset link shortly.
               </p>
               <p className="text-sm text-slate-500 mb-6">
                 Check your spam folder if you don't see it in your inbox.
               </p>
               <button
                 onClick={() => navigate('/login')}
-                className="w-full bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white font-bold py-3 px-4 rounded-xl transition-all shadow-lg"
+                className="w-full min-h-[48px] bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white font-bold py-3 px-4 rounded-xl transition-all shadow-lg"
               >
                 Back to Sign In
               </button>
@@ -66,10 +66,10 @@ export function ForgotPassword() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-blue-50 flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8">
       <div className="max-w-md w-full">
-        <div className="bg-white rounded-2xl shadow-2xl p-6 sm:p-8 border border-slate-100">
+        <div className="bg-white rounded-2xl shadow-2xl p-4 sm:p-8 border border-slate-100">
           <button
             onClick={() => navigate('/login')}
-            className="inline-flex items-center text-slate-600 hover:text-slate-900 mb-6 transition-colors"
+            className="inline-flex items-center min-h-[44px] text-slate-600 hover:text-slate-900 mb-4 sm:mb-6 transition-colors"
           >
             <ArrowLeft className="w-4 h-4 mr-2" />
             Back to Sign In
@@ -79,20 +79,22 @@ export function ForgotPassword() {
             <div className="inline-flex items-center justify-center w-20 h-20 bg-gradient-to-br from-blue-500 to-blue-700 rounded-2xl mb-4 shadow-lg">
               <Mail className="w-10 h-10 text-white" />
             </div>
-            <h2 className="text-4xl font-bold text-slate-900 tracking-tight">
+            <h2 className="text-3xl sm:text-4xl font-bold text-slate-900 tracking-tight">
               Forgot Password?
             </h2>
-            <p className="mt-3 text-lg text-slate-600">
+            <p className="mt-3 text-base sm:text-lg text-slate-600">
               No worries, we'll send you reset instructions
             </p>
           </div>
 
           <form onSubmit={handleSubmit} className="space-y-6">
             <div>
-              <label className="block text-sm font-medium text-slate-700 mb-2">
+              <label htmlFor="forgot-email" className="block text-sm font-medium text-slate-700 mb-2">
                 Email Address
               </label>
               <input
+                id="forgot-email"
+                name="email"
                 type="email"
                 autoComplete="email"
                 inputMode="email"

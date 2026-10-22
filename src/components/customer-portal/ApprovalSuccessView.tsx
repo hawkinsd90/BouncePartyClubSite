@@ -15,7 +15,7 @@ export function ApprovalSuccessView({ orderId }: ApprovalSuccessViewProps) {
   return (
     <div className="min-h-screen bg-gradient-to-br from-green-50 to-emerald-50 flex items-center justify-center py-12 px-4">
       <div className="max-w-2xl w-full bg-white rounded-xl shadow-2xl overflow-hidden border-4 border-green-500">
-        <div className="bg-white px-8 py-6 text-center border-b-4 border-green-500">
+        <div className="bg-white px-4 sm:px-8 py-6 text-center border-b-4 border-green-500">
           <button onClick={() => navigate('/')} className="focus:outline-none">
             <img
               src="/bounce party club logo.png"
@@ -38,16 +38,16 @@ export function ApprovalSuccessView({ orderId }: ApprovalSuccessViewProps) {
               />
             </svg>
           </div>
-          <h1 className="text-3xl font-bold text-green-900">Approval Received!</h1>
+          <h1 className="text-2xl sm:text-3xl font-bold text-green-900">Approval Received!</h1>
         </div>
 
-        <div className="px-8 py-8 text-center">
+        <div className="px-4 sm:px-8 py-8 text-center">
           <p className="text-lg text-slate-700 mb-6">
             Thank you for approving the changes to your order{' '}
             <strong>#{formatOrderId(orderId)}</strong>.
           </p>
 
-          <div className="bg-blue-50 border-2 border-blue-300 rounded-lg p-6 mb-6">
+          <div className="bg-blue-50 border-2 border-blue-300 rounded-lg p-4 sm:p-6 mb-6">
             <h3 className="font-bold text-blue-900 mb-2">What happens next?</h3>
             <ul className="text-left text-blue-800 space-y-2 text-sm">
               <li>
@@ -65,10 +65,10 @@ export function ApprovalSuccessView({ orderId }: ApprovalSuccessViewProps) {
             You can safely close this window. We'll be in touch soon!
           </p>
 
-          <div className="flex gap-4 justify-center">
+          <div className="flex flex-col sm:flex-row gap-3 sm:gap-4 justify-center">
             <button
               onClick={() => navigate('/')}
-              className="flex items-center gap-2 px-6 py-3 bg-slate-600 hover:bg-slate-700 text-white rounded-lg font-medium transition-colors"
+              className="flex items-center justify-center gap-2 px-6 py-3 min-h-[48px] bg-slate-600 hover:bg-slate-700 text-white rounded-lg font-medium transition-colors"
             >
               <Home className="w-5 h-5" />
               Return Home
@@ -78,7 +78,7 @@ export function ApprovalSuccessView({ orderId }: ApprovalSuccessViewProps) {
                 // Force a full page reload to ensure portal reloads with new data
                 window.location.href = portalPathForCurrentVisitor(orderId);
               }}
-              className="flex items-center gap-2 px-6 py-3 bg-green-600 hover:bg-green-700 text-white rounded-lg font-medium transition-colors"
+              className="flex items-center justify-center gap-2 px-6 py-3 min-h-[48px] bg-green-600 hover:bg-green-700 text-white rounded-lg font-medium transition-colors"
             >
               <FileText className="w-5 h-5" />
               View Order Details

@@ -18,7 +18,7 @@ export function ConsentSection({
 
   return (
     <>
-      <div className="bg-white rounded-xl shadow-md p-6">
+      <div className="bg-white rounded-xl shadow-md p-4 sm:p-6">
         <h2 className="text-2xl font-bold text-slate-900 mb-6 flex items-center">
           <Shield className="w-6 h-6 mr-2 text-green-600" />
           Payment Authorization

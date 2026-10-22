@@ -155,7 +155,7 @@ export function LotPicturesTab({ orderId, orderStatus, pictures, invoiceLinkToke
   return (
     <div className="space-y-6">
       {/* Instructions */}
-      <div className="bg-blue-50 border border-blue-200 rounded-lg p-6">
+      <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 sm:p-6">
         <div className="flex items-start gap-3">
           <ImageIcon className="w-6 h-6 text-blue-600 flex-shrink-0 mt-0.5" />
           <div>
@@ -183,7 +183,7 @@ export function LotPicturesTab({ orderId, orderStatus, pictures, invoiceLinkToke
       )}
 
       {/* Upload Section */}
-      <div className="bg-white border-2 border-dashed border-slate-300 rounded-lg p-8 text-center hover:border-blue-400 transition-colors">
+      <div className="bg-white border-2 border-dashed border-slate-300 rounded-lg p-4 sm:p-8 text-center hover:border-blue-400 transition-colors">
         <input
           type="file"
           id="lot-pictures-upload"

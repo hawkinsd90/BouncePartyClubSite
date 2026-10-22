@@ -1,9 +1,11 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import { SafeStorage } from '../lib/core/safeStorage';
 import { trackEvent } from '../lib/core/siteEvents';
 import { notifyWarning } from '../lib/toasts';
+import { stepIndex, swipeDirection } from '../lib/core/swipe';
+import { useBodyScrollLock } from '../hooks/core/useBodyScrollLock';
 import {
   Users,
   Maximize,
@@ -42,6 +44,10 @@ export function UnitDetail() {
   const [wetOrDry, setWetOrDry] = useState<'dry' | 'water'>('dry');
   const [selectedImageIndex, setSelectedImageIndex] = useState(0);
   const [isImageModalOpen, setIsImageModalOpen] = useState(false);
+  // A failed load used to leave a blank page; it is shown, with a way to try again.
+  const [loadError, setLoadError] = useState(false);
+  const touchStart = useRef<{ x: number; y: number } | null>(null);
+  useBodyScrollLock(isImageModalOpen);
 
   useEffect(() => {
     if (slug) {
@@ -49,7 +55,19 @@ export function UnitDetail() {
     }
   }, [slug]);
 
+  // Escape closes the photo viewer.
+  useEffect(() => {
+    if (!isImageModalOpen) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setIsImageModalOpen(false);
+    };
+    document.addEventListener('keydown', onKey);
+    return () => document.removeEventListener('keydown', onKey);
+  }, [isImageModalOpen]);
+
   async function loadUnit(unitSlug: string) {
+    setLoadError(false);
+    setLoading(true);
     try {
       const { data: unitData, error: unitError } = await supabase
         .from('units')
@@ -82,6 +100,7 @@ export function UnitDetail() {
       }
     } catch (error) {
       console.error('Error loading unit:', error);
+      setLoadError(true);
     } finally {
       setLoading(false);
     }
@@ -94,6 +113,21 @@ export function UnitDetail() {
         <div className="text-center">
           <div className="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
           <p className="mt-4 text-slate-600 font-medium">Loading unit details...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (loadError) {
+    return (
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
+        <div role="alert" className="max-w-md mx-auto bg-red-50 border-2 border-red-300 rounded-2xl p-6 text-center">
+          <h1 className="text-xl font-bold text-red-900 mb-2">We could not load this inflatable</h1>
+          <p className="text-sm text-red-800 mb-5">Check your connection and try again.</p>
+          <div className="flex flex-col sm:flex-row gap-3 justify-center">
+            <button type="button" onClick={() => slug && loadUnit(slug)} className="min-h-[48px] px-6 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-xl">Try again</button>
+            <button type="button" onClick={() => navigate('/catalog')} className="min-h-[48px] px-6 bg-white border border-slate-300 text-slate-700 font-semibold rounded-xl">Back to Catalog</button>
+          </div>
         </div>
       </div>
     );
@@ -127,7 +161,7 @@ export function UnitDetail() {
                       setWetOrDry('dry');
                       setSelectedImageIndex(0);
                     }}
-                    className={`flex flex-col items-center justify-center p-6 rounded-xl border-2 transition-all ${
+                    className={`flex flex-col items-center justify-center p-4 sm:p-6 min-h-[48px] rounded-xl border-2 transition-all ${
                       wetOrDry === 'dry'
                         ? 'bg-blue-50 border-blue-600 shadow-md'
                         : 'bg-white border-slate-300 hover:border-blue-400'
@@ -143,7 +177,7 @@ export function UnitDetail() {
                       setWetOrDry('water');
                       setSelectedImageIndex(0);
                     }}
-                    className={`flex flex-col items-center justify-center p-6 rounded-xl border-2 transition-all ${
+                    className={`flex flex-col items-center justify-center p-4 sm:p-6 min-h-[48px] rounded-xl border-2 transition-all ${
                       wetOrDry === 'water'
                         ? 'bg-blue-50 border-blue-600 shadow-md'
                         : 'bg-white border-slate-300 hover:border-blue-400'
@@ -224,9 +258,9 @@ export function UnitDetail() {
           </div>
 
           <div>
-            <div className="flex items-start justify-between mb-6">
-              <div>
-                <h1 className="text-4xl sm:text-5xl lg:text-6xl font-bold text-slate-900 mb-3 leading-tight tracking-tight">
+            <div className="flex items-start justify-between gap-3 mb-6">
+              <div className="min-w-0">
+                <h1 className="text-3xl sm:text-5xl lg:text-6xl font-bold text-slate-900 mb-3 leading-tight tracking-tight break-words">
                   {unit.name}
                 </h1>
                 <p className="text-lg sm:text-xl text-slate-600 font-medium">
@@ -234,7 +268,7 @@ export function UnitDetail() {
                 </p>
               </div>
               {((unit.types || []).includes('Combo') || (unit.types || []).includes('Water Slide')) && (
-                <span className="bg-gradient-to-r from-cyan-100 to-cyan-50 text-cyan-800 text-sm font-bold px-4 py-2 rounded-xl border-2 border-cyan-200 shadow-sm">
+                <span className="flex-shrink-0 bg-gradient-to-r from-cyan-100 to-cyan-50 text-cyan-800 text-xs sm:text-sm font-bold px-3 sm:px-4 py-2 rounded-xl border-2 border-cyan-200 shadow-sm">
                   WET/DRY
                 </span>
               )}
@@ -287,38 +321,38 @@ export function UnitDetail() {
             </div>
 
             <div className="grid grid-cols-2 gap-4 sm:gap-5 mb-8">
-              <div className="bg-white border-2 border-slate-200 rounded-2xl p-5 shadow-md hover:shadow-lg transition-shadow">
+              <div className="bg-white border-2 border-slate-200 rounded-2xl p-4 sm:p-5 shadow-md hover:shadow-lg transition-shadow min-w-0">
                 <div className="flex items-center text-slate-600 mb-2">
                   <Users className="w-5 h-5 mr-2 text-blue-600" />
                   <span className="text-sm font-bold">Capacity</span>
                 </div>
-                <div className="text-2xl sm:text-3xl font-bold text-slate-900">{unit.capacity} kids</div>
+                <div className="text-xl sm:text-3xl font-bold text-slate-900 break-words">{unit.capacity} kids</div>
               </div>
 
-              <div className="bg-white border-2 border-slate-200 rounded-2xl p-5 shadow-md hover:shadow-lg transition-shadow">
+              <div className="bg-white border-2 border-slate-200 rounded-2xl p-4 sm:p-5 shadow-md hover:shadow-lg transition-shadow min-w-0">
                 <div className="flex items-center text-slate-600 mb-2">
                   <Maximize className="w-5 h-5 mr-2 text-blue-600" />
                   <span className="text-sm font-bold">Dimensions</span>
                 </div>
-                <div className="text-2xl sm:text-3xl font-bold text-slate-900">{unit.dimensions}</div>
+                <div className="text-xl sm:text-3xl font-bold text-slate-900 break-words">{unit.dimensions}</div>
               </div>
 
-              <div className="bg-white border-2 border-slate-200 rounded-2xl p-5 shadow-md hover:shadow-lg transition-shadow">
+              <div className="bg-white border-2 border-slate-200 rounded-2xl p-4 sm:p-5 shadow-md hover:shadow-lg transition-shadow min-w-0">
                 <div className="flex items-center text-slate-600 mb-2">
                   <Zap className="w-5 h-5 mr-2 text-blue-600" />
                   <span className="text-sm font-bold">Space Needed</span>
                 </div>
-                <div className="text-2xl sm:text-3xl font-bold text-slate-900">
+                <div className="text-xl sm:text-3xl font-bold text-slate-900 break-words">
                   {unit.footprint_sqft} sq ft
                 </div>
               </div>
 
-              <div className="bg-white border-2 border-slate-200 rounded-2xl p-5 shadow-md hover:shadow-lg transition-shadow">
+              <div className="bg-white border-2 border-slate-200 rounded-2xl p-4 sm:p-5 shadow-md hover:shadow-lg transition-shadow min-w-0">
                 <div className="flex items-center text-slate-600 mb-2">
                   <Zap className="w-5 h-5 mr-2 text-blue-600" />
                   <span className="text-sm font-bold">Power</span>
                 </div>
-                <div className="text-2xl sm:text-3xl font-bold text-slate-900">
+                <div className="text-xl sm:text-3xl font-bold text-slate-900 break-words">
                   {unit.power_circuits} outlet{unit.power_circuits > 1 ? 's' : ''}
                 </div>
               </div>
@@ -422,17 +456,34 @@ export function UnitDetail() {
             className="fixed inset-0 bg-black bg-opacity-90 z-50 flex items-center justify-center p-4"
             onClick={() => setIsImageModalOpen(false)}
           >
-            <div className="relative max-w-7xl w-full h-full flex flex-col">
+            <div role="dialog" aria-modal="true" aria-label="Photos" className="relative max-w-7xl w-full h-full flex flex-col">
               <button
+                type="button"
+                aria-label="Close photos"
                 onClick={() => setIsImageModalOpen(false)}
-                className="absolute top-4 right-4 z-10 bg-white hover:bg-slate-100 text-slate-900 rounded-full p-3 shadow-lg transition-all"
+                className="absolute top-4 right-4 z-10 bg-white hover:bg-slate-100 text-slate-900 rounded-full p-3 min-h-[48px] min-w-[48px] shadow-lg transition-all"
               >
                 <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
                 </svg>
               </button>
 
-              <div className="flex-1 flex items-center justify-center" onClick={(e) => e.stopPropagation()}>
+              <div
+                className="flex-1 min-h-0 flex items-center justify-center"
+                onClick={(e) => e.stopPropagation()}
+                onTouchStart={(e) => {
+                  const t = e.touches[0];
+                  touchStart.current = t ? { x: t.clientX, y: t.clientY } : null;
+                }}
+                onTouchEnd={(e) => {
+                  const t = e.changedTouches[0];
+                  const start = touchStart.current;
+                  touchStart.current = null;
+                  if (!t || !start) return;
+                  const dir = swipeDirection(start.x, start.y, t.clientX, t.clientY);
+                  if (dir) setSelectedImageIndex((i) => stepIndex(i, dir, filteredMedia.length));
+                }}
+              >
                 {displayImage && (
                   <img
                     src={displayImage.url}
@@ -447,6 +498,8 @@ export function UnitDetail() {
                   {filteredMedia.map((media: any, idx: number) => (
                     <button
                       key={idx}
+                      type="button"
+                      aria-label={`Show photo ${idx + 1}`}
                       onClick={() => setSelectedImageIndex(idx)}
                       className={`flex-shrink-0 w-20 h-20 rounded-lg overflow-hidden transition-all ${
                         selectedImageIndex === idx

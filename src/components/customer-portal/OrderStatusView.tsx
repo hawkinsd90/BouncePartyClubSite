@@ -44,7 +44,7 @@ export function OrderStatusView({ order }: OrderStatusViewProps) {
   return (
     <div className="min-h-screen bg-slate-50 flex items-center justify-center py-12 px-4">
       <div className="max-w-2xl w-full bg-white rounded-xl shadow-lg overflow-hidden border-2 border-slate-300">
-        <div className="bg-gradient-to-r from-blue-600 to-cyan-600 px-8 py-6 text-center">
+        <div className="bg-gradient-to-r from-blue-600 to-cyan-600 px-4 sm:px-8 py-6 text-center">
           <button onClick={() => navigate('/')} className="focus:outline-none">
             <img
               src="/bounce party club logo.png"
@@ -58,8 +58,8 @@ export function OrderStatusView({ order }: OrderStatusViewProps) {
           </p>
         </div>
 
-        <div className="px-8 py-8 text-center">
-          <div className="bg-blue-50 border-2 border-blue-300 rounded-lg p-6 mb-6">
+        <div className="px-4 sm:px-8 py-8 text-center">
+          <div className="bg-blue-50 border-2 border-blue-300 rounded-lg p-4 sm:p-6 mb-6">
             <h2 className="text-xl font-bold text-blue-900 mb-3">
               {statusInfo.title}
             </h2>

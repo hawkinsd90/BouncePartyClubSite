@@ -284,7 +284,7 @@ export function Contact() {
                 </div>
 
                 {/* Event address */}
-                <div className="border-2 border-slate-200 rounded-xl p-6 bg-slate-50">
+                <div className="border-2 border-slate-200 rounded-xl p-4 sm:p-6 bg-slate-50">
                   <h3 className="text-lg font-bold text-slate-900 mb-4">Event Address</h3>
                   <div className="space-y-4">
                     <div>
@@ -429,7 +429,7 @@ export function Contact() {
           </div>
 
           <div className="space-y-6">
-            <div className="bg-gradient-to-br from-blue-50 to-blue-100 border-2 border-blue-200 rounded-2xl p-6 shadow-lg">
+            <div className="bg-gradient-to-br from-blue-50 to-blue-100 border-2 border-blue-200 rounded-2xl p-4 sm:p-6 shadow-lg">
               <h3 className="text-xl font-bold text-slate-900 mb-6 tracking-tight">Quick Contact</h3>
 
               <div className="space-y-4">
@@ -507,7 +507,7 @@ export function Contact() {
               </div>
             </div>
 
-            <div className="bg-gradient-to-br from-slate-50 to-slate-100 border-2 border-slate-200 rounded-2xl p-6 shadow-lg">
+            <div className="bg-gradient-to-br from-slate-50 to-slate-100 border-2 border-slate-200 rounded-2xl p-4 sm:p-6 shadow-lg">
               <h3 className="text-xl font-bold text-slate-900 mb-4 tracking-tight">Common Requests</h3>
               <ul className="space-y-2 text-sm text-slate-600">
                 <li className="flex items-start">

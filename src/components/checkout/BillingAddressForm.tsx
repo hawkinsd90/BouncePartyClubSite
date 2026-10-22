@@ -37,13 +37,13 @@ export function BillingAddressForm({
   };
 
   return (
-    <div className="bg-white rounded-xl shadow-md p-6">
-      <h2 className="text-2xl font-bold text-slate-900 mb-6 flex items-center">
+    <div className="bg-white rounded-xl shadow-md p-4 sm:p-6">
+      <h2 className="text-xl sm:text-2xl font-bold text-slate-900 mb-4 sm:mb-6 flex items-center">
         <MapPin className="w-6 h-6 mr-2 text-blue-600" />
         Billing Address
       </h2>
 
-      <label className="flex items-center mb-4 cursor-pointer">
+      <label className="flex items-center mb-4 cursor-pointer min-h-[44px]">
         <input
           type="checkbox"
           checked={billingSameAsEvent}
@@ -58,10 +58,13 @@ export function BillingAddressForm({
       {!billingSameAsEvent && (
         <div className="space-y-4">
           <div>
-            <label className="block text-sm font-medium text-slate-700 mb-2">
+            <label htmlFor="billing-line1" className="block text-sm font-medium text-slate-700 mb-2">
               Street Address *
             </label>
             <input
+              id="billing-line1"
+              name="billing-line1"
+              autoComplete="billing address-line1"
               type="text"
               required
               value={billingAddress.line1}
@@ -72,10 +75,13 @@ export function BillingAddressForm({
             />
           </div>
           <div>
-            <label className="block text-sm font-medium text-slate-700 mb-2">
+            <label htmlFor="billing-line2" className="block text-sm font-medium text-slate-700 mb-2">
               Apt/Suite (Optional)
             </label>
             <input
+              id="billing-line2"
+              name="billing-line2"
+              autoComplete="billing address-line2"
               type="text"
               value={billingAddress.line2}
               onChange={(e) =>
@@ -86,10 +92,13 @@ export function BillingAddressForm({
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
             <div className="sm:col-span-1">
-              <label className="block text-sm font-medium text-slate-700 mb-2">
+              <label htmlFor="billing-city" className="block text-sm font-medium text-slate-700 mb-2">
                 City *
               </label>
               <input
+                id="billing-city"
+                name="billing-city"
+                autoComplete="billing address-level2"
                 type="text"
                 required
                 value={billingAddress.city}
@@ -100,10 +109,13 @@ export function BillingAddressForm({
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-slate-700 mb-2">
+              <label htmlFor="billing-state" className="block text-sm font-medium text-slate-700 mb-2">
                 State *
               </label>
               <input
+                id="billing-state"
+                name="billing-state"
+                autoComplete="billing address-level1" autoCapitalize="characters"
                 type="text"
                 required
                 value={billingAddress.state}
@@ -114,10 +126,13 @@ export function BillingAddressForm({
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-slate-700 mb-2">
+              <label htmlFor="billing-zip" className="block text-sm font-medium text-slate-700 mb-2">
                 ZIP *
               </label>
               <input
+                id="billing-zip"
+                name="billing-zip"
+                autoComplete="billing postal-code" inputMode="numeric"
                 type="text"
                 required
                 value={billingAddress.zip}

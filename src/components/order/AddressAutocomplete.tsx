@@ -248,6 +248,10 @@ export function AddressAutocomplete({
         id={id}
         ref={inputRef}
         type="text"
+        // The suggestions come from the address search below; the browser's own saved-address list must not cover them.
+        autoComplete="off"
+        autoCorrect="off"
+        spellCheck={false}
         value={value}
         onChange={handleChange}
         onFocus={handleFocus}

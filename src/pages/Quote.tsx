@@ -55,6 +55,8 @@ export function Quote() {
   const [showBottomToast, setShowBottomToast] = useState(false);
   const [debugInfo, setDebugInfo] = useState<DebugInfo | null>(null);
   const [sameDayPickupBlocked, setSameDayPickupBlocked] = useState(false);
+  // True while Continue re-checks availability: the button says so and a second tap is ignored.
+  const [submitting, setSubmitting] = useState(false);
 
   // Debug mode enabled via ?debug=1
   const debugMode = searchParams.get('debug') === '1' || import.meta.env.DEV;
@@ -305,8 +307,7 @@ export function Quote() {
       // Calculate absolute position accounting for sticky header
       const elementRect = element.getBoundingClientRect();
       const absoluteTop = elementRect.top + window.scrollY;
-      const headerOffset = 100; // 80px header + 20px padding
-      const targetScrollTop = absoluteTop - headerOffset;
+      const targetScrollTop = absoluteTop - HEADER_OFFSET_PX;
 
       debug.elementTop = absoluteTop;
       debug.scrollTop = targetScrollTop;
@@ -379,8 +380,7 @@ export function Quote() {
       // Calculate absolute position accounting for sticky header
       const elementRect = element.getBoundingClientRect();
       const absoluteTop = elementRect.top + window.scrollY;
-      const headerOffset = 100; // 80px header + 20px padding
-      const targetScrollTop = absoluteTop - headerOffset;
+      const targetScrollTop = absoluteTop - HEADER_OFFSET_PX;
 
       debug.elementTop = absoluteTop;
       debug.scrollTop = targetScrollTop;
@@ -443,6 +443,7 @@ export function Quote() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     e.stopPropagation();
+    if (submitting) return;
 
     const gate = evaluateQuoteSubmitGate({
       cart,
@@ -460,7 +461,13 @@ export function Quote() {
       return;
     }
 
-    const availabilityResult = await checkAllCartAvailability(formData.event_date, formData.event_end_date);
+    setSubmitting(true);
+    let availabilityResult: Awaited<ReturnType<typeof checkAllCartAvailability>>;
+    try {
+      availabilityResult = await checkAllCartAvailability(formData.event_date, formData.event_end_date);
+    } finally {
+      setSubmitting(false);
+    }
 
     const recheck = evaluateAvailabilityRecheck(availabilityResult);
     if (!recheck.ok) {
@@ -476,7 +483,7 @@ export function Quote() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 to-white">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10 sm:py-14 lg:py-16">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10 sm:py-14 lg:py-16 pb-28 lg:pb-16">
         {validationError && (
           <ValidationErrorBanner
             message={validationError}
@@ -497,7 +504,7 @@ export function Quote() {
 
         {/* Bottom Toast Fallback for iPhone */}
         {showBottomToast && validationError && (
-          <div className="fixed bottom-4 left-4 right-4 z-[9998] bg-red-600 text-white rounded-lg shadow-2xl p-4 flex items-start gap-3 animate-slide-up">
+          <div role="alert" aria-live="assertive" className="fixed bottom-[calc(5.5rem+env(safe-area-inset-bottom))] lg:bottom-4 left-4 right-4 z-[9998] bg-red-600 text-white rounded-lg shadow-2xl p-4 flex items-start gap-3 animate-slide-up">
             <AlertCircle className="w-5 h-5 flex-shrink-0 mt-0.5" />
             <div className="flex-1 min-w-0">
               <p className="text-sm font-bold break-words">{validationError}</p>
@@ -508,7 +515,7 @@ export function Quote() {
                 setValidationError(null);
                 setValidationErrorFieldId(null);
               }}
-              className="text-white hover:bg-red-700 rounded-lg p-1.5 transition-colors flex-shrink-0"
+              className="text-white hover:bg-red-700 rounded-lg p-2.5 min-h-[44px] min-w-[44px] flex items-center justify-center transition-colors flex-shrink-0"
               aria-label="Dismiss error"
             >
               <X className="w-4 h-4" />
@@ -604,7 +611,7 @@ export function Quote() {
             </div>
 
             <div className="lg:col-span-1">
-              <QuoteSummarySection cart={cart} priceBreakdown={priceBreakdown} totals={quoteTotals} pricingConfigError={pricingConfigError} isCalculating={cart.length > 0 && !priceBreakdown} />
+              <QuoteSummarySection cart={cart} priceBreakdown={priceBreakdown} totals={quoteTotals} pricingConfigError={pricingConfigError} isCalculating={cart.length > 0 && !priceBreakdown} submitting={submitting} />
             </div>
           </div>
         </form>

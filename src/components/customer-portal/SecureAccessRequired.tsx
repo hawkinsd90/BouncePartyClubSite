@@ -24,7 +24,7 @@ export function SecureAccessRequired({ orderId }: { orderId: string }) {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-blue-50 flex items-center justify-center p-4">
-      <div className="text-center bg-white rounded-2xl shadow-2xl p-10 max-w-md border-2 border-slate-100">
+      <div className="text-center bg-white rounded-2xl shadow-2xl p-6 sm:p-10 max-w-md border-2 border-slate-100">
         <div className="w-20 h-20 bg-gradient-to-br from-blue-400 to-blue-600 rounded-2xl flex items-center justify-center mx-auto mb-6 shadow-lg">
           <ShieldCheck className="w-12 h-12 text-white" />
         </div>

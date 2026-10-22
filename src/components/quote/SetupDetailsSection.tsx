@@ -21,7 +21,7 @@ export function SetupDetailsSection({ formData, onFormDataChange, generatorState
   const directQty = generatorState.directQty;
 
   return (
-    <div className="bg-white rounded-xl shadow-md p-6">
+    <div className="bg-white rounded-xl shadow-md p-4 sm:p-6">
       <h2 className="text-2xl font-bold text-slate-900 mb-6">Setup Details</h2>
 
       {hasInflatables && (
@@ -87,7 +87,7 @@ export function SetupDetailsSection({ formData, onFormDataChange, generatorState
       </div>
       )}
 
-      <div className="p-6 bg-amber-50 border-2 border-amber-400 rounded-xl">
+      <div className="p-4 sm:p-6 bg-amber-50 border-2 border-amber-400 rounded-xl">
         <div className="flex items-center gap-3 mb-4">
           <div className="w-12 h-12 bg-amber-500 rounded-full flex items-center justify-center flex-shrink-0">
             <Zap className="w-7 h-7 text-white" />

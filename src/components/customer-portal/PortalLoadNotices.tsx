@@ -6,7 +6,7 @@ import { PhoneLink } from '../shared/PhoneLink';
 export function PortalLoadError({ onRetry, retrying }: { onRetry: () => void; retrying?: boolean }) {
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-blue-50 flex items-center justify-center p-4">
-      <div className="text-center bg-white rounded-2xl shadow-2xl p-10 max-w-md border-2 border-slate-100" role="alert">
+      <div className="text-center bg-white rounded-2xl shadow-2xl p-6 sm:p-10 max-w-md border-2 border-slate-100" role="alert">
         <div className="w-20 h-20 bg-gradient-to-br from-amber-400 to-amber-600 rounded-2xl flex items-center justify-center mx-auto mb-6 shadow-lg">
           <AlertCircle className="w-12 h-12 text-white" />
         </div>

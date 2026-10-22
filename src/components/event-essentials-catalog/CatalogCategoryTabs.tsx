@@ -17,7 +17,7 @@ export function CatalogCategoryTabs({ visibleCategories, selectedCategoryKeys, o
           key="all"
           type="button"
           onClick={() => onToggle(null)}
-          className={`flex items-center gap-1.5 px-4 py-2 rounded-full text-sm font-semibold transition-colors ${
+          className={`flex items-center gap-1.5 px-4 min-h-[44px] py-2 rounded-full text-sm font-semibold transition-colors ${
             selectedCategoryKeys.length === 0
               ? 'bg-blue-600 text-white'
               : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
@@ -33,7 +33,7 @@ export function CatalogCategoryTabs({ visibleCategories, selectedCategoryKeys, o
               key={category.id}
               type="button"
               onClick={() => onToggle(category)}
-              className={`px-4 py-2 rounded-full text-sm font-semibold transition-colors ${
+              className={`px-4 min-h-[44px] py-2 rounded-full text-sm font-semibold transition-colors ${
                 isSelected
                   ? 'bg-blue-600 text-white'
                   : 'bg-slate-100 text-slate-700 hover:bg-slate-200'

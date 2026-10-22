@@ -15,8 +15,11 @@ function getNotificationContainer() {
     notificationContainer = document.createElement('div');
     notificationContainer.id = 'notification-container';
     notificationContainer.style.position = 'fixed';
-    notificationContainer.style.top = '20px';
-    notificationContainer.style.right = '20px';
+    // Below the site header (a toast used to sit on top of the menu button and cart on a phone) and never wider than the screen.
+    notificationContainer.style.top = 'calc(var(--site-header-height, 4rem) + 0.5rem)';
+    notificationContainer.style.right = '12px';
+    notificationContainer.style.left = '12px';
+    notificationContainer.style.alignItems = 'flex-end';
     notificationContainer.style.zIndex = '9999';
     notificationContainer.style.display = 'flex';
     notificationContainer.style.flexDirection = 'column';
@@ -61,16 +64,17 @@ function Notification({
 
   return (
     <div
+      role={type === 'error' || type === 'warning' ? 'alert' : 'status'}
       className={`flex items-start gap-3 px-4 py-3 rounded-lg border shadow-lg max-w-md pointer-events-auto animate-slide-in ${colors[type]}`}
       style={{
         animation: 'slideIn 0.3s ease-out',
       }}
     >
       <Icon className={`w-5 h-5 flex-shrink-0 mt-0.5 ${iconColors[type]}`} />
-      <p className="flex-1 text-sm font-medium">{message}</p>
+      <p className="flex-1 min-w-0 text-sm font-medium break-words">{message}</p>
       <button
         onClick={onClose}
-        className="flex-shrink-0 hover:opacity-70 transition-opacity"
+        className="flex-shrink-0 p-2 -m-2 hover:opacity-70 transition-opacity"
         aria-label="Close notification"
       >
         <X className="w-4 h-4" />
@@ -174,7 +178,7 @@ export function showConfirm(
       const iconColor = type === 'warning' ? 'text-yellow-600' : 'text-blue-600';
 
       return (
-        <div className="bg-white rounded-lg shadow-xl p-6 max-w-md mx-4 animate-scale-in">
+        <div className="bg-white rounded-lg shadow-xl p-4 sm:p-6 max-w-md mx-4 max-h-[90dvh] overflow-y-auto animate-scale-in">
           <div className="flex items-start gap-3 mb-4">
             <Icon className={`w-6 h-6 flex-shrink-0 ${iconColor}`} />
             <p className="text-gray-800 text-base">{message}</p>
@@ -182,13 +186,13 @@ export function showConfirm(
           <div className="flex gap-3 justify-end">
             <button
               onClick={() => handleClose(false)}
-              className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors"
+              className="px-4 py-2 min-h-[44px] text-sm font-medium text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors"
             >
               {cancelText}
             </button>
             <button
               onClick={() => handleClose(true)}
-              className="px-4 py-2 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors"
+              className="px-4 py-2 min-h-[44px] text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors"
             >
               {confirmText}
             </button>

@@ -55,6 +55,7 @@ import type {
 import type { QuoteFormData } from '../hooks/booking/useQuoteForm';
 import { EventDatesCard } from '../components/event-essentials-catalog/EventDatesCard';
 import { CatalogCategoryTabs } from '../components/event-essentials-catalog/CatalogCategoryTabs';
+import { CatalogMobileCartBar } from '../components/event-essentials-catalog/CatalogMobileCartBar';
 import { CatalogCartSidebar } from '../components/event-essentials-catalog/CatalogCartSidebar';
 import { CatalogLoadingView, CatalogErrorView, CatalogEmptyProducts } from '../components/event-essentials-catalog/CatalogStateViews';
 import { ProductImage } from '../components/event-essentials-catalog/ProductImage';
@@ -702,7 +703,7 @@ export function EventEssentialsCatalog() {
 
   return (
     <div className="min-h-screen bg-slate-50">
-      <div className="max-w-7xl mx-auto px-4 py-8 sm:py-12">
+      <div className={`max-w-7xl mx-auto px-4 py-8 sm:py-12 ${eventEssentialsCartItems.length > 0 ? 'pb-28 lg:pb-12' : ''}`}>
         <div className="mb-8">
           <h1 className="text-3xl sm:text-4xl font-bold text-slate-900 mb-2">Party Add-Ons</h1>
           <p className="text-slate-600 text-sm sm:text-base">
@@ -822,12 +823,12 @@ export function EventEssentialsCatalog() {
                       />
 
                       {/* Quantity selector and Add button */}
-                      <div className="flex items-center justify-between gap-3 mt-auto">
+                      <div className="flex flex-wrap items-center justify-between gap-3 mt-auto">
                         <div className="flex items-center gap-2">
                           <button
                             type="button"
                             onClick={() => decrementQty(key)}
-                            className="w-8 h-8 rounded-lg border border-slate-300 flex items-center justify-center text-slate-700 hover:bg-slate-100 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                            className="w-11 h-11 rounded-lg border border-slate-300 flex items-center justify-center text-slate-700 hover:bg-slate-100 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                             disabled={!datesValid || qty <= 0}
                           >
                             <Minus className="w-4 h-4" />
@@ -839,12 +840,12 @@ export function EventEssentialsCatalog() {
                             value={qty}
                             onChange={(e) => setQty(key, e.target.value, maxAddable)}
                             disabled={!datesValid || hasAvailError}
-                            className="w-12 text-center font-semibold text-slate-900 text-sm border border-slate-300 rounded-lg py-1 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"
+                            inputMode="numeric" className="w-14 min-h-[44px] text-center font-semibold text-slate-900 text-sm border border-slate-300 rounded-lg py-1 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"
                           />
                           <button
                             type="button"
                             onClick={() => incrementQty(key, maxAddable)}
-                            className="w-8 h-8 rounded-lg border border-slate-300 flex items-center justify-center text-slate-700 hover:bg-slate-100 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                            className="w-11 h-11 rounded-lg border border-slate-300 flex items-center justify-center text-slate-700 hover:bg-slate-100 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                             disabled={!datesValid || hasAvailError || qty >= maxAddable}
                           >
                             <Plus className="w-4 h-4" />
@@ -854,7 +855,7 @@ export function EventEssentialsCatalog() {
                           type="button"
                           onClick={() => handleAddProduct(product)}
                           disabled={!canAdd}
-                          className="inline-flex items-center justify-center gap-1.5 px-3 py-2 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-lg text-sm transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                          className="inline-flex items-center justify-center gap-1.5 px-4 min-h-[44px] py-2 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-lg text-sm transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                         >
                           <ShoppingCart className="w-4 h-4" />
                           {datesValid ? 'Add' : 'Select dates to add'}
@@ -957,7 +958,7 @@ export function EventEssentialsCatalog() {
                             <button
                               type="button"
                               onClick={() => decrementQty(key)}
-                              className="w-8 h-8 rounded-lg border border-slate-300 flex items-center justify-center text-slate-700 hover:bg-slate-100 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                              className="w-11 h-11 rounded-lg border border-slate-300 flex items-center justify-center text-slate-700 hover:bg-slate-100 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                               disabled={!datesValid || qty <= 0}
                             >
                               <Minus className="w-4 h-4" />
@@ -968,12 +969,12 @@ export function EventEssentialsCatalog() {
                               value={qty}
                               onChange={(e) => setQty(key, e.target.value, 99)}
                               disabled={!datesValid || !vm.selectable}
-                              className="w-12 text-center font-semibold text-slate-900 text-sm border border-slate-300 rounded-lg py-1 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"
+                              inputMode="numeric" className="w-14 min-h-[44px] text-center font-semibold text-slate-900 text-sm border border-slate-300 rounded-lg py-1 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"
                             />
                             <button
                               type="button"
                               onClick={() => incrementQty(key, 99)}
-                              className="w-8 h-8 rounded-lg border border-slate-300 flex items-center justify-center text-slate-700 hover:bg-slate-100 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                              className="w-11 h-11 rounded-lg border border-slate-300 flex items-center justify-center text-slate-700 hover:bg-slate-100 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                               disabled={!datesValid || !vm.selectable}
                             >
                               <Plus className="w-4 h-4" />
@@ -983,7 +984,7 @@ export function EventEssentialsCatalog() {
                             type="button"
                             onClick={() => handleAddBundle(bundle)}
                             disabled={!canAdd}
-                            className="inline-flex items-center justify-center gap-1.5 px-3 py-2 bg-slate-700 hover:bg-slate-800 text-white font-semibold rounded-lg text-sm transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                            className="inline-flex items-center justify-center gap-1.5 px-4 min-h-[44px] py-2 bg-slate-700 hover:bg-slate-800 text-white font-semibold rounded-lg text-sm transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                           >
                             <ShoppingCart className="w-4 h-4" />
                             {datesValid ? 'Add Package' : 'Select dates to add'}
@@ -1010,6 +1011,11 @@ export function EventEssentialsCatalog() {
           />
         </div>
       </div>
+      <CatalogMobileCartBar
+        totalQty={eventEssentialsCartItems.reduce((sum, item) => sum + item.qty, 0)}
+        subtotalCents={eventEssentialsSubtotalCents}
+        onViewQuote={() => navigate('/quote')}
+      />
     </div>
   );
 }

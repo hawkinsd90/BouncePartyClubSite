@@ -324,7 +324,7 @@ export default function Sign() {
   if (error && !order) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-blue-100 flex items-center justify-center p-4">
-        <div className="bg-white rounded-2xl shadow-2xl p-10 max-w-md w-full text-center border-2 border-slate-100">
+        <div className="bg-white rounded-2xl shadow-2xl p-6 sm:p-10 max-w-md w-full text-center border-2 border-slate-100">
           <div className="w-20 h-20 bg-gradient-to-br from-red-400 to-red-600 rounded-2xl flex items-center justify-center mx-auto mb-6 shadow-lg">
             <AlertCircle className="w-12 h-12 text-white" />
           </div>
@@ -344,7 +344,7 @@ export default function Sign() {
   if (order?.waiver_signed_at) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-blue-50 to-teal-100 flex items-center justify-center p-4">
-        <div className="bg-white rounded-lg shadow-lg p-8 max-w-md w-full text-center">
+        <div className="bg-white rounded-lg shadow-lg p-4 sm:p-8 max-w-md w-full text-center">
           <FileCheck className="w-16 h-16 text-green-500 mx-auto mb-4" />
           <h2 className="text-2xl font-bold text-gray-900 mb-2">Already Signed</h2>
           <p className="text-gray-600 mb-6">
@@ -372,7 +372,7 @@ export default function Sign() {
               className="h-16 object-contain"
             />
           </Link>
-          <div className="bg-gradient-to-r from-blue-600 to-teal-600 px-8 py-6">
+          <div className="bg-gradient-to-r from-blue-600 to-teal-600 px-4 sm:px-8 py-6">
             <h1 className="text-3xl font-bold text-white mb-2">Electronic Waiver Signature</h1>
             <p className="text-blue-100">
               Please review and sign the liability waiver for your rental

@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { tokenFragment } from '../../lib/portal/portalToken';
 import { format } from 'date-fns';
 import { FileText, CreditCard, CheckCircle, Image as ImageIcon, MapPin, Printer, Calendar, MapPin as MapPinIcon, Truck, Navigation, Clock, Package, Lock } from 'lucide-react';
@@ -7,7 +7,8 @@ import { formatCurrency } from '../../lib/pricing';
 import { formatOrderId } from '../../lib/utils';
 import { portalAction, type PortalDeliveryState } from '../../lib/portal/customerPortalApi';
 import { uploadPortalPictures, discardPortalPictures } from '../../lib/portal/portalPictureUpload';
-import { resolveCustomerPortalTab, buildTabUrlParam, type PortalTabKey, type PortalNavSection } from '../../lib/portal/customerPortalTab';
+import { resolveCustomerPortalTab, buildTabUrlParam, nextVisitedTabs, isTabRendered, type PortalTabKey, type PortalNavSection } from '../../lib/portal/customerPortalTab';
+import { SCROLL_MARGIN_CSS } from '../../lib/core/headerOffset';
 import WaiverTab from '../waiver/WaiverTab';
 import { PaymentTab } from './PaymentTab';
 import { PicturesTab } from './PicturesTab';
@@ -233,6 +234,23 @@ export function RegularPortalView({ order, orderId, orderItems: _orderItems, ord
     sections: sections as PortalNavSection[],
   });
 
+  // Photo tabs keep their in-progress state while another tab is showing (see KEEP_MOUNTED_TABS).
+  const [visitedTabs, setVisitedTabs] = useState<readonly PortalTabKey[]>([]);
+  useEffect(() => {
+    setVisitedTabs((prev) => nextVisitedTabs(prev, activeTab));
+  }, [activeTab]);
+
+  // Picking a section moves the page to its content: the tiles are tall on a phone and the content used to start below the fold.
+  const contentTopRef = useRef<HTMLDivElement>(null);
+  const firstTabRender = useRef(true);
+  useEffect(() => {
+    if (firstTabRender.current) {
+      firstTabRender.current = false;
+      return;
+    }
+    contentTopRef.current?.scrollIntoView?.({ block: 'start', behavior: 'smooth' });
+  }, [activeTab]);
+
   // If the URL tab is locked/invalid, resolveCustomerPortalTab returns 'details'.
   // If the URL says something else but the resolved tab is 'details', update the URL.
   useEffect(() => {
@@ -334,7 +352,7 @@ export function RegularPortalView({ order, orderId, orderItems: _orderItems, ord
 
           <div className="px-4 sm:px-8 py-6">
             <nav aria-label="Portal sections" className="mb-6">
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2 sm:gap-3">
+              <div className="grid grid-cols-2 lg:grid-cols-3 gap-2 sm:gap-3">
                 {sections.map((section) => {
                   const isActive = activeTab === section.key;
                   return (
@@ -360,6 +378,7 @@ export function RegularPortalView({ order, orderId, orderItems: _orderItems, ord
                 })}
               </div>
             </nav>
+            <div ref={contentTopRef} style={{ scrollMarginTop: SCROLL_MARGIN_CSS }} aria-hidden="true" />
 
             {activeTab === 'details' && (
               <div className="space-y-6">
@@ -414,7 +433,7 @@ export function RegularPortalView({ order, orderId, orderItems: _orderItems, ord
                   </div>
                 )}
 
-                <div className="bg-slate-50 border border-slate-200 rounded-lg p-6">
+                <div className="bg-slate-50 border border-slate-200 rounded-lg p-4 sm:p-6">
                   <div className="flex items-start justify-between mb-4">
                     <h3 className="text-lg font-semibold text-slate-900">Order Information</h3>
                     <div className="flex flex-col items-end gap-1">
@@ -460,7 +479,7 @@ export function RegularPortalView({ order, orderId, orderItems: _orderItems, ord
                   )}
                 </div>
 
-                <div className="bg-slate-50 border border-slate-200 rounded-lg p-6">
+                <div className="bg-slate-50 border border-slate-200 rounded-lg p-4 sm:p-6">
                   <h3 className="text-lg font-semibold text-slate-900 mb-4">Payment Summary</h3>
 
                   {orderSummary && orderSummary.items && orderSummary.items.length > 0 && (
@@ -571,7 +590,7 @@ export function RegularPortalView({ order, orderId, orderItems: _orderItems, ord
                 </div>
 
                 {successfulPayments.length > 0 && (
-                  <div className="bg-slate-50 border border-slate-200 rounded-lg p-6">
+                  <div className="bg-slate-50 border border-slate-200 rounded-lg p-4 sm:p-6">
                     <h3 className="text-lg font-semibold text-slate-900 mb-4">Payment Receipts</h3>
                     <div className="space-y-3">
                       {successfulPayments.map((payment) => (
@@ -596,17 +615,19 @@ export function RegularPortalView({ order, orderId, orderItems: _orderItems, ord
               </div>
             )}
 
-            {activeTab === 'lot-pics' && (
-              <LotPicturesTab
-                orderId={orderId}
-                orderNumber={order.order_number}
-                orderStatus={order.status}
-                pictures={portalExtras?.lotPictures ?? []}
-                invoiceLinkToken={invoiceLinkToken}
-                onChanged={refreshPortal}
-                onUploadComplete={() => { void refreshPortal(); }}
-                suppressRefreshRef={suppressRefreshRef}
-              />
+            {isTabRendered('lot-pics', activeTab, visitedTabs) && (
+              <div hidden={activeTab !== 'lot-pics'}>
+                <LotPicturesTab
+                  orderId={orderId}
+                  orderNumber={order.order_number}
+                  orderStatus={order.status}
+                  pictures={portalExtras?.lotPictures ?? []}
+                  invoiceLinkToken={invoiceLinkToken}
+                  onChanged={refreshPortal}
+                  onUploadComplete={() => { void refreshPortal(); }}
+                  suppressRefreshRef={suppressRefreshRef}
+                />
+              </div>
             )}
 
             {activeTab === 'waiver' && <WaiverTab orderId={orderId} order={order} token={invoiceLinkToken ?? undefined} />}
@@ -623,7 +644,11 @@ export function RegularPortalView({ order, orderId, orderItems: _orderItems, ord
               />
             )}
 
-            {activeTab === 'pictures' && <PicturesTab onSubmit={handleSubmitPictures} existingPictures={existingPictures} />}
+            {isTabRendered('pictures', activeTab, visitedTabs) && (
+              <div hidden={activeTab !== 'pictures'}>
+                <PicturesTab onSubmit={handleSubmitPictures} existingPictures={existingPictures} />
+              </div>
+            )}
 
             {activeTab === 'delivery' && <DeliveryTab delivery={portalExtras?.delivery ?? null} />}
           </div>

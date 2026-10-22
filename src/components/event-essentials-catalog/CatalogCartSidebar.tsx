@@ -74,7 +74,7 @@ export function CatalogCartSidebar({ items, subtotalCents, minOrderCents, onView
         <button
           type="button"
           onClick={onViewQuote}
-          className="w-full py-3 bg-slate-100 hover:bg-slate-200 text-slate-800 font-semibold rounded-lg text-sm transition-colors"
+          className="w-full min-h-[44px] py-3 bg-slate-100 hover:bg-slate-200 text-slate-800 font-semibold rounded-lg text-sm transition-colors"
         >
           View Full Quote →
         </button>

@@ -267,7 +267,7 @@ export function PaymentTab({ orderId, order, balanceDue, orderSummary, onPayment
     <>
       <div className="space-y-6">
         {balanceDue <= 0 ? (
-          <div className="bg-green-50 border border-green-200 rounded-lg p-6 text-center">
+          <div className="bg-green-50 border border-green-200 rounded-lg p-4 sm:p-6 text-center">
             <CheckCircle className="w-12 h-12 text-green-600 mx-auto mb-3" />
             <h3 className="text-lg font-semibold text-green-900">Payment Complete</h3>
             <p className="text-sm text-green-700 mt-2">
@@ -275,7 +275,7 @@ export function PaymentTab({ orderId, order, balanceDue, orderSummary, onPayment
             </p>
           </div>
         ) : (
-          <div className="bg-slate-50 border border-slate-200 rounded-lg p-6">
+          <div className="bg-slate-50 border border-slate-200 rounded-lg p-4 sm:p-6">
             <h3 className="text-lg font-semibold text-slate-900 mb-4">Payment Summary</h3>
             <div className="space-y-2">
               <div className="flex justify-between text-sm">
@@ -332,8 +332,8 @@ export function PaymentTab({ orderId, order, balanceDue, orderSummary, onPayment
         )}
 
         {canChargeSavedCard && !isDisabled && (
-          <div className="bg-blue-50 border border-blue-200 rounded-lg px-4 py-3 flex items-center justify-between">
-            <div className="flex items-center gap-2 text-sm text-blue-800">
+          <div className="bg-blue-50 border border-blue-200 rounded-lg px-4 py-3 flex flex-col items-start gap-1 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex items-center gap-2 text-sm text-blue-800 min-w-0">
               <CreditCard className="w-4 h-4 flex-shrink-0" />
               <span>
                 {cardBrand && cardLast4
@@ -346,8 +346,9 @@ export function PaymentTab({ orderId, order, balanceDue, orderSummary, onPayment
               </span>
             </div>
             <button
+              type="button"
               onClick={handleUpdateCard}
-              className="text-xs font-semibold text-blue-700 hover:text-blue-900 ml-3 whitespace-nowrap"
+              className="text-sm font-semibold text-blue-700 hover:text-blue-900 underline min-h-[44px] sm:ml-3 whitespace-nowrap"
             >
               Update Card
             </button>
@@ -357,7 +358,7 @@ export function PaymentTab({ orderId, order, balanceDue, orderSummary, onPayment
         <button
           onClick={handlePayClick}
           disabled={isDisabled}
-          className={`w-full font-semibold py-3 px-6 rounded-lg transition-colors flex items-center justify-center gap-2 ${
+          className={`w-full min-h-[48px] mt-2 font-semibold py-3 px-6 rounded-lg transition-colors flex items-center justify-center gap-2 ${
             isDisabled
               ? 'bg-slate-300 text-slate-500 cursor-not-allowed'
               : 'bg-blue-600 hover:bg-blue-700 text-white'

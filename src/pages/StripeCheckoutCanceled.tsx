@@ -17,7 +17,7 @@ export function StripeCheckoutCanceled() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-red-50 via-orange-50 to-amber-50 flex items-center justify-center p-4">
-      <div className="bg-white rounded-2xl shadow-2xl p-10 text-center max-w-md border-2 border-slate-100">
+      <div className="bg-white rounded-2xl shadow-2xl p-6 sm:p-10 text-center max-w-md w-full border-2 border-slate-100">
         <div className="flex justify-center mb-6">
           <button onClick={() => navigate('/')} className="focus:outline-none">
             <img
@@ -39,16 +39,16 @@ export function StripeCheckoutCanceled() {
             Order ID: {formatOrderId(orderId)}
           </p>
         )}
-        <div className="flex gap-4 justify-center">
+        <div className="flex flex-col-reverse sm:flex-row gap-3 sm:gap-4 justify-center">
           <button
             onClick={handleCancel}
-            className="px-8 py-3 bg-slate-200 text-slate-700 rounded-xl hover:bg-slate-300 font-bold transition-all shadow-md"
+            className="px-8 py-3 min-h-[48px] bg-slate-200 text-slate-700 rounded-xl hover:bg-slate-300 font-bold transition-all shadow-md"
           >
             Back to Cart
           </button>
           <button
             onClick={handleRetry}
-            className="px-8 py-3 bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white rounded-xl font-bold transition-all shadow-lg hover:shadow-xl"
+            className="px-8 py-3 min-h-[48px] bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white rounded-xl font-bold transition-all shadow-lg hover:shadow-xl"
           >
             Try Again
           </button>

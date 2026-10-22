@@ -5,6 +5,7 @@ import { supabase } from '../lib/supabase';
 import { Lock, Loader2, Eye, EyeOff, X, Mail, AlertTriangle, Clock } from 'lucide-react';
 import { notifySuccess, notifyError } from '../lib/toasts';
 import { createLogger } from '../lib/core/logger';
+import { IN_APP_BROWSER_NOTICE, isLikelyInAppBrowser } from '../lib/auth/inAppBrowser';
 
 const log = createLogger('Login');
 
@@ -198,6 +199,7 @@ export function Login() {
   // };
 
   const submitDisabled = loading || isCoolingDown;
+  const inAppBrowser = typeof navigator !== 'undefined' && isLikelyInAppBrowser(navigator.userAgent);
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-blue-50 flex items-center justify-center py-4 sm:py-12 px-4 sm:px-6 lg:px-8">
@@ -205,7 +207,7 @@ export function Login() {
         <div className="bg-white rounded-2xl shadow-2xl p-4 sm:p-8 relative border border-slate-100">
           <button
             onClick={() => navigate(-1)}
-            className="absolute top-4 right-4 p-2 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-lg transition-all"
+            className="absolute top-2 right-2 sm:top-4 sm:right-4 p-3 min-h-[44px] min-w-[44px] flex items-center justify-center text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-lg transition-all"
             aria-label="Go back"
           >
             <X className="w-5 h-5" />
@@ -279,10 +281,12 @@ export function Login() {
             )}
 
             <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1.5 sm:mb-2">
+              <label htmlFor="login-email" className="block text-sm font-medium text-slate-700 mb-1.5 sm:mb-2">
                 Email
               </label>
               <input
+                id="login-email"
+                name="email"
                 type="email"
                 autoComplete="email"
                 inputMode="email"
@@ -298,11 +302,13 @@ export function Login() {
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1.5 sm:mb-2">
+              <label htmlFor="login-password" className="block text-sm font-medium text-slate-700 mb-1.5 sm:mb-2">
                 Password
               </label>
               <div className="relative">
                 <input
+                  id="login-password"
+                  name="password"
                   type={showPassword ? 'text' : 'password'}
                   autoComplete="current-password"
                   required
@@ -317,8 +323,8 @@ export function Login() {
                 <button
                   type="button"
                   onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition-colors p-2"
-                  aria-label="Toggle password visibility"
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition-colors p-2 min-h-[44px] min-w-[44px] flex items-center justify-center"
+                  aria-label={showPassword ? 'Hide password' : 'Show password'}
                 >
                   {showPassword ? (
                     <EyeOff className="w-5 h-5" />
@@ -358,7 +364,14 @@ export function Login() {
             </div>
 
             <div className="mt-3 sm:mt-4 space-y-2 sm:space-y-3">
+              {inAppBrowser && (
+                <div role="note" className="bg-amber-50 border border-amber-200 rounded-xl p-3 flex items-start gap-2.5">
+                  <AlertTriangle className="w-4 h-4 text-amber-500 flex-shrink-0 mt-0.5" />
+                  <p className="text-sm text-amber-800">{IN_APP_BROWSER_NOTICE}</p>
+                </div>
+              )}
               <button
+                type="button"
                 onClick={handleGoogleSignIn}
                 disabled={loading}
                 className="w-full flex items-center justify-center gap-3 bg-white border-2 border-slate-300 hover:border-slate-400 hover:bg-slate-50 hover:shadow-lg text-slate-700 font-bold py-3 sm:py-4 px-4 rounded-xl transition-all shadow-md min-h-[48px]"
@@ -394,7 +407,7 @@ export function Login() {
               <button
                 type="button"
                 onClick={() => navigate('/signup', { state: location.state })}
-                className="text-blue-600 hover:text-blue-700 font-medium text-sm sm:text-base"
+                className="text-blue-600 hover:text-blue-700 font-medium text-sm sm:text-base min-h-[44px] px-2"
               >
                 Don't have an account? Sign up
               </button>
@@ -402,7 +415,7 @@ export function Login() {
             <div>
               <button
                 onClick={() => navigate('/forgot-password')}
-                className="text-xs sm:text-sm text-slate-600 hover:text-slate-700 font-medium"
+                className="text-sm text-slate-600 hover:text-slate-700 font-medium min-h-[44px] px-2"
               >
                 Forgot password?
               </button>
@@ -410,7 +423,7 @@ export function Login() {
             <div>
               <button
                 onClick={() => navigate('/')}
-                className="text-xs sm:text-sm text-slate-600 hover:text-slate-700"
+                className="text-sm text-slate-600 hover:text-slate-700 min-h-[44px] px-2"
               >
                 Back to Home
               </button>

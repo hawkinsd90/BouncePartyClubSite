@@ -213,7 +213,7 @@ export function Home() {
               Premium bounce houses, water slides, and party rentals delivered across Detroit and surrounding areas.
             </p>
 
-            <form onSubmit={handleCheckAvailability} className="bg-white rounded-2xl shadow-2xl p-6 sm:p-8">
+            <form onSubmit={handleCheckAvailability} className="bg-white rounded-2xl shadow-2xl p-4 sm:p-8">
               <h2 className="text-slate-900 text-xl sm:text-2xl font-bold mb-5 sm:mb-6">
                 Check Availability
               </h2>

@@ -58,3 +58,16 @@ export function buildTabUrlParam(tab: PortalTabKey): string | null {
   if (tab === 'details') return null;
   return tab;
 }
+
+// Tabs whose screen holds work in progress (photos picked but not yet sent, an upload under way). Switching away unmounted them and the
+// customer lost it, so once visited they stay in the page (hidden) while another tab is showing.
+export const KEEP_MOUNTED_TABS: readonly PortalTabKey[] = ['lot-pics', 'pictures'];
+
+export function nextVisitedTabs(visited: readonly PortalTabKey[], activeTab: PortalTabKey): readonly PortalTabKey[] {
+  if (!KEEP_MOUNTED_TABS.includes(activeTab) || visited.includes(activeTab)) return visited;
+  return [...visited, activeTab];
+}
+
+export function isTabRendered(tab: PortalTabKey, activeTab: PortalTabKey, visited: readonly PortalTabKey[]): boolean {
+  return tab === activeTab || (KEEP_MOUNTED_TABS.includes(tab) && visited.includes(tab));
+}

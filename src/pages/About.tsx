@@ -9,7 +9,7 @@ export function About() {
       <div className="max-w-4xl mx-auto">
         <h1 className="text-4xl md:text-5xl font-bold text-slate-900 mb-8 text-center">About Bounce Party Club</h1>
 
-        <div className="bg-white rounded-2xl shadow-lg p-8 mb-8 border border-slate-100">
+        <div className="bg-white rounded-2xl shadow-lg p-4 sm:p-8 mb-8 border border-slate-100">
           <div className="flex items-center justify-center mb-6">
             <div className="w-16 h-16 bg-gradient-to-br from-pink-500 to-red-500 rounded-full flex items-center justify-center shadow-lg">
               <Heart className="w-8 h-8 text-white" />
@@ -30,7 +30,7 @@ export function About() {
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-          <div className="bg-white rounded-2xl shadow-lg p-6 text-center border border-slate-100 hover:shadow-xl transition-shadow">
+          <div className="bg-white rounded-2xl shadow-lg p-4 sm:p-6 text-center border border-slate-100 hover:shadow-xl transition-shadow">
             <div className="inline-flex items-center justify-center w-16 h-16 bg-gradient-to-br from-blue-400 to-blue-600 rounded-2xl mb-4 shadow-md">
               <Award className="w-8 h-8 text-white" />
             </div>
@@ -40,7 +40,7 @@ export function About() {
             </p>
           </div>
 
-          <div className="bg-white rounded-2xl shadow-lg p-6 text-center border border-slate-100 hover:shadow-xl transition-shadow">
+          <div className="bg-white rounded-2xl shadow-lg p-4 sm:p-6 text-center border border-slate-100 hover:shadow-xl transition-shadow">
             <div className="inline-flex items-center justify-center w-16 h-16 bg-gradient-to-br from-green-400 to-green-600 rounded-2xl mb-4 shadow-md">
               <Users className="w-8 h-8 text-white" />
             </div>
@@ -50,7 +50,7 @@ export function About() {
             </p>
           </div>
 
-          <div className="bg-white rounded-2xl shadow-lg p-6 text-center border border-slate-100 hover:shadow-xl transition-shadow">
+          <div className="bg-white rounded-2xl shadow-lg p-4 sm:p-6 text-center border border-slate-100 hover:shadow-xl transition-shadow">
             <div className="inline-flex items-center justify-center w-16 h-16 bg-gradient-to-br from-amber-400 to-amber-600 rounded-2xl mb-4 shadow-md">
               <Clock className="w-8 h-8 text-white" />
             </div>
@@ -61,7 +61,7 @@ export function About() {
           </div>
         </div>
 
-        <div className="bg-white rounded-2xl shadow-lg p-8 mb-8 border border-slate-100">
+        <div className="bg-white rounded-2xl shadow-lg p-4 sm:p-8 mb-8 border border-slate-100">
           <h2 className="text-2xl font-bold text-slate-900 mb-6">Our Story</h2>
           <p className="text-slate-700 leading-relaxed mb-4">
             Founded in Wayne, Michigan, Bounce Party Club was built on a simple belief: every celebration deserves to be
@@ -79,7 +79,7 @@ export function About() {
           </p>
         </div>
 
-        <div className="bg-white rounded-2xl shadow-lg p-8 mb-8 border border-slate-100">
+        <div className="bg-white rounded-2xl shadow-lg p-4 sm:p-8 mb-8 border border-slate-100">
           <h2 className="text-2xl font-bold text-slate-900 mb-6">Service Area</h2>
           <p className="text-slate-700 leading-relaxed mb-4">
             We proudly serve the Detroit Metro area and surrounding communities, including Wayne, Westland, Canton,
@@ -92,7 +92,7 @@ export function About() {
           </p>
         </div>
 
-        <div className="bg-gradient-to-br from-blue-50 to-blue-100 border border-blue-200 rounded-2xl p-8 shadow-lg">
+        <div className="bg-gradient-to-br from-blue-50 to-blue-100 border border-blue-200 rounded-2xl p-4 sm:p-8 shadow-lg">
           <h2 className="text-2xl font-bold text-slate-900 mb-6 text-center">Contact Us</h2>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
             <div className="flex flex-col items-center text-center">

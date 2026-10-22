@@ -3,6 +3,7 @@ import { calculateEventEssentialsSubtotalCents } from '../../lib/eventEssentials
 import { formatCurrency } from '../../lib/pricing';
 import { buildPackageDisplay, formatQuantityLabel } from '../../lib/pricing/packageDisplay';
 import type { UnifiedQuoteTotals } from '../../lib/pricing/unifiedTotals';
+import { quoteContinueState } from '../../lib/booking/quoteContinueBar';
 
 interface PriceBreakdown {
   travel_fee_cents: number;
@@ -24,6 +25,7 @@ interface QuoteSummarySectionProps {
   totals: UnifiedQuoteTotals | null;
   pricingConfigError: string | null;
   isCalculating: boolean;
+  submitting?: boolean;
 }
 
 export { getQuotePricingDisplayState } from '../../lib/booking/quotePricingDisplayState';
@@ -32,7 +34,7 @@ function isInflatable(item: UnifiedCartItem): item is InflatableCartItem {
   return item.item_type === undefined || item.item_type === 'inflatable';
 }
 
-export function QuoteSummarySection({ cart, priceBreakdown, totals, pricingConfigError, isCalculating }: QuoteSummarySectionProps) {
+export function QuoteSummarySection({ cart, priceBreakdown, totals, pricingConfigError, isCalculating, submitting = false }: QuoteSummarySectionProps) {
   if (cart.length === 0) {
     return (
       <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-4 sm:p-6 lg:sticky lg:top-[calc(var(--site-header-height)_+_2rem)]">
@@ -60,6 +62,7 @@ export function QuoteSummarySection({ cart, priceBreakdown, totals, pricingConfi
   const hasUnavailableItems = cart.some((item) => item.isAvailable === false);
 
   const showPricingSection = totals !== null && !pricingConfigError;
+  const cont = quoteContinueState({ hasTotals: !!totals, pricingConfigError, isCalculating, depositError: totals?.depositError, submitting });
 
   return (
     <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-4 sm:p-6 lg:sticky lg:top-[calc(var(--site-header-height)_+_2rem)]">
@@ -273,12 +276,36 @@ export function QuoteSummarySection({ cart, priceBreakdown, totals, pricingConfi
           </div>
         )}
 
+        {/* Wide screens: the button sits in the card. Phones: it is pinned to the bottom (below) so Continue and the total are always in reach. */}
         <button
           type="submit"
-          disabled={!totals || !!pricingConfigError || isCalculating || !!totals?.depositError}
-          className="w-full bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white font-semibold py-3 sm:py-3.5 px-6 rounded-lg sm:rounded-xl transition-all shadow-md hover:shadow-lg text-sm sm:text-base disabled:opacity-50 disabled:cursor-not-allowed"
+          disabled={cont.disabled}
+          className="hidden lg:block w-full bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white font-semibold py-3.5 px-6 rounded-xl transition-all shadow-md hover:shadow-lg text-base disabled:opacity-50 disabled:cursor-not-allowed"
         >
-          Continue to Checkout →
+          {cont.label}
+        </button>
+      </div>
+
+      <div
+        data-testid="quote-mobile-bar"
+        className="lg:hidden fixed inset-x-0 bottom-0 z-30 bg-white border-t border-slate-200 shadow-[0_-4px_12px_rgba(0,0,0,0.08)] px-4 pt-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))] flex items-center gap-3"
+      >
+        <div className="min-w-0 flex-1">
+          {totals && showPricingSection ? (
+            <>
+              <p className="text-xs text-slate-500 leading-tight">Estimated total</p>
+              <p className="text-lg font-bold text-blue-700 leading-tight">{formatCurrency(totals.totalCents)}</p>
+            </>
+          ) : (
+            <p className="text-xs text-slate-600 leading-snug">{cont.reason ?? 'Calculating your total...'}</p>
+          )}
+        </div>
+        <button
+          type="submit"
+          disabled={cont.disabled}
+          className="flex-shrink-0 min-h-[48px] bg-gradient-to-r from-blue-600 to-blue-700 text-white font-semibold px-5 rounded-xl shadow-md text-sm disabled:opacity-50 disabled:cursor-not-allowed"
+        >
+          {cont.label}
         </button>
       </div>
     </div>

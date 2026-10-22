@@ -175,7 +175,7 @@ export function OrderApprovalView({
             </div>
           </div>
 
-          <div className="p-6 space-y-6">
+          <div className="p-4 sm:p-6 space-y-6">
             <div className="bg-amber-50 border border-amber-200 rounded-lg p-4">
               <p className="text-amber-900 font-medium mb-1">Your order has been updated</p>
               <p className="text-sm text-amber-800">
