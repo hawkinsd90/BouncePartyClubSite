@@ -84,7 +84,7 @@ async function getTaskStopsForDate(
 }
 
 /** Google's own explanation for a refusal, with the key removed in case the provider echoes it. */
-function providerMessage(data: any, key: string): string {
+function providerMessage(data: { error_message?: unknown } | null | undefined, key: string): string {
   const raw = typeof data?.error_message === "string" ? data.error_message : "";
   return key ? raw.split(key).join("[key]") : raw;
 }

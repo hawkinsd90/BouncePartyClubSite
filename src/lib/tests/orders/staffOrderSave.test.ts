@@ -570,7 +570,7 @@ const RULES_LATER = { ...RULES, surface_sandbag_fee_cents: 5000, residential_mul
     const w = newWorld();
     const reviewRows = async (id: string) => (await rowsOf('order_changelog', id)).filter((r: any) => r.change_type === 'travel_city_review');
     const plymouth = await createOrder(w, { eventDetails: eventBase({ city: 'Plymouth' }) });
-    let rows = await reviewRows(plymouth);
+    const rows = await reviewRows(plymouth);
     ok('travel review: an unconfirmed typed free city on a new staff invoice records one review row', rows.length === 1 && rows[0].new_value === 'typed_free_city_not_verified' && rows[0].old_value === 'Plymouth' && rows[0].field_changed === 'travel_city');
     ok('travel review: the note tells the Admin what to do (check the address / waive with a reason) and names the typed city', /Plymouth/.test(rows[0].notes) && /waive the travel fee with a reason/.test(rows[0].notes));
     ok('travel review: the row carries the acting staff member', rows[0].user_id === w.users['jwt-admin']);
