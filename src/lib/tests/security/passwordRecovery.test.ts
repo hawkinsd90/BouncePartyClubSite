@@ -135,6 +135,13 @@ async function main() {
   ok('forgot-password still requests a link back to /reset-password on the current origin', /redirectTo: `\$\{window\.location\.origin\}\/reset-password`/.test(read('src/pages/ForgotPassword.tsx')));
   ok('the capture module is the only new place that reads location.hash', !/location\.hash/.test(read('src/lib/auth/recoveryLink.ts')) && /location\.hash/.test(read('src/lib/auth/authLinkCapture.ts')));
 
+  // The hosted Auth password policy is not defined anywhere in the repository; the client length is only a floor and the server's own
+  // message (a stricter minimum, a weak-password reason) is what the person sees.
+  ok('no password policy is configured locally (supabase/config.toml has no password setting), so the hosted rule cannot be assumed', !/password/i.test(read('supabase/config.toml')));
+  ok('the reset page shows the Auth server\'s own error message when it refuses a password', /notifyError\(err\.message \|\| 'Failed to reset password\. Please try again\.'\)/.test(read('src/pages/ResetPassword.tsx')));
+  ok('sign-up shows the Auth server\'s own message too', /notifyError\(msg \|\| 'Failed to create account\. Please try again\.'\)/.test(read('src/pages/SignUp.tsx')));
+  ok('the minimum is documented as a client-side floor', /client-side FLOOR only/.test(read('src/lib/auth/recoveryLink.ts')));
+
   console.log(`passwordRecovery: ${passed} passed, ${failed} failed`);
   if (failed > 0) throw new Error(`${failed} password recovery test(s) failed`);
 }

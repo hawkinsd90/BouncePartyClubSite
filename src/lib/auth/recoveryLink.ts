@@ -4,6 +4,9 @@
 // clears that hash after a network call. Reading the live hash later therefore races with the client; the page instead reads a
 // snapshot taken before the client starts, plus what the client itself reports (a session and the PASSWORD_RECOVERY event).
 
+// A client-side FLOOR only (Supabase's default). The repository has no [auth] password policy (supabase/config.toml has no such section), so the
+// hosted project's real minimum and complexity rules are unknown here; whatever the Auth server enforces is shown to the user verbatim
+// (ResetPassword and SignUp display the server's error message). Confirming the hosted policy is a separate acceptance gate.
 export const MIN_PASSWORD_LENGTH = 6;
 
 export interface AuthLinkSnapshot {
