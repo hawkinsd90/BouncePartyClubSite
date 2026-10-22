@@ -1,3 +1,4 @@
+import type { Database } from '../database.types';
 import { supabase } from '../supabase';
 import { executeQuery, QueryOptions } from './base';
 
@@ -61,7 +62,7 @@ export async function getAllInvoices(options?: QueryOptions) {
   );
 }
 
-export async function createInvoice(invoiceData: any, options?: QueryOptions) {
+export async function createInvoice(invoiceData: Database['public']['Tables']['invoices']['Insert'], options?: QueryOptions) {
   return executeQuery(
     async () =>
       await supabase
@@ -73,7 +74,7 @@ export async function createInvoice(invoiceData: any, options?: QueryOptions) {
   );
 }
 
-export async function updateInvoice(invoiceId: string, updates: any, options?: QueryOptions) {
+export async function updateInvoice(invoiceId: string, updates: Database['public']['Tables']['invoices']['Update'], options?: QueryOptions) {
   return executeQuery(
     async () =>
       await supabase

@@ -1,4 +1,5 @@
 import { supabase } from '../supabase';
+import { asErrorLike } from '../core/errorLike';
 
 interface EmailOptions {
   to: string;
@@ -54,9 +55,9 @@ export async function sendEmail(options: EmailOptions): Promise<NotificationResu
 
     // console.log('[NOTIFICATION] Email sent successfully to:', options.to);
     return { success: true };
-  } catch (error: any) {
+  } catch (error) {
     console.error('[NOTIFICATION] Email error:', error);
-    return { success: false, error: error.message || 'Failed to send email' };
+    return { success: false, error: asErrorLike(error).message || 'Failed to send email' };
   }
 }
 
@@ -96,9 +97,9 @@ export async function sendSms(options: SmsOptions): Promise<NotificationResult> 
 
     // console.log('[NOTIFICATION] SMS sent successfully to:', options.to);
     return { success: true };
-  } catch (error: any) {
+  } catch (error) {
     console.error('[NOTIFICATION] SMS error:', error);
-    return { success: false, error: error.message || 'Failed to send SMS' };
+    return { success: false, error: asErrorLike(error).message || 'Failed to send SMS' };
   }
 }
 

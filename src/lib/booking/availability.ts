@@ -46,6 +46,14 @@ export interface UnitAvailability {
 
 const BLOCKED_STATUSES = [ORDER_STATUS.PENDING, ORDER_STATUS.AWAITING_CUSTOMER_APPROVAL, 'approved', ORDER_STATUS.CONFIRMED, ORDER_STATUS.IN_PROGRESS, ORDER_STATUS.COMPLETED];
 
+// order_items rows joined to their order by the select strings below (orders!inner(...)). The embed is not modelled in database.types.ts.
+interface ConflictingOrderRow {
+  orders: { id: string; event_date: string; event_end_date: string; status: string } | null;
+}
+interface UnavailableDateRow {
+  orders: { event_date: string; event_end_date: string; status: string };
+}
+
 export async function checkUnitAvailability(
   check: AvailabilityCheck,
   precomputedBlackout?: BlackoutCheckResult
@@ -86,8 +94,8 @@ export async function checkUnitAvailability(
     };
   }
 
-  const conflictingOrders = (orderItems || [])
-    .filter((item: any) => {
+  const conflictingOrders = ((orderItems || []) as unknown as ConflictingOrderRow[])
+    .filter((item) => {
       const order = item.orders;
       if (!order) return false;
 
@@ -104,11 +112,11 @@ export async function checkUnitAvailability(
 
       return conflicts;
     })
-    .map((item: any) => ({
-      orderId: item.orders.id,
-      eventStartDate: item.orders.event_date,
-      eventEndDate: item.orders.event_end_date,
-      status: item.orders.status,
+    .map((item) => ({
+      orderId: item.orders!.id,
+      eventStartDate: item.orders!.event_date,
+      eventEndDate: item.orders!.event_end_date,
+      status: item.orders!.status,
     }));
 
   return {
@@ -187,7 +195,7 @@ export async function getUnavailableDatesForUnit(
     return [];
   }
 
-  return (data || []).map((item: any) => ({
+  return ((data || []) as unknown as UnavailableDateRow[]).map((item) => ({
     start: item.orders.event_date,
     end: item.orders.event_end_date,
     status: item.orders.status,

@@ -298,14 +298,25 @@ function generateAdminReceiptEmail(data: ReceiptEmailData): string {
   `.trim();
 }
 
+// The order and customer fields the receipt wording reads.
+export interface ReceiptOrderData {
+  id: string;
+  event_date?: string | null;
+}
+export interface ReceiptCustomerData {
+  first_name: string;
+  last_name: string;
+  email: string;
+}
+
 /**
  * Logs multiple transactions as a grouped receipt (e.g., deposit + tip)
  * Returns the receipt group ID and all receipt numbers
  */
 export async function logGroupedTransactions(
   transactions: TransactionReceiptData[],
-  orderData: any,
-  customerData: any
+  orderData: ReceiptOrderData,
+  customerData: ReceiptCustomerData
 ): Promise<{ groupId: string; receiptNumbers: string[] } | null> {
   if (transactions.length === 0) {
     return null;
@@ -359,8 +370,8 @@ async function sendGroupedAdminNotification(
   groupId: string,
   receiptNumbers: string[],
   transactions: TransactionReceiptData[],
-  orderData: any,
-  customerData: any
+  orderData: ReceiptOrderData,
+  customerData: ReceiptCustomerData
 ): Promise<void> {
   try {
     // Get admin email from settings (key-value lookup)
@@ -422,8 +433,8 @@ function generateGroupedReceiptEmail(
   groupId: string,
   receiptNumbers: string[],
   transactions: TransactionReceiptData[],
-  orderData: any,
-  customerData: any
+  orderData: ReceiptOrderData,
+  customerData: ReceiptCustomerData
 ): string {
   const totalAmount = transactions.reduce((sum, t) => sum + t.amountCents, 0);
   const orderNumber = formatOrderId(orderData.id);
@@ -550,8 +561,8 @@ function generateGroupedReceiptEmail(
  */
 export async function logAndNotifyTransaction(
   transactionData: TransactionReceiptData,
-  orderData: any,
-  customerData: any
+  orderData: ReceiptOrderData,
+  customerData: ReceiptCustomerData
 ): Promise<string | null> {
   // Log transaction
   const receiptNumber = await logTransaction(transactionData);

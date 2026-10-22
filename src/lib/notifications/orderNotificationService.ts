@@ -12,9 +12,16 @@ import { formatOrderId } from '../utils';
 import { createShortPortalLink } from '../portal/portalShortLink';
 import { supabase } from '../supabase';
 import { sendBookingConfirmation } from '../booking/bookingApi';
+import { asErrorLike } from '../core/errorLike';
+import type { BundleComponentSnapshot } from '../../types';
 
 interface SendOrderEditNotificationsParams {
-  order: any;
+  // The order as the editor holds it: only the id, the event date and the customer's contact details are read.
+  order: {
+    id: string;
+    event_date?: string | null;
+    customers?: { first_name: string; email?: string | null; phone?: string | null } | null;
+  };
   adminMessage: string;
 }
 
@@ -153,7 +160,7 @@ interface BookingOrderDetails {
     bundle_id: string | null;
     item_name: string | null;
     pricing_context: string | null;
-    component_snapshot: any | null;
+    component_snapshot: BundleComponentSnapshot | null;
     units: { name: string } | null;
   }>;
 }
@@ -195,14 +202,14 @@ export async function sendCustomerBookingConfirmationNotifications(order: Bookin
     });
     if (!result.emailSent) console.error('[NOTIFICATION] Error sending customer booking email:', result.emailError);
     return result;
-  } catch (emailErr: any) {
-    const message = emailErr?.message || 'Unknown email error';
+  } catch (emailErr) {
+    const message = asErrorLike(emailErr).message || 'Unknown email error';
     console.error('[NOTIFICATION] Error sending customer booking email:', message);
     return { emailSent: false, emailError: message };
   }
 }
 
-async function sendCustomerBookingEmail(order: BookingOrderDetails, generateEmail: (order: any) => string): Promise<CustomerBookingEmailResult> {
+async function sendCustomerBookingEmail(order: BookingOrderDetails, generateEmail: (order: BookingOrderDetails) => string): Promise<CustomerBookingEmailResult> {
   const emailHtml = generateEmail(order);
   await sendEmail({
     to: order.customer.email,
@@ -212,7 +219,7 @@ async function sendCustomerBookingEmail(order: BookingOrderDetails, generateEmai
   return { success: true };
 }
 
-async function sendCustomerBookingSMS(order: BookingOrderDetails, generateSMS: (order: any) => string): Promise<void> {
+async function sendCustomerBookingSMS(order: BookingOrderDetails, generateSMS: (order: BookingOrderDetails) => string): Promise<void> {
   if (!order.customer.phone) {
     // console.log('[NOTIFICATION] No phone number on file; SMS not sent.');
     return;
@@ -230,7 +237,7 @@ async function sendCustomerBookingSMS(order: BookingOrderDetails, generateSMS: (
   }
 }
 
-async function sendAdminBookingSMS(order: BookingOrderDetails, generateSMS: (order: any) => string): Promise<void> {
+async function sendAdminBookingSMS(order: BookingOrderDetails, generateSMS: (order: BookingOrderDetails) => string): Promise<void> {
   try {
     const { sendAdminSms } = await import('./notificationService');
     const adminSmsMessage = generateSMS(order);
@@ -240,7 +247,7 @@ async function sendAdminBookingSMS(order: BookingOrderDetails, generateSMS: (ord
   }
 }
 
-async function sendAdminBookingEmail(order: BookingOrderDetails, generateEmail: (order: any) => string): Promise<void> {
+async function sendAdminBookingEmail(order: BookingOrderDetails, generateEmail: (order: BookingOrderDetails) => string): Promise<void> {
   try {
     const { sendAdminEmail } = await import('./notificationService');
     const adminEmailHtml = generateEmail(order);

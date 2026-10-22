@@ -60,6 +60,19 @@ export interface PricingItem {
   is_deleted?: boolean;
 }
 
+// A discount / custom fee as the editor holds it (the same shapes the order summary displays).
+export interface PricingDiscountInput {
+  id?: string;
+  name: string;
+  amount_cents?: number;
+  percentage?: number;
+}
+export interface PricingCustomFeeInput {
+  id?: string;
+  name: string;
+  amount_cents: number;
+}
+
 export interface EEProductItem {
   product_id: string;
   bundle_id?: string | null;
@@ -68,7 +81,7 @@ export interface EEProductItem {
   qty: number;
   unit_price_cents: number;
   pricing_context?: string;
-  component_snapshot?: any;
+  component_snapshot?: { components?: Array<{ product_name: string; quantity_per_bundle: number }> } | null;
   is_new?: boolean;
   is_deleted?: boolean;
 }
@@ -99,8 +112,8 @@ export interface CalculatePricingParams {
     lat?: number;
     lng?: number;
   };
-  discounts: any[];
-  customFees: any[];
+  discounts: PricingDiscountInput[];
+  customFees: PricingCustomFeeInput[];
   customDepositCents: number | null;
   customSetupFeeCents: number | null;
   storedSetupFeeCents?: number | null;

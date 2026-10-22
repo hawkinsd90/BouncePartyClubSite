@@ -13,6 +13,7 @@ import {
 import { formatOrderId } from '../utils';
 import { buildPackageDisplay } from '../pricing/packageDisplay';
 import { extraFeeRows } from './feeRows';
+import type { BundleComponentSnapshot } from '../../types';
 
 interface OrderEmailItem {
   qty: number;
@@ -23,7 +24,7 @@ interface OrderEmailItem {
   bundle_id: string | null;
   item_name: string | null;
   pricing_context: string | null;
-  component_snapshot: any | null;
+  component_snapshot: BundleComponentSnapshot | null;
   units: { name: string } | null;
 }
 

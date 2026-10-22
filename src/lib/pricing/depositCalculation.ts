@@ -173,8 +173,18 @@ function isPositiveSafeInteger(value: unknown): value is number {
   );
 }
 
+// The pricing_rules columns the deposit settings are read from. Values are validated below, so they are typed as unknown here.
+export interface BookingDepositPricingRulesRow {
+  deposit_per_unit_cents?: unknown;
+  ee_only_deposit_base_threshold_cents?: unknown;
+  ee_only_deposit_base_cents?: unknown;
+  ee_only_deposit_subtotal_step_cents?: unknown;
+  ee_only_deposit_step_cents?: unknown;
+  event_essentials_setup_minimum_cents?: number | null;
+}
+
 export function parseBookingDepositSettings(
-  pricingRulesRow: any,
+  pricingRulesRow: BookingDepositPricingRulesRow | null | undefined,
 ): BookingDepositSettingsResult {
   if (!pricingRulesRow || typeof pricingRulesRow !== 'object') {
     return { status: 'invalid', error: 'No pricing configuration found.' };
@@ -262,7 +272,7 @@ export function initDepositOverrideState(
 // ---------------------------------------------------------------------------
 
 export async function fetchSingletonPricingRulesRow(): Promise<
-  | { status: 'ready'; row: any }
+  | { status: 'ready'; row: import('../database.types').Database['public']['Tables']['pricing_rules']['Row'] }
   | { status: 'error'; error: string }
   | { status: 'missing'; error: string }
   | { status: 'duplicate'; error: string }

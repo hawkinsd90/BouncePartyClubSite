@@ -98,7 +98,7 @@ export function createEmailWrapper(options: EmailWrapperOptions): string {
   `;
 }
 
-export function createGreeting(firstName: string): string {
+export function createGreeting(firstName: string | null | undefined): string {
   return `<p style="margin: 0 0 20px; color: #1e293b; font-size: 16px;">Hi ${firstName},</p>`;
 }
 

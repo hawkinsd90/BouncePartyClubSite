@@ -1,3 +1,4 @@
+import type { Database } from '../database.types';
 import { supabase } from '../supabase';
 import { executeQuery, QueryOptions } from './base';
 
@@ -78,7 +79,7 @@ export async function getTasksByOrderId(orderId: string, options?: QueryOptions)
   );
 }
 
-export async function createTask(taskData: any, options?: QueryOptions) {
+export async function createTask(taskData: Database['public']['Tables']['tasks']['Insert'], options?: QueryOptions) {
   return executeQuery(
     async () =>
       await supabase
@@ -90,7 +91,7 @@ export async function createTask(taskData: any, options?: QueryOptions) {
   );
 }
 
-export async function updateTask(taskId: string, updates: any, options?: QueryOptions) {
+export async function updateTask(taskId: string, updates: Database['public']['Tables']['tasks']['Update'], options?: QueryOptions) {
   return executeQuery(
     async () =>
       await supabase

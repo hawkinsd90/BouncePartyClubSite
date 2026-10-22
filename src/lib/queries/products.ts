@@ -377,7 +377,7 @@ export async function checkProductAvailability(
         p_start_date: startDate,
         p_end_date: endDate,
         p_exclude_order_id: excludeOrderId ?? null,
-      } as any),
+      }),
     { context: 'checkProductAvailability', ...options }
   );
 }

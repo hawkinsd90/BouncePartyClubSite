@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
 // GENERATED COPY of src/lib/pricing/orderPricingCalculation.ts (sliced). Do not edit here.
 // Edit the source and run: node node_modules/jiti/bin/jiti.js src/lib/tooling/bookingSharedCopy.ts --write
 // A test fails if this file differs from its source. Used by create-booking so the server prices exactly like the Quote.
@@ -54,6 +53,7 @@ import {
   isWholeCents,
 } from './orderMoney.ts';
 // deno-lint-ignore no-explicit-any
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 type OrderSummaryData = any;
 
 export interface PricingItem {
@@ -66,6 +66,19 @@ export interface PricingItem {
   is_deleted?: boolean;
 }
 
+// A discount / custom fee as the editor holds it (the same shapes the order summary displays).
+export interface PricingDiscountInput {
+  id?: string;
+  name: string;
+  amount_cents?: number;
+  percentage?: number;
+}
+export interface PricingCustomFeeInput {
+  id?: string;
+  name: string;
+  amount_cents: number;
+}
+
 export interface EEProductItem {
   product_id: string;
   bundle_id?: string | null;
@@ -74,7 +87,7 @@ export interface EEProductItem {
   qty: number;
   unit_price_cents: number;
   pricing_context?: string;
-  component_snapshot?: any;
+  component_snapshot?: { components?: Array<{ product_name: string; quantity_per_bundle: number }> } | null;
   is_new?: boolean;
   is_deleted?: boolean;
 }
@@ -105,8 +118,8 @@ export interface CalculatePricingParams {
     lat?: number;
     lng?: number;
   };
-  discounts: any[];
-  customFees: any[];
+  discounts: PricingDiscountInput[];
+  customFees: PricingCustomFeeInput[];
   customDepositCents: number | null;
   customSetupFeeCents: number | null;
   storedSetupFeeCents?: number | null;

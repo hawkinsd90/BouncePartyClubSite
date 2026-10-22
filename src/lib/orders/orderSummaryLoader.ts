@@ -2,7 +2,7 @@ import { supabase } from '../supabase';
 import { calculateDrivingDistance } from '../pricing';
 import { HOME_BASE } from '../core/businessLocation';
 import { buildOrderSummaryDisplay } from './orderSummaryDisplay';
-import { storedOrderTotalCents } from '../pricing/orderMoney';
+import { storedOrderTotalCents, type OrderMoneyComponents } from '../pricing/orderMoney';
 import { storedFeeAmounts } from '../pricing/orderFeeDisplay';
 import { formatStoredOrderItems } from './formatStoredOrderItems';
 import type { Database } from '../database.types';
@@ -240,7 +240,7 @@ export async function buildOrderSummaryData(
         // });
 
         try {
-          const addr = order.addresses as any;
+          const addr = order.addresses;
           const lat = parseFloat(addr.lat);
           const lng = parseFloat(addr.lng);
 
@@ -319,7 +319,7 @@ export async function buildOrderSummaryData(
   }
 }
 
-export function calculateTotalFromOrder(order: any, discounts: OrderDiscount[], customFees: OrderCustomFee[]): number {
+export function calculateTotalFromOrder(order: OrderMoneyComponents, discounts: OrderDiscount[], customFees: OrderCustomFee[]): number {
   // subtotal_cents already includes event_essentials_subtotal_cents; the tip is tracked separately and is not part of the total.
   // The arithmetic is orderMoney's, shared with every screen and Edge Function that shows or charges an order total.
   return storedOrderTotalCents(order, discounts, customFees);

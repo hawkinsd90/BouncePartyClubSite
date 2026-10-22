@@ -1,6 +1,6 @@
 interface StorageOptions {
   expirationDays?: number;
-  validate?: (data: any) => boolean;
+  validate?: (data: unknown) => boolean;
 }
 
 interface StorageData<T> {

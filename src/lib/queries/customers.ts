@@ -1,3 +1,4 @@
+import type { Database } from '../database.types';
 import { supabase } from '../supabase';
 import { executeQuery, QueryOptions } from './base';
 
@@ -37,7 +38,7 @@ export async function getCustomerByPhone(phone: string, options?: QueryOptions) 
   );
 }
 
-export async function createCustomer(customerData: any, options?: QueryOptions) {
+export async function createCustomer(customerData: Database['public']['Tables']['customers']['Insert'], options?: QueryOptions) {
   return executeQuery(
     async () =>
       await supabase
@@ -51,7 +52,7 @@ export async function createCustomer(customerData: any, options?: QueryOptions) 
 
 export async function updateCustomer(
   customerId: string,
-  updates: any,
+  updates: Database['public']['Tables']['customers']['Update'],
   options?: QueryOptions
 ) {
   return executeQuery(
@@ -66,7 +67,7 @@ export async function updateCustomer(
   );
 }
 
-export async function getOrCreateCustomer(customerData: any, options?: QueryOptions) {
+export async function getOrCreateCustomer(customerData: Database['public']['Tables']['customers']['Insert'], options?: QueryOptions) {
   return executeQuery(
     async () => {
       const { data: existing } = await supabase

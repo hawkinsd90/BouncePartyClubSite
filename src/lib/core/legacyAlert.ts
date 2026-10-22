@@ -7,7 +7,7 @@ import { showAlert } from '../../components/common/CustomModal';
 // needs a confirmation awaits showConfirm() from CustomModal.
 if (typeof window !== 'undefined') {
   // Replace alert with custom modal
-  (window as any).alert = (message: string) => {
+  window.alert = (message: string) => {
     // Determine type based on message content
     const lowerMessage = message.toLowerCase();
 

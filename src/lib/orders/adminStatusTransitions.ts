@@ -3,7 +3,7 @@ import { ORDER_STATUS } from '../constants/statuses';
 interface StatusTransition {
   from: string;
   to: string[];
-  requiredChecks?: Array<(order: any) => { valid: boolean; reason?: string }>;
+  requiredChecks?: Array<(order: unknown) => { valid: boolean; reason?: string }>;
 }
 
 const VALID_TRANSITIONS: StatusTransition[] = [
@@ -44,7 +44,7 @@ const VALID_TRANSITIONS: StatusTransition[] = [
 export function validateStatusTransition(
   currentStatus: string,
   newStatus: string,
-  order?: any
+  order?: unknown
 ): { valid: boolean; reason?: string } {
   if (currentStatus === newStatus) {
     return { valid: true };

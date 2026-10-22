@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
 // GENERATED COPY of src/lib/pricing/depositCalculation.ts (sliced). Do not edit here.
 // Edit the source and run: node node_modules/jiti/bin/jiti.js src/lib/tooling/bookingSharedCopy.ts --write
 // A test fails if this file differs from its source. Used by create-booking so the server prices exactly like the Quote.
@@ -178,8 +177,18 @@ function isPositiveSafeInteger(value: unknown): value is number {
   );
 }
 
+// The pricing_rules columns the deposit settings are read from. Values are validated below, so they are typed as unknown here.
+export interface BookingDepositPricingRulesRow {
+  deposit_per_unit_cents?: unknown;
+  ee_only_deposit_base_threshold_cents?: unknown;
+  ee_only_deposit_base_cents?: unknown;
+  ee_only_deposit_subtotal_step_cents?: unknown;
+  ee_only_deposit_step_cents?: unknown;
+  event_essentials_setup_minimum_cents?: number | null;
+}
+
 export function parseBookingDepositSettings(
-  pricingRulesRow: any,
+  pricingRulesRow: BookingDepositPricingRulesRow | null | undefined,
 ): BookingDepositSettingsResult {
   if (!pricingRulesRow || typeof pricingRulesRow !== 'object') {
     return { status: 'invalid', error: 'No pricing configuration found.' };

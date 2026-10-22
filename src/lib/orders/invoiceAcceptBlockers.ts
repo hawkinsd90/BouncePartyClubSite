@@ -10,7 +10,7 @@ export interface InvoiceAcceptState {
   overnightResponsibilityAccepted: boolean;
   paymentAmount: string;
   customPaymentAmount: string;
-  needsCustomerInfo: boolean;
+  needsCustomerInfo: boolean | null | undefined;
   customerInfo: { first_name?: string; last_name?: string; email?: string; phone?: string };
   howDidYouHearEnabled: boolean;
   referralAlreadyCaptured: boolean;

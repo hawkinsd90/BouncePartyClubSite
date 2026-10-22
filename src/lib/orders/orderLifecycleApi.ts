@@ -1,4 +1,5 @@
 import { getEdgeAuthToken } from '../core/edgeAuth';
+import { asErrorLike } from '../core/errorLike';
 
 const LIFECYCLE_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/order-lifecycle`;
 
@@ -49,9 +50,9 @@ async function callLifecycle(body: object, proof?: LifecycleProof): Promise<{ su
     // }
 
     return data;
-  } catch (err: any) {
+  } catch (err) {
     // console.error(`${logPrefix} — network error: ${err.message ?? err}`);
-    return { success: false, error: err.message || 'Network error calling lifecycle function' };
+    return { success: false, error: asErrorLike(err).message || 'Network error calling lifecycle function' };
   }
 }
 

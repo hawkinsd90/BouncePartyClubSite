@@ -53,7 +53,7 @@ interface EEProductItem {
   qty: number;
   unit_price_cents: number;
   pricing_context?: string;
-  component_snapshot?: any;
+  component_snapshot?: unknown;
 }
 
 export interface InvoiceData {

@@ -46,7 +46,7 @@ async function geocodeAddressString(
 ): Promise<{ lat: number; lng: number } | null> {
   if (typeof window === 'undefined') return null;
 
-  const g = (window as any).google;
+  const g = (window as Window & { google?: typeof google }).google;
   if (!g?.maps?.Geocoder) {
     console.warn('[addressService] Google Maps Geocoder unavailable — address will save without coordinates.');
     return null;
@@ -59,7 +59,7 @@ async function geocodeAddressString(
       const geocoder = new g.maps.Geocoder();
       geocoder.geocode(
         { address, componentRestrictions: { country: 'us' } },
-        (results: any[], status: string) => {
+        (results: google.maps.GeocoderResult[] | null, status: string) => {
           if (status === 'OK' && results?.[0]?.geometry?.location) {
             resolve({
               lat: results[0].geometry.location.lat(),
@@ -97,7 +97,7 @@ interface UpsertAddressParams {
 export async function reverseGeocodeCounty(lat: number, lng: number): Promise<string | null> {
   if (typeof window === 'undefined') return null;
 
-  const g = (window as any).google;
+  const g = (window as Window & { google?: typeof google }).google;
   if (!g?.maps?.Geocoder) {
     console.warn('[addressService] Google Maps Geocoder unavailable for reverse geocode.');
     return null;
@@ -108,10 +108,10 @@ export async function reverseGeocodeCounty(lat: number, lng: number): Promise<st
       const geocoder = new g.maps.Geocoder();
       geocoder.geocode(
         { location: { lat, lng } },
-        (results: any[], status: string) => {
+        (results: google.maps.GeocoderResult[] | null, status: string) => {
           if (status === 'OK' && results?.length) {
             const countyComponent = results[0].address_components?.find(
-              (c: any) => c.types.includes('administrative_area_level_2')
+              (c) => c.types.includes('administrative_area_level_2')
             );
             const countyRaw = countyComponent?.long_name || '';
             const county = countyRaw.replace(/\s+County$/i, '').trim();
@@ -142,7 +142,7 @@ export async function forwardGeocodeCounty(
 ): Promise<string | null> {
   if (typeof window === 'undefined') return null;
 
-  const g = (window as any).google;
+  const g = (window as Window & { google?: typeof google }).google;
   if (!g?.maps?.Geocoder) {
     console.warn('[addressService] Google Maps Geocoder unavailable for forward geocode.');
     return null;
@@ -155,10 +155,10 @@ export async function forwardGeocodeCounty(
       const geocoder = new g.maps.Geocoder();
       geocoder.geocode(
         { address, componentRestrictions: { country: 'us' } },
-        (results: any[], status: string) => {
+        (results: google.maps.GeocoderResult[] | null, status: string) => {
           if (status === 'OK' && results?.length) {
             const countyComponent = results[0].address_components?.find(
-              (c: any) => c.types.includes('administrative_area_level_2')
+              (c) => c.types.includes('administrative_area_level_2')
             );
             const countyRaw = countyComponent?.long_name || '';
             const county = countyRaw.replace(/\s+County$/i, '').trim();

@@ -172,7 +172,8 @@ export async function getAllOrdersWithContacts(limit?: number, options?: QueryOp
 
       const uniqueEmails = [...new Set(
         ordersData
-          .map((o: any) => o.customers?.email)
+          // The orders -> customers embed is not modelled in database.types.ts (Relationships are empty), so the row is read through its select shape (customers (..., email)).
+          .map((o) => (o as unknown as { customers?: { email?: string | null } | null }).customers?.email)
           .filter(Boolean)
       )] as string[];
 
@@ -186,7 +187,7 @@ export async function getAllOrdersWithContacts(limit?: number, options?: QueryOp
         .in('email', uniqueEmails);
 
       const contactsMap = new Map();
-      contacts?.forEach((c: any) => contactsMap.set(c.email, c));
+      contacts?.forEach((c: { email: string | null }) => contactsMap.set(c.email, c));
 
       return { data: { orders: ordersData, contactsMap }, error: null };
     },

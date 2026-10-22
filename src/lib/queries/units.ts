@@ -1,3 +1,4 @@
+import type { Database } from '../database.types';
 import { supabase } from '../supabase';
 import { executeQuery, QueryOptions } from './base';
 
@@ -85,7 +86,7 @@ export async function getUnitsByCategory(category: string, options?: QueryOption
   return getUnitsByType(category, options);
 }
 
-export async function createUnit(unitData: any, options?: QueryOptions) {
+export async function createUnit(unitData: Database['public']['Tables']['units']['Insert'], options?: QueryOptions) {
   return executeQuery(
     async () =>
       await supabase
@@ -97,7 +98,7 @@ export async function createUnit(unitData: any, options?: QueryOptions) {
   );
 }
 
-export async function updateUnit(unitId: string, updates: any, options?: QueryOptions) {
+export async function updateUnit(unitId: string, updates: Database['public']['Tables']['units']['Update'], options?: QueryOptions) {
   return executeQuery(
     async () =>
       await supabase
@@ -135,6 +136,8 @@ export async function checkUnitAvailability(
         p_start_date: startDate,
         p_end_date: endDate,
         p_exclude_order_id: excludeOrderId || null,
+        // The argument set matches neither overload of check_unit_availability in the migrated database (the array form has no p_exclude_order_id). This helper is not called anywhere; the call is left unchanged.
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any -- see comment above
       } as any);
 
       if (error) return { data: null, error };
@@ -163,6 +166,8 @@ export async function checkMultipleUnitsAvailability(
         p_start_date: startDate,
         p_end_date: endDate,
         p_exclude_order_id: excludeOrderId || null,
+        // Same unmatched argument set as checkUnitAvailability above (unused helper; call unchanged).
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any -- see comment above
       } as any),
     { context: 'checkMultipleUnitsAvailability', ...options }
   );

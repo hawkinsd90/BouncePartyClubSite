@@ -33,7 +33,7 @@ export async function getPublicBusinessSettings(useCache = true): Promise<Public
     return publicSettingsCache.data;
   }
 
-  const { data, error } = await (supabase.rpc as any)('get_public_business_settings');
+  const { data, error } = await supabase.rpc('get_public_business_settings');
 
   const dataRecord = (data ?? {}) as Record<string, string>;
 

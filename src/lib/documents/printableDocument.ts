@@ -194,11 +194,81 @@ export function calculatePrintableTotal(
   return subtotal + chargesTotal + tax;
 }
 
+// What the invoice/receipt transforms read from an order and its lines (each field is read here; the order may be any stored order).
+export interface PrintableOrderInput {
+  id: string;
+  event_date: string;
+  start_window?: string | null;
+  location_type?: string | null;
+  pickup_preference?: string | null;
+  surface?: string | null;
+  travel_fee_cents: number;
+  travel_total_miles?: number | null;
+  surface_fee_cents: number;
+  generator_fee_cents: number;
+  generator_qty?: number | null;
+  same_day_pickup_fee_cents: number;
+  // Absent on a quote preview, where the comparisons below are simply false.
+  same_day_weekday_delivery_fee_cents?: number;
+  setup_fee_cents?: number;
+  subtotal_cents: number;
+  tax_cents: number;
+  deposit_due_cents: number;
+  balance_due_cents: number;
+  notes?: string;
+  event_address_line2?: string | null;
+  customers?: {
+    first_name?: string | null;
+    last_name?: string | null;
+    email?: string | null;
+    phone?: string | null;
+    business_name?: string;
+  } | null;
+  addresses?: {
+    line1?: string | null;
+    line2?: string | null;
+    city?: string | null;
+    state?: string | null;
+    zip?: string | null;
+  } | null;
+}
+
+export interface PrintableOrderItemInput {
+  units?: { name?: string | null } | null;
+  wet_or_dry?: string | null;
+  qty?: number | null;
+  unit_price_cents: number;
+}
+
+export interface PrintableDiscountInput {
+  name?: string | null;
+  reason?: string;
+  amount_cents?: number | null;
+  percentage?: number | null;
+}
+
+export interface PrintableCustomFeeInput {
+  name: string;
+  amount_cents: number;
+  description?: string;
+}
+
+export interface PrintablePaymentInput {
+  id?: string;
+  payment_method?: string | null;
+  card_brand?: string;
+  card_last4?: string;
+  amount_cents: number;
+  created_at: string;
+  status: string;
+  stripe_payment_intent_id?: string | null;
+}
+
 export function transformOrderToPrintableDocument(
-  order: any,
-  orderItems: any[],
-  discounts: any[] = [],
-  customFees: any[] = []
+  order: PrintableOrderInput,
+  orderItems: PrintableOrderItemInput[],
+  discounts: PrintableDiscountInput[] = [],
+  customFees: PrintableCustomFeeInput[] = []
 ): PrintableDocument {
   const items: PrintableItem[] = orderItems.map((item) => ({
     name: item.units?.name || 'Unknown Unit',
@@ -243,17 +313,17 @@ export function transformOrderToPrintableDocument(
     });
   }
 
-  if (order.same_day_weekday_delivery_fee_cents > 0) {
+  if (order.same_day_weekday_delivery_fee_cents! > 0) {
     charges.push({
       label: 'Same Day Delivery Fee',
-      amount: order.same_day_weekday_delivery_fee_cents,
+      amount: order.same_day_weekday_delivery_fee_cents!,
     });
   }
 
-  if (order.setup_fee_cents > 0) {
+  if (order.setup_fee_cents! > 0) {
     charges.push({
       label: 'Setup Fee',
-      amount: order.setup_fee_cents,
+      amount: order.setup_fee_cents!,
     });
   }
 
@@ -329,9 +399,9 @@ export function transformOrderToPrintableDocument(
 }
 
 export function transformPaymentToPrintableReceipt(
-  payment: any,
-  order: any,
-  orderItems: any[]
+  payment: PrintablePaymentInput,
+  order: PrintableOrderInput,
+  orderItems: PrintableOrderItemInput[]
 ): PrintableDocument {
   const baseDocument = transformOrderToPrintableDocument(order, orderItems);
 

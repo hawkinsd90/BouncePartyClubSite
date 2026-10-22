@@ -20,12 +20,27 @@ export interface FormattedOrderItem {
   packageContentsUnavailable: boolean;
 }
 
-export function formatStoredOrderItems(items: any[]): FormattedOrderItem[] {
+// The fields of one stored order line that the formatter reads (inflatable lines carry `units`; Event Essentials lines carry
+// bundle_id / item_name / pricing_context / component_snapshot).
+export interface StoredOrderItemInput {
+  unit_id?: string | null;
+  units?: { name?: string | null } | null;
+  wet_or_dry?: string | null;
+  unit_price_cents: number;
+  qty: number;
+  is_new?: boolean | null;
+  bundle_id?: string | null;
+  item_name?: string | null;
+  pricing_context?: string | null;
+  component_snapshot?: unknown;
+}
+
+export function formatStoredOrderItems(items: StoredOrderItemInput[]): FormattedOrderItem[] {
   return items.map(item => {
     const isInflatable = !!item.unit_id && !!item.units?.name;
     if (isInflatable) {
       return {
-        name: item.units!.name,
+        name: item.units!.name as string,
         mode: item.wet_or_dry === 'water' ? 'Water' : 'Dry',
         price: item.unit_price_cents,
         qty: item.qty,
@@ -40,7 +55,7 @@ export function formatStoredOrderItems(items: any[]): FormattedOrderItem[] {
         bundleName: item.item_name ?? null,
         bundleQty: item.qty,
         unitPriceCents: item.unit_price_cents,
-        componentSnapshot: (item as any).component_snapshot ?? null,
+        componentSnapshot: (item.component_snapshot ?? null) as Parameters<typeof buildPackageDisplay>[0]["componentSnapshot"],
       });
       const isAddOn = item.pricing_context === 'addon';
       return {

@@ -38,7 +38,7 @@ class Logger {
     return LOG_LEVELS[level] >= LOG_LEVELS[this.config.minLevel];
   }
 
-  private formatMessage(level: LogLevel, message: string, _data?: any): string {
+  private formatMessage(level: LogLevel, message: string, _data?: unknown): string {
     const parts: string[] = [];
 
     if (this.config.includeTimestamp) {
@@ -70,7 +70,7 @@ class Logger {
     return '';
   }
 
-  debug(message: string, data?: any): void {
+  debug(message: string, data?: unknown): void {
     if (!this.shouldLog('debug')) return;
 
     const formattedMessage = this.formatMessage('debug', message, data);
@@ -82,21 +82,21 @@ class Logger {
     }
   }
 
-  info(message: string, data?: any): void {
+  info(message: string, data?: unknown): void {
     if (!this.shouldLog('info')) return;
 
     const formattedMessage = this.formatMessage('info', message, data);
     console.info(formattedMessage, data || '');
   }
 
-  warn(message: string, data?: any): void {
+  warn(message: string, data?: unknown): void {
     if (!this.shouldLog('warn')) return;
 
     const formattedMessage = this.formatMessage('warn', message, data);
     console.warn(formattedMessage, data || '');
   }
 
-  error(message: string, error?: Error | any, data?: any): void {
+  error(message: string, error?: unknown, data?: Record<string, unknown>): void {
     if (!this.shouldLog('error')) return;
 
     const formattedMessage = this.formatMessage('error', message, data);

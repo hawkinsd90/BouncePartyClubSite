@@ -12,9 +12,44 @@ import {
 } from './emailTemplateBase';
 import { formatOrderId } from '../utils';
 import { buildPackageDisplay } from '../pricing/packageDisplay';
-import { extraFeeRows } from './feeRows';
+import { extraFeeRows, type ExtraFeeFields } from './feeRows';
+import type { PackageSnapshotInput } from '../pricing/packageDisplay';
 
-export function renderOrderEmailItems(items: any[]): Array<{ description: string; amount: string }> {
+// One stored order line as the emails read it (inflatable lines carry `units`; Event Essentials lines carry bundle / item fields).
+export interface EmailOrderLine {
+  unit_id?: string | null;
+  units?: { name?: string | null } | null;
+  qty: number;
+  wet_or_dry?: string | null;
+  unit_price_cents: number;
+  bundle_id?: string | null;
+  item_name?: string | null;
+  component_snapshot?: PackageSnapshotInput | null;
+  pricing_context?: string | null;
+}
+
+// The order fields the confirmation email reads.
+export interface EmailOrderFields extends ExtraFeeFields {
+  id: string;
+  event_date: string;
+  start_window?: string | null;
+  end_window?: string | null;
+  location_type?: string | null;
+  surface?: string | null;
+  has_pets?: boolean | null;
+  special_details?: string | null;
+  subtotal_cents: number;
+  travel_fee_cents?: number | null;
+  travel_total_miles?: number | null;
+  surface_fee_cents?: number | null;
+  same_day_pickup_fee_cents?: number | null;
+  tax_cents?: number | null;
+  tip_cents?: number | null;
+  deposit_due_cents: number;
+  balance_due_cents: number;
+}
+
+export function renderOrderEmailItems(items: EmailOrderLine[]): Array<{ description: string; amount: string }> {
   const result: Array<{ description: string; amount: string }> = [];
   for (const item of items) {
     if (item.unit_id && item.units?.name) {
@@ -61,24 +96,22 @@ export function renderOrderEmailItems(items: any[]): Array<{ description: string
 }
 
 interface OrderEmailData {
-  order: any;
-  customer: any;
-  address: any;
-  items: any[];
-  payment?: any;
+  order: EmailOrderFields;
+  customer: { first_name: string };
+  address: { line1?: string | null; city?: string | null } | null | undefined;
+  items: EmailOrderLine[];
+  payment?: {
+    id: string;
+    paid_at?: string | null;
+    payment_brand?: string | null;
+    payment_last4?: string | null;
+    amount_cents?: number | null;
+  } | null;
   totalCents: number;
   portalUrl: string;
 }
 
-export function buildReceiptEmailInput(args: {
-  order: any;
-  customer: any;
-  address: any;
-  items: any[];
-  payment?: any;
-  totalCents: number;
-  portalUrl: string;
-}): OrderEmailData {
+export function buildReceiptEmailInput(args: OrderEmailData): OrderEmailData {
   return args;
 }
 
@@ -259,13 +292,14 @@ export function generateConfirmationReceiptEmail(data: OrderEmailData): string {
   });
 }
 
-export function generateConfirmationSmsMessage(order: any, customerFirstName: string, portalUrl: string): string {
+export function generateConfirmationSmsMessage(order: { id: string; event_date: string }, customerFirstName: string, portalUrl: string): string {
   return `Hi ${customerFirstName}, your booking for ${format(new Date(order.event_date + 'T12:00:00'), 'MMMM d, yyyy')} is confirmed! Order #${formatOrderId(order.id)}. Track your order: ${portalUrl}. We'll contact you closer to your event date.`;
 }
 
 export function generateRejectionSmsMessage(
-  order: any,
-  customerFirstName: string,
+  order: { event_date: string },
+  // Undefined when the order has no customer record; the text then reads "Hi undefined" exactly as it always did.
+  customerFirstName: string | undefined,
   reason: string
 ): string {
   return `Hi ${customerFirstName}, unfortunately we cannot accommodate your booking for ${format(new Date(order.event_date + 'T12:00:00'), 'MMMM d, yyyy')}. Reason: ${reason}. Please contact us if you have questions.`;
@@ -278,6 +312,6 @@ export function generatePaymentLinkSmsMessage(
   return `Hi ${customerFirstName}, your invoice is ready! Please complete payment to secure your booking: ${paymentUrl}`;
 }
 
-export function generateTestSmsMessage(order: any, customerFirstName: string): string {
+export function generateTestSmsMessage(order: { id: string }, customerFirstName: string): string {
   return `Hi ${customerFirstName}, this is a test message from Bounce Party Club. Your order #${formatOrderId(order.id)} is confirmed!`;
 }

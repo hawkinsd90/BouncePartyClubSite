@@ -28,11 +28,16 @@ export interface PackageDisplayResult {
   hasSnapshot: boolean;
 }
 
+// The part of a saved component snapshot the display reads.
+export interface PackageSnapshotInput {
+  components?: Array<{ product_name?: string | null; quantity_per_bundle: number }> | null;
+}
+
 export function buildPackageDisplay(input: {
-  bundleName: string | null;
+  bundleName: string | null | undefined;
   bundleQty: number;
   unitPriceCents: number;
-  componentSnapshot: BundleComponentSnapshot | null;
+  componentSnapshot: PackageSnapshotInput | null | undefined;
 }): PackageDisplayResult {
   const packageName = input.bundleName || 'Package';
   const packageQty = Math.trunc(input.bundleQty) || 1;
@@ -62,7 +67,7 @@ export function buildPackageDisplay(input: {
   };
 }
 
-export function isPackageItem(item: any): boolean {
+export function isPackageItem(item: { item_type?: string | null; bundle_id?: string | null; unit_id?: string | null; product_id?: string | null }): boolean {
   return (
     item &&
     (item.item_type === 'event_essential_bundle' ||
@@ -129,7 +134,9 @@ export function validatePackageSnapshot(cartItem: {
   return { ok: true };
 }
 
-export function validateCartPackageSnapshots(cart: any[]): PackageSnapshotValidation {
+export function validateCartPackageSnapshots(
+  cart: Array<Parameters<typeof isPackageItem>[0] & Parameters<typeof validatePackageSnapshot>[0]>,
+): PackageSnapshotValidation {
   for (const item of cart) {
     if (isPackageItem(item)) {
       const result = validatePackageSnapshot(item);

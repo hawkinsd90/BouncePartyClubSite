@@ -68,7 +68,7 @@ export const SHARED_COPIES: SharedCopySpec[] = [
     out: 'orderPricingCalculation.ts',
     source: 'src/lib/pricing/orderPricingCalculation.ts',
     // The display summary type lives in a module that reads the browser Supabase client; the server needs only its shape.
-    slice: (t) => t.replace("import type { OrderSummaryData } from '../orders/orderSummaryLoader';\n", '// deno-lint-ignore no-explicit-any\ntype OrderSummaryData = any;\n'),
+    slice: (t) => t.replace("import type { OrderSummaryData } from '../orders/orderSummaryLoader';\n", '// deno-lint-ignore no-explicit-any\n// eslint-disable-next-line @typescript-eslint/no-explicit-any\ntype OrderSummaryData = any;\n'),
   },
   { out: 'unifiedTotals.ts', source: 'src/lib/pricing/unifiedTotals.ts' },
   {

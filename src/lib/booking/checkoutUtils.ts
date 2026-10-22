@@ -16,7 +16,7 @@ export type CheckoutRenderState =
 
 export function determineCheckoutRenderState(args: {
   loading: boolean;
-  quoteData: any | null;
+  quoteData: unknown;
   priceBreakdown: PriceBreakdown | null;
   settingsLoading: boolean;
   settingsError: string | null;
@@ -46,9 +46,9 @@ export function determineCheckoutRenderState(args: {
   return { state: 'ready', totals };
 }
 
+// buildOrderSummary reads only the pickup preference; the saved quote form stores null when none was chosen.
 interface QuoteData {
-  pickup_preference?: 'same_day' | 'next_day';
-  [key: string]: unknown;
+  pickup_preference?: 'same_day' | 'next_day' | null;
 }
 
 export function getPaymentAmountCentsFromTotals(

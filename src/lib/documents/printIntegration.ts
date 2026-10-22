@@ -1,15 +1,87 @@
-import { transformOrderToPrintableDocument, transformPaymentToPrintableReceipt } from './printableDocument';
+import {
+  transformOrderToPrintableDocument,
+  transformPaymentToPrintableReceipt,
+  type PrintableCustomFeeInput,
+  type PrintableDiscountInput,
+  type PrintableOrderInput,
+  type PrintableOrderItemInput,
+  type PrintablePaymentInput,
+} from './printableDocument';
 
-export function prepareInvoicePreview(order: any, orderItems: any[], discounts: any[] = [], customFees: any[] = []) {
+// The parts of a quote that the preview reads.
+interface QuotePreviewData {
+  event_date: string;
+  start_window?: string | null;
+  generator_qty?: number | null;
+  address_line1?: string | null;
+  address_line2?: string | null;
+  city?: string | null;
+  state?: string | null;
+  zip?: string | null;
+  location_type?: string | null;
+  pickup_preference?: string | null;
+  surface?: string | null;
+}
+interface QuotePreviewPrice {
+  subtotal_cents: number;
+  travel_fee_cents: number;
+  travel_total_miles?: number | null;
+  surface_fee_cents: number;
+  generator_fee_cents?: number | null;
+  same_day_pickup_fee_cents?: number | null;
+  tax_cents: number;
+  deposit_due_cents: number;
+  balance_due_cents: number;
+}
+interface QuotePreviewContact {
+  first_name?: string | null;
+  last_name?: string | null;
+  email?: string | null;
+  phone?: string | null;
+  business_name?: string;
+}
+interface QuotePreviewCartItem {
+  unit_name?: string | null;
+  wet_or_dry?: string | null;
+  unit_price_cents: number;
+  qty?: number | null;
+}
+interface CatalogPrintUnit {
+  name: string;
+  description?: string | null;
+  dimensions?: string | null;
+  capacity?: string | number | null;
+  images?: unknown;
+  price_dry_cents?: number | null;
+  price_water_cents?: number | null;
+}
+interface WaiverPrintSignature {
+  id?: string;
+  signed_at?: string | null;
+  signature_data?: unknown;
+  ip_address?: unknown;
+}
+interface WaiverPrintOrder {
+  id: string;
+  customers?: {
+    first_name?: string | null;
+    last_name?: string | null;
+    email?: string | null;
+    phone?: string | null;
+    business_name?: string;
+  } | null;
+}
+
+export function prepareInvoicePreview(order: PrintableOrderInput, orderItems: PrintableOrderItemInput[], discounts: PrintableDiscountInput[] = [], customFees: PrintableCustomFeeInput[] = []) {
   return transformOrderToPrintableDocument(order, orderItems, discounts, customFees);
 }
 
-export function preparePaymentReceipt(payment: any, order: any, orderItems: any[]) {
+export function preparePaymentReceipt(payment: PrintablePaymentInput, order: PrintableOrderInput, orderItems: PrintableOrderItemInput[]) {
   return transformPaymentToPrintableReceipt(payment, order, orderItems);
 }
 
-export function prepareQuotePreview(quoteData: any, cart: any[], priceBreakdown: any, contactData: any) {
-  const mockOrder = {
+export function prepareQuotePreview(quoteData: QuotePreviewData, cart: QuotePreviewCartItem[], priceBreakdown: QuotePreviewPrice, contactData: QuotePreviewContact) {
+  const mockOrder: PrintableOrderInput = {
     id: 'QUOTE-' + Date.now(),
     event_date: quoteData.event_date,
     start_window: quoteData.start_window,
@@ -42,7 +114,7 @@ export function prepareQuotePreview(quoteData: any, cart: any[], priceBreakdown:
     surface: quoteData.surface,
   };
 
-  const mockItems = cart.map((item: any) => ({
+  const mockItems = cart.map((item) => ({
     units: { name: item.unit_name },
     wet_or_dry: item.wet_or_dry,
     unit_price_cents: item.unit_price_cents,
@@ -52,7 +124,7 @@ export function prepareQuotePreview(quoteData: any, cart: any[], priceBreakdown:
   return transformOrderToPrintableDocument(mockOrder, mockItems);
 }
 
-export function prepareCatalogPrint(units: any[]) {
+export function prepareCatalogPrint(units: CatalogPrintUnit[]) {
   return {
     type: 'catalog' as const,
     title: 'Product Catalog',
@@ -75,7 +147,7 @@ export function prepareCatalogPrint(units: any[]) {
   };
 }
 
-export function prepareWaiverPrint(signature: any, order: any) {
+export function prepareWaiverPrint(signature: WaiverPrintSignature, order: WaiverPrintOrder) {
   return {
     type: 'waiver' as const,
     documentNumber: signature.id?.slice(0, 8).toUpperCase(),

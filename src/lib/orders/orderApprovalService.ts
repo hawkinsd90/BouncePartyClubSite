@@ -5,6 +5,8 @@ import {
   generateConfirmationReceiptEmail,
   generateConfirmationSmsMessage,
   generateRejectionSmsMessage,
+  type EmailOrderFields,
+  type EmailOrderLine,
 } from '../notifications/orderEmailTemplates';
 import { checkMultipleUnitsAvailability } from '../booking/availability';
 import { formatOrderId } from '../utils';
@@ -12,9 +14,45 @@ import { createShortPortalLink } from '../portal/portalShortLink';
 import { classifyApprovalFailure } from './approvalFailure';
 import { enterConfirmed } from './orderLifecycleApi';
 import { getAdminSetting, ADMIN_SETTING_KEYS } from '../core/adminSettingsCache';
-import { calculateTotalFromOrder } from './orderSummaryLoader';
+import { calculateTotalFromOrder, type OrderCustomFee, type OrderDiscount } from './orderSummaryLoader';
+import { asErrorLike } from '../core/errorLike';
+import type { Database } from '../database.types';
 
 const BUSINESS_PHONE_FALLBACK = '(313) 889-3860';
+
+type OrderItemRow = Database['public']['Tables']['order_items']['Row'];
+// An order line that carries an inflatable (the availability check only looks at those).
+type InflatableOrderItemRow = OrderItemRow & { unit_id: string };
+
+// The customer of an order as the notifications read it. The senders check that the channel exists (hasEmailChannel / hasPhoneChannel)
+// before they use `email` or `phone`.
+interface NotificationCustomer {
+  first_name: string;
+  email: string;
+  phone: string;
+}
+
+// The order, with its customer, address and lines, as the confirmation notifications read it.
+export interface ApprovalNotificationOrder extends EmailOrderFields {
+  customers?: NotificationCustomer | null;
+  addresses?: { line1?: string | null; city?: string | null } | null;
+  order_items?: EmailOrderLine[] | null;
+}
+
+// The order as the decline notifications read it.
+interface DeclinedOrder {
+  id: string;
+  event_date?: string | null;
+  customers?: NotificationCustomer | null;
+}
+
+// What charge-deposit answers (the fields this screen reads).
+interface ChargeDepositAnswer {
+  success?: boolean;
+  error?: unknown;
+  code?: unknown;
+  chargeSucceeded?: unknown;
+}
 
 interface ApprovalResult {
   success: boolean;
@@ -51,8 +89,9 @@ export async function approveOrder(
     }
 
     // Check inflatable availability before approving — only items with valid unit_id
-    const orderItems = (Array.isArray(orderData.order_items) ? orderData.order_items : []) as any[];
-    const inflatableItems = orderItems.filter(item => item.unit_id != null && typeof item.unit_id === 'string' && item.unit_id.trim() !== '');
+    // (the orders -> order_items embed is not modelled in database.types.ts; the rows are order_items rows, read through the select string)
+    const orderItems = (Array.isArray(orderData.order_items) ? orderData.order_items : []) as unknown as OrderItemRow[];
+    const inflatableItems = orderItems.filter((item): item is InflatableOrderItemRow => item.unit_id != null && typeof item.unit_id === 'string' && item.unit_id.trim() !== '');
     const availabilityChecks = inflatableItems.map(item => ({
       unitId: item.unit_id,
       eventStartDate: orderData.event_date,
@@ -109,8 +148,9 @@ export async function approveOrder(
         .maybeSingle();
 
       // Use effective total including relational custom fees and discounts.
-      const orderCustomFeesNoDeposit = (orderData as any).order_custom_fees || [];
-      const orderDiscountsNoDeposit = (orderData as any).order_discounts || [];
+      const relationalRows = orderData as unknown as { order_custom_fees?: OrderCustomFee[]; order_discounts?: OrderDiscount[] };
+      const orderCustomFeesNoDeposit = relationalRows.order_custom_fees || [];
+      const orderDiscountsNoDeposit = relationalRows.order_discounts || [];
       const totalCentsNoDeposit = calculateTotalFromOrder(orderData, orderDiscountsNoDeposit, orderCustomFeesNoDeposit);
 
       let notificationWarning: string | undefined;
@@ -118,17 +158,18 @@ export async function approveOrder(
         notificationWarning = 'The order was approved, but confirmation details could not be loaded. Retry the notification from the order.';
       } else {
         try {
+          // customers (*), addresses (*), order_items (*, units (*)) are embeds that database.types.ts does not model; the row has the notification shape.
           const notifResult = await sendApprovalConfirmationNotifications(
-            orderWithRelationsNoDeposit,
+            orderWithRelationsNoDeposit as unknown as ApprovalNotificationOrder,
             totalCentsNoDeposit,
             sendSms,
           );
           if (notifResult.errors.length > 0) {
             notificationWarning = notifResult.errors.join('; ');
           }
-        } catch (notifErr: any) {
+        } catch (notifErr) {
           console.error('[orderApprovalService] confirmation notifications failed (non-fatal):', notifErr);
-          notificationWarning = (notifErr as any)?.message || 'Confirmation notification failed. Retry the notification from the order.';
+          notificationWarning = asErrorLike(notifErr).message || 'Confirmation notification failed. Retry the notification from the order.';
         }
       }
 
@@ -160,7 +201,7 @@ export async function approveOrder(
       body: JSON.stringify({ orderId }),
     });
 
-    let data: any = {};
+    let data: ChargeDepositAnswer = {};
     try {
       data = await response.json();
     } catch {
@@ -198,12 +239,12 @@ export async function approveOrder(
           declineNotificationResult = { emailSent: null, smsSent: null, errors: ['The order was not confirmed, and customer notification details could not be loaded.'] };
         } else {
           declineNotificationResult = await sendCardDeclinedNotifications(
-            fullOrderRaw as any,
+            fullOrderRaw as unknown as DeclinedOrder,
             orderId,
             sendSms,
           );
         }
-      } catch (notifyErr: any) {
+      } catch (notifyErr) {
         console.error('Failed to send decline notifications:', notifyErr);
         declineNotificationResult = { emailSent: null, smsSent: null, errors: ['Decline notification failed unexpectedly.'] };
       }
@@ -216,9 +257,9 @@ export async function approveOrder(
     // completion, once per payment): the order confirmation and admin alert, the deposit and tip receipts, the invoice row, and the
     // customer's confirmation email and text. Nothing below depends on this browser tab staying open.
     return { success: true };
-  } catch (error: any) {
+  } catch (error) {
     console.error('Error approving order:', error);
-    return { success: false, error: error.message || 'Failed to approve order' };
+    return { success: false, error: asErrorLike(error).message || 'Failed to approve order' };
   }
 }
 
@@ -241,8 +282,8 @@ export async function forceApproveOrder(orderId: string): Promise<ApprovalResult
     }
 
     // Check availability before force approving — only items with valid unit_id
-    const orderItems = (Array.isArray(orderData.order_items) ? orderData.order_items : []) as any[];
-    const inflatableItems = orderItems.filter(item => item.unit_id != null && typeof item.unit_id === 'string' && item.unit_id.trim() !== '');
+    const orderItems = (Array.isArray(orderData.order_items) ? orderData.order_items : []) as unknown as OrderItemRow[];
+    const inflatableItems = orderItems.filter((item): item is InflatableOrderItemRow => item.unit_id != null && typeof item.unit_id === 'string' && item.unit_id.trim() !== '');
     const availabilityChecks = inflatableItems.map(item => ({
       unitId: item.unit_id,
       eventStartDate: orderData.event_date,
@@ -294,14 +335,14 @@ export async function forceApproveOrder(orderId: string): Promise<ApprovalResult
     }
 
     return { success: true };
-  } catch (error: any) {
+  } catch (error) {
     console.error('Error force approving order:', error);
-    return { success: false, error: error.message || 'Failed to force approve order' };
+    return { success: false, error: asErrorLike(error).message || 'Failed to force approve order' };
   }
 }
 
 export async function rejectOrder(
-  order: any,
+  order: { id: string; event_date: string; customers?: { first_name?: string } | null },
   reason: string,
   sendSms: (message: string) => Promise<boolean>
 ): Promise<ApprovalResult> {
@@ -330,13 +371,13 @@ export async function rejectOrder(
     }
 
     return { success: true };
-  } catch (error: any) {
+  } catch (error) {
     console.error('Error rejecting order:', error);
-    return { success: false, error: error.message || 'Failed to reject order' };
+    return { success: false, error: asErrorLike(error).message || 'Failed to reject order' };
   }
 }
 
-async function checkEEProductAvailability(orderItems: any[], orderData: any, orderId: string) {
+async function checkEEProductAvailability(orderItems: OrderItemRow[], orderData: { event_date: string; event_end_date: string | null }, orderId: string) {
   const { checkEventEssentialsAvailability } = await import('../queries/products');
   const check = await checkEventEssentialsAvailability({
     items: orderItems,
@@ -352,7 +393,7 @@ async function checkEEProductAvailability(orderItems: any[], orderData: any, ord
   }
 }
 
-function generateCardDeclinedEmail(order: any, portalUrl: string, businessPhone: string): string {
+function generateCardDeclinedEmail(order: DeclinedOrder, portalUrl: string, businessPhone: string): string {
   const firstName = order.customers?.first_name || 'Customer';
   const shortId = order.id.replace(/-/g, '').toUpperCase().slice(0, 8);
   return `<!DOCTYPE html>
@@ -389,16 +430,16 @@ function generateCardDeclinedEmail(order: any, portalUrl: string, businessPhone:
 </html>`;
 }
 
-function hasEmailChannel(customer: any): boolean {
+function hasEmailChannel(customer: { email?: unknown } | null | undefined): boolean {
   return typeof customer?.email === 'string' && customer.email.trim() !== '';
 }
 
-function hasPhoneChannel(customer: any): boolean {
+function hasPhoneChannel(customer: { phone?: unknown } | null | undefined): boolean {
   return typeof customer?.phone === 'string' && customer.phone.trim() !== '';
 }
 
 export async function sendApprovalConfirmationNotifications(
-  orderWithItems: any,
+  orderWithItems: ApprovalNotificationOrder,
   totalCents: number,
   sendSmsFn: (message: string) => Promise<boolean>,
   deps?: {
@@ -414,7 +455,7 @@ export async function sendApprovalConfirmationNotifications(
   const sb = deps?.supabaseClient ?? supabase;
 
   try {
-    const customer = orderWithItems?.customers as any;
+    const customer = orderWithItems?.customers as NotificationCustomer;
     const hasEmail = hasEmailChannel(customer);
     const hasPhone = hasPhoneChannel(customer);
 
@@ -434,8 +475,8 @@ export async function sendApprovalConfirmationNotifications(
       .limit(1)
       .maybeSingle();
 
-    const address = orderWithItems?.addresses as any;
-    const items = (orderWithItems?.order_items as any) || [];
+    const address = orderWithItems?.addresses;
+    const items = orderWithItems?.order_items || [];
 
     // 2. Create one short portal link shared by all available channels
     const linkResult = await createLink(orderWithItems.id, sb, orderWithItems.event_date);
@@ -485,10 +526,10 @@ export async function sendApprovalConfirmationNotifications(
           html: emailHtml,
         });
         result.emailSent = true;
-      } catch (emailErr: any) {
+      } catch (emailErr) {
         console.error('[orderApprovalService] Email send failed:', emailErr);
         result.emailSent = false;
-        const errMsg = (emailErr as any)?.message || 'Email send failed';
+        const errMsg = asErrorLike(emailErr).message || 'Email send failed';
         result.errors.push(`Email: ${errMsg}`);
       }
     }
@@ -502,24 +543,24 @@ export async function sendApprovalConfirmationNotifications(
         if (!smsOk) {
           result.errors.push('SMS: send returned false');
         }
-      } catch (smsErr: any) {
+      } catch (smsErr) {
         console.error('[orderApprovalService] SMS send failed:', smsErr);
         result.smsSent = false;
-        const errMsg = (smsErr as any)?.message || 'SMS send failed';
+        const errMsg = asErrorLike(smsErr).message || 'SMS send failed';
         result.errors.push(`SMS: ${errMsg}`);
       }
     }
 
     return result;
-  } catch (err: any) {
+  } catch (err) {
     console.error('[orderApprovalService] Confirmation notifications error:', err);
-    result.errors.push((err as any)?.message || 'Unknown error');
+    result.errors.push(asErrorLike(err).message || 'Unknown error');
     return result;
   }
 }
 
 export async function sendCardDeclinedNotifications(
-  order: any,
+  order: DeclinedOrder,
   orderId: string,
   sendSmsFn: (message: string) => Promise<boolean>,
   deps?: {
@@ -535,7 +576,7 @@ export async function sendCardDeclinedNotifications(
   const sb = deps?.supabaseClient ?? supabase;
 
   try {
-    const customer = order?.customers as any;
+    const customer = order?.customers as NotificationCustomer;
     const hasEmail = hasEmailChannel(customer);
     const hasPhone = hasPhoneChannel(customer);
 
@@ -585,10 +626,10 @@ export async function sendCardDeclinedNotifications(
           html: declineEmailHtml,
         });
         result.emailSent = true;
-      } catch (emailErr: any) {
+      } catch (emailErr) {
         console.error('[orderApprovalService] Decline email send failed:', emailErr);
         result.emailSent = false;
-        const errMsg = (emailErr as any)?.message || 'Email send failed';
+        const errMsg = asErrorLike(emailErr).message || 'Email send failed';
         result.errors.push(`Email: ${errMsg}`);
       }
     }
@@ -603,18 +644,18 @@ export async function sendCardDeclinedNotifications(
         if (!smsOk) {
           result.errors.push('SMS: send returned false');
         }
-      } catch (smsErr: any) {
+      } catch (smsErr) {
         console.error('[orderApprovalService] Decline SMS send failed:', smsErr);
         result.smsSent = false;
-        const errMsg = (smsErr as any)?.message || 'SMS send failed';
+        const errMsg = asErrorLike(smsErr).message || 'SMS send failed';
         result.errors.push(`SMS: ${errMsg}`);
       }
     }
 
     return result;
-  } catch (err: any) {
+  } catch (err) {
     console.error('[orderApprovalService] Decline notifications error:', err);
-    result.errors.push((err as any)?.message || 'Unknown error');
+    result.errors.push(asErrorLike(err).message || 'Unknown error');
     return result;
   }
 }

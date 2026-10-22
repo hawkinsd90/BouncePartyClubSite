@@ -6,14 +6,61 @@ import type { OrderPricingState } from '../pricing/orderPricingState';
 
 // An Admin Edit save. The browser describes what the Admin changed; the SERVER prices it and writes it (staff-order-save). The
 // totals the editor showed were a preview: nothing the browser calculated is sent as, or accepted as, a price.
+// The parts of the editor's state this module reads. They are described by what is read here; the editor's own types satisfy them.
+interface SavedOrderRef {
+  id: string;
+  status: string;
+}
+interface EditedOrderFields {
+  location_type?: unknown;
+  surface?: string | null;
+  generator_qty?: unknown;
+  start_window?: unknown;
+  end_window?: unknown;
+  event_date?: unknown;
+  event_end_date?: unknown;
+  pickup_preference?: unknown;
+  address_line1?: unknown;
+  address_line2?: unknown;
+  address_city?: unknown;
+  address_state?: unknown;
+  address_zip?: unknown;
+  address_lat?: unknown;
+  address_lng?: unknown;
+}
+interface StagedItemFields {
+  id?: string;
+  unit_id?: string | null;
+  bundle_id?: string | null;
+  product_id?: string | null;
+  qty: number;
+  wet_or_dry?: string | null;
+  is_new?: boolean;
+  is_deleted?: boolean;
+  is_updated?: boolean;
+}
+interface DiscountFields {
+  id?: string;
+  name: string;
+  amount_cents?: number | null;
+  percentage?: number | string | null;
+  is_new?: boolean;
+}
+interface CustomFeeFields {
+  id?: string;
+  name: string;
+  amount_cents?: number | null;
+  is_new?: boolean;
+}
+
 interface SaveOrderChangesParams {
-  order: any;
-  editedOrder: any;
-  stagedItems: any[];
-  discounts: any[];
-  customFees: any[];
+  order: SavedOrderRef;
+  editedOrder: EditedOrderFields;
+  stagedItems: StagedItemFields[];
+  discounts: DiscountFields[];
+  customFees: CustomFeeFields[];
   // The editor's own preview, used only for the one measured number the server needs (the driving distance) and never as a price.
-  calculatedPricing: any;
+  calculatedPricing: unknown;
   // What the editor loaded: the order, its items, discounts and custom fees as stored. If the stored order has moved since, the
   // server refuses the save.
   loadedPricingState: OrderPricingState;
@@ -21,7 +68,7 @@ interface SaveOrderChangesParams {
   customSetupFeeCents: number | null;
   adminMessage: string;
   adminOverrideApproval: boolean;
-  availabilityIssues: any[];
+  availabilityIssues: Array<{ unitName?: string }>;
   taxWaived?: boolean;
   taxWaiveReason?: string;
   travelFeeWaived?: boolean;
@@ -52,11 +99,11 @@ interface SaveResponse {
   adminOverrideApproval?: boolean;
 }
 
-const kindOf = (item: any): 'inflatable' | 'product' | 'bundle' => (item.unit_id ? 'inflatable' : item.bundle_id ? 'bundle' : 'product');
+const kindOf = (item: StagedItemFields): 'inflatable' | 'product' | 'bundle' => (item.unit_id ? 'inflatable' : item.bundle_id ? 'bundle' : 'product');
 
 // What the staged items say the Admin did, without a price: stored lines are referenced by id (the server keeps their stored price),
 // new lines by what was added (the server prices them from the catalog).
-export function buildItemIntents(stagedItems: any[]) {
+export function buildItemIntents(stagedItems: StagedItemFields[]) {
   return stagedItems
     .filter((item) => !(item.is_new && item.is_deleted))
     .map((item) =>

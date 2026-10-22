@@ -45,11 +45,19 @@ export interface Database {
           setting_key: string
           old_value: string | null
           new_value: string | null
-          changed_by: string
-          changed_at: string
-          change_reason: string | null
+          changed_by: string | null
+          change_description: string | null
+          created_at: string | null
         }
-        Insert: Omit<Database['public']['Tables']['admin_settings_changelog']['Row'], 'id' | 'changed_at'>
+        Insert: {
+          id?: string
+          setting_key: string
+          old_value?: string | null
+          new_value?: string | null
+          changed_by?: string | null
+          change_description?: string | null
+          created_at?: string | null
+        }
         Update: Partial<Database['public']['Tables']['admin_settings_changelog']['Insert']>
         Relationships: []
       }
@@ -159,8 +167,16 @@ export interface Database {
           notes: string | null
           created_at: string
           updated_at: string
+          start_time: string | null
+          end_time: string | null
         }
-        Insert: Omit<Database['public']['Tables']['daily_mileage_logs']['Row'], 'id' | 'created_at' | 'updated_at'>
+        Insert: Omit<Database['public']['Tables']['daily_mileage_logs']['Row'], 'id' | 'created_at' | 'updated_at' | 'start_mileage' | 'end_mileage' | 'notes' | 'start_time' | 'end_time'> & {
+          start_mileage?: number | null
+          end_mileage?: number | null
+          notes?: string | null
+          start_time?: string | null
+          end_time?: string | null
+        }
         Update: Partial<Database['public']['Tables']['daily_mileage_logs']['Insert']>
         Relationships: []
       }
@@ -486,6 +502,66 @@ export interface Database {
           }
         ]
       }
+      email_templates: {
+        Row: {
+          id: string
+          template_name: string
+          subject: string
+          description: string
+          header_title: string
+          content_template: string
+          theme: string | null
+          category: string
+          created_at: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          id?: string
+          template_name: string
+          subject: string
+          description: string
+          header_title: string
+          content_template: string
+          theme?: string | null
+          category: string
+          created_at?: string | null
+          updated_at?: string | null
+        }
+        Update: Partial<Database['public']['Tables']['email_templates']['Insert']>
+        Relationships: []
+      }
+      public_menu_groups: {
+        Row: {
+          id: string
+          title: string
+          is_enabled: boolean
+          display_order: number
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          title: string
+          is_enabled?: boolean
+          display_order?: number
+          created_at?: string
+          updated_at?: string
+        }
+        Update: Partial<Database['public']['Tables']['public_menu_groups']['Insert']>
+        Relationships: []
+      }
+      public_menu_group_categories: {
+        Row: {
+          menu_group_id: string
+          category_id: string
+        }
+        Insert: {
+          menu_group_id: string
+          category_id: string
+        }
+        Update: Partial<Database['public']['Tables']['public_menu_group_categories']['Insert']>
+        Relationships: []
+      }
       product_categories: {
         Row: {
           id: string
@@ -608,15 +684,29 @@ export interface Database {
         Relationships: []
       }
       order_lot_pictures: {
+        // Columns as in the migrated database (file_path / file_name, no image_url).
         Row: {
           id: string
           order_id: string
-          image_url: string
-          uploaded_by: string | null
+          file_path: string
+          file_name: string
           notes: string | null
-          created_at: string
+          uploaded_at: string | null
+          uploaded_by: string | null
+          created_at: string | null
+          address_id: string | null
         }
-        Insert: Omit<Database['public']['Tables']['order_lot_pictures']['Row'], 'id' | 'created_at'>
+        Insert: {
+          id?: string
+          order_id: string
+          file_path: string
+          file_name: string
+          notes?: string | null
+          uploaded_at?: string | null
+          uploaded_by?: string | null
+          created_at?: string | null
+          address_id?: string | null
+        }
         Update: Partial<Database['public']['Tables']['order_lot_pictures']['Insert']>
         Relationships: []
       }
@@ -807,28 +897,40 @@ export interface Database {
           id: string
           slug: string
           name: string
-          type: string
-          description: string | null
+          is_combo: boolean | null
           price_dry_cents: number
           price_water_cents: number | null
-          quantity_available: number
-          active: boolean
-          is_combo: boolean
-          features_json: Json | null
-          dimensions_dry: string | null
-          dimensions_wet: string | null
-          dimensions: string | null
-          capacity: string | null
-          created_at: string
-          types: string[]
+          dimensions: string
           footprint_sqft: number
           power_circuits: number | null
+          capacity: number
           indoor_ok: boolean | null
           outdoor_ok: boolean | null
+          active: boolean | null
+          created_at: string | null
+          quantity_available: number
           dimensions_water: string | null
+          types: string[]
         }
-        Insert: Omit<Database['public']['Tables']['units']['Row'], 'id' | 'created_at' | 'types' | 'footprint_sqft' | 'power_circuits' | 'indoor_ok' | 'outdoor_ok' | 'dimensions_water'> &
-          Partial<Pick<Database['public']['Tables']['units']['Row'], 'types' | 'footprint_sqft' | 'power_circuits' | 'indoor_ok' | 'outdoor_ok' | 'dimensions_water'>>
+        Insert: {
+          id?: string
+          slug: string
+          name: string
+          is_combo?: boolean | null
+          price_dry_cents: number
+          price_water_cents?: number | null
+          dimensions: string
+          footprint_sqft: number
+          power_circuits?: number | null
+          capacity: number
+          indoor_ok?: boolean | null
+          outdoor_ok?: boolean | null
+          active?: boolean | null
+          created_at?: string | null
+          quantity_available?: number
+          dimensions_water?: string | null
+          types: string[]
+        }
         Update: Partial<Database['public']['Tables']['units']['Insert']>
         Relationships: []
       }
@@ -901,32 +1003,84 @@ export interface Database {
           id: string
           start_date: string
           end_date: string
-          reason: string | null
-          created_at: string
+          reason: string
+          notes: string | null
+          created_by: string | null
+          created_at: string | null
+          updated_at: string | null
+          block_type: string
+          recurrence: string
+          expires_at: string | null
         }
-        Insert: Omit<Database['public']['Tables']['blackout_dates']['Row'], 'id' | 'created_at'>
+        Insert: {
+          id?: string
+          start_date: string
+          end_date: string
+          reason: string
+          notes?: string | null
+          created_by?: string | null
+          created_at?: string | null
+          updated_at?: string | null
+          block_type?: string
+          recurrence?: string
+          expires_at?: string | null
+        }
         Update: Partial<Database['public']['Tables']['blackout_dates']['Insert']>
         Relationships: []
       }
       blackout_addresses: {
         Row: {
           id: string
-          address_pattern: string
-          reason: string | null
-          created_at: string
+          address_line1: string
+          address_line2: string | null
+          city: string
+          state: string
+          zip_code: string
+          reason: string
+          notes: string | null
+          created_by: string | null
+          created_at: string | null
+          updated_at: string | null
         }
-        Insert: Omit<Database['public']['Tables']['blackout_addresses']['Row'], 'id' | 'created_at'>
+        Insert: {
+          id?: string
+          address_line1: string
+          address_line2?: string | null
+          city: string
+          state: string
+          zip_code: string
+          reason: string
+          notes?: string | null
+          created_by?: string | null
+          created_at?: string | null
+          updated_at?: string | null
+        }
         Update: Partial<Database['public']['Tables']['blackout_addresses']['Insert']>
         Relationships: []
       }
       blackout_contacts: {
         Row: {
           id: string
-          contact_id: string
-          reason: string | null
-          created_at: string
+          email: string | null
+          phone: string | null
+          customer_name: string | null
+          reason: string
+          notes: string | null
+          created_by: string | null
+          created_at: string | null
+          updated_at: string | null
         }
-        Insert: Omit<Database['public']['Tables']['blackout_contacts']['Row'], 'id' | 'created_at'>
+        Insert: {
+          id?: string
+          email?: string | null
+          phone?: string | null
+          customer_name?: string | null
+          reason: string
+          notes?: string | null
+          created_by?: string | null
+          created_at?: string | null
+          updated_at?: string | null
+        }
         Update: Partial<Database['public']['Tables']['blackout_contacts']['Insert']>
         Relationships: []
       }
@@ -1047,6 +1201,24 @@ export interface Database {
         Update: Partial<Database['public']['Tables']['address_lot_pictures']['Insert']>
         Relationships: []
       }
+      order_notes: {
+        Row: {
+          id: string
+          order_id: string | null
+          user_id: string | null
+          note: string
+          created_at: string | null
+        }
+        Insert: {
+          id?: string
+          order_id?: string | null
+          user_id?: string | null
+          note: string
+          created_at?: string | null
+        }
+        Update: Partial<Database['public']['Tables']['order_notes']['Insert']>
+        Relationships: []
+      }
       order_refunds: {
         Row: {
           id: string
@@ -1146,8 +1318,20 @@ export interface Database {
         Returns: boolean
       }
       get_user_order_prefill: {
-        Args: { user_id: string }
-        Returns: Json
+        Args: Record<string, never>
+        Returns: Array<{
+          first_name: string | null
+          last_name: string | null
+          email: string | null
+          phone: string | null
+          address_line1: string | null
+          address_line2: string | null
+          city: string | null
+          state: string | null
+          zip: string | null
+          lat: number | null
+          lng: number | null
+        }>
       }
       // The signed-in customer's own orders (customer-facing fields only) and latest order address.
       get_my_orders: {
@@ -1361,6 +1545,18 @@ export interface Database {
       get_public_nav_menu_groups: {
         Args: Record<string, never>
         Returns: Json
+      }
+      get_public_business_settings: {
+        Args: Record<string, never>
+        Returns: Json
+      }
+      save_menu_group: {
+        Args: { p_group_id?: string | null; p_title?: string | null; p_category_ids?: string[] | null; p_is_enabled?: boolean }
+        Returns: string
+      }
+      reorder_menu_group: {
+        Args: { p_group_id: string; p_swap_group_id: string }
+        Returns: undefined
       }
       save_lot_picture_to_address: {
         Args: { p_order_lot_picture_id: string }

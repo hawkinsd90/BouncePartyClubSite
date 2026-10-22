@@ -1,3 +1,4 @@
+import type { Database } from '../database.types';
 import { supabase } from '../supabase';
 import { executeQuery, QueryOptions } from './base';
 
@@ -24,7 +25,7 @@ export async function getAllContacts(options?: QueryOptions) {
   );
 }
 
-export async function createContact(contactData: any, options?: QueryOptions) {
+export async function createContact(contactData: Database['public']['Tables']['contacts']['Insert'], options?: QueryOptions) {
   return executeQuery(
     async () =>
       await supabase
@@ -36,7 +37,7 @@ export async function createContact(contactData: any, options?: QueryOptions) {
   );
 }
 
-export async function updateContact(email: string, updates: any, options?: QueryOptions) {
+export async function updateContact(email: string, updates: Database['public']['Tables']['contacts']['Update'], options?: QueryOptions) {
   return executeQuery(
     async () =>
       await supabase

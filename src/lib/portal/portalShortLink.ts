@@ -9,9 +9,19 @@ export type ShortPortalLinkResult =
 // the order-bound token to the customer portal, which carries it in the URL fragment (#t=...). Staff (admin/master/crew) are authorized by their
 // session; a customer must present proof for this order (their portal token, a Checkout session, or ownership).
 // A raw order id is never enough, and no fallback ever produces a /customer-portal/<uuid> URL.
+// The part of a Supabase client this helper uses (the portal-link Edge Function call).
+export interface PortalLinkClient {
+  functions: {
+    invoke(
+      name: string,
+      options: { body: Record<string, unknown> },
+    ): Promise<{ data: { success?: boolean; shortCode?: unknown; error?: string } | null; error: { message?: string } | null }>;
+  };
+}
+
 export async function createShortPortalLink(
   orderId: string,
-  supabaseClient: any,
+  supabaseClient: PortalLinkClient,
   _eventDate?: string | null,
   invoiceToken?: string | null,
   sessionId?: string | null

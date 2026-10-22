@@ -7,10 +7,12 @@ export interface QueryOptions {
 
 export interface QueryResult<T> {
   data: T | null;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- QueryResult.error is read as an object (error.message) by ~30 callers across src/components and src/hooks and is a string or unknown for some producers; narrowing it ripples outside src/lib
   error: any;
 }
 
 export async function executeQuery<T>(
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- same boundary type as QueryResult.error above
   queryFn: () => Promise<{ data: T | null; error: any }>,
   options: QueryOptions = {}
 ): Promise<QueryResult<T>> {

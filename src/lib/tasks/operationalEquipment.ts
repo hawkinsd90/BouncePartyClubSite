@@ -35,14 +35,35 @@ interface NormalizedComponent {
   productId?: string;
 }
 
-function normalizeSnapshotComponents(snapshot: any): NormalizedComponent[] {
+// One component of a saved package snapshot, read leniently (older snapshots used different key names).
+interface SnapshotComponentLike {
+  product_name?: string | null;
+  name?: string | null;
+  quantity_per_bundle?: number | null;
+  quantity?: number | null;
+  product_id?: string | null;
+}
+
+// The fields of one stored order line that the equipment list reads.
+export interface EquipmentOrderItem {
+  qty?: number | null;
+  unit_id?: string | null;
+  units?: { name?: string | null } | null;
+  wet_or_dry?: string | null;
+  bundle_id?: string | null;
+  component_snapshot?: unknown;
+  item_name?: string | null;
+  product_id?: string | null;
+}
+
+function normalizeSnapshotComponents(snapshot: unknown): NormalizedComponent[] {
   if (!snapshot) return [];
 
   // Primary contract: { components: [...] }
   if (!Array.isArray(snapshot) && snapshot && typeof snapshot === 'object') {
-    const components = snapshot.components;
+    const components = (snapshot as { components?: unknown }).components;
     if (Array.isArray(components)) {
-      return components.map((c: any) => ({
+      return components.map((c: SnapshotComponentLike) => ({
         name: c.product_name || c.name || 'Unknown component',
         quantity: c.quantity_per_bundle ?? c.quantity ?? 1,
         productId: c.product_id || undefined,
@@ -53,7 +74,7 @@ function normalizeSnapshotComponents(snapshot: any): NormalizedComponent[] {
 
   // Legacy defensive: bare array of component objects
   if (Array.isArray(snapshot)) {
-    return snapshot.map((c: any) => ({
+    return snapshot.map((c: SnapshotComponentLike) => ({
       name: c.product_name || c.name || 'Unknown component',
       quantity: c.quantity_per_bundle ?? c.quantity ?? 1,
       productId: c.product_id || undefined,
@@ -64,7 +85,7 @@ function normalizeSnapshotComponents(snapshot: any): NormalizedComponent[] {
 }
 
 export function formatOperationalEquipment(
-  orderItems: any[],
+  orderItems: EquipmentOrderItem[],
   legacyGeneratorQty?: number,
 ): OperationalEquipmentItem[] {
   const result: OperationalEquipmentItem[] = [];
@@ -161,7 +182,7 @@ export function formatOperationalEquipment(
 }
 
 export function formatOperationalEquipmentLabels(
-  orderItems: any[],
+  orderItems: EquipmentOrderItem[],
   legacyGeneratorQty?: number,
 ): string[] {
   return formatOperationalEquipment(orderItems, legacyGeneratorQty).map(e => {

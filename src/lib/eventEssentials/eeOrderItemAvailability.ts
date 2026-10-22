@@ -32,7 +32,10 @@ function isValidIdentityValue(value: unknown): boolean {
 }
 
 export function buildEventEssentialAvailabilityRequestFromOrderItems(
+  // The stored lines are untrusted input that this function validates field by field (every property is checked at runtime), so they cannot be given a static shape without restructuring the validation.
+  /* eslint-disable @typescript-eslint/no-explicit-any -- see comment above */
   orderItems: any[],
+  /* eslint-enable @typescript-eslint/no-explicit-any */
 ): AvailabilityExpansionResult {
   const aggregated = new Map<string, number>();
 
@@ -124,7 +127,7 @@ export function buildEventEssentialAvailabilityRequestFromOrderItems(
 
 export interface AvailabilityResultValidatorInput {
   error?: string | null;
-  data?: any[] | null;
+  data?: unknown[] | null;
 }
 
 export type AvailabilityValidationStatus = 'ok' | 'unavailable' | 'invalid';
@@ -143,7 +146,9 @@ export function validateAvailabilityResult(
   }
   // Validate each returned row shape BEFORE building the returned-product-ID set:
   // product_id must be a non-blank string, is_allowed must be a boolean
-  for (const row of result.data) {
+  // The rows are read as possibly-malformed: each field is checked below.
+  const rows = result.data as Array<{ product_id?: unknown; is_allowed?: unknown }>;
+  for (const row of rows) {
     if (typeof row.product_id !== 'string' || row.product_id.trim() === '') {
       return {
         ok: false,
@@ -161,7 +166,7 @@ export function validateAvailabilityResult(
       };
     }
   }
-  const returnedProductIds = new Set(result.data.map((r: any) => r.product_id));
+  const returnedProductIds = new Set(rows.map((r) => r.product_id));
   for (const reqId of requestedProductIds) {
     if (!returnedProductIds.has(reqId)) {
       return {
@@ -172,7 +177,7 @@ export function validateAvailabilityResult(
       };
     }
   }
-  const allAvailable = result.data.every((r: any) => r.is_allowed === true);
+  const allAvailable = rows.every((r) => r.is_allowed === true);
   if (!allAvailable) {
     return {
       ok: false,

@@ -7,6 +7,7 @@
 // and are not touched by this module.
 
 import type { UnifiedCartItem } from '../../types';
+import { asErrorLike } from '../core/errorLike';
 import {
   isEventEssentialProductCartItem,
   isEventEssentialBundleCartItem,
@@ -109,6 +110,16 @@ export function cartPackageContainsGenerator(
   return total;
 }
 
+// The fields of one stored order line that the Generator helpers read (a direct Event Essentials product line, or a package line with its
+// saved component snapshot).
+export interface GeneratorOrderItem {
+  product_id?: string | null;
+  qty?: number | null;
+  component_snapshot?: {
+    components?: Array<{ product_id?: string | null; quantity_per_bundle?: number | null }>;
+  } | null;
+}
+
 // ---------------------------------------------------------------------------
 // Order-item Generator presence (pure, for display only)
 // Stage E4: Accepts order-level legacyGeneratorQty explicitly.
@@ -116,7 +127,7 @@ export function cartPackageContainsGenerator(
 // ---------------------------------------------------------------------------
 
 export function hasGeneratorInOrderItems(input: {
-  orderItems: any[];
+  orderItems: GeneratorOrderItem[];
   generatorProductId: string | null | undefined;
   legacyGeneratorQty?: number;
 }): boolean {
@@ -155,7 +166,7 @@ export function hasGeneratorInOrderItems(input: {
  * of generator-category product_ids (which may include inactive products).
  */
 export function hasGeneratorInOrderItemsByCategory(input: {
-  orderItems: any[];
+  orderItems: GeneratorOrderItem[];
   generatorCategoryProductIds: Set<string>;
   legacyGeneratorQty?: number;
 }): boolean {
@@ -304,12 +315,12 @@ export async function lookupGeneratorProduct(): Promise<GeneratorProductLookupRe
       return { status: 'configuration_failed', error: catError.message };
     }
 
-    const activeCategories = (categories || []).filter((c: any) => c.active);
+    const activeCategories = (categories || []).filter((c) => c.active);
     if (activeCategories.length === 0) {
       return { status: 'not_found' };
     }
 
-    const categoryIds = activeCategories.map((c: any) => c.id);
+    const categoryIds = activeCategories.map((c) => c.id);
 
     const { data: products, error: prodError } = await supabase
       .from('inventory_products')
@@ -321,7 +332,7 @@ export async function lookupGeneratorProduct(): Promise<GeneratorProductLookupRe
       return { status: 'configuration_failed', error: prodError.message };
     }
 
-    const activeProducts = (products || []).filter((p: any) => p.active);
+    const activeProducts = (products || []).filter((p) => p.active);
     if (activeProducts.length === 0) {
       return { status: 'not_found' };
     }
@@ -335,7 +346,7 @@ export async function lookupGeneratorProduct(): Promise<GeneratorProductLookupRe
       return { status: 'configuration_failed', error: 'Generator product has no valid category_id' };
     }
 
-    const matchingCategory = activeCategories.find((c: any) => c.id === product.category_id);
+    const matchingCategory = activeCategories.find((c) => c.id === product.category_id);
     if (!matchingCategory) {
       return { status: 'configuration_failed', error: 'Generator product category not found among active categories' };
     }
@@ -377,8 +388,8 @@ export async function lookupGeneratorProduct(): Promise<GeneratorProductLookupRe
         addon_qualifying_threshold_cents: pricingRows.addon_qualifying_threshold_cents ?? null,
       },
     };
-  } catch (err: any) {
-    return { status: 'configuration_failed', error: err?.message || 'Unknown error' };
+  } catch (err) {
+    return { status: 'configuration_failed', error: asErrorLike(err).message || 'Unknown error' };
   }
 }
 
@@ -400,12 +411,12 @@ export async function lookupAllGeneratorProducts(): Promise<AllGeneratorProducts
       return { status: 'configuration_failed', error: catError.message };
     }
 
-    const activeCategories = (categories || []).filter((c: any) => c.active);
+    const activeCategories = (categories || []).filter((c) => c.active);
     if (activeCategories.length === 0) {
       return { status: 'not_found' };
     }
 
-    const categoryIds = activeCategories.map((c: any) => c.id);
+    const categoryIds = activeCategories.map((c) => c.id);
 
     const { data: products, error: prodError } = await supabase
       .from('inventory_products')
@@ -417,7 +428,7 @@ export async function lookupAllGeneratorProducts(): Promise<AllGeneratorProducts
       return { status: 'configuration_failed', error: prodError.message };
     }
 
-    const activeProducts = (products || []).filter((p: any) => p.active);
+    const activeProducts = (products || []).filter((p) => p.active);
     if (activeProducts.length === 0) {
       return { status: 'not_found' };
     }
@@ -428,7 +439,7 @@ export async function lookupAllGeneratorProducts(): Promise<AllGeneratorProducts
         return { status: 'configuration_failed', error: `Generator product "${product.name}" has no valid category_id` };
       }
 
-      const matchingCategory = activeCategories.find((c: any) => c.id === product.category_id);
+      const matchingCategory = activeCategories.find((c) => c.id === product.category_id);
       if (!matchingCategory) {
         return { status: 'configuration_failed', error: `Generator product "${product.name}" category not found among active categories` };
       }
@@ -481,8 +492,8 @@ export async function lookupAllGeneratorProducts(): Promise<AllGeneratorProducts
     }
 
     return { status: 'configured', products: results };
-  } catch (err: any) {
-    return { status: 'configuration_failed', error: err?.message || 'Unknown error' };
+  } catch (err) {
+    return { status: 'configuration_failed', error: asErrorLike(err).message || 'Unknown error' };
   }
 }
 
@@ -505,14 +516,14 @@ export async function loadPackageGeneratorConfigs(
 
     return {
       status: 'loaded',
-      configs: data.map((row: any) => ({
+      configs: data.map((row) => ({
         bundle_id: row.bundle_id,
         product_id: row.product_id,
         quantity_per_bundle: row.quantity_per_bundle,
       })),
     };
-  } catch (err: any) {
-    return { status: 'failed', error: err?.message || 'Unknown error' };
+  } catch (err) {
+    return { status: 'failed', error: asErrorLike(err).message || 'Unknown error' };
   }
 }
 
@@ -522,7 +533,7 @@ export async function loadPackageGeneratorConfigs(
 // ---------------------------------------------------------------------------
 
 export function aggregateOrderEquipment(input: {
-  orderItems: any[];
+  orderItems: GeneratorOrderItem[];
   legacyGeneratorQty: number;
   generatorCategoryProductIds: Set<string>;
 }): { totalGeneratorQty: number } {
@@ -568,13 +579,13 @@ export async function loadGeneratorCategoryProductIds(): Promise<Set<string>> {
         _generatorCategoryProductIdsCache = new Set();
         return _generatorCategoryProductIdsCache;
       }
-      const categoryIds = categories.map((c: any) => c.id);
+      const categoryIds = categories.map((c) => c.id);
       const { data: products, error: prodError } = await supabase
         .from('inventory_products')
         .select('id')
         .in('category_id', categoryIds);
       if (prodError) throw prodError;
-      _generatorCategoryProductIdsCache = new Set((products || []).map((p: any) => p.id));
+      _generatorCategoryProductIdsCache = new Set((products || []).map((p) => p.id));
       return _generatorCategoryProductIdsCache;
     } catch (err) {
       // Do NOT cache failure as empty Set — caller can distinguish via thrown error

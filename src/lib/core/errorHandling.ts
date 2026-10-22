@@ -1,5 +1,6 @@
 import { notifyError } from '../toasts';
 import { reportError } from './errorReporter';
+import { asErrorLike } from './errorLike';
 
 export class AppError extends Error {
   constructor(
@@ -12,28 +13,31 @@ export class AppError extends Error {
   }
 }
 
-export function isSupabaseError(error: any): boolean {
-  return error && (error.code || error.hint || error.details);
+export function isSupabaseError(error: unknown): boolean {
+  const e = asErrorLike(error);
+  // Returns the truthy value itself (callers only test truthiness), exactly as before.
+  return (error && (e.code || e.hint || e.details)) as boolean;
 }
 
-export function formatSupabaseError(error: any): string {
-  if (error.message?.includes('row-level security')) {
+export function formatSupabaseError(error: unknown): string {
+  const e = asErrorLike(error);
+  if (e.message?.includes('row-level security')) {
     return 'Permission denied. Please ensure you are logged in with the correct account.';
   }
 
-  if (error.code === 'PGRST116') {
+  if (e.code === 'PGRST116') {
     return 'No data found matching your request.';
   }
 
-  if (error.code === '23505') {
+  if (e.code === '23505') {
     return 'This record already exists.';
   }
 
-  if (error.code === '23503') {
+  if (e.code === '23503') {
     return 'Cannot delete this record as it is referenced by other data.';
   }
 
-  return error.message || 'Database operation failed';
+  return e.message || 'Database operation failed';
 }
 
 export function handleError(error: unknown, context?: string, silent = false): void {
@@ -46,7 +50,7 @@ export function handleError(error: unknown, context?: string, silent = false): v
   const additionalInfo: Record<string, unknown> = {};
   if (context) additionalInfo.context = context;
   if (isSupabaseError(error)) {
-    const e = error as any;
+    const e = asErrorLike(error);
     if (e.code) additionalInfo.supabaseCode = e.code;
     if (e.hint) additionalInfo.supabaseHint = e.hint;
     if (e.details) additionalInfo.supabaseDetails = e.details;
@@ -89,7 +93,7 @@ export async function withErrorHandling<T>(
 }
 
 export async function queryWithErrorHandling<T>(
-  queryFn: () => Promise<{ data: T | null; error: any }>,
+  queryFn: () => Promise<{ data: T | null; error: unknown }>,
   options: {
     errorMessage?: string;
     context?: string;

@@ -44,12 +44,12 @@ export function isValidPhone(phone: string): boolean {
   return cleaned.length === 10;
 }
 
-export function debounce<T extends (...args: any[]) => any>(
-  func: T,
+export function debounce<A extends unknown[]>(
+  func: (...args: A) => unknown,
   wait: number
-): (...args: Parameters<T>) => void {
+): (...args: A) => void {
   let timeout: ReturnType<typeof setTimeout> | null = null;
-  return function (...args: Parameters<T>) {
+  return function (...args: A) {
     if (timeout) clearTimeout(timeout);
     timeout = setTimeout(() => func(...args), wait);
   };
