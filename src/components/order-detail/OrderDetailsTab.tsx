@@ -5,7 +5,7 @@ import { ORDER_STATUS } from '../../lib/constants/statuses';
 import { calculateStoredOrderTotal } from '../../lib/orders/storedOrderTotals';
 import { OrderSummary } from '../order/OrderSummary';
 import { EventDetailsEditor } from './EventDetailsEditor';
-import { ItemsEditor } from '../shared/ItemsEditor';
+import { ItemsEditor, type Item as EditorItem, type EditorUnit } from '../shared/ItemsEditor';
 import { DiscountsManager } from './DiscountsManager';
 import { CustomFeesManager } from './CustomFeesManager';
 import { DepositOverride } from './DepositOverride';
@@ -16,25 +16,61 @@ import { FeeWaiver } from '../shared/FeeWaiver';
 import { CardOnFileRequirement } from '../shared/CardOnFileRequirement';
 import { VALID_ADMIN_TRANSITIONS } from '../../lib/orders/adminStatusTransitions';
 import { AddEventEssentialsSection } from './AddEventEssentialsSection';
+import type { AddressResult } from '../order/AddressAutocomplete';
+import type { AvailabilityIssue } from '../../lib/orders/availabilityIssue';
+import type { OrderSummaryDisplay } from '../../lib/orders/orderSummaryLoader';
+import type { CalculatedPricing } from '../../lib/pricing/orderPricingCalculation';
+import type { ManagedDiscount } from './DiscountsManager';
+import type { ManagedFee } from './CustomFeesManager';
+
+// The order columns this tab reads (the order editor passes the loaded order row).
+interface OrderDetailsTabOrder {
+  id: string;
+  status: string;
+  deposit_due_cents: number;
+  // The money columns default to 0 in the database and the editor treats them as numbers.
+  subtotal_cents: number;
+  deposit_paid_cents: number;
+  tip_cents: number;
+  tax_cents: number;
+  travel_fee_cents: number;
+  surface_fee_cents: number;
+  setup_fee_cents: number;
+  same_day_pickup_fee_cents: number;
+  same_day_weekday_delivery_fee_cents: number;
+  generator_fee_cents: number;
+  travel_fee_waived?: boolean | null;
+  tax_waived?: boolean | null;
+  surface_fee_waived?: boolean | null;
+  same_day_pickup_fee_waived?: boolean | null;
+  generator_fee_waived?: boolean | null;
+  stripe_payment_method_id?: string | null;
+  stripe_payment_intent_id?: string | null;
+}
 
 interface OrderDetailsTabProps {
-  order: any;
+  order: OrderDetailsTabOrder;
   checkingAvailability: boolean;
-  availabilityIssues: any[];
+  availabilityIssues: AvailabilityIssue[];
   pricingError: string | null;
-  stagedItems: any[];
+  stagedItems: EditorItem[];
+  // Shared with EventDetailsEditor: the three editors hold the order in different state models (see EventDetailsEditor).
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- three different state models
   editedOrder: any;
+  // The caller's PricingRule interface (useAdminOrderDetails) lists columns that pricing_rules does not have, so it shares nothing with what
+  // this tab reads (same_day_pickup_fee_cents, surface_sandbag_fee_cents, apply_taxes_by_default).
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- caller-side interface does not match the table
   pricingRules: any;
-  availableUnits: any[];
-  currentOrderSummary: any;
-  updatedOrderSummary: any;
+  availableUnits: EditorUnit[];
+  currentOrderSummary: OrderSummaryDisplay | null;
+  updatedOrderSummary: OrderSummaryDisplay | null;
   hasChanges: boolean;
-  calculatedPricing: any;
+  calculatedPricing: CalculatedPricing | null;
   customDepositCents: number | null;
   customSetupFeeCents: number | null;
   customSetupFeeInput: string;
-  discounts: any[];
-  customFees: any[];
+  discounts: ManagedDiscount[];
+  customFees: ManagedFee[];
   customDepositInput: string;
   adminMessage: string;
   taxWaived: boolean;
@@ -56,15 +92,23 @@ interface OrderDetailsTabProps {
   onParksAcknowledgmentToggle: () => void;
   depositCatchupMode: 'require' | 'waive';
   onDepositCatchupModeChange: (mode: 'require' | 'waive') => void;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- the editor's own update type
   onOrderChange: (updates: any) => void;
   onGeneratorQtyChange?: (quantity: number) => void | Promise<void>;
-  onAddressSelect: (result: any) => void;
+  onAddressSelect: (result: AddressResult) => void;
   generatorLoadState?: { status: 'loading' | 'ready' | 'failed' };
   generatorResolutionPending?: boolean;
+  // The modal's own staged item / unit types.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- caller-specific staged item type
   onRemoveItem: (item: any) => void;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- caller-specific unit type
   onAddItem: (unit: any, mode: 'dry' | 'water') => void;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- caller-specific staged item type
   onUpdateQuantity: (item: any, qty: number) => void;
+  // The editor's state arrays carry each caller's own row type (saved rows have order_id / created_at, new rows do not), so the setters are not typed here.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- caller-specific row type (see above)
   onDiscountsChange: (discounts: any[]) => void;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- caller-specific row type (see above)
   onFeesChange: (fees: any[]) => void;
   onDepositInputChange: (value: string) => void;
   onDepositApply: (amountCents: number) => void;
@@ -83,7 +127,10 @@ interface OrderDetailsTabProps {
   onMarkChanges: () => void;
   requireCardOnFile: boolean;
   onRequireCardOnFileChange: (value: boolean) => void;
+  // The modal stages these into its own item model.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- caller-specific staged item type
   onAddEEProduct: (item: any) => void;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- caller-specific staged item type
   onAddEEBundle: (item: any) => void;
 }
 

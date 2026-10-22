@@ -5,8 +5,9 @@ import type { GeneratorCheckboxState } from '../../hooks/booking/useGeneratorChe
 interface SetupDetailsSectionProps {
   formData: {
     can_stake: boolean | null;
+    special_details?: string;
   };
-  onFormDataChange: (updates: Partial<{ can_stake: boolean | null }>) => void;
+  onFormDataChange: (updates: Partial<{ can_stake: boolean | null; special_details: string }>) => void;
   generatorState: GeneratorCheckboxState;
   onGeneratorToggle: (checked: boolean) => void;
   onRetryConversion: () => void;
@@ -177,8 +178,8 @@ export function SetupDetailsSection({ formData, onFormDataChange, generatorState
           needs we should know about?
         </p>
         <textarea
-          value={(formData as any).special_details || ''}
-          onChange={(e) => onFormDataChange({ special_details: e.target.value } as any)}
+          value={formData.special_details || ''}
+          onChange={(e) => onFormDataChange({ special_details: e.target.value })}
           rows={6}
           className="w-full px-4 py-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors resize-none"
           placeholder="Example: It's my daughter's 8th birthday party! We're expecting about 20 kids. Please call 15 minutes before arrival so we can make sure the driveway is clear."

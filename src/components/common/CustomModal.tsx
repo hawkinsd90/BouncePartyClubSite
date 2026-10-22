@@ -1,5 +1,5 @@
 import { useEffect } from 'react';
-import { createRoot } from 'react-dom/client';
+import { createRoot, type Root } from 'react-dom/client';
 import { AlertCircle, Info, CheckCircle } from 'lucide-react';
 
 type ModalType = 'info' | 'warning' | 'success' | 'confirm';
@@ -112,7 +112,7 @@ function ConfirmModal({
   );
 }
 
-let activeModal: { root: any; wrapper: HTMLDivElement; settle: (answer: boolean) => void } | null = null;
+let activeModal: { root: Root; wrapper: HTMLDivElement; settle: (answer: boolean) => void } | null = null;
 
 export function showModal(options: ModalOptions): Promise<boolean> {
   return new Promise((resolve) => {

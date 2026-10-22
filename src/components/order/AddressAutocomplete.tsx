@@ -1,6 +1,9 @@
 import { useEffect, useRef, useState } from 'react';
 
-interface AddressResult {
+// Google's Maps script puts `google` on the window (typings: @types/google.maps).
+type GoogleWindow = Window & { google: typeof google };
+
+export interface AddressResult {
   formatted_address: string;
   street: string;
   city: string;
@@ -30,7 +33,7 @@ export function AddressAutocomplete({
 }: AddressAutocompleteProps) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [error, setError] = useState('');
-  const autocompleteRef = useRef<any>(null);
+  const autocompleteRef = useRef<google.maps.places.Autocomplete | null>(null);
   const onSelectRef = useRef(onSelect);
   const isSelectingRef = useRef(false);
 
@@ -56,7 +59,7 @@ export function AddressAutocomplete({
 
       try {
         // Load the Places library
-        const placesLib = await (window as any).google.maps.importLibrary("places") as any;
+        const placesLib = (await (window as GoogleWindow).google.maps.importLibrary("places")) as google.maps.PlacesLibrary;
 
         // console.log('[AddressAutocomplete] Creating Autocomplete instance...');
 
@@ -86,19 +89,19 @@ export function AddressAutocomplete({
 
           const addressComponents = place.address_components || [];
           const street_number =
-            addressComponents.find((c: any) => c.types.includes('street_number'))?.long_name || '';
+            addressComponents.find((c) => c.types.includes('street_number'))?.long_name || '';
           const route =
-            addressComponents.find((c: any) => c.types.includes('route'))?.long_name || '';
+            addressComponents.find((c) => c.types.includes('route'))?.long_name || '';
           const city =
-            addressComponents.find((c: any) => c.types.includes('locality'))?.long_name || '';
+            addressComponents.find((c) => c.types.includes('locality'))?.long_name || '';
           const state =
-            addressComponents.find((c: any) =>
+            addressComponents.find((c) =>
               c.types.includes('administrative_area_level_1')
             )?.short_name || '';
           const zip =
-            addressComponents.find((c: any) => c.types.includes('postal_code'))?.long_name || '';
+            addressComponents.find((c) => c.types.includes('postal_code'))?.long_name || '';
           const countyRaw =
-            addressComponents.find((c: any) =>
+            addressComponents.find((c) =>
               c.types.includes('administrative_area_level_2')
             )?.long_name || '';
           const county = countyRaw.replace(/\s+County$/i, '').trim() || '';
@@ -217,7 +220,7 @@ export function AddressAutocomplete({
     return () => {
       // Clean up autocomplete listeners
       if (autocompleteRef.current) {
-        (window as any).google.maps.event.clearInstanceListeners(autocompleteRef.current);
+        (window as GoogleWindow).google.maps.event.clearInstanceListeners(autocompleteRef.current);
       }
     };
   }, [placeholder]);

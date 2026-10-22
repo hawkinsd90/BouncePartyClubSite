@@ -60,7 +60,7 @@ export function PaymentAmountSelector({
               name="paymentAmount"
               value="deposit"
               checked={paymentAmount === 'deposit'}
-              onChange={(e) => onPaymentAmountChange(e.target.value as any)}
+              onChange={(e) => onPaymentAmountChange(e.target.value as 'deposit' | 'full' | 'custom')}
               className="sr-only"
             />
             <span className="text-sm sm:text-base font-semibold text-slate-900">Minimum Deposit</span>
@@ -82,7 +82,7 @@ export function PaymentAmountSelector({
               name="paymentAmount"
               value="full"
               checked={paymentAmount === 'full'}
-              onChange={(e) => onPaymentAmountChange(e.target.value as any)}
+              onChange={(e) => onPaymentAmountChange(e.target.value as 'deposit' | 'full' | 'custom')}
               className="sr-only"
             />
             <span className="text-sm sm:text-base font-semibold text-slate-900">Full Payment</span>
@@ -104,7 +104,7 @@ export function PaymentAmountSelector({
               name="paymentAmount"
               value="custom"
               checked={paymentAmount === 'custom'}
-              onChange={(e) => onPaymentAmountChange(e.target.value as any)}
+              onChange={(e) => onPaymentAmountChange(e.target.value as 'deposit' | 'full' | 'custom')}
               className="sr-only"
             />
             <span className="text-sm sm:text-base font-semibold text-slate-900">Custom Amount</span>

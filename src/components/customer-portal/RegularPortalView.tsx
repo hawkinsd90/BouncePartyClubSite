@@ -11,8 +11,10 @@ import { resolveCustomerPortalTab, buildTabUrlParam, nextVisitedTabs, isTabRende
 import { SCROLL_MARGIN_CSS } from '../../lib/core/headerOffset';
 import WaiverTab from '../waiver/WaiverTab';
 import { PaymentTab } from './PaymentTab';
-import { PicturesTab } from './PicturesTab';
-import { LotPicturesTab } from './LotPicturesTab';
+import { PicturesTab, type ExistingPicture } from './PicturesTab';
+import { LotPicturesTab, type LotPicture } from './LotPicturesTab';
+import type { OrderSummaryDisplay } from '../../lib/orders/orderSummaryLoader';
+import type { PortalOrder, PortalPayment } from './portalTypes';
 import { CancelOrderModal } from './CancelOrderModal';
 import { DeliveryTab } from './DeliveryTab';
 import { showToast } from '../../lib/toasts';
@@ -30,17 +32,17 @@ function formatTimeStr(time: string): string {
 }
 
 interface RegularPortalViewProps {
-  order: any;
+  order: PortalOrder;
   orderId: string;
-  orderItems: any[];
-  orderSummary: any;
+  orderItems: unknown[];
+  orderSummary: OrderSummaryDisplay | null;
   invoiceLinkToken?: string | null;
   onReload: () => void;
   // Quiet refetch through the secure portal endpoint (no spinner); used after uploads.
   onSilentReload?: () => Promise<void>;
   portalExtras?: {
-    lotPictures?: any[];
-    pictures?: any[];
+    lotPictures?: LotPicture[];
+    pictures?: Array<Omit<ExistingPicture, 'url'> & { url?: string | null }>;
     delivery?: PortalDeliveryState | null;
   };
   refreshVersion: number;
@@ -68,13 +70,13 @@ export function RegularPortalView({ order, orderId, orderItems: _orderItems, ord
   const lotPicturesRequested = order.lot_pictures_requested || false;
   const [showCancelModal, setShowCancelModal] = useState(false);
   // Everything below comes from the secure portal payload (customer-portal-data); the view reads no tables itself.
-  const payments: any[] = order.payments ?? [];
+  const payments: PortalPayment[] = order.payments ?? [];
   const lotPicturesUploaded = (portalExtras?.lotPictures?.length ?? 0) > 0;
   const deliveryImages = Array.isArray(portalExtras?.delivery?.delivery_images) ? portalExtras!.delivery!.delivery_images : [];
   const deliveryPhotosAvailable = deliveryImages.length > 0;
   const isDelivered = portalExtras?.delivery?.status === 'completed';
   // Each picture arrives with a short-lived signed read URL from the portal payload (the bucket is private).
-  const existingPictures = (portalExtras?.pictures ?? []).map((pic: any) => ({ ...pic, url: pic.url ?? '' }));
+  const existingPictures = (portalExtras?.pictures ?? []).map((pic) => ({ ...pic, url: pic.url ?? '' }));
   const [restoredTipCents, setRestoredTipCents] = useState<number | null>(null);
   const refreshPortal = async () => {
     if (onSilentReload) await onSilentReload();
@@ -150,9 +152,9 @@ export function RegularPortalView({ order, orderId, orderItems: _orderItems, ord
   const needsWaiver = !order.waiver_signed_at;
   const needsPayment = balanceDue > 0;
   const canCancel = (CANCELLABLE_STATUSES as readonly string[]).includes(order.status);
-  const isActiveOrder = [
+  const isActiveOrder = ([
     ORDER_STATUS.CONFIRMED, ORDER_STATUS.IN_PROGRESS, ORDER_STATUS.COMPLETED,
-  ].includes(order.status as any);
+  ] as string[]).includes(order.status);
   const stepsUnlocked = totalPaid > 0 || isActiveOrder;
   const orderDelivered = ([ORDER_STATUS.COMPLETED, ORDER_STATUS.IN_PROGRESS] as string[]).includes(order.status) &&
     ['setup_completed', 'pickup_scheduled', 'pickup_in_progress'].includes(order.workflow_status || '')
@@ -483,17 +485,17 @@ export function RegularPortalView({ order, orderId, orderItems: _orderItems, ord
                   {orderSummary && orderSummary.items && orderSummary.items.length > 0 && (
                     <div className="mb-4 pb-4 border-b border-slate-300">
                       <p className="text-sm font-semibold text-slate-700 mb-2">Items:</p>
-                      {orderSummary.items.map((item: any, index: number) => (
+                      {orderSummary.items.map((item, index) => (
                         <div key={index}>
-                          {(item as any).packageContentsUnavailable && (
+                          {item.packageContentsUnavailable && (
                             <div className="mb-1 pl-3">
                               <p className="text-xs text-slate-400 italic">Package contents unavailable</p>
                             </div>
                           )}
-                          {(item as any).components && (item as any).components.length > 0 && (
+                          {item.components && item.components.length > 0 && (
                             <div className="mb-1 pl-3">
                               <p className="text-xs text-slate-500 mb-0.5">Included in {item.name}:</p>
-                              {(item as any).components.map((c: { name: string; quantity: number }, ci: number) => (
+                              {item.components.map((c, ci) => (
                                 <div key={ci} className="text-xs text-slate-500">
                                   - {c.name} × {c.quantity}
                                 </div>
@@ -515,7 +517,7 @@ export function RegularPortalView({ order, orderId, orderItems: _orderItems, ord
                       <span className="font-semibold text-slate-900">{formatCurrency(order.subtotal_cents)}</span>
                     </div>
                     {orderSummary
-                      ? orderSummary.fees.map((fee: any, i: number) => (
+                      ? orderSummary.fees.map((fee, i) => (
                           <div key={i} className="flex justify-between text-sm">
                             <span className="text-slate-600">{fee.name}:</span>
                             <span className="font-semibold text-slate-900">{formatCurrency(fee.amount)}</span>
@@ -542,13 +544,13 @@ export function RegularPortalView({ order, orderId, orderItems: _orderItems, ord
                           )}
                         </>
                     }
-                    {orderSummary && orderSummary.customFees.length > 0 && orderSummary.customFees.map((fee: any, i: number) => (
+                    {orderSummary && orderSummary.customFees.length > 0 && orderSummary.customFees.map((fee, i) => (
                       <div key={i} className="flex justify-between text-sm">
                         <span className="text-slate-600">{fee.name}:</span>
                         <span className="font-semibold text-slate-900">{formatCurrency(fee.amount)}</span>
                       </div>
                     ))}
-                    {orderSummary && orderSummary.discounts.length > 0 && orderSummary.discounts.map((d: any, i: number) => (
+                    {orderSummary && orderSummary.discounts.length > 0 && orderSummary.discounts.map((d, i) => (
                       <div key={i} className="flex justify-between text-sm">
                         <span className="text-green-700">{d.name}:</span>
                         <span className="font-semibold text-green-700">-{formatCurrency(d.amount)}</span>

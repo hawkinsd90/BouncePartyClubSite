@@ -3,6 +3,10 @@ import { X, Car, Zap } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { showToast } from '../../lib/toasts';
 import { localDateKey, endMileageProblem } from '../../lib/core/localDate';
+import { asErrorLike } from '../../lib/core/errorLike';
+import type { Database } from '../../lib/database.types';
+
+type MileageLogRow = Database['public']['Tables']['daily_mileage_logs']['Row'];
 
 interface MileageModalProps {
   isOpen: boolean;
@@ -16,7 +20,7 @@ export function MileageModal({ isOpen, date, type, onClose, onSuccess }: Mileage
   const [mileage, setMileage] = useState('');
   const [notes, setNotes] = useState('');
   const [submitting, setSubmitting] = useState(false);
-  const [existingLog, setExistingLog] = useState<any>(null);
+  const [existingLog, setExistingLog] = useState<MileageLogRow | null>(null);
   const [calculating, setCalculating] = useState(false);
 
   useEffect(() => {
@@ -99,9 +103,9 @@ export function MileageModal({ isOpen, date, type, onClose, onSuccess }: Mileage
         `Calculated ${data.totalMiles.toFixed(1)} miles for ${data.stopCount} stop${data.stopCount !== 1 ? 's' : ''}${nearbyNote}`,
         'success'
       );
-    } catch (error: any) {
+    } catch (error) {
       console.error('Error calculating mileage:', error);
-      showToast(error.message || 'Failed to calculate route mileage', 'error');
+      showToast(asErrorLike(error).message || 'Failed to calculate route mileage', 'error');
     } finally {
       setCalculating(false);
     }
@@ -127,7 +131,7 @@ export function MileageModal({ isOpen, date, type, onClose, onSuccess }: Mileage
       const dateStr = localDateKey(date);
       const now = new Date().toISOString();
 
-      const updateData: any = {
+      const updateData: Database['public']['Tables']['daily_mileage_logs']['Insert'] = {
         date: dateStr,
         user_id: user.id,
         notes,
@@ -154,9 +158,9 @@ export function MileageModal({ isOpen, date, type, onClose, onSuccess }: Mileage
         'success'
       );
       onSuccess();
-    } catch (error: any) {
+    } catch (error) {
       console.error('Error saving mileage:', error);
-      showToast(error.message || 'Failed to save mileage', 'error');
+      showToast(asErrorLike(error).message || 'Failed to save mileage', 'error');
     } finally {
       setSubmitting(false);
     }

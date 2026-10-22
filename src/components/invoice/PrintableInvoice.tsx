@@ -3,11 +3,13 @@ import { effectiveDiscountCents } from '../../lib/pricing/orderMoney';
 import { format } from 'date-fns';
 import { useState, useEffect } from 'react';
 import { getPublicBusinessSettings } from '../../lib/core/adminSettingsCache';
+import type { QuoteFormData } from '../../hooks/booking/useQuoteForm';
+import type { PriceBreakdown } from '../../lib/pricing';
 
 interface PrintableInvoiceProps {
-  quoteData: any;
-  priceBreakdown: any;
-  cart: any[];
+  quoteData: QuoteFormData & { surface?: string | null };
+  priceBreakdown: PriceBreakdown;
+  cart: Array<{ unit_name?: string; wet_or_dry?: string; unit_price_cents: number }>;
   contactData: {
     first_name: string;
     last_name: string;
@@ -189,7 +191,7 @@ export function PrintableInvoice({
               </div>
             </div>
             <div className="border border-t-0 border-slate-200 rounded-b-lg overflow-hidden">
-              {cart.map((item: any, index: number) => (
+              {cart.map((item, index) => (
                 <div key={index} className="grid grid-cols-2 py-4 px-6 border-b border-slate-100 hover:bg-slate-50 transition-colors">
                   <div className="text-slate-700">
                     <div className="font-semibold text-slate-900">{item.unit_name}</div>

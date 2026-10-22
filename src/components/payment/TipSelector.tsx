@@ -1,5 +1,7 @@
 import { dollarsToCents } from '../../lib/pricing/money';
 
+type TipChoice = 'none' | '10' | '15' | '20' | 'custom';
+
 interface TipSelectorProps {
   totalCents: number;
   tipAmount: 'none' | '10' | '15' | '20' | 'custom';
@@ -45,7 +47,7 @@ export function TipSelector({
             name="tipAmount"
             value="none"
             checked={tipAmount === 'none'}
-            onChange={(e) => onTipAmountChange(e.target.value as any)}
+            onChange={(e) => onTipAmountChange(e.target.value as TipChoice)}
             className="sr-only"
           />
           <span className="font-semibold text-slate-900">No Tip</span>
@@ -62,7 +64,7 @@ export function TipSelector({
             name="tipAmount"
             value="10"
             checked={tipAmount === '10'}
-            onChange={(e) => onTipAmountChange(e.target.value as any)}
+            onChange={(e) => onTipAmountChange(e.target.value as TipChoice)}
             className="sr-only"
           />
           <span className="font-semibold text-slate-900">10%</span>
@@ -81,7 +83,7 @@ export function TipSelector({
             name="tipAmount"
             value="15"
             checked={tipAmount === '15'}
-            onChange={(e) => onTipAmountChange(e.target.value as any)}
+            onChange={(e) => onTipAmountChange(e.target.value as TipChoice)}
             className="sr-only"
           />
           <span className="font-semibold text-slate-900">15%</span>
@@ -100,7 +102,7 @@ export function TipSelector({
             name="tipAmount"
             value="20"
             checked={tipAmount === '20'}
-            onChange={(e) => onTipAmountChange(e.target.value as any)}
+            onChange={(e) => onTipAmountChange(e.target.value as TipChoice)}
             className="sr-only"
           />
           <span className="font-semibold text-slate-900">20%</span>
@@ -120,7 +122,7 @@ export function TipSelector({
           name="tipAmount"
           value="custom"
           checked={tipAmount === 'custom'}
-          onChange={(e) => onTipAmountChange(e.target.value as any)}
+          onChange={(e) => onTipAmountChange(e.target.value as TipChoice)}
           className="sr-only"
         />
         <span className="font-semibold text-slate-900 flex-grow">Custom Amount</span>

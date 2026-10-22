@@ -20,20 +20,20 @@ interface SimpleInvoiceDisplayProps {
   startWindow: string;
   endWindow: string;
   addressLine1: string;
-  addressLine2?: string;
+  addressLine2?: string | null;
   city: string;
   state: string;
   zip: string;
-  locationType: string;
+  locationType: string | null;
   pickupPreference?: string;
-  canUseStakes?: boolean;
+  canUseStakes?: boolean | null;
   generatorQty?: number;
   orderItems: Array<{
     id?: string;
     unit_id?: string | null;
     unit_name?: string;
-    units?: { name: string };
-    wet_or_dry?: string;
+    units?: { name: string } | null;
+    wet_or_dry?: string | null;
     qty: number;
     unit_price_cents: number;
     product_id?: string | null;
@@ -42,7 +42,7 @@ interface SimpleInvoiceDisplayProps {
     product_name?: string | null;
     bundle_name?: string | null;
     pricing_context?: string | null;
-    component_snapshot?: any;
+    component_snapshot?: { components: Array<{ product_name: string; quantity_per_bundle?: number }> } | null;
   }>;
   orderSummary: OrderSummaryDisplay | null;
   taxWaived?: boolean;
@@ -215,7 +215,7 @@ export function SimpleInvoiceDisplay({
                 <div className="mt-2 text-xs text-slate-600">
                   <p className="font-medium mb-1">Includes:</p>
                   <ul className="list-disc list-inside space-y-0.5">
-                    {item.component_snapshot.components.map((comp: any, ci: number) => (
+                    {item.component_snapshot.components.map((comp, ci) => (
                       <li key={ci}>
                         {comp.product_name} ×{(comp.quantity_per_bundle || 1) * item.qty}
                       </li>

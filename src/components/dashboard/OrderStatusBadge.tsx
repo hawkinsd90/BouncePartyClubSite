@@ -1,11 +1,10 @@
-import { CheckCircle, Clock, AlertCircle, FileText, X, Truck } from 'lucide-react';
-import { Order } from '../../types/orders';
+import { CheckCircle, Clock, AlertCircle, FileText, X, Truck, type LucideIcon } from 'lucide-react';
 import { ORDER_STATUS, ORDER_STATUS_LABELS, OrderStatus } from '../../lib/constants/statuses';
 
 interface StatusConfig {
   label: string;
   className: string;
-  icon: any;
+  icon: LucideIcon;
 }
 
 const statusConfigs: Record<OrderStatus, StatusConfig> = {
@@ -20,7 +19,7 @@ const statusConfigs: Record<OrderStatus, StatusConfig> = {
 };
 
 interface OrderStatusBadgeProps {
-  order: Order;
+  order: { status: string; workflow_status?: string | null };
 }
 
 const workflowOverrides: Partial<Record<string, StatusConfig>> = {

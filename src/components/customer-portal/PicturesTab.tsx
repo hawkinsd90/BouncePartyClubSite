@@ -3,7 +3,7 @@ import { Upload, X, Image as ImageIcon } from 'lucide-react';
 import { addPendingPhotos, releaseAll, removePendingPhoto, type PendingPhoto } from '../../lib/portal/pendingPhotos';
 import { notifyError } from '../../lib/toasts';
 
-interface ExistingPicture {
+export interface ExistingPicture {
   id: string;
   file_path: string;
   file_name: string;

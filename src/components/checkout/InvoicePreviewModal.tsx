@@ -1,11 +1,14 @@
 import { X } from 'lucide-react';
 import { SimpleInvoiceDisplay } from '../shared/SimpleInvoiceDisplay';
 import { buildOrderSummary } from '../../lib/booking/checkoutUtils';
+import type { QuoteFormData } from '../../hooks/booking/useQuoteForm';
+import type { PriceBreakdown } from '../../lib/pricing';
+import type { UnifiedCartItem } from '../../types';
 
 interface InvoicePreviewModalProps {
-  quoteData: any;
-  priceBreakdown: any;
-  cart: any[];
+  quoteData: QuoteFormData;
+  priceBreakdown: PriceBreakdown;
+  cart: UnifiedCartItem[];
   onClose: () => void;
 }
 

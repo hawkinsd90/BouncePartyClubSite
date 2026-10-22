@@ -8,9 +8,18 @@ import { supabase } from '../../lib/supabase';
 import { useDiscountTemplates } from '../../hooks/invoices/useDiscountTemplates';
 import { dollarsToCents } from '../../lib/pricing/money';
 
+// A discount row as the order editor holds it (saved rows keep their database id and columns; new rows get a temp_ id and is_new).
+export interface ManagedDiscount {
+  id: string;
+  name: string;
+  amount_cents: number;
+  percentage?: number;
+  is_new?: boolean;
+}
+
 interface DiscountsManagerProps {
-  discounts: any[];
-  onDiscountChange: (discounts: any[]) => void;
+  discounts: ManagedDiscount[];
+  onDiscountChange: (discounts: ManagedDiscount[]) => void;
   onMarkChanges: () => void;
 }
 
@@ -36,7 +45,7 @@ export function DiscountsManager({
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editDraft, setEditDraft] = useState<EditDraft>({ name: '', amountInput: '0.00', percentInput: '0' });
 
-  function startEdit(discount: any) {
+  function startEdit(discount: ManagedDiscount) {
     setEditingId(discount.id);
     setEditDraft({
       name: discount.name,

@@ -6,12 +6,15 @@ import { formatCurrency } from '../../lib/pricing';
 import { TipSelector, calculateTipCents } from '../payment/TipSelector';
 import { showToast } from '../../lib/toasts';
 import { getEdgeAuthToken } from '../../lib/core/edgeAuth';
+import { asErrorLike } from '../../lib/core/errorLike';
+import type { OrderSummaryDisplay } from '../../lib/orders/orderSummaryLoader';
+import type { PortalOrder } from './portalTypes';
 
 interface PaymentTabProps {
   orderId: string;
-  order: any;
+  order: PortalOrder;
   balanceDue: number;
-  orderSummary: any;
+  orderSummary: OrderSummaryDisplay | null;
   onPaymentComplete: () => void;
   restoredTipCents?: number;
   // Order-bound proof for the saved-card charge (an unexpired invoice/portal link token for this order).
@@ -149,8 +152,8 @@ export function PaymentTab({ orderId, order, balanceDue, orderSummary, onPayment
   // Prefer order-level fields; fall back to the most recent succeeded payment row.
   const recentPayment = Array.isArray(order.payments)
     ? [...order.payments]
-        .filter((p: any) => p.status === 'succeeded' && p.payment_last4)
-        .sort((a: any, b: any) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())[0]
+        .filter((p) => p.status === 'succeeded' && p.payment_last4)
+        .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())[0]
     : null;
   const cardLast4: string | null = order.payment_method_last_four || recentPayment?.payment_last4 || null;
   const cardBrand: string | null = order.payment_method_brand || recentPayment?.payment_brand || null;
@@ -207,9 +210,9 @@ export function PaymentTab({ orderId, order, balanceDue, orderSummary, onPayment
       } else {
         throw new Error('Unexpected response from payment processor');
       }
-    } catch (error: any) {
+    } catch (error) {
       console.error('Payment error:', error);
-      showToast(error.message || 'Failed to process payment', 'error');
+      showToast(asErrorLike(error).message || 'Failed to process payment', 'error');
       setShowConfirmModal(false);
     } finally {
       setLoading(false);
@@ -257,7 +260,7 @@ export function PaymentTab({ orderId, order, balanceDue, orderSummary, onPayment
       }
 
       window.location.href = data.url;
-    } catch (error: any) {
+    } catch (error) {
       console.error('Card update error:', error);
       showToast('Failed to start card update. Please try again.', 'error');
     }

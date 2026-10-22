@@ -1,14 +1,25 @@
 import { useState } from 'react';
 import { RotateCcw } from 'lucide-react';
 import { formatCurrency } from '../../lib/pricing';
-import { storedOrderTotalCents } from '../../lib/pricing/orderMoney';
+import { storedOrderTotalCents, type OrderMoneyComponents } from '../../lib/pricing/orderMoney';
 import { RefundAllocationPanel } from '../admin/orders/refunds/RefundAllocationPanel';
+
+// The order columns it reads (the money components are what storedOrderTotalCents needs).
+interface PaymentsTabOrder extends OrderMoneyComponents {
+  tip_cents?: number | null;
+  payment_lock?: boolean | null;
+  deposit_paid_cents?: number | null;
+  balance_paid_cents?: number | null;
+}
 
 interface PaymentsTabProps {
   orderId: string;
   customerName: string;
+  // The caller (useAdminOrderDetails) declares a Payment interface with amount / payment_type, which are not payments columns (the tab
+  // reads amount_cents / type, the real ones), so its type cannot be passed here.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- caller-side interface does not match the table
   payments: any[];
-  order?: any;
+  order?: PaymentsTabOrder;
   customFees?: { id: string; amount_cents: number; name?: string }[];
   discounts?: { id?: string; amount_cents?: number; percentage?: number; name: string }[];
   onPaymentsUpdate: () => void;

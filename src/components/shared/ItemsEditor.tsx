@@ -3,7 +3,12 @@ import { clampQuantity, maxQtyForKind, qtyKindOf, quantityLimitMessage } from '.
 import { showToast } from '../../lib/toasts';
 import { formatCurrency } from '../../lib/pricing';
 
-interface Item {
+// What the list reads of a package line's stored contents (every snapshot type in the app has at least this).
+interface PackageContents {
+  components: Array<{ product_name: string; quantity_per_bundle?: number }>;
+}
+
+export interface Item {
   id?: string;
   unit_id?: string;
   unit_name?: string;
@@ -22,15 +27,28 @@ interface Item {
   product_name?: string;
   item_name?: string;
   pricing_context?: string;
-  component_snapshot?: any;
+  component_snapshot?: PackageContents | null;
   client_id?: string;
 }
 
-interface ItemsEditorProps {
+// The unit fields this list reads when it offers units to add.
+export interface EditorUnit {
+  id: string;
+  name: string;
+  quantity_available?: number | null;
+  types?: string[] | null;
+  price_dry_cents?: number | null;
+  price_water_cents?: number | null;
+}
+
+interface ItemsEditorProps<TUnit extends EditorUnit> {
   items: Item[];
-  units: any[];
+  units: TUnit[];
+  // The three callers differ: removeByIndex makes these receive the row index, otherwise the row itself (each caller's own item type).
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- index-or-item argument; typing it needs a discriminated-props redesign across all callers
   onRemoveItem: (itemOrIndex: any) => void;
-  onAddItem: (unit: any, mode: 'dry' | 'water') => void;
+  onAddItem: (unit: TUnit, mode: 'dry' | 'water') => void;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- same index-or-item argument as onRemoveItem
   onUpdateQuantity?: (item: any, qty: number) => void;
   onUpdatePrice?: (index: number, priceCents: number) => void;
   allowQuantityEdit?: boolean;
@@ -39,7 +57,7 @@ interface ItemsEditorProps {
   removeByIndex?: boolean;
 }
 
-export function ItemsEditor({
+export function ItemsEditor<TUnit extends EditorUnit>({
   items,
   units,
   onRemoveItem,
@@ -50,7 +68,7 @@ export function ItemsEditor({
   allowPriceEdit = false,
   title = 'Items',
   removeByIndex = false,
-}: ItemsEditorProps) {
+}: ItemsEditorProps<TUnit>) {
   const activeItems = items.filter(item => !item.is_deleted);
 
   const isEEItem = (item: Item) => !item.unit_id && (item.product_id || item.bundle_id);
@@ -122,7 +140,7 @@ export function ItemsEditor({
                 <div className="mb-2 text-xs text-slate-600">
                   <p className="font-medium mb-1">Includes:</p>
                   <ul className="list-disc list-inside space-y-0.5">
-                    {item.component_snapshot.components.map((comp: any, ci: number) => (
+                    {item.component_snapshot.components.map((comp, ci) => (
                       <li key={ci}>
                         {comp.product_name} x{(comp.quantity_per_bundle || 1) * item.qty}
                       </li>
@@ -130,7 +148,7 @@ export function ItemsEditor({
                   </ul>
                 </div>
               )}
-              {pkg && (!item.component_snapshot || !Array.isArray((item.component_snapshot as any)?.components)) && (
+              {pkg && (!item.component_snapshot || !Array.isArray(item.component_snapshot?.components)) && (
                 <p className="mb-2 text-xs text-slate-500 italic">Package contents unavailable</p>
               )}
 

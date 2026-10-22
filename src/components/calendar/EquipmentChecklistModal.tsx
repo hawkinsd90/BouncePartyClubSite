@@ -12,7 +12,7 @@ export function EquipmentChecklistModal({ isOpen, tasks, onClose }: EquipmentChe
   if (!isOpen) return null;
 
   // Deliveries only; stakes/sandbags only for inflatables; Event Essentials added up across orders (lib/tasks/equipmentChecklist.ts).
-  const equipment = buildChecklist(tasks as any);
+  const equipment = buildChecklist(tasks);
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 z-[60] flex items-center justify-center p-4">

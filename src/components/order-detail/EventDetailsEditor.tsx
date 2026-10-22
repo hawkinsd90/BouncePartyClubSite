@@ -1,15 +1,19 @@
 import { formatCurrency } from '../../lib/pricing';
-import { AddressAutocomplete } from '../order/AddressAutocomplete';
+import { AddressAutocomplete, type AddressResult } from '../order/AddressAutocomplete';
 import { TimePickerInput } from '../ui/TimePickerInput';
 import { ADMIN_ADDRESS_EDIT_RESET } from '../../lib/booking/addressEdit';
 import { surfaceControlState } from '../../lib/orders/surfaceChoice';
 
 interface EventDetailsEditorProps {
+  // The admin order editor, the admin invoice builder and the crew invoice builder each hold the order in their own state model, and those
+  // models differ in which date/time fields can be null; typing this prop precisely needs those models aligned first.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- three different state models (see above)
   editedOrder: any;
-  pricingRules: any;
+  pricingRules?: { same_day_pickup_fee_cents?: number | null; surface_sandbag_fee_cents?: number | null } | null;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- each of the three editors passes a handler for its own update type
   onOrderChange: (updates: Partial<any>) => void;
   onGeneratorQtyChange?: (quantity: number) => void | Promise<void>;
-  onAddressSelect: (addressData: any) => void;
+  onAddressSelect: (addressData: AddressResult) => void;
   generatorLoadState?: { status: 'loading' | 'ready' | 'failed' };
   generatorResolutionPending?: boolean;
   compact?: boolean;

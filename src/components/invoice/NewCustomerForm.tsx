@@ -1,12 +1,14 @@
+interface NewCustomerFields {
+  first_name: string;
+  last_name: string;
+  email: string;
+  phone: string;
+  business_name: string;
+}
+
 interface NewCustomerFormProps {
-  newCustomer: {
-    first_name: string;
-    last_name: string;
-    email: string;
-    phone: string;
-    business_name: string;
-  };
-  onChange: (customer: any) => void;
+  newCustomer: NewCustomerFields;
+  onChange: (customer: NewCustomerFields) => void;
   onSubmit: () => void;
   onCancel: () => void;
 }

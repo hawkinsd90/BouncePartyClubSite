@@ -5,12 +5,35 @@ import { useState, useEffect } from 'react';
 import { CreditCard as Edit2 } from 'lucide-react';
 import { formatOrderId } from '../../lib/utils';
 import { eventAddressLine2 } from '../../lib/booking/eventAddress';
-import { latestTravelCityReviewNote } from '../../lib/orders/travelCityReview';
+import { latestTravelCityReviewNote, type TravelCityReviewRow } from '../../lib/orders/travelCityReview';
 import { ORDER_STATUS_LABELS } from '../../lib/constants/statuses';
-import { hasGeneratorInOrderItemsByCategory, loadGeneratorCategoryProductIds } from '../../lib/eventEssentials/customerGeneratorCart';
+import { hasGeneratorInOrderItemsByCategory, loadGeneratorCategoryProductIds, type GeneratorOrderItem } from '../../lib/eventEssentials/customerGeneratorCart';
+
+// The order columns and embeds this card reads (the pending-order list loads orders with their customer, address, items and review rows).
+interface PendingOrderInfo {
+  id: string;
+  status: string;
+  created_at: string;
+  event_date: string;
+  start_window: string | null;
+  end_window: string | null;
+  location_type: string;
+  surface?: string | null;
+  pickup_preference?: string | null;
+  has_pets?: boolean | null;
+  special_details?: string | null;
+  generator_qty?: number | null;
+  generator_fee_cents?: number | null;
+  event_address_line2?: string | null;
+  customers?: { email?: string | null; phone?: string | null } | null;
+  addresses?: { line1: string; line2?: string | null; city: string; state: string; zip: string; lat?: number | null; lng?: number | null } | null;
+  order_items?: ReadonlyArray<unknown>;
+  orderItems?: ReadonlyArray<unknown>;
+  order_changelog?: ReadonlyArray<TravelCityReviewRow> | null;
+}
 
 interface OrderInfoSectionProps {
-  order: any;
+  order: PendingOrderInfo;
   customerDisplayName: string;
   onEditClick: () => void;
 }
@@ -46,9 +69,10 @@ export function OrderInfoSection({ order, customerDisplayName, onEditClick }: Or
     return () => { mounted = false; };
   }, []);
 
-  const orderItems = (order as any).order_items ?? (order as any).orderItems ?? [];
-  const legacyGeneratorQty = (order as any).generator_qty ?? 0;
-  const legacyGeneratorFeeCents = (order as any).generator_fee_cents ?? 0;
+  // The loaded order_items rows; the generator check reads only their unit/product/bundle ids and snapshot components.
+  const orderItems = (order.order_items ?? order.orderItems ?? []) as GeneratorOrderItem[];
+  const legacyGeneratorQty = order.generator_qty ?? 0;
+  const legacyGeneratorFeeCents = order.generator_fee_cents ?? 0;
 
   // Tri-state Generator display:
   // A. Clear legacy representation (qty > 0 or fee > 0) -> Yes immediately

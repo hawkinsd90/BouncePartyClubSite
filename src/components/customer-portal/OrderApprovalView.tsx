@@ -10,6 +10,8 @@ import { CustomerApprovalModal } from './CustomerApprovalModal';
 import { CustomerRejectionModal } from './CustomerRejectionModal';
 import { useBusinessSettings } from '../../contexts/BusinessContext';
 import { isDepositFullyCollected } from '../../lib/orders/depositCollected';
+import type { OrderSummaryDisplay } from '../../lib/orders/orderSummaryLoader';
+import type { PortalOrder, PortalChangelogEntry } from './portalTypes';
 
 interface RestoredPaymentState {
   paymentAmount: 'deposit' | 'full' | 'custom';
@@ -20,9 +22,9 @@ interface RestoredPaymentState {
 }
 
 interface OrderApprovalViewProps {
-  order: any;
-  changelog: any[];
-  orderSummary: any;
+  order: PortalOrder;
+  changelog: PortalChangelogEntry[];
+  orderSummary: OrderSummaryDisplay | null;
   invoiceLinkToken?: string | null;
   orderItems?: Array<Record<string, unknown>>;
   autoOpenApprovalModal?: boolean;
@@ -72,8 +74,8 @@ export function OrderApprovalView({
   // Changelog new_value format from orderSaveService: "Unit Name (dry)" or "Unit Name (water)"
   const newlyAddedItemKeys = new Set(
     (changelog || [])
-      .filter((c: any) => c.field_changed === 'order_items' && (!c.old_value || c.old_value === ''))
-      .map((c: any) => {
+      .filter((c) => c.field_changed === 'order_items' && (!c.old_value || c.old_value === ''))
+      .map((c) => {
         const val: string = (c.new_value || '').trim().toLowerCase();
         const modeMatch = val.match(/\(([^)]+)\)\s*$/);
         const mode = modeMatch ? modeMatch[1].trim() : '';
@@ -214,7 +216,7 @@ export function OrderApprovalView({
                   Items
                 </h3>
                 <div className="space-y-2">
-                  {orderSummary.items.map((item: any, i: number) => {
+                  {orderSummary.items.map((item, i) => {
                     const itemMode = (item.mode || '').toLowerCase();
                     const itemKey = `${item.name.toLowerCase()}|${itemMode}`;
                     const isNew = newlyAddedItemKeys.has(itemKey);
@@ -236,7 +238,7 @@ export function OrderApprovalView({
                         {item.components && item.components.length > 0 && (
                           <div className="ml-4 mt-1 space-y-0.5">
                             <p className="text-xs text-slate-500 font-medium">Included:</p>
-                            {item.components.map((comp: any, ci: number) => (
+                            {item.components.map((comp, ci) => (
                               <p key={ci} className="text-xs text-slate-500 pl-2">
                                 - {comp.name} &times; {comp.quantity}
                               </p>
@@ -264,7 +266,7 @@ export function OrderApprovalView({
                 </div>
 
                 {orderSummary
-                  ? orderSummary.fees.map((fee: any, i: number) => (
+                  ? orderSummary.fees.map((fee, i) => (
                       <div key={i} className="flex justify-between">
                         <span className="text-slate-600">{fee.name}</span>
                         <span className="font-medium">{formatCurrency(fee.amount)}</span>
@@ -298,7 +300,7 @@ export function OrderApprovalView({
                     </>
                 }
 
-                {orderSummary && orderSummary.customFees.length > 0 && orderSummary.customFees.map((fee: any, i: number) => (
+                {orderSummary && orderSummary.customFees.length > 0 && orderSummary.customFees.map((fee, i) => (
                   <div key={i} className="flex justify-between">
                     <span className="text-slate-600 flex items-center gap-1.5">
                       {fee.name}
@@ -310,7 +312,7 @@ export function OrderApprovalView({
                   </div>
                 ))}
 
-                {orderSummary && orderSummary.discounts.length > 0 && orderSummary.discounts.map((d: any, i: number) => (
+                {orderSummary && orderSummary.discounts.length > 0 && orderSummary.discounts.map((d, i) => (
                   <div key={i} className="flex justify-between text-green-700">
                     <span>{d.name}</span>
                     <span className="font-medium">-{formatCurrency(d.amount)}</span>

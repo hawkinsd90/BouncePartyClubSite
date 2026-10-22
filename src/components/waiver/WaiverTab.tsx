@@ -11,9 +11,29 @@ const PAPER_WAIVER_UPLOAD_ENABLED = false as boolean;
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL as string;
 const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY as string;
 
+// What get-waiver-status returns in `data` (supabase/functions/get-waiver-status/index.ts).
+interface WaiverStatusData {
+  signed_at: string | null;
+  signer_name: string | null;
+  waiver_version: string | null;
+  initials_data: Record<string, string> | null;
+  signature_image_url: string | null;
+  pdf_url: string | null;
+  has_signature_image: boolean;
+  has_pdf: boolean;
+  waiver_type: 'digital' | 'paper_with_photo' | 'paper_no_photo';
+  physical_waiver: {
+    has_file: boolean;
+    signed_url: string | null;
+    file_type: string | null;
+    uploaded_at: string | null;
+    upload_source: string | null;
+  } | null;
+}
+
 interface WaiverTabProps {
   orderId: string;
-  order: any;
+  order: unknown;
   token?: string;
   onWaiverChange?: () => void;
 }
@@ -23,7 +43,7 @@ const ACCEPTED_TYPES = 'image/jpeg,image/png,image/webp,application/pdf';
 export default function WaiverTab({ orderId, token, onWaiverChange }: WaiverTabProps) {
   const navigate = useNavigate();
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const [signatureData, setSignatureData] = useState<any>(null);
+  const [signatureData, setSignatureData] = useState<WaiverStatusData | null>(null);
   const [loading, setLoading] = useState(true);
   // The status request failed: say so with a Retry instead of showing "Waiver Required" for a waiver that may be signed.
   const [statusError, setStatusError] = useState(false);

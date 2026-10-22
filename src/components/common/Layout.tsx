@@ -60,9 +60,9 @@ export function Layout() {
 
   useEffect(() => {
     const updateCartCount = () => {
-      const items = SafeStorage.getItem<any[]>('bpc_cart');
+      const items = SafeStorage.getItem<Array<{ qty: number }>>('bpc_cart');
       if (items) {
-        const total = items.reduce((sum: number, item: any) => sum + item.qty, 0);
+        const total = items.reduce((sum: number, item) => sum + item.qty, 0);
         setCartCount(total);
       } else {
         setCartCount(0);

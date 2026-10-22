@@ -73,13 +73,14 @@ export function LotPicturesDisplay({ orderId, onPromptCustomer, lotPicturesReque
     try {
       // Load current order lot pictures
       const { data: lotData, error: lotError } = await supabase
-        .from('order_lot_pictures' as any)
+        .from('order_lot_pictures')
         .select('*')
         .eq('order_id', orderId)
         .order('uploaded_at', { ascending: false });
 
       if (lotError) throw lotError;
-      const currentPictures: LotPicture[] = (lotData as any) || [];
+      // uploaded_at has a database default (now()), so it is always set for a stored picture.
+      const currentPictures: LotPicture[] = (lotData || []) as LotPicture[];
       setPictures(currentPictures);
       const signedFor: string[] = currentPictures.map((p) => p.file_path);
 
@@ -96,7 +97,7 @@ export function LotPicturesDisplay({ orderId, onPromptCustomer, lotPicturesReque
 
       if (addressId) {
         const { data: addrData, error: addrError } = await supabase
-          .from('address_lot_pictures' as any)
+          .from('address_lot_pictures')
           .select('id, file_path, file_name, notes, created_at, saved_from_order_id')
           .eq('address_id', addressId)
           .order('created_at', { ascending: false });
@@ -105,7 +106,7 @@ export function LotPicturesDisplay({ orderId, onPromptCustomer, lotPicturesReque
 
         // Exclude photos that already belong to this order (avoid duplication)
         const currentFilePaths = new Set(currentPictures.map(p => p.file_path));
-        const filteredAddr = ((addrData as any) || [] as AddressLotPicture[]).filter(
+        const filteredAddr = ((addrData || []) as AddressLotPicture[]).filter(
           (p: AddressLotPicture) => !currentFilePaths.has(p.file_path)
         );
         setAddressPictures(filteredAddr);

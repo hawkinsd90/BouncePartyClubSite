@@ -30,13 +30,16 @@ import { createShortPortalLink } from '../../lib/portal/portalShortLink';
 import { portalPathForCurrentVisitor } from '../../lib/portal/portalToken';
 import { ReferralSourceSelect } from '../shared/ReferralSourceSelect';
 import { getPublicBusinessSettings } from '../../lib/core/adminSettingsCache';
+import { asErrorLike } from '../../lib/core/errorLike';
+import type { PortalPayload } from '../../lib/portal/customerPortalApi';
+import type { PortalOrder, PortalOrderItem } from './portalTypes';
 
 interface InvoiceAcceptanceViewProps {
-  order: any;
-  orderItems: any[];
-  discounts: any[];
-  customFees: any[];
-  invoiceLink: any | null;
+  order: PortalOrder;
+  orderItems: PortalOrderItem[];
+  discounts: unknown[];
+  customFees: unknown[];
+  invoiceLink: PortalPayload['invoiceLink'];
   // The portal/invoice token this visit arrived with (null for a signed-in owner).
   invoiceToken?: string | null;
   orderSummary: OrderSummaryDisplay | null;
@@ -185,7 +188,7 @@ export function InvoiceAcceptanceView({
 
     try {
       // Verify item availability BEFORE writing any acceptance state.
-      const allOrderItems: any[] = orderItems ?? [];
+      const allOrderItems: PortalOrderItem[] = orderItems ?? [];
 
       if (allOrderItems.length === 0) {
         showToast('Sorry, we could not verify item availability. Please try again or contact us.', 'error');
@@ -215,7 +218,7 @@ export function InvoiceAcceptanceView({
         }
 
         // Check Event Essentials availability
-        const eeItems = allOrderItems.filter((item: any) => !item.unit_id && (item.product_id || item.bundle_id));
+        const eeItems = allOrderItems.filter((item) => !item.unit_id && (item.product_id || item.bundle_id));
         if (eeItems.length > 0) {
           const eeCheck = await checkEventEssentialsAvailability({
             items: eeItems,
@@ -325,7 +328,7 @@ export function InvoiceAcceptanceView({
           if (Object.keys(confirmation).length > 0) {
             await portalAction(order.id, invoiceToken, 'send_confirmation', confirmation);
           }
-        } catch (notifError: any) {
+        } catch (notifError) {
           console.error('[InvoiceAcceptanceView] confirmation notification failed (non-fatal):', notifError);
         }
 
@@ -435,9 +438,9 @@ export function InvoiceAcceptanceView({
       }
 
       window.location.href = data.url;
-    } catch (err: any) {
+    } catch (err) {
       console.error('Error accepting invoice:', err);
-      showToast('Failed to process invoice: ' + err.message, 'error');
+      showToast('Failed to process invoice: ' + asErrorLike(err).message, 'error');
       setProcessing(false);
     }
   }

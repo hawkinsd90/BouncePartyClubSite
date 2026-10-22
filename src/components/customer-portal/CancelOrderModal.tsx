@@ -3,6 +3,16 @@ import { MODAL_PANEL_SCROLL } from '../../lib/core/modalClasses';
 import { parseDateOnly } from '../../lib/core/localDate';
 import { X, AlertTriangle, Loader2, CheckCircle, XCircle } from 'lucide-react';
 import { getEdgeAuthToken } from '../../lib/core/edgeAuth';
+import { asErrorLike } from '../../lib/core/errorLike';
+
+// What customer-cancel-order answers with on success.
+interface CancelResult {
+  success: boolean;
+  message: string;
+  refundPolicy: string;
+  refundMessage: string;
+  hoursUntilEvent: string;
+}
 
 interface CancelOrderModalProps {
   orderId: string;
@@ -30,7 +40,7 @@ export function CancelOrderModal({ orderId, eventDate, invoiceLinkToken, onClose
   const [selectedReason, setSelectedReason] = useState('');
   const [customReason, setCustomReason] = useState('');
   const [submitting, setSubmitting] = useState(false);
-  const [result, setResult] = useState<any>(null);
+  const [result, setResult] = useState<CancelResult | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -76,9 +86,9 @@ export function CancelOrderModal({ orderId, eventDate, invoiceLinkToken, onClose
       }
 
       setResult(data);
-    } catch (err: any) {
+    } catch (err) {
       console.error('Error cancelling order:', err);
-      setError(err.message || 'Failed to cancel order');
+      setError(asErrorLike(err).message || 'Failed to cancel order');
     } finally {
       setSubmitting(false);
     }

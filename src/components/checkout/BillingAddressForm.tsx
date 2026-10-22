@@ -1,4 +1,5 @@
 import { MapPin } from 'lucide-react';
+import type { QuoteFormData } from '../../hooks/booking/useQuoteForm';
 
 interface BillingAddress {
   line1: string;
@@ -11,7 +12,7 @@ interface BillingAddress {
 interface BillingAddressFormProps {
   billingAddress: BillingAddress;
   billingSameAsEvent: boolean;
-  quoteData: any;
+  quoteData: QuoteFormData;
   onBillingAddressChange: (address: BillingAddress) => void;
   onBillingSameAsEventChange: (same: boolean) => void;
 }

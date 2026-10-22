@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { CreditCard, DollarSign, AlertCircle, CheckCircle, Loader2 } from 'lucide-react';
 import { formatCurrency } from '../../lib/pricing';
 import { supabase } from '../../lib/supabase';
+import { asErrorLike } from '../../lib/core/errorLike';
 
 interface Payment {
   id: string;
@@ -108,8 +109,8 @@ export function PaymentManagement({ order, payments, onRefresh }: PaymentManagem
       setChargeAmount('');
       setChargeDescription('');
       onRefresh();
-    } catch (error: any) {
-      setMessage({ type: 'error', text: error.message || 'Failed to process charge' });
+    } catch (error) {
+      setMessage({ type: 'error', text: asErrorLike(error).message || 'Failed to process charge' });
     } finally {
       setProcessing(false);
     }

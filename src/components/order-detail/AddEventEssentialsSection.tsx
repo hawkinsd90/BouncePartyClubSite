@@ -14,12 +14,25 @@ import {
   loadAdminResolverCatalogRows,
   checkEventEssentialsAvailability,
 } from '../../lib/queries/products';
-import type { ProductBundleWithConfiguration } from '../../types';
+import type { ProductBundleWithConfiguration, InventoryProduct, ProductCategory, ProductPricing } from '../../types';
+import { asErrorLike } from '../../lib/core/errorLike';
 import { PickerBanners, PickerSpinners, PickerHeader, PickerCategoryPills } from './add-event-essentials/PickerChrome';
 
+// The staged lines (inflatables, products and packages) as this picker reads them; each caller holds them in its own item type.
+interface StagedLine {
+  id?: string;
+  unit_id?: string | null;
+  product_id?: string | null;
+  bundle_id?: string | null;
+  qty: number;
+  wet_or_dry?: 'dry' | 'water';
+  unit_price_cents?: number;
+  is_deleted?: boolean;
+}
+
 interface AddEventEssentialsSectionProps {
-  stagedItems: any[];
-  availableUnits: any[];
+  stagedItems: StagedLine[];
+  availableUnits: Array<{ id: string }>;
   orderId: string | null;
   eventDate: string;
   eventEndDate?: string;
@@ -49,12 +62,12 @@ export function AddEventEssentialsSection({
   onAddProduct,
   onAddBundle,
 }: AddEventEssentialsSectionProps) {
-  const [products, setProducts] = useState<any[]>([]);
+  const [products, setProducts] = useState<InventoryProduct[]>([]);
   const [bundles, setBundles] = useState<ProductBundleWithConfiguration[]>([]);
   const [allBundles, setAllBundles] = useState<ProductBundleWithConfiguration[]>([]);
-  const [categories, setCategories] = useState<Record<string, any>>({});
-  const [pricingConfigs, setPricingConfigs] = useState<Record<string, any>>({});
-  const [allProducts, setAllProducts] = useState<any[]>([]);
+  const [categories, setCategories] = useState<Record<string, ProductCategory>>({});
+  const [pricingConfigs, setPricingConfigs] = useState<Record<string, ProductPricing>>({});
+  const [allProducts, setAllProducts] = useState<InventoryProduct[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [showProducts, setShowProducts] = useState(false);
@@ -76,36 +89,36 @@ export function AddEventEssentialsSection({
       if (pricingRes.error) throw new Error(pricingRes.error.message);
       if (bundlesRes.error) throw new Error(bundlesRes.error.message);
 
-      const catMap: Record<string, any> = {};
-      (catsRes.data || []).forEach((c: any) => { catMap[c.id] = c; });
+      const catMap: Record<string, ProductCategory> = {};
+      (catsRes.data || []).forEach((c) => { catMap[c.id] = c; });
       setCategories(catMap);
 
       setAllProducts(prodsRes.data || []);
 
-      const filteredProducts = (prodsRes.data || []).filter((p: any) => p.active);
+      const filteredProducts = (prodsRes.data || []).filter((p) => p.active);
       setProducts(filteredProducts);
 
       // Diagnostic: verify Generator product and category are present at each stage.
-      const genProduct = (prodsRes.data || []).find((p: any) => p.id === '82a67261-2b54-4704-a8a0-4d346d0a8e60');
-      const genCategory = (catsRes.data || []).find((c: any) => c.id === 'd29347c8-78f7-48d6-aa01-c4d36f9912ea');
+      const genProduct = (prodsRes.data || []).find((p) => p.id === '82a67261-2b54-4704-a8a0-4d346d0a8e60');
+      const genCategory = (catsRes.data || []).find((c) => c.id === 'd29347c8-78f7-48d6-aa01-c4d36f9912ea');
       console.log('[AddEventEssentialsSection] loadData results:', {
         totalProducts: (prodsRes.data || []).length,
         totalCategories: (catsRes.data || []).length,
         generatorProduct: genProduct ? { id: genProduct.id, name: genProduct.name, active: genProduct.active, category_id: genProduct.category_id } : 'NOT FOUND',
         generatorCategory: genCategory ? { id: genCategory.id, name: genCategory.name, slug: genCategory.slug, active: genCategory.active } : 'NOT FOUND',
-        filteredProductIds: filteredProducts.map((p: any) => ({ id: p.id, name: p.name, category_id: p.category_id })),
+        filteredProductIds: filteredProducts.map((p) => ({ id: p.id, name: p.name, category_id: p.category_id })),
         categoryIds: Object.keys(catMap),
       });
 
       const allBundleData = bundlesRes.data || [];
       setAllBundles(allBundleData);
-      setBundles(allBundleData.filter((b: any) => b.active));
+      setBundles(allBundleData.filter((b) => b.active));
 
-      const pMap: Record<string, any> = {};
-      (pricingRes.data || []).forEach((p: any) => { pMap[p.product_id] = p; });
+      const pMap: Record<string, ProductPricing> = {};
+      (pricingRes.data || []).forEach((p) => { pMap[p.product_id] = p; });
       setPricingConfigs(pMap);
-    } catch (err: any) {
-      setError(err?.message || 'Failed to load Event Essentials catalog');
+    } catch (err) {
+      setError(asErrorLike(err).message || 'Failed to load Event Essentials catalog');
     } finally {
       setLoading(false);
     }
@@ -127,8 +140,8 @@ export function AddEventEssentialsSection({
     });
 
     const lines: ResolverInputLine[] = stagedItems
-      .filter((item: any) => !item.is_deleted)
-      .map((item: any) => {
+      .filter((item) => !item.is_deleted)
+      .map((item) => {
         if (item.unit_id) {
           return {
             resolverKey: item.id || `unit-${item.unit_id}-${item.wet_or_dry || 'dry'}`,
@@ -152,7 +165,8 @@ export function AddEventEssentialsSection({
           resolverKey: item.id || `product-${item.product_id}`,
           itemType: 'event_essential_product' as const,
           qty: item.qty,
-          productId: item.product_id,
+          // The remaining lines are products (a type-only narrowing; the value passed is unchanged).
+          productId: item.product_id as string | undefined,
           savedUnitPriceCents: item.unit_price_cents,
         };
       });
@@ -209,7 +223,7 @@ export function AddEventEssentialsSection({
     return qty >= 1 ? clampQuantity(qty, MAX_BUNDLE_QTY).qty : 1;
   };
 
-  function resolveProductCandidate(product: any, qty: number) {
+  function resolveProductCandidate(product: InventoryProduct, qty: number) {
     if (qty < 1) return null;
     const input = buildResolverInput();
     const candidateLine: ResolverInputLine = {
@@ -237,7 +251,7 @@ export function AddEventEssentialsSection({
     return result.lines.find(l => l.resolverKey === candidateLine.resolverKey) ?? null;
   }
 
-  const handleAddProduct = useCallback(async (product: any) => {
+  const handleAddProduct = useCallback(async (product: InventoryProduct) => {
     const qty = getProductQty(product.id);
     if (qty < 1) {
       setProductQtyInputs(prev => ({ ...prev, [product.id]: '1' }));
@@ -264,7 +278,7 @@ export function AddEventEssentialsSection({
 
       // Availability check: build the COMPLETE resulting staged requirement.
       const projectedItems = [
-        ...stagedItems.filter((i: any) => !i.is_deleted),
+        ...stagedItems.filter((i) => !i.is_deleted),
         {
           product_id: product.id,
           qty,
@@ -304,8 +318,8 @@ export function AddEventEssentialsSection({
       });
       // Reset only the quantity input for this product; keep picker open.
       setProductQtyInputs(prev => ({ ...prev, [product.id]: '1' }));
-    } catch (err: any) {
-      setAvailabilityError(err?.message || 'Failed to add product');
+    } catch (err) {
+      setAvailabilityError(asErrorLike(err).message || 'Failed to add product');
     } finally {
       setAvailabilityChecking(false);
     }
@@ -340,7 +354,7 @@ export function AddEventEssentialsSection({
 
       // Availability check: build the COMPLETE resulting staged requirement.
       const projectedItems = [
-        ...stagedItems.filter((i: any) => !i.is_deleted),
+        ...stagedItems.filter((i) => !i.is_deleted),
         {
           bundle_id: bundle.id,
           qty,
@@ -379,15 +393,15 @@ export function AddEventEssentialsSection({
         is_deleted: false,
       });
       setBundleQtyInputs(prev => ({ ...prev, [bundle.id]: '1' }));
-    } catch (err: any) {
-      setAvailabilityError(err?.message || 'Failed to add package');
+    } catch (err) {
+      setAvailabilityError(asErrorLike(err).message || 'Failed to add package');
     } finally {
       setAvailabilityChecking(false);
     }
   }, [buildResolverInput, onAddBundle, stagedItems, eventDate, eventEndDate, orderId, bundleQtyInputs]);
 
   // Build the list of active categories that have at least one product in the picker.
-  const activeCategoryIds = Array.from(new Set(products.map(p => p.category_id).filter(Boolean)));
+  const activeCategoryIds = Array.from(new Set(products.map(p => p.category_id).filter(Boolean))) as string[];
   const sortedCategories = activeCategoryIds
     .map(id => categories[id])
     .filter(Boolean)

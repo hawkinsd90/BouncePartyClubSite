@@ -3,7 +3,7 @@ import { formatCurrency } from '../../lib/pricing';
 import { formatOrderId } from '../../lib/utils';
 
 interface ApprovalModalProps {
-  order: any;
+  order: { id: string; deposit_due_cents: number; tip_cents: number }; // both NOT NULL in orders
   customerDisplayName: string;
   lotPicturesRequested: boolean;
   lotPicturesReceived: boolean;

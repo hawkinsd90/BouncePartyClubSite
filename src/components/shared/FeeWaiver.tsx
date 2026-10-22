@@ -37,7 +37,7 @@ export function FeeWaiver({
     setShowConfirmation(false);
   };
 
-  const colorClasses = {
+  const colorClasses: Record<'red' | 'orange' | 'blue', FeeWaiverColors> = {
     red: {
       bg: 'bg-red-50',
       border: 'border-red-200',
@@ -195,6 +195,19 @@ export function FeeWaiver({
   );
 }
 
+// The Tailwind classes one colour theme of the waiver card and its confirmation dialog uses.
+interface FeeWaiverColors {
+  bg: string;
+  border: string;
+  text: string;
+  buttonBg: string;
+  iconText: string;
+  badge: string;
+  confirmBorder: string;
+  confirmIcon: string;
+  confirmBg: string;
+}
+
 function ConfirmationDialog({
   feeName,
   feeAmount,
@@ -208,7 +221,7 @@ function ConfirmationDialog({
   feeAmount: number;
   isWaived: boolean;
   currentReason?: string;
-  colors: any;
+  colors: FeeWaiverColors;
   onConfirm: (reason: string) => void;
   onCancel: () => void;
 }) {

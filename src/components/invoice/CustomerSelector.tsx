@@ -1,8 +1,8 @@
 import { Search, UserPlus, X } from 'lucide-react';
-import { filterCustomers } from '../../lib/core/customerSearch';
+import { filterCustomers, type PickableCustomer } from '../../lib/core/customerSearch';
 
 interface CustomerSelectorProps {
-  customers: any[];
+  customers: PickableCustomer[];
   selectedCustomer: string;
   customerSearchQuery: string;
   showDropdown: boolean;

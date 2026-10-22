@@ -5,10 +5,11 @@ import { portalAction } from '../../lib/portal/customerPortalApi';
 import { uploadPortalPictures, discardPortalPictures } from '../../lib/portal/portalPictureUpload';
 import { SimpleConfirmModal } from '../common/SimpleConfirmModal';
 import { ORDER_STATUS } from '../../lib/constants/statuses';
+import { asErrorLike } from '../../lib/core/errorLike';
 
 interface LotPicturesTabProps {
   orderId: string;
-  orderNumber: string;
+  orderNumber?: string;
   orderStatus?: string;
   // Current lot pictures from the secure portal payload (customer-portal-data).
   pictures: LotPicture[];
@@ -20,7 +21,7 @@ interface LotPicturesTabProps {
   suppressRefreshRef?: React.MutableRefObject<boolean>;
 }
 
-interface LotPicture {
+export interface LotPicture {
   id: string;
   file_path: string;
   file_name: string;
@@ -39,7 +40,7 @@ export function LotPicturesTab({ orderId, orderStatus, pictures, invoiceLinkToke
   const uploadingRef = useRef(false);
 
   // Can only delete if order is in pending_review or awaiting_customer_approval
-  const canDelete = [ORDER_STATUS.PENDING, ORDER_STATUS.AWAITING_CUSTOMER_APPROVAL].includes(orderStatus as any || '');
+  const canDelete = ([ORDER_STATUS.PENDING, ORDER_STATUS.AWAITING_CUSTOMER_APPROVAL] as string[]).includes(orderStatus || '');
 
   const handleFileSelect = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const files = event.target.files;
@@ -104,8 +105,8 @@ export function LotPicturesTab({ orderId, orderStatus, pictures, invoiceLinkToke
       // Release suppression last so the realtime event (if any arrives)
       // does not trigger a full Portal reload before the local list is updated.
       if (suppressRefreshRef) suppressRefreshRef.current = false;
-    } catch (error: any) {
-      const msg = error.message || 'Failed to upload pictures';
+    } catch (error) {
+      const msg = asErrorLike(error).message || 'Failed to upload pictures';
       console.error('[LotPicturesTab] Upload failed:', msg, error);
       setUploadError(msg);
       notifyError(msg);
@@ -143,9 +144,9 @@ export function LotPicturesTab({ orderId, orderStatus, pictures, invoiceLinkToke
       if (selectedPicture?.id === pictureToDelete.id) {
         setSelectedPicture(null);
       }
-    } catch (error: any) {
+    } catch (error) {
       console.error('Delete error:', error);
-      notifyError(error.message || 'Failed to delete picture');
+      notifyError(asErrorLike(error).message || 'Failed to delete picture');
     } finally {
       setDeleting(null);
       setPictureToDelete(null);

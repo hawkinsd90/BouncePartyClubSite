@@ -3,11 +3,12 @@ import { MODAL_PANEL_SCROLL } from '../../lib/core/modalClasses';
 import { portalAction } from '../../lib/portal/customerPortalApi';
 import { showToast } from '../../lib/toasts';
 import { useBusinessSettings } from '../../contexts/BusinessContext';
+import type { PortalOrder } from './portalTypes';
 
 interface RejectionModalProps {
   isOpen: boolean;
   onClose: () => void;
-  order: any;
+  order: Pick<PortalOrder, 'id' | 'customers'>;
   invoiceLinkToken?: string | null;
   onSuccess: () => void;
 }

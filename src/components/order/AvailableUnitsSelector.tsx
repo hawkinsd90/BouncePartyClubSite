@@ -12,7 +12,7 @@ interface Unit {
 interface CartItem {
   unit_id: string;
   qty: number;
-  [key: string]: any;
+  [key: string]: unknown;
 }
 
 interface AvailableUnitsSelectorProps {

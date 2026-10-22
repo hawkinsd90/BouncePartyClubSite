@@ -1,7 +1,7 @@
 import { format } from 'date-fns';
 import { CreditCard } from 'lucide-react';
 import { formatCurrency } from '../../lib/pricing';
-import { storedOrderTotalCents } from '../../lib/pricing/orderMoney';
+import { storedOrderTotalCents, type OrderMoneyComponents } from '../../lib/pricing/orderMoney';
 import { RefundAllocationPanel } from '../admin/orders/refunds/RefundAllocationPanel';
 import { REFUND_REASONS, componentSummary } from '../../lib/payments/refundAllocationRequest';
 
@@ -11,6 +11,7 @@ interface Payment {
   status: string;
   type?: string;
   payment_type?: string;
+  stripe_payment_intent_id?: string | null;
   created_at: string;
 }
 
@@ -40,8 +41,22 @@ interface Discount {
   name: string;
 }
 
+// The order columns this section reads (the money components are the ones storedOrderTotalCents needs).
+interface PaymentManagementOrder extends OrderMoneyComponents {
+  id: string;
+  status?: string | null;
+  stripe_customer_id?: string | null;
+  stripe_payment_method_id?: string | null;
+  payment_method_last_four?: string | null;
+  payment_method_brand?: string | null;
+  tip_cents?: number | null;
+  deposit_paid_cents?: number | null;
+  balance_paid_cents?: number | null;
+  customers?: { first_name?: string | null; last_name?: string | null } | null;
+}
+
 interface PaymentManagementSectionProps {
-  order: any;
+  order: PaymentManagementOrder;
   payments: Payment[];
   refunds?: Refund[];
   customFees?: CustomFee[];
@@ -96,7 +111,7 @@ export function PaymentManagementSection({
     ? ledgerBalanceCents
     : (order.balance_paid_cents || 0);
 
-  const hasStripePayments = succeededPayments.some(p => (p as any).stripe_payment_intent_id);
+  const hasStripePayments = succeededPayments.some(p => p.stripe_payment_intent_id);
 
   return (
     <div className="mb-4 p-4 bg-white rounded-lg border border-slate-200">

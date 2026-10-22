@@ -7,9 +7,17 @@ import { supabase } from '../../lib/supabase';
 import { useFeeTemplates } from '../../hooks/invoices/useFeeTemplates';
 import { dollarsToCents } from '../../lib/pricing/money';
 
+// A fee row as the order editor holds it (saved rows keep their database id and columns; new rows get a temp_ id and is_new).
+export interface ManagedFee {
+  id: string;
+  name: string;
+  amount_cents: number;
+  is_new?: boolean;
+}
+
 interface CustomFeesManagerProps {
-  customFees: any[];
-  onFeeChange: (fees: any[]) => void;
+  customFees: ManagedFee[];
+  onFeeChange: (fees: ManagedFee[]) => void;
   onMarkChanges: () => void;
 }
 
@@ -33,7 +41,7 @@ export function CustomFeesManager({
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editDraft, setEditDraft] = useState<FeeDraft>({ name: '', amountInput: '0.00' });
 
-  function startEdit(fee: any) {
+  function startEdit(fee: ManagedFee) {
     setEditingId(fee.id);
     setEditDraft({
       name: fee.name,

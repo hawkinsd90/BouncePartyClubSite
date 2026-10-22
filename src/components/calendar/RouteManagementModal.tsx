@@ -10,6 +10,7 @@ import { AddressLink } from '../shared/AddressLink';
 import type { RouteOriginOptions } from '../../lib/routing/routeOptimization';
 import { getOrCreateTaskStatusRow } from '../../lib/tasks/taskStatusService';
 import { planRouteSave, runRouteSave } from '../../lib/tasks/routeSave';
+import { asErrorLike } from '../../lib/core/errorLike';
 
 export type RouteStartMode = 'home_base' | 'last_completed' | 'current_location';
 
@@ -239,8 +240,8 @@ export function RouteManagementModal({
         //   `  Passing to Distance Matrix as: "${coordsAddress}"`
         // );
         return { origin, label: 'Current Location', fallback: false };
-      } catch (geoErr: any) {
-        console.warn(`[Route Start Mode] Geolocation failed: ${geoErr.message} — checking fallback...`);
+      } catch (geoErr) {
+        console.warn(`[Route Start Mode] Geolocation failed: ${asErrorLike(geoErr).message} — checking fallback...`);
         if (lastCompletedTask) {
           const origin: RouteOriginOptions = {
             address: lastCompletedTask.address,
@@ -298,8 +299,8 @@ export function RouteManagementModal({
             status: row.status,
             sortOrder: row.sort_order ?? null,
             completedTime: row.completed_time ?? null,
-            deliveryImages: (row.delivery_images as any) || [],
-            damageImages: (row.damage_images as any) || [],
+            deliveryImages: (row.delivery_images as string[] | null) || [],
+            damageImages: (row.damage_images as string[] | null) || [],
             etaSent: row.eta_sent || false,
           },
         };
@@ -324,9 +325,9 @@ export function RouteManagementModal({
       } else {
         showToast('Route is already optimal', 'info');
       }
-    } catch (error: any) {
+    } catch (error) {
       console.error('Error optimizing route:', error);
-      showToast(error.message || 'Failed to optimize route', 'error');
+      showToast(asErrorLike(error).message || 'Failed to optimize route', 'error');
     }
   }
 
@@ -346,7 +347,7 @@ export function RouteManagementModal({
       setHasChanges(false);
       onUpdate();
       onClose();
-    } catch (error: any) {
+    } catch (error) {
       console.error('Error saving route:', error);
       showToast('Failed to save route. Your changes are still here - please try again.', 'error');
     } finally {

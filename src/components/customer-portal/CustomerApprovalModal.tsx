@@ -19,11 +19,13 @@ import { enterConfirmed } from '../../lib/orders/orderLifecycleApi';
 import { isDepositFullyCollected } from '../../lib/orders/depositCollected';
 import { classifyApprovalFailure } from '../../lib/orders/approvalFailure';
 import { COMPANY_PHONE } from '../../lib/notifications/emailTemplateBase';
+import { asErrorLike } from '../../lib/core/errorLike';
+import type { PortalOrder } from './portalTypes';
 
 interface ApprovalModalProps {
   isOpen: boolean;
   onClose: () => void;
-  order: any;
+  order: PortalOrder;
   onProcessingStart?: () => void;
   onProcessingCancel?: () => void;
   onSuccess: () => void;
@@ -104,10 +106,10 @@ export function CustomerApprovalModal({
 
     // Split by inventory type so null unit_id rows never enter the
     // inflatable availability query (which would send "null" as a UUID).
-    const inflatableItems = (orderItems as any[]).filter((item) =>
+    const inflatableItems = orderItems.filter((item) =>
       isNonBlank(item.unit_id)
     );
-    const eeItems = (orderItems as any[]).filter(
+    const eeItems = orderItems.filter(
       (item) => !isNonBlank(item.unit_id) && (isNonBlank(item.product_id) || isNonBlank(item.bundle_id))
     );
 
@@ -184,7 +186,7 @@ export function CustomerApprovalModal({
       }
 
       window.location.href = sessionData.url;
-    } catch (error: any) {
+    } catch (error) {
       console.error('Error updating card:', error);
       showToast('Failed to update payment method. Please try again.', 'error');
       setUpdatingCard(false);
@@ -243,8 +245,8 @@ export function CustomerApprovalModal({
 
         // Send confirmation notification via edge function (fire-and-forget — non-fatal)
         try {
-          const customer = order.customers as any;
-          const address = order.addresses as any;
+          const customer = order.customers;
+          const address = order.addresses;
 
           if (customer?.email) {
             const firstName = customer.first_name || 'Customer';
@@ -377,9 +379,9 @@ export function CustomerApprovalModal({
       }
       onClose();
       onSuccess();
-    } catch (error: any) {
+    } catch (error) {
       console.error('Error approving order:', error);
-      showToast(error.message || 'Failed to approve order. Please try again.', 'error');
+      showToast(asErrorLike(error).message || 'Failed to approve order. Please try again.', 'error');
 
       if (isMountedRef.current) {
         setSubmitting(false);
@@ -403,12 +405,12 @@ export function CustomerApprovalModal({
 
   const lastFour =
     order.payment_method_last_four ||
-    order.payments?.find((p: any) => p.payment_last4)?.payment_last4 ||
+    order.payments?.find((p) => p.payment_last4)?.payment_last4 ||
     null;
 
   const brand =
     order.payment_method_brand ||
-    order.payments?.find((p: any) => p.payment_brand)?.payment_brand ||
+    order.payments?.find((p) => p.payment_brand)?.payment_brand ||
     null;
 
   const paymentMethodText = lastFour && brand

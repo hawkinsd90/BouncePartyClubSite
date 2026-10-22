@@ -1,9 +1,10 @@
 import { Shield, Loader2, FileText } from 'lucide-react';
 import { OrderSummary } from '../order/OrderSummary';
 import { OrderSummaryDisplay } from '../../lib/orders/orderSummaryLoader';
+import type { QuoteFormData } from '../../hooks/booking/useQuoteForm';
 
 interface CheckoutSummaryProps {
-  quoteData: any;
+  quoteData: QuoteFormData;
   orderSummary: OrderSummaryDisplay | null;
   processing: boolean;
   cardOnFileConsent: boolean;

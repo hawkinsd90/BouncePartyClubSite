@@ -112,7 +112,7 @@ export function StatusChangeDialog({
       }
 
       // Update order status; include cancellation metadata when cancelling
-      const updatePayload: Record<string, any> = { status: pendingStatus };
+      const updatePayload: { status: string; cancelled_at?: string; cancelled_by?: string; cancellation_reason?: string } = { status: pendingStatus };
       if (pendingStatus === ORDER_STATUS.CANCELLED) {
         updatePayload.cancelled_at = new Date().toISOString();
         const { data: { user } } = await supabase.auth.getUser();

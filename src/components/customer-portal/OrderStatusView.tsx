@@ -3,9 +3,10 @@ import { format } from 'date-fns';
 import { formatCurrency } from '../../lib/pricing';
 import { formatOrderId } from '../../lib/utils';
 import { useBusinessSettings } from '../../contexts/BusinessContext';
+import type { PortalOrder } from './portalTypes';
 
 interface OrderStatusViewProps {
-  order: any;
+  order: Pick<PortalOrder, 'id' | 'status' | 'customers' | 'event_date' | 'deposit_due_cents' | 'balance_due_cents'>;
 }
 
 export function OrderStatusView({ order }: OrderStatusViewProps) {
