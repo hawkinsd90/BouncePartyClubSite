@@ -25,7 +25,7 @@ import { buildPortalUrl } from "../_shared/portal-link.ts";
 import { receiptOrderFigures, receiptDiscountAmount, receiptExtraFeeRowsHtml } from "../_shared/payments/receipt-order-totals.ts";
 import { finalizeOperation } from "../_shared/payments/payment-operations.ts";
 import { formatCurrency, formatPaymentMethodLabel } from "../_shared/fmt.ts";
-import { orderItemName, ORDER_ITEM_COLUMNS } from "../_shared/payments/order-item-label.ts";
+import { orderItemName, ORDER_ITEM_COLUMNS, type LabelledOrderItem } from "../_shared/payments/order-item-label.ts";
 import { getSiteOrigin } from "../_shared/siteOrigin.ts";
 
 const corsHeaders = {
@@ -140,7 +140,7 @@ Deno.serve(async (req: Request) => {
     const stripeCustomerId =
       typeof session.customer === "string"
         ? session.customer
-        : (session.customer as any)?.id || null;
+        : session.customer?.id || null;
 
     // Extract payment method details from expanded PI
     let paymentMethodType: string | null = null;
@@ -150,11 +150,11 @@ Deno.serve(async (req: Request) => {
 
     const pmObj = pi.payment_method;
     if (pmObj && typeof pmObj === "object") {
-      paymentMethodType = (pmObj as any).type || null;
-      expandedPmId = (pmObj as any).id || null;
-      if ((pmObj as any).card) {
-        paymentBrand = (pmObj as any).card.brand || null;
-        paymentLast4 = (pmObj as any).card.last4 || null;
+      paymentMethodType = pmObj.type || null;
+      expandedPmId = pmObj.id || null;
+      if (pmObj.card) {
+        paymentBrand = pmObj.card.brand || null;
+        paymentLast4 = pmObj.card.last4 || null;
       }
     }
 
@@ -167,7 +167,7 @@ Deno.serve(async (req: Request) => {
       const latestCharge = pi.latest_charge;
       latestChargeId = typeof latestCharge === "string"
         ? latestCharge
-        : (latestCharge as any)?.id || null;
+        : latestCharge?.id || null;
 
       if (latestChargeId) {
         const charge = await stripe.charges.retrieve(latestChargeId, {
@@ -175,8 +175,8 @@ Deno.serve(async (req: Request) => {
         });
         const balanceTx = charge.balance_transaction;
         if (balanceTx && typeof balanceTx === "object") {
-          stripeFee = (balanceTx as any).fee || 0;
-          stripeNet = (balanceTx as any).net || amountPaid;
+          stripeFee = balanceTx.fee || 0;
+          stripeNet = balanceTx.net || amountPaid;
         }
       }
     } catch (err) {
@@ -272,9 +272,9 @@ Deno.serve(async (req: Request) => {
               ? `Balance payment ($${(balanceOnly / 100).toFixed(2)}) + tip ($${(safeTipCents / 100).toFixed(2)}) via Stripe Checkout`
               : "Customer portal balance payment via Stripe Checkout",
           });
-      } catch (receiptErr: any) {
+      } catch (receiptErr) {
         // 23505 means webhook already inserted receipt — non-fatal; payment row is committed
-        if (receiptErr?.code !== "23505") {
+        if ((receiptErr as { code?: string } | null)?.code !== "23505") {
           console.warn("[reconcile-balance-payment] Failed to insert transaction receipt:", receiptErr);
         }
       }
@@ -313,8 +313,9 @@ Deno.serve(async (req: Request) => {
         const addr = Array.isArray(currentOrder?.addresses) ? currentOrder.addresses[0] : currentOrder?.addresses;
         const addressStr = addr ? `${addr.line1}, ${addr.city}, ${addr.state}` : "";
 
-        const items: any[] = Array.isArray(currentOrder?.order_items) ? currentOrder.order_items : [];
-        const itemsHtml = items.map((item: any) => {
+        // (the select embeds units as a list; orderItemName reads either shape)
+        const items = (Array.isArray(currentOrder?.order_items) ? currentOrder.order_items : []) as unknown as LabelledOrderItem[];
+        const itemsHtml = items.map((item) => {
           const unitName = orderItemName(item);
           const qty = item.qty || 1;
           const price = item.unit_price_cents || 0;

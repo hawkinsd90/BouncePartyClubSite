@@ -1,13 +1,15 @@
 import Stripe from "npm:stripe@20.0.0";
+import type { SupabaseClient } from "npm:@supabase/supabase-js@2.57.4";
 import { logTransaction } from "../_shared/transaction-logger.ts";
 import { collectPaymentDetails, finalizeOperation, settleExpiredCheckoutSession } from "../_shared/payments/payment-operations.ts";
 import { applyProviderRefund } from "../_shared/payments/refund-operations.ts";
 import { sendCheckoutBalanceReceiptEmail } from "./emails.ts";
 import { completePostPayment } from "../_shared/payments/post-payment.ts";
 import { ORDER_ITEM_COLUMNS } from "../_shared/payments/order-item-label.ts";
+import type { ReceiptOrder, ReceiptCustomer } from "../_shared/payments/receipt-order-totals.ts";
 
 export async function invokeLifecycle(
-  supabaseClient: any,
+  supabaseClient: SupabaseClient,
   action: string,
   orderId: string,
   source: string,
@@ -32,7 +34,7 @@ export async function invokeLifecycle(
 // provider was called. Money that arrives without one is recorded for a person to reconcile; it is never guessed into a
 // deposit, a balance or a tip.
 async function reportUnmatchedPayment(
-  supabaseClient: any,
+  supabaseClient: SupabaseClient,
   orderId: string | null,
   reference: string,
   note: string
@@ -54,7 +56,13 @@ async function reportUnmatchedPayment(
   }
 }
 
-async function loadOrderForReceipt(supabaseClient: any, orderId: string): Promise<any> {
+// The order as loadOrderForReceipt selects it.
+interface ReceiptOrderRow extends ReceiptOrder {
+  customer_id?: string | null;
+  customers?: ReceiptCustomer | ReceiptCustomer[] | null;
+}
+
+async function loadOrderForReceipt(supabaseClient: SupabaseClient, orderId: string): Promise<ReceiptOrderRow | null> {
   const { data } = await supabaseClient
     .from("orders")
     .select(`
@@ -70,10 +78,10 @@ async function loadOrderForReceipt(supabaseClient: any, orderId: string): Promis
     `)
     .eq("id", orderId)
     .maybeSingle();
-  return data;
+  return data as unknown as ReceiptOrderRow | null;
 }
 
-async function loadBusinessSettings(supabaseClient: any): Promise<Record<string, string>> {
+async function loadBusinessSettings(supabaseClient: SupabaseClient): Promise<Record<string, string>> {
   const { data } = await supabaseClient
     .from("admin_settings")
     .select("key, value")
@@ -118,7 +126,7 @@ export async function handleCheckoutSessionExpired(session: Stripe.Checkout.Sess
 }
 
 export async function applyProviderPayment(
-  supabaseClient: any,
+  supabaseClient: SupabaseClient,
   stripe: Stripe,
   p: ProviderPayment
 ): Promise<"applied" | "already_applied" | "unmatched" | "refused"> {
@@ -215,7 +223,7 @@ export async function applyProviderPayment(
 // still unpaid the order stays as it is, and the charge that follows the card save decides. Only an invoice with nothing to
 // collect (an explicit $0 deposit, or a deposit already paid) is confirmed by the card save.
 async function setupConfirmation(
-  supabaseClient: any,
+  supabaseClient: SupabaseClient,
   orderId: string
 ): Promise<{ isAdminInvoice: boolean; principalOutstanding: boolean; currentStatus: string; depositDue: number }> {
   const { data: invoiceLinks } = await supabaseClient
@@ -243,7 +251,7 @@ async function setupConfirmation(
 
 export async function handleCheckoutSessionCompleted(
   session: Stripe.Checkout.Session,
-  supabaseClient: any,
+  supabaseClient: SupabaseClient,
   stripe: Stripe
 ): Promise<void> {
   const orderId = session.metadata?.order_id || null;
@@ -347,7 +355,7 @@ export async function handleCheckoutSessionCompleted(
 
 export async function handlePaymentIntentSucceeded(
   paymentIntent: Stripe.PaymentIntent,
-  supabaseClient: any,
+  supabaseClient: SupabaseClient,
   stripe: Stripe
 ): Promise<void> {
   const orderId = paymentIntent.metadata?.order_id || null;
@@ -413,7 +421,7 @@ export async function handlePaymentIntentSucceeded(
 
 export async function handlePaymentIntentFailed(
   paymentIntent: Stripe.PaymentIntent,
-  supabaseClient: any
+  supabaseClient: SupabaseClient
 ): Promise<void> {
   // Only a payment that is still open can fail. A Checkout payment may be retried by the customer on Stripe's page, so a
   // failed attempt there does not close its operation.
@@ -431,7 +439,7 @@ export async function handlePaymentIntentFailed(
 // Refunds. Each INDIVIDUAL Stripe refund is recorded on its own through apply_provider_refund_event (one order_refunds row per
 // refund, one status transition, one ledger row). Nothing here reads the cumulative amount of a charge, the embedded
 // `charge.refunds` list (absent unless expanded) or an amount sum.
-async function recordProviderRefund(refund: Stripe.Refund, supabaseClient: any): Promise<void> {
+async function recordProviderRefund(refund: Stripe.Refund, supabaseClient: SupabaseClient): Promise<void> {
   const result = await applyProviderRefund(supabaseClient, refund);
 
   if (result.outcome === "no_original_payment") {
@@ -467,7 +475,7 @@ async function recordProviderRefund(refund: Stripe.Refund, supabaseClient: any):
 }
 
 // refund.created / refund.updated / refund.failed / charge.refund.updated carry the Refund object itself.
-export async function handleRefundEvent(refund: Stripe.Refund, supabaseClient: any): Promise<void> {
+export async function handleRefundEvent(refund: Stripe.Refund, supabaseClient: SupabaseClient): Promise<void> {
   await recordProviderRefund(refund, supabaseClient);
 }
 
@@ -475,7 +483,7 @@ export async function handleRefundEvent(refund: Stripe.Refund, supabaseClient: a
 // (a running total) and its embedded refund list are never used.
 export async function handleChargeRefunded(
   charge: Stripe.Charge,
-  supabaseClient: any,
+  supabaseClient: SupabaseClient,
   stripe: Stripe
 ): Promise<void> {
   const refunds = await stripe.refunds.list({ charge: charge.id, limit: 100 });
@@ -486,7 +494,7 @@ export async function handleChargeRefunded(
 
 export async function handleSetupIntentSucceeded(
   setupIntent: Stripe.SetupIntent,
-  supabaseClient: any,
+  supabaseClient: SupabaseClient,
   stripe: Stripe
 ): Promise<void> {
   const orderId = setupIntent.metadata?.order_id || null;

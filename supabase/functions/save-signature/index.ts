@@ -5,6 +5,9 @@ import { authorizePortalOrder, resolveCaller } from "../_shared/auth.ts";
 import { getSiteOrigin } from "../_shared/siteOrigin.ts";
 import { invalidSignatureField, parseSignatureDataUrl } from "../_shared/waiver/signature-validation.ts";
 
+// The Supabase Edge Runtime provides this global (the Deno typings do not declare it).
+declare const EdgeRuntime: { waitUntil(promise: Promise<unknown>): void };
+
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Methods": "POST, OPTIONS",

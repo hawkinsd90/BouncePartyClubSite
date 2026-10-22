@@ -143,12 +143,12 @@ Deno.serve(async (req: Request) => {
       }
     );
 
-  } catch (error: any) {
+  } catch (error) {
     console.error('Backfill error:', error);
     return new Response(
       JSON.stringify({
         success: false,
-        error: error.message || 'Failed to backfill customer record'
+        error: (error as Error).message || 'Failed to backfill customer record'
       }),
       {
         status: 400,

@@ -104,7 +104,7 @@ Deno.serve(async (req: Request) => {
     // console.log("[fix-payment-method] Found", sessions.data.length, "sessions");
 
     const orderSession = sessions.data.find(
-      (s: { metadata?: { order_id?: string } }) => s.metadata?.order_id === orderId
+      (s) => s.metadata?.order_id === orderId
     );
 
     if (!orderSession) {

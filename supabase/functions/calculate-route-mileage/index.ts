@@ -1,5 +1,5 @@
 import "jsr:@supabase/functions-js@2/edge-runtime.d.ts";
-import { createClient } from "npm:@supabase/supabase-js@2.57.4";
+import { createClient, type SupabaseClient } from "npm:@supabase/supabase-js@2.57.4";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -24,13 +24,24 @@ class DataLoadError extends Error {
   }
 }
 
+// One task_status row as the select below returns it (task_status.order_id -> orders is many-to-one; orders.address_id -> addresses likewise).
+interface TaskRow {
+  order_id: string;
+  task_type: string | null;
+  sort_order: number | null;
+  orders: {
+    status: string;
+    addresses: { line1: string | null; city: string | null; state: string | null; zip: string | null; lat: number | null; lng: number | null } | null;
+  } | null;
+}
+
 function jsonResponse(status: number, body: Record<string, unknown>): Response {
   return new Response(JSON.stringify(body), { status, headers: { ...corsHeaders, "Content-Type": "application/json" } });
 }
 
 /** Fetch task rows for a specific date and return driveable stops with coordinates. One stop per task row. */
 async function getTaskStopsForDate(
-  supabaseAdmin: ReturnType<typeof createClient>,
+  supabaseAdmin: SupabaseClient,
   date: string
 ): Promise<{ stops: TaskStop[]; allRows: number; allStatuses: string[] }> {
   const { data: taskRows, error } = await supabaseAdmin
@@ -52,14 +63,15 @@ async function getTaskStopsForDate(
   if (error) throw new DataLoadError("TASKS_LOAD_FAILED", `Could not load the tasks for ${date}: ${error.message}`);
   if (!taskRows) return { stops: [], allRows: 0, allStatuses: [] };
 
-  const allStatuses = taskRows
-    .map((r: any) => r.orders?.status)
+  const rows = taskRows as unknown as TaskRow[];
+  const allStatuses = rows
+    .map((r) => r.orders?.status)
     .filter(Boolean) as string[];
 
   const stops: TaskStop[] = [];
 
-  for (const row of taskRows) {
-    const order = row.orders as any;
+  for (const row of rows) {
+    const order = row.orders;
     if (!order || !DRIVEABLE_STATUSES.has(order.status)) continue;
 
     // One stop per task row: a drop-off and a pick-up of the same order on the same day are two visits, so two stops.

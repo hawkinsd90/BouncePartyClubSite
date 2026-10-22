@@ -15,7 +15,7 @@
 //    to AFTER each syncDate() call succeeds, not before the loop.
 
 import "jsr:@supabase/functions-js@2/edge-runtime.d.ts";
-import { createClient } from "npm:@supabase/supabase-js@2.57.4";
+import { createClient, type SupabaseClient } from "npm:@supabase/supabase-js@2.57.4";
 import { resolveCaller, requireRoles, authFailureResponse, STAFF_ADMIN_ROLES } from "../_shared/auth.ts";
 
 const corsHeaders = {
@@ -164,8 +164,15 @@ function buildEventContent(
   return { summary, description: lines.join("\n") };
 }
 
+// An order as the select in syncDate returns it (orders.customer_id -> customers is many-to-one).
+interface CalendarOrderRow {
+  id: string;
+  status: string;
+  customers: { first_name: string; last_name: string } | null;
+}
+
 async function syncDate(
-  supabase: ReturnType<typeof createClient>,
+  supabase: SupabaseClient,
   accessToken: string,
   calendarId: string,
   dateStr: string
@@ -177,8 +184,8 @@ async function syncDate(
     .in("status", QUALIFYING_STATUSES)
     .eq("event_date", dateStr);
 
-  const qualifyingOrders = orders || [];
-  const activeOrders = qualifyingOrders.filter((o: any) =>
+  const qualifyingOrders = (orders || []) as unknown as CalendarOrderRow[];
+  const activeOrders = qualifyingOrders.filter((o) =>
     ["confirmed", "in_progress"].includes(o.status)
   );
 
@@ -207,8 +214,8 @@ async function syncDate(
     return "noop";
   }
 
-  const customerNames = qualifyingOrders.map((o: any) => {
-    const c = o.customers as any;
+  const customerNames = qualifyingOrders.map((o) => {
+    const c = o.customers;
     return c ? `${c.first_name} ${c.last_name}` : "Unknown";
   });
 
@@ -229,8 +236,8 @@ async function syncDate(
     try {
       await updateCalendarEvent(accessToken, calendarId, googleEventId, dateStr, summary, description);
       action = "updated";
-    } catch (err: any) {
-      if (err.message === "EVENT_NOT_FOUND") {
+    } catch (err) {
+      if ((err as Error).message === "EVENT_NOT_FOUND") {
         googleEventId = await createCalendarEvent(accessToken, calendarId, dateStr, summary, description);
         action = "recreated";
       } else {
@@ -339,8 +346,8 @@ Deno.serve(async (req: Request) => {
         ]);
 
         const allDates = new Set<string>([
-          ...(ordersRes.data || []).map((o: any) => o.event_date),
-          ...(syncRes.data || []).map((r: any) => r.event_date),
+          ...(ordersRes.data || []).map((o) => o.event_date),
+          ...(syncRes.data || []).map((r) => r.event_date),
         ]);
         datesToSync = Array.from(allDates);
       } else {
@@ -360,11 +367,11 @@ Deno.serve(async (req: Request) => {
         }
 
         // Deduplicate dates from queue
-        const uniqueDates = new Set(queueRows.map((r: any) => r.event_date));
+        const uniqueDates = new Set(queueRows.map((r) => r.event_date));
         datesToSync = Array.from(uniqueDates) as string[];
 
         // Mark all these queue rows as processed
-        const queueIds = queueRows.map((r: any) => r.id);
+        const queueIds = queueRows.map((r) => r.id);
         await supabase
           .from("google_calendar_sync_queue")
           .update({ processed_at: new Date().toISOString(), attempts: 1 })
@@ -378,18 +385,18 @@ Deno.serve(async (req: Request) => {
       try {
         const action = await syncDate(supabase, accessToken, calendarId, dateStr);
         results.push({ date: dateStr, action });
-      } catch (err: any) {
-        console.error(`[GCAL] Error syncing ${dateStr}:`, err.message);
+      } catch (err) {
+        console.error(`[GCAL] Error syncing ${dateStr}:`, (err as Error).message);
         await supabase.from("google_calendar_sync").upsert(
           {
             event_date: dateStr,
             last_synced_at: new Date().toISOString(),
             last_sync_status: "error",
-            last_sync_error: err.message,
+            last_sync_error: (err as Error).message,
           },
           { onConflict: "event_date" }
         );
-        results.push({ date: dateStr, action: "error", error: err.message });
+        results.push({ date: dateStr, action: "error", error: (err as Error).message });
       }
     }
 
@@ -399,10 +406,10 @@ Deno.serve(async (req: Request) => {
       JSON.stringify({ ok: true, processed: results.length, results }),
       { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
-  } catch (err: any) {
-    console.error("[GCAL] Fatal error:", err.message);
+  } catch (err) {
+    console.error("[GCAL] Fatal error:", (err as Error).message);
     return new Response(
-      JSON.stringify({ ok: false, error: err.message }),
+      JSON.stringify({ ok: false, error: (err as Error).message }),
       { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   }

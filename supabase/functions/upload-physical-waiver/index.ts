@@ -112,8 +112,9 @@ Deno.serve(async (req: Request) => {
       return jsonError("Order not found", 404);
     }
 
-    const customer = order.customers as any;
-    const address = order.addresses as any;
+    // customers / addresses are many-to-one embeds of the select above
+    const customer = order.customers as unknown as { first_name?: string | null; last_name?: string | null; email?: string | null; phone?: string | null } | null;
+    const address = order.addresses as unknown as { line1?: string | null; city?: string | null; state?: string | null; zip?: string | null } | null;
     const customerName = customer
       ? [customer.first_name, customer.last_name].filter(Boolean).join(" ")
       : "Unknown";

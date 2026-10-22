@@ -102,7 +102,7 @@ Deno.serve(async (req: Request) => {
 
     const stripeCustomerId = typeof session.customer === "string"
       ? session.customer
-      : (session.customer as any)?.id || null;
+      : session.customer?.id || null;
 
     let paymentMethodId = null;
 

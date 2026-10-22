@@ -24,7 +24,7 @@ export async function beginWebhookProcessing(
   supabaseClient: SupabaseClient,
   stripeEventId: string,
   eventType: string,
-  payload?: any
+  payload?: unknown
 ): Promise<WebhookProcessingResult> {
   try {
     // Check for existing event

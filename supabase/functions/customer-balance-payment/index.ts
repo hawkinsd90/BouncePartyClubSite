@@ -23,14 +23,14 @@ import Stripe from "npm:stripe@20.0.0";
 import { createClient } from "npm:@supabase/supabase-js@2.57.4";
 import { validatePaymentMethod } from "../_shared/payments/payment-validation.ts";
 import { formatOrderId } from "../_shared/format-order-id.ts";
-import { orderItemName, ORDER_ITEM_COLUMNS } from "../_shared/payments/order-item-label.ts";
+import { orderItemName, ORDER_ITEM_COLUMNS, type LabelledOrderItem } from "../_shared/payments/order-item-label.ts";
 import { configuredOrigins, getSiteOrigin } from "../_shared/siteOrigin.ts";
 import { resolveReturnOrigin } from "../_shared/booking/returnOrigin.ts";
 import { logTransaction } from "../_shared/transaction-logger.ts";
 import { formatCurrency, formatPaymentMethodLabel } from "../_shared/fmt.ts";
 import { resolveCaller, proveOrderAccess, authFailureResponse } from "../_shared/auth.ts";
 import { buildPortalUrl, portalTokenFragment } from "../_shared/portal-link.ts";
-import { receiptOrderFigures, receiptDiscountAmount, receiptExtraFeeRowsHtml } from "../_shared/payments/receipt-order-totals.ts";
+import { receiptOrderFigures, receiptDiscountAmount, receiptExtraFeeRowsHtml, type ReceiptOrder } from "../_shared/payments/receipt-order-totals.ts";
 import {
   claimPaymentOperation,
   chargeSavedCard,
@@ -531,7 +531,7 @@ function buildReceiptEmail(opts: {
   cardBrand: string | null;
   cardLast4: string | null;
   eventDate: string | null;
-  order: any;
+  order: ReceiptOrder;
   biz: Record<string, string>;
   customFees: Array<{ name: string; amount_cents: number }>;
   discounts: Array<{ name: string; amount_cents: number | null; percentage: number | null }>;
@@ -554,8 +554,8 @@ function buildReceiptEmail(opts: {
     ? `${addr.line1}, ${addr.city}, ${addr.state}`
     : "";
 
-  const items: any[] = Array.isArray(order.order_items) ? order.order_items : [];
-  const itemsHtml = items.map((item: any) => {
+  const items: LabelledOrderItem[] = Array.isArray(order.order_items) ? order.order_items : [];
+  const itemsHtml = items.map((item) => {
     const unitName = orderItemName(item);
     const qty = item.qty || 1;
     const price = item.unit_price_cents || 0;

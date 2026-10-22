@@ -2,13 +2,15 @@ import { formatCurrency, DEFAULT_PHONE } from "../_shared/fmt.ts";
 import { buildPortalUrl } from "../_shared/portal-link.ts";
 import { orderItemName } from "../_shared/payments/order-item-label.ts";
 import { getSiteOrigin } from "../_shared/siteOrigin.ts";
-import { receiptOrderFigures, receiptDiscountAmount, receiptExtraFeeRowsHtml } from "../_shared/payments/receipt-order-totals.ts";
+import { receiptOrderFigures, receiptDiscountAmount, receiptExtraFeeRowsHtml, type ReceiptOrder, type ReceiptCustomer } from "../_shared/payments/receipt-order-totals.ts";
+import type { LabelledOrderItem } from "../_shared/payments/order-item-label.ts";
+import type { SupabaseClient } from "npm:@supabase/supabase-js@2.57.4";
 
 export async function sendCheckoutBalanceReceiptEmail(
-  supabaseClient: any,
+  supabaseClient: SupabaseClient,
   orderId: string,
-  order: any,
-  customer: any,
+  order: ReceiptOrder | null | undefined,
+  customer: ReceiptCustomer,
   biz: Record<string, string>,
   amountPaid: number,
   balanceOnly: number,
@@ -34,8 +36,8 @@ export async function sendCheckoutBalanceReceiptEmail(
   const addr = Array.isArray(order?.addresses) ? order.addresses[0] : order?.addresses;
   const addressStr = addr ? `${addr.line1}, ${addr.city}, ${addr.state}` : "";
 
-  const items: any[] = Array.isArray(order?.order_items) ? order.order_items : [];
-  const itemsHtml = items.map((item: any) => {
+  const items: LabelledOrderItem[] = Array.isArray(order?.order_items) ? order.order_items : [];
+  const itemsHtml = items.map((item) => {
     const unitName = orderItemName(item);
     const qty = item.qty || 1;
     const price = item.unit_price_cents || 0;
@@ -173,10 +175,10 @@ export async function sendCheckoutBalanceReceiptEmail(
 }
 
 export async function sendDepositReceiptEmail(
-  supabaseClient: any,
+  supabaseClient: SupabaseClient,
   orderId: string,
-  order: any,
-  customer: any,
+  order: ReceiptOrder | null | undefined,
+  customer: ReceiptCustomer,
   biz: Record<string, string>,
   amountPaid: number,
   depositOnly: number,
@@ -202,8 +204,8 @@ export async function sendDepositReceiptEmail(
   const addr = Array.isArray(order?.addresses) ? order.addresses[0] : order?.addresses;
   const addressStr = addr ? `${addr.line1}, ${addr.city}, ${addr.state}` : "";
 
-  const items: any[] = Array.isArray(order?.order_items) ? order.order_items : [];
-  const itemsHtml = items.map((item: any) => {
+  const items: LabelledOrderItem[] = Array.isArray(order?.order_items) ? order.order_items : [];
+  const itemsHtml = items.map((item) => {
     const unitName = orderItemName(item);
     const qty = item.qty || 1;
     const price = item.unit_price_cents || 0;

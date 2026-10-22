@@ -1,9 +1,12 @@
-import { createClient } from 'npm:@supabase/supabase-js@2.57.4';
+import { createClient, type SupabaseClient } from 'npm:@supabase/supabase-js@2.57.4';
 import { resolveCaller, requireRoles, authFailureResponse, INVOICE_SENDER_ROLES } from '../_shared/auth.ts';
 import { generateShortCode, portalTokenFragment } from '../_shared/portal-link.ts';
 import { resolveReturnOrigin } from '../_shared/booking/returnOrigin.ts';
 import { configuredOrigins } from '../_shared/siteOrigin.ts';
 import { storedOrderTotalCents } from '../_shared/booking/orderMoney.ts';
+
+// The Supabase Edge Runtime provides this global (the Deno typings do not declare it).
+declare const EdgeRuntime: { waitUntil(promise: Promise<unknown>): void };
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -11,7 +14,7 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-Client-Info, Apikey',
 };
 
-async function generateUniqueShortCode(supabase: any): Promise<string | null> {
+async function generateUniqueShortCode(supabase: SupabaseClient): Promise<string | null> {
   for (let attempt = 0; attempt < 5; attempt++) {
     const code = generateShortCode();
     const { data: existing } = await supabase
@@ -129,7 +132,7 @@ Deno.serve(async (req: Request) => {
       .eq('id', orderId);
 
     if (customerEmail || customerPhone) {
-      const notificationTasks: Promise<any>[] = [];
+      const notificationTasks: Promise<unknown>[] = [];
 
       if (customerEmail) {
         notificationTasks.push(

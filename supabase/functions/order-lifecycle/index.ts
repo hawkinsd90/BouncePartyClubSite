@@ -1,5 +1,5 @@
 import "jsr:@supabase/functions-js@2/edge-runtime.d.ts";
-import { createClient } from "npm:@supabase/supabase-js@2.57.4";
+import { createClient, type SupabaseClient } from "npm:@supabase/supabase-js@2.57.4";
 import Stripe from "npm:stripe@20.0.0";
 import { formatCurrency } from "../_shared/fmt.ts";
 import { formatOrderId } from "../_shared/format-order-id.ts";
@@ -13,7 +13,7 @@ import {
   type AuthClient,
 } from "../_shared/auth.ts";
 import { evaluateCustomerConfirmation } from "../_shared/orders/lifecycle-outcome.ts";
-import { storedOrderTotalCents } from "../_shared/booking/orderMoney.ts";
+import { storedOrderTotalCents, type OrderMoneyComponents } from "../_shared/booking/orderMoney.ts";
 import { getOrCreatePortalLink } from "../_shared/portal-link.ts";
 import { getSiteOrigin } from "../_shared/siteOrigin.ts";
 import { escapeHtml, loadTravelCityReviewNotes, TRAVEL_CITY_REVIEW_SMS_SUFFIX } from "../_shared/booking/travelCityReview.ts";
@@ -148,7 +148,7 @@ async function retrieveCheckoutSession(supabase: AuthClient, sessionId: string) 
 // AUTHORITATIVE HANDLER A: enterPendingReview
 // ============================================================
 async function enterPendingReview(
-  supabase: any,
+  supabase: SupabaseClient,
   orderId: string,
   source: string
 ): Promise<{ success: boolean; error?: string; alreadySent?: boolean }> {
@@ -256,7 +256,7 @@ interface CustomerProof {
 }
 
 async function enterConfirmed(
-  supabase: any,
+  supabase: SupabaseClient,
   orderId: string,
   source: string,
   requestedOutcome: string,
@@ -432,7 +432,7 @@ async function enterConfirmed(
 
 const fmt = formatCurrency;
 
-async function getAdminSettings(supabase: any): Promise<{
+async function getAdminSettings(supabase: SupabaseClient): Promise<{
   phone: string | null;
   email: string | null;
   businessName: string;
@@ -456,7 +456,7 @@ async function getAdminSettings(supabase: any): Promise<{
   };
 }
 
-async function sendAdminSmsViaFunction(supabase: any, message: string, orderId: string, adminPhone: string) {
+async function sendAdminSmsViaFunction(supabase: SupabaseClient, message: string, orderId: string, adminPhone: string) {
   try {
     await supabase.functions.invoke("send-sms-notification", {
       body: { to: adminPhone, message, orderId },
@@ -466,7 +466,7 @@ async function sendAdminSmsViaFunction(supabase: any, message: string, orderId: 
   }
 }
 
-async function sendAdminEmailViaFunction(supabase: any, to: string, subject: string, html: string) {
+async function sendAdminEmailViaFunction(supabase: SupabaseClient, to: string, subject: string, html: string) {
   try {
     await supabase.functions.invoke("send-email", {
       body: { to, subject, html },
@@ -476,11 +476,32 @@ async function sendAdminEmailViaFunction(supabase: any, to: string, subject: str
   }
 }
 
+// The order, customer and address the two admin alerts read (the columns the lifecycle selects return).
+interface AlertOrder extends OrderMoneyComponents {
+  id: string;
+  event_date?: string | null;
+  balance_due_cents?: number | null;
+  deposit_paid_cents?: number | null;
+  order_custom_fees?: Array<{ amount_cents: number }> | null;
+  order_discounts?: Array<{ amount_cents: number; percentage?: number | null }> | null;
+}
+interface AlertCustomer {
+  first_name?: string | null;
+  last_name?: string | null;
+  email?: string | null;
+  phone?: string | null;
+}
+interface AlertAddress {
+  line1?: string | null;
+  city?: string | null;
+  state?: string | null;
+}
+
 async function sendAdminPendingReviewAlert(
-  supabase: any,
-  order: any,
-  customer: any,
-  address: any
+  supabase: SupabaseClient,
+  order: AlertOrder,
+  customer: AlertCustomer | null | undefined,
+  address: AlertAddress | null | undefined
 ) {
   const settings = await getAdminSettings(supabase);
   const shortId = formatOrderId(order.id);
@@ -578,10 +599,10 @@ async function sendAdminPendingReviewAlert(
 }
 
 async function sendAdminConfirmedAlert(
-  supabase: any,
-  order: any,
-  customer: any,
-  address: any,
+  supabase: SupabaseClient,
+  order: AlertOrder,
+  customer: AlertCustomer | null | undefined,
+  address: AlertAddress | null | undefined,
   paymentOutcome: string
 ) {
   const settings = await getAdminSettings(supabase);

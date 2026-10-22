@@ -289,6 +289,10 @@ Deno.serve(async (req: Request) => {
           "completed",
         ];
 
+        // A conflicting order line as the select below returns it (order_items.order_id -> orders is many-to-one, inner join).
+        interface ConflictRow {
+          orders: { event_date: string; event_end_date: string | null } | null;
+        }
         for (const item of inflatableRows as { unit_id: string }[]) {
           const { data: conflicts } = await supabaseClient
             .from("order_items")
@@ -300,7 +304,7 @@ Deno.serve(async (req: Request) => {
           const eventStart = new Date(order.event_date ?? "");
           const eventEnd = new Date(order.event_end_date ?? order.event_date ?? "");
 
-          const hasConflict = (conflicts ?? []).some((c: any) => {
+          const hasConflict = ((conflicts ?? []) as unknown as ConflictRow[]).some((c) => {
             const o = c.orders;
             if (!o) return false;
             const oStart = new Date(o.event_date);

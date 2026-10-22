@@ -1,4 +1,4 @@
-import { createClient } from 'npm:@supabase/supabase-js@2.57.4';
+import { createClient, type SupabaseClient } from 'npm:@supabase/supabase-js@2.57.4';
 import 'jsr:@supabase/functions-js@2/edge-runtime.d.ts';
 
 const corsHeaders = {
@@ -54,7 +54,7 @@ interface InsertResult {
 // a token refresh, or a retry — produce constraint violations that are counted as skipped
 // rather than treated as errors. Duplicate drains are expected and safe.
 async function upsertConsentRows(
-  serviceClient: ReturnType<typeof createClient>,
+  serviceClient: SupabaseClient,
   rows: Record<string, unknown>[],
   hasBatchId: boolean
 ): Promise<{ result: InsertResult; error: string | null }> {
@@ -270,9 +270,9 @@ Deno.serve(async (req: Request) => {
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
 
-  } catch (err: any) {
+  } catch (err) {
     return new Response(
-      JSON.stringify({ success: false, error: err.message || 'Unexpected error' }),
+      JSON.stringify({ success: false, error: (err as Error).message || 'Unexpected error' }),
       { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
   }

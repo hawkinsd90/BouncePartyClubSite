@@ -3,10 +3,30 @@
 // themselves, each slightly differently (some missed the Setup Fee or the weekday delivery fee, some added fixed and percentage
 // discounts the wrong way round, and a stored tax was hidden when the tax toggle was "on"). Stored fees are already effective:
 // a waived fee is stored as 0 and the stored tax is the tax that applies.
-import { composeOrderTotal, effectiveDiscountCents, type DiscountLike } from "../booking/orderMoney.ts";
+import { composeOrderTotal, effectiveDiscountCents, type DiscountLike, type OrderMoneyComponents } from "../booking/orderMoney.ts";
+import type { LabelledOrderItem } from "./order-item-label.ts";
 
-// deno-lint-ignore no-explicit-any
-type Any = any;
+// The stored order as the receipt / confirmation emails read it (the columns their selects return; every field is optional because the
+// builders read it defensively).
+export interface ReceiptOrder extends OrderMoneyComponents {
+  event_date?: string | null;
+  deposit_paid_cents?: number | null;
+  balance_due_cents?: number | null;
+  addresses?: ReceiptAddress | ReceiptAddress[] | null;
+  order_items?: LabelledOrderItem[] | null;
+}
+
+export interface ReceiptAddress {
+  line1?: string | null;
+  city?: string | null;
+  state?: string | null;
+}
+
+export interface ReceiptCustomer {
+  first_name?: string | null;
+  last_name?: string | null;
+  email?: string | null;
+}
 
 export interface ReceiptOrderFigures {
   subtotal: number;
@@ -23,7 +43,7 @@ export interface ReceiptOrderFigures {
 }
 
 export function receiptOrderFigures(
-  order: Any,
+  order: OrderMoneyComponents | null | undefined,
   discounts: DiscountLike[] | null | undefined,
   customFees: Array<{ amount_cents?: unknown }> | null | undefined,
 ): ReceiptOrderFigures {

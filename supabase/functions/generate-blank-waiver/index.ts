@@ -221,8 +221,9 @@ Deno.serve(async (req: Request) => {
 
     const waiverText = generateWaiverText(businessName, businessLegalEntity, businessAddress, businessPhone, businessEmail, order.parks_acknowledgment_required ?? false, order.parks_acknowledgment_county ?? null);
 
-    const customer = order.customers as any;
-    const address = order.addresses as any;
+    // customers / addresses are many-to-one embeds of the select above
+    const customer = order.customers as unknown as { first_name?: string | null; last_name?: string | null } | null;
+    const address = order.addresses as unknown as { line1?: string | null; city?: string | null; state?: string | null } | null;
     const lastName = customer?.last_name || "";
     const signerName = [customer?.first_name || "", lastName].filter(Boolean).join(" ") || "Unknown";
     const eventDate = order.event_date || new Date().toISOString().split("T")[0];
