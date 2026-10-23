@@ -4,7 +4,7 @@
 //   node scripts/dev/scratch-server.cjs status     is it running, and which databases does it hold?
 //   node scripts/dev/scratch-server.cjs start      create (first time) and start it; does nothing when it is already running
 //   node scripts/dev/scratch-server.cjs build      (re)build the bpc_replay_* databases in it (scripts/dev/security-scratch.cjs build)
-//   node scripts/dev/scratch-server.cjs ensure     start + build whatever is missing: the one command that makes the pipeline ready
+//   node scripts/dev/scratch-server.cjs ensure     start + build whatever is missing OR older than the repository migrations: makes the pipeline ready
 //   node scripts/dev/scratch-server.cjs stop       stop it (the data stays)
 //
 // Why it exists: the shared scratch server on port 54329 has been started by hand inside one session's temporary folder, and was replaced
@@ -15,6 +15,7 @@
 // It is an ordinary process, not a Windows service (that would need administrator rights): after a reboot the first run of
 // verify / run-tests / the mutation runner starts it again by itself (scratch-env's preflight calls start); `ensure` also rebuilds.
 const { spawnSync } = require('child_process');
+const crypto = require('crypto');
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
@@ -25,6 +26,8 @@ const PORT = String(process.env.BPC_PIPELINE_PORT || 54339);
 const HOME = path.join(process.env.LOCALAPPDATA || os.homedir(), 'bpc-pipeline-pg');
 const DATA = path.join(HOME, 'data');
 const LOG = path.join(HOME, 'server.log');
+const STAMPS = path.join(HOME, 'stamps.json');
+const MIGRATIONS = path.join(ROOT, 'supabase', 'migrations');
 const exe = (name) => path.join(BIN, name + (process.platform === 'win32' ? '.exe' : ''));
 
 function psql(sql, db = 'postgres') {
@@ -69,10 +72,53 @@ function stop() {
   console.log(((r.stdout || '') + (r.stderr || '')).trim());
 }
 
+// What each database was built from. The stamp lives in a file NEXT TO the cluster, not inside the databases: migration-replay checks a marker
+// comment on them before it drops one, and the tests clone them as templates, so nothing may be added to them.
+// A database replays the repository migrations up to its own version (`upto`; null = all of them): its stamp is the digest of exactly those files.
+function migrationState(upto) {
+  let names = [];
+  try { names = fs.readdirSync(MIGRATIONS).filter((n) => n.endsWith('.sql')).sort(); } catch { /* no migrations folder */ }
+  if (upto) names = names.filter((n) => n.split('_')[0] <= upto);
+  const h = crypto.createHash('sha1');
+  for (const n of names) h.update(n + '\0').update(fs.readFileSync(path.join(MIGRATIONS, n)));
+  return { through: names.length ? names[names.length - 1].split('_')[0] : null, count: names.length, digest: h.digest('hex') };
+}
+const readStamps = () => { try { return JSON.parse(fs.readFileSync(STAMPS, 'utf8')); } catch { return {}; } };
+function writeStamps(builtFrom) {
+  const stamps = readStamps();
+  const oids = {};
+  const r = psql("select datname || '=' || oid from pg_database where datname like 'bpc_replay_%'");
+  for (const l of (r.stdout || '').split(/\r?\n/).filter(Boolean)) oids[l.split('=')[0]] = l.split('=')[1];
+  for (const [name, upto] of require('./security-scratch.cjs').DATABASES) {
+    if (oids[name]) stamps[name] = { ...builtFrom(upto), oid: oids[name], builtAt: new Date().toISOString() };
+  }
+  fs.mkdirSync(HOME, { recursive: true });
+  fs.writeFileSync(STAMPS, JSON.stringify(stamps, null, 2));
+}
+// -> [{ name, why }] for databases older than (or not provably equal to) the repository migrations they stand for
+function staleDatabases() {
+  const stamps = readStamps();
+  const have = databases();
+  const out = [];
+  for (const [name, upto] of require('./security-scratch.cjs').DATABASES) {
+    if (!have.includes(name)) continue; // a missing database is reported separately
+    const st = stamps[name];
+    const now = migrationState(upto);
+    if (!st) out.push({ name, why: 'no record of which migrations it was built from' });
+    else if (st.digest !== now.digest) out.push({ name, why: `built through ${st.through} (${st.count} migrations); the repository now has ${now.through} (${now.count})` });
+  }
+  return out;
+}
+
 function build() {
+  // the migrations are read when the build STARTS, so a file added while it runs is reported as stale afterwards
+  const startedFrom = {};
+  for (const [, upto] of require('./security-scratch.cjs').DATABASES) startedFrom[upto] = migrationState(upto);
   const sec = require('./security-scratch.cjs');
   const r = spawnSync('node', ['scripts/dev/security-scratch.cjs', 'build'], { cwd: ROOT, stdio: 'inherit', env: { ...process.env, PGPORT: PORT } });
-  return r.status === 0 && sec.DATABASES.every((d) => databases().includes(d[0]));
+  const ok = r.status === 0 && sec.DATABASES.every((d) => databases().includes(d[0]));
+  if (ok) writeStamps((upto) => startedFrom[upto]);
+  return ok;
 }
 
 function missingDatabases() {
@@ -80,29 +126,45 @@ function missingDatabases() {
   return require('./security-scratch.cjs').DATABASES.map((d) => d[0]).filter((d) => !have.includes(d));
 }
 
-module.exports = { PORT, HOME, DATA, LOG, isUp, start, stop, build, databases, missingDatabases };
+module.exports = { PORT, HOME, DATA, LOG, STAMPS, isUp, start, stop, build, databases, missingDatabases, staleDatabases, migrationState };
 
 if (require.main === module) {
   const cmd = process.argv[2];
   if (cmd === 'status') {
     const up = isUp();
     console.log(`pipeline scratch server: ${up ? 'RUNNING' : 'not running'} on 127.0.0.1:${PORT}   data: ${DATA}`);
-    if (up) { const have = databases(); console.log(`databases (${have.length}): ${have.join(', ') || 'none'}`); }
+    if (up) {
+      const have = databases(); console.log(`databases (${have.length}): ${have.join(', ') || 'none'}`);
+      const stale = staleDatabases();
+      if (!stale.length) console.log('all databases match the repository migrations');
+      else {
+        console.log('OLDER THAN THE REPOSITORY MIGRATIONS:');
+        stale.forEach((x) => console.log(`  ${x.name}: ${x.why}`));
+        console.log('rebuild:   node scripts/dev/scratch-server.cjs ensure');
+      }
+    }
     process.exit(up ? 0 : 1);
   } else if (cmd === 'start') {
     process.exit(start() ? 0 : 1);
   } else if (cmd === 'stop') {
     stop();
-  } else if (cmd === 'build') {
-    if (!start()) process.exit(1);
-    process.exit(build() ? 0 : 1);
-  } else if (cmd === 'ensure') {
-    if (!start()) process.exit(1);
-    const miss = missingDatabases();
-    if (miss.length) { console.log(`missing: ${miss.join(', ')} -> building (this takes several minutes)`); if (!build()) process.exit(1); }
-    const left = missingDatabases();
-    console.log(left.length ? `STILL MISSING: ${left.join(', ')}` : `ready on 127.0.0.1:${PORT}: all required databases are present`);
-    process.exit(left.length ? 1 : 0);
+  } else if (cmd === 'build' || cmd === 'ensure') {
+    // A build drops and recreates the databases every database-backed test runs against, so it takes its turn in the same queue as the tests.
+    (async () => {
+      if (!start()) process.exit(1);
+      await require('./queue-lock.cjs').acquire('db-tests', 'the database tests of another run (a rebuild replaces the scratch databases)');
+      const miss = missingDatabases();
+      const stale = cmd === 'ensure' ? staleDatabases() : [];
+      if (cmd === 'build' || miss.length || stale.length) {
+        if (miss.length) console.log(`missing: ${miss.join(', ')}`);
+        stale.forEach((x) => console.log(`older than the migrations: ${x.name}: ${x.why}`));
+        console.log('building (this takes about 13 minutes)');
+        if (!build()) process.exit(1);
+      }
+      const left = missingDatabases();
+      console.log(left.length ? `STILL MISSING: ${left.join(', ')}` : `ready on 127.0.0.1:${PORT}: all required databases are present and match the repository migrations`);
+      process.exit(left.length ? 1 : 0);
+    })();
   } else {
     console.error('usage: node scripts/dev/scratch-server.cjs status | start | build | ensure | stop');
     process.exit(2);

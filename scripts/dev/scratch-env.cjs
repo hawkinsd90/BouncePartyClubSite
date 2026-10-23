@@ -28,7 +28,20 @@ function psqlOn(db, sql) {
   return spawnSync(sec.psqlPath, ['-h', sec.PG.host, '-p', sec.PG.port, '-U', 'postgres', '-d', db, '-X', '-q', '-w', '-Atc', sql], { encoding: 'utf8', timeout: 20000 });
 }
 
-// -> { ok, problems: [string], missing: [db], server: boolean }
+// Databases built from fewer migrations than the repository has make the tests that use them run against an outdated schema, and nothing
+// else would say so. A warning, not a failure: the tests still run. Only for the pipeline's own server (the stamps describe that one).
+function staleWarnings() {
+  try {
+    const stale = server.staleDatabases();
+    if (!stale.length) return [];
+    return [
+      `${stale.length} scratch database(s) may be older than the repository migrations (${stale.map((x) => x.name).join(', ')}): ${stale[0].why}.`,
+      'Rebuild them (about 13 minutes):   node scripts/dev/scratch-server.cjs ensure',
+    ];
+  } catch { return []; }
+}
+
+// -> { ok, problems: [string], warnings: [string], missing: [db], server: boolean }
 function preflight(databases = REQUIRED) {
   const where = `${sec.PG.host}:${sec.PG.port}`;
   let up = psqlOn('postgres', 'select 1');
@@ -54,7 +67,7 @@ function preflight(databases = REQUIRED) {
     const r = psqlOn(d, "select to_regclass('public.orders') is not null");
     return !(r.status === 0 && r.stdout.trim() === 't');
   });
-  if (!missing.length) return { ok: true, server: true, missing: [], problems: [] };
+  if (!missing.length) return { ok: true, server: true, missing: [], problems: [], warnings: OWN_SERVER ? staleWarnings() : [] };
   return {
     ok: false,
     server: true,
@@ -69,7 +82,7 @@ function preflight(databases = REQUIRED) {
 // prints the problems and returns false; a caller decides whether to stop
 function requireScratch(label, databases) {
   const p = preflight(databases);
-  if (p.ok) return true;
+  if (p.ok) { (p.warnings || []).forEach((l) => console.warn('WARNING (' + label + '): ' + l)); return true; }
   console.error(`PREFLIGHT FAILED (${label}): the database-backed tests cannot run.`);
   p.problems.forEach((l) => console.error('  ' + l));
   return false;
@@ -84,6 +97,7 @@ if (require.main === module) {
   }
   const p = preflight();
   if (p.ok) console.log(`scratch databases ready on ${sec.PG.host}:${sec.PG.port}: ${REQUIRED.join(', ')}`);
+  if (p.ok) (p.warnings || []).forEach((l) => console.warn('WARNING: ' + l));
   else p.problems.forEach((l) => console.error(l));
   process.exit(p.ok ? 0 : 1);
 }
