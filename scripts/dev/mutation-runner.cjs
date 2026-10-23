@@ -529,6 +529,8 @@ exports.runMutants = async function runMutants({ M, tests, spec = 'mutants' }) {
     cache.save();
   }
   console.log(`baseline ok; ${todo.length} mutants on ${used} worker(s)`);
+  if (process.env.NO_CACHE && todo.length > 20) console.log(`TIP: NO_CACHE=1 reruns all ${todo.length} mutants (roughly ${Math.round(todo.length * 29 / used / 60)} min or more when the machine is busy). Without it only the mutants whose code or killer test changed run (PLAN=1 shows how many). Use NO_CACHE=1 for the final acceptance run only.`);
+  if (process.env.CACHE_OFF) console.log('TIP: CACHE_OFF=1 reuses nothing and records nothing. NO_CACHE=1 runs everything AND records it for the next run.');
   // Whatever an earlier run, a killed test or a skipped baseline left in the worker databases is gone before the first mutant; each
   // mutant then gets its own pristine database below.
   for (let i = 0; i < used; i++) dropDb(mutDb(i));

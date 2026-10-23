@@ -88,6 +88,10 @@ const needsShapes = (f) => SHAPE_TESTS.test(f);
 const parallel = Math.max(1, Number(process.env.PARALLEL) || 3);
 const syncParallel = Math.max(1, Number(process.env.SYNC_PARALLEL) || 2);
 
+// Tell whoever runs this (people and sessions alike) when the way it was started throws away the speed-ups. See scripts/dev/PIPELINE.md.
+if (process.env.CACHE_OFF) console.log('TIP: CACHE_OFF=1 reuses nothing AND records nothing, so it helps no later run. To run everything from scratch use --full (it also records the results).');
+if (parallel > 3) console.log(`TIP: PARALLEL=${parallel} measured slower than the default of 3 on this 2-core machine (519 s against 487 s) and makes the heavy files several times slower each. Leave PARALLEL unset.`);
+
 function shapeDatabasesPresent() {
   const sec = require('./security-scratch.cjs');
   return SHAPES.every((d) => {
