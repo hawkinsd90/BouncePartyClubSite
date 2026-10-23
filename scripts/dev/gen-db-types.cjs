@@ -53,7 +53,7 @@ const fns = q(`
 select coalesce(json_agg(json_build_object('name', p.proname, 'args', coalesce((select json_agg(json_build_object('name', coalesce(nullif(an, ''), ''), 'type', at::int, 'mode', am, 'idx', i) order by i)
       from (select unnest(coalesce(p.proallargtypes, p.proargtypes::oid[])) at, unnest(coalesce(p.proargmodes, array_fill('i'::"char", array[coalesce(array_length(p.proallargtypes, 1), p.pronargs)]))) am,
                    unnest(coalesce(p.proargnames, array_fill(''::text, array[coalesce(array_length(p.proallargtypes, 1), p.pronargs)]))) an, generate_series(1, coalesce(array_length(p.proallargtypes, 1), p.pronargs)) i) s), '[]'::json),
-  'ndefaults', p.pronargdefaults, 'nin', p.pronargs, 'ret', p.prorettype::int, 'set', p.proretset, 'variadic', p.provariadic::int, 'oid', p.oid::int) order by p.proname, p.oid), '[]'::json)
+  'strict', p.proisstrict, 'ndefaults', p.pronargdefaults, 'nin', p.pronargs, 'ret', p.prorettype::int, 'set', p.proretset, 'variadic', p.provariadic::int, 'oid', p.oid::int) order by p.proname, p.oid), '[]'::json)
 from pg_proc p join pg_namespace n on n.oid = p.pronamespace
 where n.nspname = 'public' and p.prokind = 'f' and p.prorettype not in ('trigger'::regtype, 'event_trigger'::regtype)
   and not exists (select 1 from pg_depend d where d.objid = p.oid and d.deptype = 'e')`);
@@ -159,7 +159,7 @@ for (const [name, list] of byName) {
     const inArgs = f.args.filter((a) => a.mode === 'i' || a.mode === 'b' || a.mode === 'v');
     const outArgs = f.args.filter((a) => a.mode === 'o' || a.mode === 't' || a.mode === 'b');
     const firstDefault = inArgs.length - f.ndefaults;
-    const args = inArgs.length === 0 ? 'Record<PropertyKey, never>' : `{ ${inArgs.map((a, i) => `${key(a.name)}${i >= firstDefault ? '?' : ''}: ${tsType(a.type)}`).join('; ')} }`;
+    const args = inArgs.length === 0 ? 'Record<PropertyKey, never>' : `{ ${inArgs.map((a, i) => `${key(a.name)}${i >= firstDefault ? '?' : ''}: ${tsType(a.type)}${f.strict ? '' : ' | null'}`).join('; ')} }`;
     let ret;
     if (outArgs.length > 0 && outArgs.some((a) => a.mode === 't' || a.mode === 'o')) {
       const cols = f.args.filter((a) => a.mode === 't' || a.mode === 'o');
