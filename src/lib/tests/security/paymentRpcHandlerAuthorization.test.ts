@@ -592,6 +592,20 @@ const isDenied = (status: number) => status === 401 || status === 403;
     mutate: (w) => { w.tables.orders.find((o) => o.id === 'order-A').stripe_customer_id = 'cus_A'; },
   }));
   ok('save-pm: a matching Stripe customer on the order is accepted', r.status === 200);
+  // The Checkout Session object has no top-level payment_method field (it is documented on SetupIntent / PaymentIntent). Every application flow
+  // that calls this function follows a SETUP-mode Checkout; the card comes from the SetupIntent, nothing is charged, and a payment-mode session
+  // (which the application never sends here) yields no card rather than a guess.
+  r = track(await call(SP, { bearer: ANON_KEY, body: savePm('sess_A', 'order-A') }));
+  ok('save-pm: a setup-mode session reads the card from its SetupIntent and makes no charge call', r.status === 200
+    && r.w.stripeCalls.some((c) => c.api === 'setupIntents.retrieve')
+    && !r.w.stripeCalls.some((c) => c.api === 'paymentIntents.create' || c.api === 'checkout.sessions.create'));
+  r = track(await call(SP, {
+    bearer: ANON_KEY,
+    body: savePm('sess_pay', 'order-A'),
+    mutate: (w) => { w.sessions.sess_pay = { status: 'complete', mode: 'payment', payment_status: 'paid', metadata: { order_id: 'order-A' }, customer: 'cus_A', payment_intent: 'pi_x' }; },
+  }));
+  ok('save-pm: a payment-mode session (no setup intent, no session-level payment_method) saves no card: 400, no write, no charge', r.status === 400
+    && r.json?.success === false && !cardSaved(r) && !r.w.stripeCalls.some((c) => c.api === 'setupIntents.retrieve' || c.api === 'paymentIntents.create'));
   r = track(await call(SP, { bearer: ANON_KEY, body: savePm('sess_A', 'order-missing') }));
   ok('save-pm: a session bound to a different order id is rejected for an unknown order', r.status === 403);
 

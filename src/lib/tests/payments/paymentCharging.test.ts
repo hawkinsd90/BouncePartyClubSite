@@ -982,6 +982,19 @@ const shared = { ...authHelpers, ...outcomeHelpers, ...bookingProofHelpers, ...r
     }
   }
   {
+    // The Checkout Session has no top-level payment_method (SDK types / Stripe docs): the card of a setup-mode session comes ONLY from its
+    // SetupIntent. When that lookup fails the webhook still completes, stores no card, charges nothing, and a redelivery stays harmless.
+    const w = newWorld();
+    const id = await seedOrder(w, { status: 'draft', invoice: false, dd: 5000, dp: 0, bd: 10000 });
+    const wh = await webhookFor(w);
+    const noFieldSession = (() => { const s: Record<string, unknown> = setupSession(id); delete s.payment_method; return s; })();
+    (w.stripe as any).setupIntents.retrieve = async () => { throw new Error('stripe unavailable'); };
+    await wh.handlers.handleCheckoutSessionCompleted(noFieldSession, wh.client, w.stripe);
+    await wh.handlers.handleCheckoutSessionCompleted(noFieldSession, wh.client, w.stripe);
+    ok('setup-mode session without a session-level payment_method and a failed SetupIntent lookup: no card stored (null), nothing charged, twice delivered', (await orderRow(id)).stripe_payment_method_id == null
+      && w.stripe.calls.every((c) => !c.api.startsWith('paymentIntents.crea') && !c.api.startsWith('paymentIntents.confirm')));
+  }
+  {
     // two invoice links on one order (the lookup must not fail and treat it as a booking)
     const w = newWorld();
     const id = await seedOrder(w, { status: 'draft', invoice: true, dd: 5000, bd: 10000 });

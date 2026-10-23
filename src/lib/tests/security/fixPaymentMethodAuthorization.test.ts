@@ -55,6 +55,8 @@ function makeWorld() {
     reads: [] as string[], // table names read other than user_roles
     writes: [] as any[],
     stripeCalls: [] as string[],
+    // what checkout.sessions.retrieve answers (default: the shape this suite has always used)
+    retrievedSession: null as any,
   };
 }
 type World = ReturnType<typeof makeWorld>;
@@ -128,7 +130,7 @@ function loadHandler(w: World): (req: Request) => Promise<Response> {
         },
         retrieve: async (id: string) => {
           w.stripeCalls.push('sessions.retrieve:' + id);
-          return { payment_method: 'pm_new', payment_intent: null };
+          return w.retrievedSession ?? { payment_method: 'pm_new', payment_intent: null };
         },
       },
     };
@@ -149,8 +151,9 @@ function loadHandler(w: World): (req: Request) => Promise<Response> {
   return captured;
 }
 
-async function call(opts: { bearer: string | null; body: unknown | string; method?: string }) {
+async function call(opts: { bearer: string | null; body: unknown | string; method?: string; session?: unknown }) {
   const w = makeWorld();
+  if (opts.session !== undefined) w.retrievedSession = opts.session;
   const handler = loadHandler(w);
   const headers: Record<string, string> = { 'Content-Type': 'application/json' };
   if (opts.bearer !== null) headers.Authorization = `Bearer ${opts.bearer}`;
@@ -206,6 +209,16 @@ const body = { orderId: ORDER_A };
     ok(`${who}: exactly one update, scoped to that order id, and only stripe_payment_method_id`, r.w.writes.length === 1 && r.w.writes[0].table === 'orders' && JSON.stringify(r.w.writes[0].payload) === JSON.stringify({ stripe_payment_method_id: 'pm_new' }) && r.w.writes[0].filters.some(([c, v]: [string, unknown]) => c === 'id' && v === ORDER_A));
     ok(`${who}: Stripe is only asked about that order's customer`, r.w.stripeCalls[0] === 'sessions.list:cus_A');
   }
+  // The Checkout Session object has no top-level payment_method (SDK types and Stripe docs). With the realistic shape the card comes from the
+  // expanded PaymentIntent; with neither a PaymentIntent nor a session-level value nothing is written.
+  r = await call({ bearer: 'jwt-admin', body, session: { id: 'cs_1', payment_intent: { id: 'pi_1', payment_method: 'pm_from_pi' } } });
+  ok('realistic session (no session-level payment_method): the card is taken from the expanded PaymentIntent (string id)', r.status === 200 && r.json?.paymentMethodId === 'pm_from_pi' && r.w.writes.length === 1 && JSON.stringify(r.w.writes[0].payload) === JSON.stringify({ stripe_payment_method_id: 'pm_from_pi' }));
+  r = await call({ bearer: 'jwt-admin', body, session: { id: 'cs_1', payment_intent: { id: 'pi_1', payment_method: { id: 'pm_obj_from_pi' } } } });
+  ok('realistic session: an expanded PaymentMethod object on the PaymentIntent is read by id', r.status === 200 && r.json?.paymentMethodId === 'pm_obj_from_pi');
+  r = await call({ bearer: 'jwt-admin', body, session: { id: 'cs_1', payment_intent: null } });
+  ok('realistic setup-mode session (no PaymentIntent): 404 "Could not extract payment method", nothing written', r.status === 404 && r.w.writes.length === 0);
+  r = await call({ bearer: 'jwt-admin', body, session: { id: 'cs_1', payment_intent: { id: 'pi_1', payment_method: null } } });
+  ok('a PaymentIntent without a payment method: 404, nothing written', r.status === 404 && r.w.writes.length === 0);
   r = await call({ bearer: 'jwt-admin', body: {} });
   ok('admin + missing orderId: 400, no Stripe call, no write', r.status === 400 && r.w.stripeCalls.length === 0 && r.w.writes.length === 0);
   r = await call({ bearer: 'jwt-admin', body: { orderId: 'nonexistent' } });
