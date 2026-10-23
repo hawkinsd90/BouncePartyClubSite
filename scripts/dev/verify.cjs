@@ -54,6 +54,19 @@ function step(name, cmd, args, env = process.env) {
   });
 }
 
+// The production build is skipped when nothing it reads changed since it last succeeded here (build-cache.cjs); --full and BUILD_CACHE=0 always build.
+function buildStep() {
+  const bc = require('./build-cache.cjs');
+  const key = bc.key();
+  if (!full && process.env.BUILD_CACHE !== '0' && bc.unchanged(key)) {
+    const log = path.join(LOGS, 'build.log');
+    fs.writeFileSync(log, 'build skipped: nothing it reads changed since it last succeeded (BUILD_CACHE=0 or --full builds anyway)\n');
+    console.log('ok   build (0s, reused: nothing it reads changed)');
+    return Promise.resolve({ name: 'build', ok: true, seconds: 0, log });
+  }
+  return step('build', npm, ['run', 'build']).then((r) => { if (r.ok) bc.record(key); return r; });
+}
+
 (async () => {
   const started = Date.now();
   // Type check and lint keep a cache in node_modules/.cache (incremental tsc, eslint --cache). Measured on this repository the diagnostics are
@@ -68,7 +81,7 @@ function step(name, cmd, args, env = process.env) {
     cachedStatic
       ? step('lint', npx, ['eslint', '.', '--cache', '--cache-location', 'node_modules/.cache/eslint/'])
       : step('lint', npm, ['run', 'lint']),
-    step('build', npm, ['run', 'build']),
+    buildStep(),
   ]);
   const chain = (async () => {
     // The test files that touch no scratch database run three at a time (PARALLEL=1 for strictly serial); the database tests stay serial.
