@@ -42,9 +42,9 @@ function isUsableSnapshot(value: unknown): value is BundleComponentSnapshot {
   return !!value && typeof value === 'object' && Array.isArray((value as { components?: unknown }).components);
 }
 
+// The name stored inside a bundle snapshot, read exactly as the pre-cleanup code did (optional chaining on whatever is stored; a type assertion only).
 function snapshotBundleName(value: unknown): string | undefined {
-  const name = value && typeof value === 'object' ? (value as { bundle_name?: unknown }).bundle_name : undefined;
-  return typeof name === 'string' ? name : undefined;
+  return (value as { bundle_name?: string } | null | undefined)?.bundle_name;
 }
 
 export function buildDuplicateCart(items: StoredOrderLine[] | null | undefined): DuplicateCartResult {
@@ -61,11 +61,15 @@ export function buildDuplicateCart(items: StoredOrderLine[] | null | undefined):
         cartItems.push({
           item_type: 'inflatable',
           unit_id: item.unit_id,
-          unit_name: unit.name ?? '',
+          // The database guarantees these (units.name, units.price_dry_cents and order_items.unit_price_cents are NOT NULL and get_my_orders returns
+          // them), so they are asserted, NOT defaulted: a missing value must stay missing, exactly as before. The saved cart is reloaded through
+          // normalizeCartItems, which drops a line without a name or price, and Quote re-hydrates a combo whose prices are null/undefined from the
+          // catalog. A default of ''/0 would instead keep a $0 line and skip that hydration.
+          unit_name: unit.name as string,
           wet_or_dry: item.wet_or_dry === 'water' ? 'water' : 'dry',
-          unit_price_cents: item.unit_price_cents ?? 0,
-          price_dry_cents: unit.price_dry_cents ?? item.unit_price_cents ?? 0,
-          price_water_cents: unit.price_water_cents || unit.price_dry_cents || item.unit_price_cents || 0,
+          unit_price_cents: item.unit_price_cents as number,
+          price_dry_cents: (unit.price_dry_cents ?? item.unit_price_cents) as number | undefined,
+          price_water_cents: (unit.price_water_cents || unit.price_dry_cents || item.unit_price_cents) as number | undefined,
           qty,
           is_combo: types.includes('Combo') || types.includes('Water Slide') || unit.is_combo === true,
         });
@@ -80,7 +84,7 @@ export function buildDuplicateCart(items: StoredOrderLine[] | null | undefined):
         item_type: 'event_essential_bundle',
         bundle_id: item.bundle_id,
         bundle_name: item.item_name || snapshotBundleName(item.component_snapshot) || 'Event Essentials package',
-        unit_price_cents: item.unit_price_cents ?? 0,
+        unit_price_cents: item.unit_price_cents as number, // asserted, not defaulted (see the inflatable line above)
         qty,
         pricing_context: pricingContextOf(item.pricing_context),
         // Quote re-derives the contents from the current catalog; the stored snapshot only covers the moment before that.
@@ -96,7 +100,7 @@ export function buildDuplicateCart(items: StoredOrderLine[] | null | undefined):
         item_type: 'event_essential_product',
         product_id: item.product_id,
         product_name: item.item_name || 'Event Essential',
-        unit_price_cents: item.unit_price_cents ?? 0,
+        unit_price_cents: item.unit_price_cents as number, // asserted, not defaulted (see the inflatable line above)
         qty,
         pricing_context: pricingContextOf(item.pricing_context),
       });
