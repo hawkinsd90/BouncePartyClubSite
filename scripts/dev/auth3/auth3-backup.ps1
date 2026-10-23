@@ -1,4 +1,4 @@
-﻿<#
+<#
 AUTH-3 (Step 4B): encrypted Development backup and isolated local restore proof.
 Windows PowerShell 5.1 compatible. Read-only against the source database. Contains no secrets.
 
