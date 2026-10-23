@@ -1,4 +1,4 @@
-﻿<#
+<#
 SG-3 restore point (Step 4B): encrypted Development backup and isolated local restore proof. Same procedure and code as AUTH-3 (scripts/dev/auth3/auth3-backup.ps1); the only changes are the expected ledger identity (305 rows, newest 20260929161925, SHA-256 72cafdac...) and this header.
 Windows PowerShell 5.1 compatible. Read-only against the source database. Contains no secrets.
 
