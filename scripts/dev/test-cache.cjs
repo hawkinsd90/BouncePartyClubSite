@@ -139,6 +139,7 @@ function analysis(testRel) {
   const a = {
     files,
     usesDb: texts.some((t) => DB_RE.test(t)),
+    dbs: texts.some((t) => DB_RE.test(t)) ? dbNamesFor(testRel, texts) : null,
     readsMigrations: texts.some((t) => MIGRATIONS_DIR_RE.test(t)),
     wholeTree,
     dirs: [...dirs].sort(),
@@ -148,30 +149,48 @@ function analysis(testRel) {
 }
 
 // identity of the scratch databases a DB-backed test depends on: their object ids change whenever one is rebuilt or the server is replaced
-let scratchMemo;
-function scratchFingerprint() {
-  if (scratchMemo !== undefined) return scratchMemo;
+// Which of the scratch databases does this test use? Found from the environment variable names its files mention (CORE_DB_NAME, ROLE_DB_PRE ...,
+// mapped to a database by the same table the runner uses) and from database names written out in full. Anything built from a template at run
+// time (ensurePayDatabase, the dev-refresh scratch pairs) or not recognised counts as using all six: too much invalidation is safe, too little is not.
+const ALL_DBS = 'ALL';
+function dbNamesFor(testRel, texts) {
+  try {
+    if (texts.some((t) => /ensurePayDatabase|PAY_DB|DEVREFRESH|syncDevDataFromProdScratch/.test(t))) return ALL_DBS;
+    const env = require('./scratch-env.cjs').envFor(testRel);
+    const names = new Set();
+    for (const [k, v] of Object.entries(env)) if (/^bpc_replay_/.test(String(v)) && texts.some((t) => t.includes(k))) names.add(v);
+    for (const t of texts) for (const m of t.matchAll(/bpc_replay_[a-z0-9]+/g)) names.add(m[0]);
+    return names.size ? [...names].sort().join(',') : ALL_DBS;
+  } catch { return ALL_DBS; }
+}
+
+const scratchMemo = new Map();
+function scratchFingerprint(which = ALL_DBS) {
+  if (scratchMemo.has(which)) return scratchMemo.get(which);
+  let value;
   try {
     const sec = require('./scratch-env.cjs');
-    const names = sec.REQUIRED.map((n) => `'${n}'`).join(',');
+    const list = which === ALL_DBS ? sec.REQUIRED : which.split(',');
+    const names = list.map((n) => `'${n}'`).join(',');
     const r = spawnSync(
       require('./security-scratch.cjs').psqlPath,
       ['-h', sec.PG.host, '-p', sec.PG.port, '-U', 'postgres', '-d', 'postgres', '-X', '-q', '-w', '-Atc', `select datname||':'||oid from pg_database where datname in (${names}) order by 1`],
       { encoding: 'utf8', timeout: 20000 },
     );
-    scratchMemo = r.status === 0 ? sha(sec.PG.port + '|' + r.stdout) : 'unavailable';
-  } catch { scratchMemo = 'unavailable'; }
-  return scratchMemo;
+    value = r.status === 0 ? sha(sec.PG.port + '|' + r.stdout) : 'unavailable';
+  } catch { value = 'unavailable'; }
+  scratchMemo.set(which, value);
+  return value;
 }
 
-const forgetScratchFingerprint = () => { scratchMemo = undefined; };
+const forgetScratchFingerprint = () => scratchMemo.clear();
 
 function keyOf(testRel) {
   const a = analysis(testRel);
   return sha(JSON.stringify([
     VERSION, testRel, a.files.map((f) => [f, fileDigest(f)]), process.version,
     fileDigest('package.json'), isFile('package-lock.json') ? fileDigest('package-lock.json') : null,
-    a.usesDb ? scratchFingerprint() : null,
+    a.usesDb ? scratchFingerprint(a.dbs) : null,
     a.readsMigrations ? migrationsDigest() : null,
     a.wholeTree ? dirDigest('') : null,
     a.dirs.map((d) => [d, dirDigest(d)]),
@@ -250,4 +269,4 @@ function open() {
   };
 }
 
-module.exports = { open, keyOf, closureOf, analysis, dependsOn, changedFiles, scratchFingerprint, forgetScratchFingerprint, MIGRATIONS_DIR_RE, DB_RE };
+module.exports = { open, keyOf, closureOf, analysis, dependsOn, changedFiles, scratchFingerprint, dbNamesFor, forgetScratchFingerprint, MIGRATIONS_DIR_RE, DB_RE };

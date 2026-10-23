@@ -84,13 +84,13 @@ function migrationState(upto) {
   return { through: names.length ? names[names.length - 1].split('_')[0] : null, count: names.length, digest: h.digest('hex') };
 }
 const readStamps = () => { try { return JSON.parse(fs.readFileSync(STAMPS, 'utf8')); } catch { return {}; } };
-function writeStamps(builtFrom) {
+function writeStamps(builtFrom, names) {
   const stamps = readStamps();
   const oids = {};
   const r = psql("select datname || '=' || oid from pg_database where datname like 'bpc_replay_%'");
   for (const l of (r.stdout || '').split(/\r?\n/).filter(Boolean)) oids[l.split('=')[0]] = l.split('=')[1];
   for (const [name, upto] of require('./security-scratch.cjs').DATABASES) {
-    if (oids[name]) stamps[name] = { ...builtFrom(upto), oid: oids[name], builtAt: new Date().toISOString() };
+    if (oids[name] && (!names || names.includes(name))) stamps[name] = { ...builtFrom(upto), oid: oids[name], builtAt: new Date().toISOString() };
   }
   fs.mkdirSync(HOME, { recursive: true });
   fs.writeFileSync(STAMPS, JSON.stringify(stamps, null, 2));
@@ -110,14 +110,15 @@ function staleDatabases() {
   return out;
 }
 
-function build() {
+// only: the names of the databases to rebuild (null = all six)
+function build(only = null) {
   // the migrations are read when the build STARTS, so a file added while it runs is reported as stale afterwards
   const startedFrom = {};
   for (const [, upto] of require('./security-scratch.cjs').DATABASES) startedFrom[upto] = migrationState(upto);
   const sec = require('./security-scratch.cjs');
-  const r = spawnSync('node', ['scripts/dev/security-scratch.cjs', 'build'], { cwd: ROOT, stdio: 'inherit', env: { ...process.env, PGPORT: PORT } });
+  const r = spawnSync('node', ['scripts/dev/security-scratch.cjs', 'build'], { cwd: ROOT, stdio: 'inherit', env: { ...process.env, PGPORT: PORT, BPC_SCRATCH_ONLY: only ? only.join(',') : '' } });
   const ok = r.status === 0 && sec.DATABASES.every((d) => databases().includes(d[0]));
-  if (ok) writeStamps((upto) => startedFrom[upto]);
+  if (ok) writeStamps((upto) => startedFrom[upto], only);
   return ok;
 }
 
@@ -155,11 +156,12 @@ if (require.main === module) {
       await require('./queue-lock.cjs').acquire('db-tests', 'the database tests of another run (a rebuild replaces the scratch databases)');
       const miss = missingDatabases();
       const stale = cmd === 'ensure' ? staleDatabases() : [];
+      const names = cmd === 'build' ? null : [...new Set([...miss, ...stale.map((x) => x.name)])];
       if (cmd === 'build' || miss.length || stale.length) {
         if (miss.length) console.log(`missing: ${miss.join(', ')}`);
         stale.forEach((x) => console.log(`older than the migrations: ${x.name}: ${x.why}`));
-        console.log('building (this takes about 13 minutes)');
-        if (!build()) process.exit(1);
+        console.log(names ? `rebuilding ${names.length} of ${require('./security-scratch.cjs').DATABASES.length} databases (${names.join(', ')}); about 2 minutes each` : 'building all six databases (about 13 minutes)');
+        if (!build(names)) process.exit(1);
       }
       const left = missingDatabases();
       console.log(left.length ? `STILL MISSING: ${left.join(', ')}` : `ready on 127.0.0.1:${PORT}: all required databases are present and match the repository migrations`);

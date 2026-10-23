@@ -18,7 +18,7 @@ results, so unchanged tests and mutants are skipped. Details: `scripts/dev/PIPEL
   every mutation run (reruns all 395 + 218 mutants even when a few changed).
 - Database-backed runs wait for each other (a "waiting for ..." line is normal, not a hang). Do not delete the lock files in the temp folder
   or the databases on port 54339.
-- The scratch databases are rebuilt with `node scripts/dev/scratch-server.cjs ensure` (about 13 minutes, takes its turn in the queue). A run's
+- The scratch databases are rebuilt with `node scripts/dev/scratch-server.cjs ensure` (rebuilds only what is missing or older, about 90 s per database, 13 minutes for all six; takes its turn in the queue). A run's
   preflight prints a WARNING when they are older than the migrations in the repository: rebuild when you see it.
 - A test reported **SKIPPED** (`defaultPrivilegeMigration`) did not run; say so, never call it passed.
 - Do not edit files in `scripts/dev/` that belong to another session's task without being asked.

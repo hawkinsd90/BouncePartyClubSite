@@ -159,7 +159,7 @@ function needsMigrations(testRel) {
     const texts = [...closureOf(testRel)].map((rel) => readText(rel) ?? '');
     const dir = texts.some((t) => testCache.MIGRATIONS_DIR_RE.test(t));
     const db = texts.some((t) => testCache.DB_RE.test(t));
-    needsMigrationsMemo.set(testRel, (dir ? migrations() : '') + '|' + (db ? testCache.scratchFingerprint() : ''));
+    needsMigrationsMemo.set(testRel, (dir ? migrations() : '') + '|' + (db ? testCache.scratchFingerprint(testCache.dbNamesFor(testRel, texts)) : ''));
   }
   return needsMigrationsMemo.get(testRel);
 }

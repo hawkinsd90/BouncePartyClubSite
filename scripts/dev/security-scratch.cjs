@@ -187,7 +187,10 @@ delete from public.user_permissions_changelog; delete from public.user_roles; de
 delete from public.contacts; delete from public.customers; delete from auth.users;`;
 
 function build() {
+  // BPC_SCRATCH_ONLY=name,name rebuilds just those databases (scratch-server.cjs ensure: only the ones that are missing or older)
+  const only = process.env.BPC_SCRATCH_ONLY ? process.env.BPC_SCRATCH_ONLY.split(',').filter(Boolean) : null;
   for (const [name, upto, purpose] of DATABASES) {
+    if (only && !only.includes(name)) continue;
     const args = ['scripts/dev/migration-replay.cjs', '--db', name, '--mode', 'strict', '--stub-skips', '--adjust', 's1,s2'];
     if (upto) args.push('--upto', upto);
     const r = spawnSync('node', args, { encoding: 'utf8', env: { ...process.env, BPC_REPLAY_CONFIRM_LOCAL: 'yes' } });
