@@ -46,7 +46,7 @@ export function PerformanceAnalytics() {
       const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
       const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
 
-      const tasksLast30Days = tasks.filter(t => new Date(t.created_at) >= thirtyDaysAgo).length;
+      const tasksLast30Days = tasks.filter(t => t.created_at !== null && new Date(t.created_at) >= thirtyDaysAgo).length;
       const tasksCompletedToday = tasks.filter(t =>
         t.completed_time && new Date(t.completed_time) >= today
       ).length;

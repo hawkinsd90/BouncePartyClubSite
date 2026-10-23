@@ -36,8 +36,8 @@ import type { AdminOrderRecord } from '../lib/orders/adminOrderRecord';
 
 interface UnitMedia {
   url: string;
-  mode: string;
-  sort: number;
+  mode: string | null;
+  sort: number | null;
   is_featured?: boolean;
 }
 
@@ -107,7 +107,7 @@ function AdminDashboard() {
       // If no featured image, fall back to first dry image sorted by sort order
       const dryImages = unitMedia
         .filter((media: UnitMedia) => media.mode === 'dry')
-        .sort((a: UnitMedia, b: UnitMedia) => a.sort - b.sort);
+        .sort((a: UnitMedia, b: UnitMedia) => (a.sort ?? 0) - (b.sort ?? 0));
 
       const imageUrl = featuredImage?.url || (dryImages.length > 0 ? dryImages[0].url : null);
 

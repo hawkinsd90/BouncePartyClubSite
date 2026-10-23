@@ -9,25 +9,26 @@ export interface NotificationFailure {
   message_preview: string | null;
   error_message: string;
   context: Json | null;
-  fallback_sent: boolean;
+  // The database columns below are nullable (they have defaults); the types say so.
+  fallback_sent: boolean | null;
   fallback_type: string | null;
-  retry_count: number;
+  retry_count: number | null;
   resolved_at: string | null;
-  created_at: string;
-  updated_at: string;
+  created_at: string | null;
+  updated_at: string | null;
 }
 
 export interface SystemStatus {
   id: string;
   system_type: string;
-  is_operational: boolean;
+  is_operational: boolean | null;
   last_success_at: string | null;
   last_failure_at: string | null;
-  consecutive_failures: number;
-  total_failures_24h: number;
+  consecutive_failures: number | null;
+  total_failures_24h: number | null;
   error_details: Json | null;
   admin_notified_at: string | null;
-  updated_at: string;
+  updated_at: string | null;
 }
 
 // Notification failures and successes are recorded only by the send-email and send-sms-notification Edge Functions with the
@@ -101,7 +102,8 @@ export function shouldNotifyAdmin(status: SystemStatus | null): boolean {
   if (!status || status.is_operational) return false;
 
   // Notify if consecutive failures exceed threshold
-  return status.consecutive_failures >= 3;
+  // (a null count compares false, exactly as before)
+  return (status.consecutive_failures ?? 0) >= 3;
 }
 
 export async function updateAdminNotificationTime(_systemType: 'email' | 'sms'): Promise<void> {

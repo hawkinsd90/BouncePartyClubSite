@@ -135,7 +135,7 @@ export function PaymentsTab({ orderId, customerName, payments, order, customFees
                             : 'bg-slate-400 text-white'
                         }`}
                       >
-                        {payment.status.toUpperCase()}
+                        {payment.status?.toUpperCase()}
                       </span>
                     </div>
                     <div className="text-sm text-slate-600 space-y-1">
@@ -168,13 +168,15 @@ export function PaymentsTab({ orderId, customerName, payments, order, customFees
                               hour: 'numeric',
                               minute: '2-digit',
                             })}`
-                          : `Created: ${new Date(payment.created_at).toLocaleString('en-US', {
+                          : payment.created_at
+                          ? `Created: ${new Date(payment.created_at).toLocaleString('en-US', {
                               month: 'short',
                               day: 'numeric',
                               year: 'numeric',
                               hour: 'numeric',
                               minute: '2-digit',
-                            })}`}
+                            })}`
+                          : ''}
                       </div>
                     </div>
                   </div>

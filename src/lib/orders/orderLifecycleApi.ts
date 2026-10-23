@@ -68,7 +68,7 @@ export async function enterConfirmed(
   orderId: string,
   source: string,
   paymentOutcome: PaymentOutcome,
-  oldStatusHint?: string,
+  oldStatusHint?: string | null,
   proof?: LifecycleProof
 ): Promise<{ success: boolean; error?: string }> {
   return callLifecycle({ action: 'enter_confirmed', orderId, source, paymentOutcome, ...(oldStatusHint ? { oldStatusHint } : {}) }, proof);

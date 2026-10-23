@@ -32,8 +32,8 @@ export function UnitForm() {
   });
   const [priceInput, setPriceInput] = useState('0.00');
   const [priceWaterInput, setPriceWaterInput] = useState('');
-  const [dryImages, setDryImages] = useState<Array<{ id?: string; url: string; alt: string; file?: File; mode?: string; is_featured?: boolean; visibility_mode?: string }>>([]);
-  const [wetImages, setWetImages] = useState<Array<{ id?: string; url: string; alt: string; file?: File; mode?: string; is_featured?: boolean; visibility_mode?: string }>>([]);
+  const [dryImages, setDryImages] = useState<Array<{ id?: string; url: string; alt: string; file?: File; mode?: string | null; is_featured?: boolean; visibility_mode?: string }>>([]);
+  const [wetImages, setWetImages] = useState<Array<{ id?: string; url: string; alt: string; file?: File; mode?: string | null; is_featured?: boolean; visibility_mode?: string }>>([]);
   const [deletedImageIds, setDeletedImageIds] = useState<string[]>([]);
   const [useWetSameAsDry, setUseWetSameAsDry] = useState(true);
   const [uploadingImages, setUploadingImages] = useState(false);

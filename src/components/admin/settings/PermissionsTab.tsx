@@ -20,7 +20,7 @@ interface ChangelogEntry {
   new_role: string | null;
   changed_by_user_id: string | null;
   notes: string | null;
-  created_at: string;
+  created_at: string | null;
 }
 
 export function PermissionsTab() {
@@ -434,7 +434,7 @@ export function PermissionsTab() {
                       )}
                     </div>
                     <span className="text-xs text-slate-400 flex-shrink-0">
-                      {new Date(entry.created_at).toLocaleDateString()}
+                      {new Date(entry.created_at ?? 0).toLocaleDateString()}
                     </span>
                   </div>
                   {entry.notes ? (

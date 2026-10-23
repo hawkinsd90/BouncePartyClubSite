@@ -1,12 +1,12 @@
 import { useEffect, useRef, useState } from 'react';
-import { format } from 'date-fns';
 import { showToast } from '../../lib/toasts';
+import { formatNullableTimestamp } from '../../lib/core/formatNullableTimestamp';
 
 interface SmsMessage {
   id: string;
   direction: string;
   message_body: string;
-  created_at: string;
+  created_at: string | null;
 }
 
 interface SmsConversationProps {
@@ -54,7 +54,7 @@ export function SmsConversation({
               </span>{' '}
               <span className="break-words whitespace-pre-wrap">{msg.message_body}</span>
               <div className="text-xs text-slate-500">
-                {format(new Date(msg.created_at), 'MMM d, h:mm a')}
+                {formatNullableTimestamp(msg.created_at, 'MMM d, h:mm a')}
               </div>
             </div>
           ))}

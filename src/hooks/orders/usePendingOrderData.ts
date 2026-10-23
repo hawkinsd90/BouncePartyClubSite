@@ -6,10 +6,10 @@ import type { Database } from '../../lib/database.types';
 type Tables = Database['public']['Tables'];
 
 export interface DamageRecord {
-  orderId: string;
+  orderId: string | null;
   amount_cents: number;
-  status: string;
-  created_at: string;
+  status: string | null;
+  created_at: string | null;
 }
 
 export function usePendingOrderData(orderId: string) {

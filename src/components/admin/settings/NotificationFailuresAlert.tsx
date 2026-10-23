@@ -173,7 +173,7 @@ export function NotificationFailuresAlert() {
                           {failure.notification_type === 'email' ? 'Email' : 'SMS'} Failure
                         </span>
                         <span className="text-sm text-gray-500">
-                          {new Date(failure.created_at).toLocaleString()}
+                          {new Date(failure.created_at ?? 0).toLocaleString()}
                         </span>
                       </div>
 

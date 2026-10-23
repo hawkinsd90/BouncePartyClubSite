@@ -669,7 +669,13 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
       }
       if (changelogRes.data) setChangelog(changelogRes.data);
       if (unitsRes.data) setAvailableUnits(unitsRes.data);
-      if (discountsRes.data) { loadedDiscountsRef.current = discountsRes.data; setDiscounts(discountsRes.data); }
+      if (discountsRes.data) {
+        // order_discounts.amount_cents / percentage are nullable columns (default 0). A NULL is read as 0, exactly as the table's own CHECK
+        // (COALESCE(..., 0)) and staff-order-save (amount_cents || 0) already treat it; the editor's discount type has plain numbers.
+        const loadedDiscounts = discountsRes.data.map((d) => ({ ...d, amount_cents: d.amount_cents ?? 0, percentage: d.percentage ?? 0 }));
+        loadedDiscountsRef.current = loadedDiscounts;
+        setDiscounts(loadedDiscounts);
+      }
       if (customFeesRes.data) { loadedCustomFeesRef.current = customFeesRes.data; setCustomFees(customFeesRes.data); }
     } catch (error) {
       console.error('Error loading order details:', error);

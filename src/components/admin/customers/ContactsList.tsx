@@ -12,7 +12,7 @@ interface Contact {
   id: string;
   first_name: string;
   last_name: string;
-  email: string | null;
+  email: string; // NOT NULL in the database
   phone: string | null;
   business_name: string | null;
   created_at: string;

@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { format } from 'date-fns';
+import { formatNullableTimestamp } from '../../lib/core/formatNullableTimestamp';
 import { X, Star, Loader } from 'lucide-react';
 
 interface Address {
@@ -14,7 +14,7 @@ interface Address {
 interface StreetViewImagesProps {
   // An order can have no address on file: the component then renders nothing (it used to crash reading lat/lng of null).
   address: Address | null | undefined;
-  orderCreatedAt: string;
+  orderCreatedAt: string | null;
   selectedImage: { url: string; label: string } | null;
   onSelectImage: (image: { url: string; label: string } | null) => void;
 }
@@ -136,7 +136,7 @@ export function StreetViewImages({
             Street View Assessment - Multiple Angles
           </h4>
           <span className="text-xs text-slate-500">
-            Order Created: {format(new Date(orderCreatedAt), 'MMM d, yyyy h:mm a')}
+            Order Created: {formatNullableTimestamp(orderCreatedAt, 'MMM d, yyyy h:mm a') || 'Unknown'}
           </span>
         </div>
         <div className="text-xs text-slate-500 mb-3">

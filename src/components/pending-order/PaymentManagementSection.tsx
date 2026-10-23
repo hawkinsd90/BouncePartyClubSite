@@ -1,6 +1,6 @@
-import { format } from 'date-fns';
 import { CreditCard } from 'lucide-react';
 import { formatCurrency } from '../../lib/pricing';
+import { formatNullableTimestamp } from '../../lib/core/formatNullableTimestamp';
 import { storedOrderTotalCents, type OrderMoneyComponents } from '../../lib/pricing/orderMoney';
 import { RefundAllocationPanel } from '../admin/orders/refunds/RefundAllocationPanel';
 import { REFUND_REASONS, componentSummary } from '../../lib/payments/refundAllocationRequest';
@@ -8,19 +8,19 @@ import { REFUND_REASONS, componentSummary } from '../../lib/payments/refundAlloc
 interface Payment {
   id: string;
   amount_cents: number;
-  status: string;
+  status: string | null;
   type?: string;
   payment_type?: string;
   stripe_payment_intent_id?: string | null;
-  created_at: string;
+  created_at: string | null;
 }
 
 interface Refund {
   id: string;
   amount_cents: number;
   reason: string;
-  status: string;
-  created_at: string;
+  status: string | null;
+  created_at: string | null;
   allocation_version?: number | null;
   deposit_principal_refunded_cents?: number | null;
   balance_principal_refunded_cents?: number | null;
@@ -36,8 +36,8 @@ interface CustomFee {
 
 interface Discount {
   id?: string;
-  amount_cents?: number;
-  percentage?: number;
+  amount_cents?: number | null;
+  percentage?: number | null;
   name: string;
 }
 
@@ -231,7 +231,7 @@ export function PaymentManagementSection({
                       {paymentType.replace('_', ' ')}
                     </div>
                     <div className="text-xs text-slate-500">
-                      {format(new Date(payment.created_at), 'MMM d, yyyy h:mm a')}
+                      {formatNullableTimestamp(payment.created_at, 'MMM d, yyyy h:mm a')}
                     </div>
                   </div>
                   <div className="text-right">
@@ -272,7 +272,7 @@ export function PaymentManagementSection({
                     {componentSummary({ allocation_version: refund.allocation_version ?? null, deposit_cents: refund.deposit_principal_refunded_cents ?? null, balance_cents: refund.balance_principal_refunded_cents ?? null, tip_cents: refund.tip_refunded_cents ?? null, unclassified_cents: refund.unclassified_refunded_cents ?? null })}
                   </div>
                   <div className="text-xs text-slate-500">
-                    {format(new Date(refund.created_at), 'MMM d, yyyy h:mm a')}
+                    {formatNullableTimestamp(refund.created_at, 'MMM d, yyyy h:mm a')}
                   </div>
                 </div>
                 <div className="text-right">

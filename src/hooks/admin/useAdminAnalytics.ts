@@ -193,10 +193,11 @@ export function useDeliveryTimingAnalytics(period: AnalyticsPeriod = 'all_time')
     setLoading(true);
     try {
       const { start, end } = getPeriodRange(period);
-      const { data: result, error } = await supabase.rpc('get_delivery_timing_analytics', {
-        p_start_date: start ? start.split('T')[0] : null,
-        p_end_date: end ? end.split('T')[0] : null,
-      });
+      // Both arguments default to NULL (an open bound) in the database function, so an absent bound is left out of the call.
+      const rangeArgs: { p_start_date?: string; p_end_date?: string } = {};
+      if (start) rangeArgs.p_start_date = start.split('T')[0];
+      if (end) rangeArgs.p_end_date = end.split('T')[0];
+      const { data: result, error } = await supabase.rpc('get_delivery_timing_analytics', rangeArgs);
       if (error) throw error;
       setData(result as unknown as DeliveryTimingAnalytics);
     } catch {

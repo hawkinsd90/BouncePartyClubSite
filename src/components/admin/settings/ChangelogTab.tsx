@@ -13,7 +13,7 @@ interface OrderChange {
   old_value: string | null;
   new_value: string | null;
   change_type: string;
-  created_at: string;
+  created_at: string | null;
   user_id: string | null;
 }
 
@@ -21,7 +21,7 @@ interface GroupedOrderChange {
   order_id: string;
   customer_name: string;
   change_count: number;
-  latest_timestamp: string;
+  latest_timestamp: string | null;
   latest_user_email: string;
   changes: Array<{
     id: string;
@@ -29,7 +29,7 @@ interface GroupedOrderChange {
     old_value: string | null;
     new_value: string | null;
     change_type: string;
-    timestamp: string;
+    timestamp: string | null;
     user_email: string;
   }>;
 }
@@ -158,7 +158,7 @@ export function ChangelogTab() {
 
         // Sort changes by timestamp descending
         group.changes.sort((a, b) =>
-          new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+          new Date(b.created_at ?? 0).getTime() - new Date(a.created_at ?? 0).getTime()
         );
 
         const latestChange = group.changes[0];
@@ -383,7 +383,7 @@ export function ChangelogTab() {
                             ORDER
                           </span>
                           <span className="text-xs text-slate-500 whitespace-nowrap">
-                            {new Date(orderGroup.latest_timestamp).toLocaleString('en-US', {
+                            {new Date(orderGroup.latest_timestamp ?? 0).toLocaleString('en-US', {
                               month: 'short',
                               day: 'numeric',
                               hour: 'numeric',
@@ -423,7 +423,7 @@ export function ChangelogTab() {
                             <div className="min-w-0">
                               <h4 className="font-medium text-slate-900 text-sm">{change.field_changed}</h4>
                               <p className="text-xs text-slate-500">
-                                {change.change_type} • {new Date(change.timestamp).toLocaleString('en-US', {
+                                {change.change_type} • {new Date(change.timestamp ?? 0).toLocaleString('en-US', {
                                   month: 'short',
                                   day: 'numeric',
                                   hour: 'numeric',

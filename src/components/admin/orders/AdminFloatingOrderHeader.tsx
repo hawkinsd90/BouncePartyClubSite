@@ -76,7 +76,7 @@ export function AdminFloatingOrderHeader({ order, isVisible, onEditClick }: Admi
                     ? 'bg-red-600 text-white'
                     : 'bg-slate-500 text-white'
                 }`}>
-                  {order.status.replace(/_/g, ' ').toUpperCase()}
+                  {order.status?.replace(/_/g, ' ').toUpperCase()}
                 </span>
               </div>
             </div>

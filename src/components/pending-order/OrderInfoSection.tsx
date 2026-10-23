@@ -1,4 +1,5 @@
 import { format } from 'date-fns';
+import { formatNullableTimestamp } from '../../lib/core/formatNullableTimestamp';
 import { PhoneLink } from '../shared/PhoneLink';
 import { AddressLink } from '../shared/AddressLink';
 import { useState, useEffect } from 'react';
@@ -12,8 +13,8 @@ import { hasGeneratorInOrderItemsByCategory, loadGeneratorCategoryProductIds, ty
 // The order columns and embeds this card reads (the pending-order list loads orders with their customer, address, items and review rows).
 interface PendingOrderInfo {
   id: string;
-  status: string;
-  created_at: string;
+  status: string | null;
+  created_at: string | null;
   event_date: string;
   start_window: string | null;
   end_window: string | null;
@@ -50,7 +51,7 @@ const STATUS_BADGE_COLORS: Record<string, string> = {
 };
 
 export function OrderInfoSection({ order, customerDisplayName, onEditClick }: OrderInfoSectionProps) {
-  const badgeColor = STATUS_BADGE_COLORS[order.status] ?? 'bg-slate-600';
+  const badgeColor = (order.status ? STATUS_BADGE_COLORS[order.status] : undefined) ?? 'bg-slate-600';
   const badgeLabel = ORDER_STATUS_LABELS[order.status as keyof typeof ORDER_STATUS_LABELS] ?? order.status ?? 'Unknown';
   const [generatorCategoryProductIds, setGeneratorCategoryProductIds] = useState<Set<string> | null>(null);
   const [generatorLookupStatus, setGeneratorLookupStatus] = useState<'loading' | 'ready' | 'failed'>('loading');
@@ -131,7 +132,7 @@ export function OrderInfoSection({ order, customerDisplayName, onEditClick }: Or
             {formatOrderId(order.id)}
           </p>
           <p className="text-xs text-slate-500 mt-1">
-            {format(new Date(order.created_at), 'MMM d, yyyy h:mm a')}
+            {formatNullableTimestamp(order.created_at, 'MMM d, yyyy h:mm a')}
           </p>
           <div className="mt-2 hidden sm:block">
             <span
