@@ -46,7 +46,7 @@ Deno.serve(async (req: Request) => {
     }
 
     const stripe = new Stripe(stripeKeyData.value, {
-      apiVersion: "2024-10-28.acacia",
+      apiVersion: "2024-10-28.acacia" as unknown as Stripe.LatestApiVersion,
     });
 
     // Retrieve the checkout session. The session id is the caller's proof, so it must belong to THIS order: the

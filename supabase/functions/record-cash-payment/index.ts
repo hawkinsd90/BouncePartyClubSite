@@ -104,7 +104,7 @@ Deno.serve(async (req: Request) => {
       if (!stripeKeyRow?.value) {
         return refuse("An online payment is open for this order and could not be checked right now. Please try again in a few minutes.");
       }
-      const stripe = new Stripe(stripeKeyRow.value, { apiVersion: "2024-10-28.acacia" });
+      const stripe = new Stripe(stripeKeyRow.value, { apiVersion: "2024-10-28.acacia" as unknown as Stripe.LatestApiVersion });
       const settled = await settleOpenCheckoutOperations(supabaseAdmin, stripe, orderId);
       if (!settled.ok) {
         return refuse(

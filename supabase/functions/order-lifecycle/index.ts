@@ -140,7 +140,7 @@ async function retrieveCheckoutSession(supabase: AuthClient, sessionId: string) 
     .eq("key", "stripe_secret_key")
     .maybeSingle();
   if (!keyData?.value) return null;
-  const stripe = new Stripe(keyData.value, { apiVersion: "2024-10-28.acacia" });
+  const stripe = new Stripe(keyData.value, { apiVersion: "2024-10-28.acacia" as unknown as Stripe.LatestApiVersion });
   return await stripe.checkout.sessions.retrieve(sessionId);
 }
 

@@ -145,7 +145,7 @@ Deno.serve(async (req: Request) => {
     }
 
     const stripe = new Stripe(stripeKeyData.value, {
-      apiVersion: "2024-10-28.acacia",
+      apiVersion: "2024-10-28.acacia" as unknown as Stripe.LatestApiVersion,
     });
 
     // Load the order with contact details for the receipt. The amounts charged do NOT come from this read.

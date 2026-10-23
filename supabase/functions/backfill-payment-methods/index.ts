@@ -60,7 +60,7 @@ Deno.serve(async (req: Request) => {
     }
 
     const stripe = new Stripe(stripeKeyData.value, {
-      apiVersion: "2024-10-28.acacia",
+      apiVersion: "2024-10-28.acacia" as unknown as Stripe.LatestApiVersion,
     });
 
     // Get all payments that have a stripe_payment_intent_id but no payment_method

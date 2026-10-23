@@ -41,7 +41,7 @@ async function retrieveCheckoutSession(supabaseClient: AuthClient, sessionId: st
     .eq("key", "stripe_secret_key")
     .maybeSingle();
   if (!keyData?.value) return null;
-  const stripe = new Stripe(keyData.value, { apiVersion: "2024-10-28.acacia" });
+  const stripe = new Stripe(keyData.value, { apiVersion: "2024-10-28.acacia" as unknown as Stripe.LatestApiVersion });
   return await stripe.checkout.sessions.retrieve(sessionId);
 }
 
@@ -199,7 +199,7 @@ Deno.serve(async (req: Request) => {
     }
 
     const stripe = new Stripe(stripeKeyData.value, {
-      apiVersion: "2024-10-28.acacia",
+      apiVersion: "2024-10-28.acacia" as unknown as Stripe.LatestApiVersion,
     });
 
     // Scalar-only fetch. No amount is read here: the permitted amounts come from the payment operation claim.
