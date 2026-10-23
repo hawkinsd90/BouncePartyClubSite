@@ -8,6 +8,9 @@
 // An expectation is either a count / value ("0", "1", "3") or an error class ("ERR:42501" = permission denied or RLS
 // violation). A denied UPDATE/DELETE under RLS silently affects 0 rows, so those expect "0".
 
+import { statusChangeLogRow } from '../../orders/statusChangeLog';
+import { FUTURE_BOOKING_SELECT, NON_BOOKING_ORDER_STATUSES } from '../../units/futureBooking';
+
 export const IDS = {
   uAdmin: '00000000-0000-4000-8000-0000000000a1',
   uCrew: '00000000-0000-4000-8000-0000000000c1',
@@ -466,6 +469,30 @@ export function buildScenarios(): Scenario[] {
   add('changelog: ...and read it back', 'service_role', null, cnt('order_changelog', `old_value = 'Typedville2'`), '1');
   add('changelog: ...and admin now sees three review rows', 'authenticated', IDS.uAdmin, cnt('order_changelog', `change_type = 'travel_city_review'`), '3');
   add('changelog: ...while customer B still sees none of them', 'authenticated', IDS.uB, cnt('order_changelog', `change_type = 'travel_city_review'`), '0');
+  // ---- the status dialog's changelog row: the exact columns the dialog writes now (statusChangeLogRow), and the old column set it used to send ----
+  {
+    const lit = (v: string | null) => (v === null ? 'NULL' : `'${v.replace(/'/g, "''")}'`);
+    const row = statusChangeLogRow({ orderId: IDS.orderA, currentStatus: 'pending_review', pendingStatus: 'confirmed', reason: "Customer's request", userId: IDS.uAdmin });
+    const cols = Object.keys(row) as Array<keyof typeof row>;
+    const insertRow = `INSERT INTO public.order_changelog (${cols.join(', ')}) VALUES (${cols.map((c) => lit(row[c])).join(', ')}) RETURNING 'inserted'`;
+    add('status dialog: an Admin can write the status-change history row exactly as the dialog builds it', 'authenticated', IDS.uAdmin, insertRow, 'inserted');
+    add('status dialog: ...and it reads back with the reason in new_value', 'authenticated', IDS.uAdmin, `SELECT new_value FROM public.order_changelog WHERE change_type = 'status_change' AND field_changed = 'status' AND old_value = 'pending_review' AND user_id = '${IDS.uAdmin}' ORDER BY created_at DESC LIMIT 1`, "confirmed (Reason: Customer's request)");
+    add('status dialog: the column set the dialog USED to send (field_name, changed_by) does not exist and is refused', 'authenticated', IDS.uAdmin, `INSERT INTO public.order_changelog (order_id, change_type, field_name, field_changed, changed_by, notes, old_value, new_value, user_id) VALUES ('${IDS.orderA}', 'status_change', 'status', 'status', NULL, NULL, 'a', 'b', '${IDS.uAdmin}') RETURNING 'inserted'`, 'ERR:42703');
+    add('status dialog: a customer session still cannot write the row', 'authenticated', IDS.uA, insertRow, denied);
+  }
+  // ---- delete / deactivate-unit warning: the future-bookings lookup, executed with the columns and statuses src/lib/units/futureBooking.ts selects ----
+  {
+    const nested = (rel: string, sel: string) => new RegExp(rel + '(?:!inner)?[(]([^()]*)[)]').exec(sel)?.[1].split(',').map((c) => c.trim()).filter(Boolean) ?? [];
+    const customerCols = nested('customers', FUTURE_BOOKING_SELECT);
+    const orderCols = nested('orders', FUTURE_BOOKING_SELECT.replace(/customers\([^()]*\)/, ''));
+    const statuses = NON_BOOKING_ORDER_STATUSES.map((st) => `'${st}'`).join(', ');
+    const lookup = `SELECT count(*)::text FROM (SELECT oi.order_id, ${orderCols.map((c) => `o.${c}`).join(', ')}, ${customerCols.map((c) => `c.${c}`).join(', ')} FROM public.order_items oi JOIN public.orders o ON o.id = oi.order_id LEFT JOIN public.customers c ON c.id = o.customer_id WHERE oi.unit_id = '${IDS.unitActive}' AND o.status NOT IN (${statuses}) AND (o.event_date >= '2000-01-01' OR o.event_end_date >= '2000-01-01')) q`;
+    add('unit warning: the lookup uses only existing columns and finds the seeded future bookings of a unit (Admin session)', 'authenticated', IDS.uAdmin, lookup, (v) => Number(v) >= 2);
+    add('unit warning: the old column orders.order_number does not exist', 'authenticated', IDS.uAdmin, `SELECT o.order_number FROM public.orders o LIMIT 1`, 'ERR:42703');
+    add('unit warning: the old column orders.customer_name does not exist', 'authenticated', IDS.uAdmin, `SELECT o.customer_name FROM public.orders o LIMIT 1`, 'ERR:42703');
+    add('unit warning: the old status spellings "voided" / "canceled" are not allowed order statuses (the constraint knows cancelled and void)', 'anon', null, `SELECT (SELECT count(*) FROM unnest(ARRAY['voided', 'canceled']) s WHERE pg_get_constraintdef((SELECT oid FROM pg_constraint WHERE conrelid = 'public.orders'::regclass AND conname = 'orders_status_check')) LIKE '%' || s || '%')::text`, '0');
+    add('unit warning: the statuses the lookup ignores are exactly the cancelled / void statuses the order status constraint allows', 'anon', null, `SELECT (SELECT count(*) FROM unnest(ARRAY[${statuses}]) s WHERE pg_get_constraintdef((SELECT oid FROM pg_constraint WHERE conrelid = 'public.orders'::regclass AND conname = 'orders_status_check')) LIKE '%' || s || '%')::text`, '2');
+  }
   return s;
 }
 

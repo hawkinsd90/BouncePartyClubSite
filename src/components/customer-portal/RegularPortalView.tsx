@@ -21,6 +21,7 @@ import { showToast } from '../../lib/toasts';
 import { OrderStatusBadge } from '../dashboard/OrderStatusBadge';
 import { ORDER_STATUS, CANCELLABLE_STATUSES } from '../../lib/constants/statuses';
 import { AddressLink } from '../shared/AddressLink';
+import { portalOrderTotalCents } from '../../lib/portal/portalDisplay';
 
 function formatTimeStr(time: string): string {
   if (!time) return '';
@@ -565,7 +566,7 @@ export function RegularPortalView({ order, orderId, orderItems: _orderItems, ord
                     <div className="flex justify-between pt-2 border-t border-slate-300">
                       <span className="font-semibold text-slate-900">Total:</span>
                       <span className="text-lg font-bold text-slate-900">
-                        {formatCurrency(orderSummary ? orderSummary.total : (order.total_cents || 0))}
+                        {formatCurrency(portalOrderTotalCents(order, orderSummary))}
                       </span>
                     </div>
                     {order.tip_cents > 0 && (
@@ -619,7 +620,7 @@ export function RegularPortalView({ order, orderId, orderItems: _orderItems, ord
               <div hidden={activeTab !== 'lot-pics'}>
                 <LotPicturesTab
                   orderId={orderId}
-                  orderNumber={order.order_number}
+                  orderNumber={formatOrderId(order.id)}
                   orderStatus={order.status}
                   pictures={portalExtras?.lotPictures ?? []}
                   invoiceLinkToken={invoiceLinkToken}

@@ -5,6 +5,7 @@ import { supabase } from '../../lib/supabase';
 import { checkMultipleUnitsAvailability } from '../../lib/booking/availability';
 import { showToast } from '../../lib/toasts';
 import { validateStatusTransition } from '../../lib/orders/adminStatusTransitions';
+import { statusChangeLogRow } from '../../lib/orders/statusChangeLog';
 import { showConfirm } from '../common/CustomModal';
 import { ORDER_STATUS } from '../../lib/constants/statuses';
 
@@ -126,18 +127,9 @@ export function StatusChangeDialog({
 
       // Add changelog entry
       const userId = (await supabase.auth.getUser()).data.user?.id || null;
-      const reasonSuffix = statusChangeReason.trim() ? ` (Reason: ${statusChangeReason.trim()})` : '';
-      const { error: changelogError } = await supabase.from('order_changelog').insert({
-        order_id: orderId,
-        change_type: 'status_change',
-        field_name: 'status',
-        field_changed: 'status',
-        changed_by: null,
-        notes: null,
-        old_value: currentStatus,
-        new_value: `${pendingStatus}${reasonSuffix}`,
-        user_id: userId,
-      });
+      const { error: changelogError } = await supabase.from('order_changelog').insert(
+        statusChangeLogRow({ orderId, currentStatus, pendingStatus, reason: statusChangeReason, userId })
+      );
 
       if (changelogError) throw changelogError;
 

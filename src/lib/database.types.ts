@@ -441,17 +441,17 @@ export interface Database {
         Row: {
           id: string
           order_id: string
-          changed_by: string | null
           user_id: string | null
           change_type: string
-          field_name: string | null
           field_changed: string | null
           old_value: string | null
           new_value: string | null
           notes: string | null
           created_at: string
         }
-        Insert: Omit<Database['public']['Tables']['order_changelog']['Row'], 'id' | 'created_at'>
+        // order_id and change_type are NOT NULL; every other column is nullable or defaulted
+        Insert: Pick<Database['public']['Tables']['order_changelog']['Row'], 'order_id' | 'change_type'> &
+          Partial<Omit<Database['public']['Tables']['order_changelog']['Row'], 'id' | 'created_at' | 'order_id' | 'change_type'>>
         Update: Partial<Database['public']['Tables']['order_changelog']['Insert']>
         Relationships: []
       }

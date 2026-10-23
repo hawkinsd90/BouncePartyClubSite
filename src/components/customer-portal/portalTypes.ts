@@ -100,9 +100,7 @@ export interface PortalOrder {
   customers?: PortalCustomer | null;
   addresses?: PortalAddress | null;
   payments?: PortalPayment[];
-  // Names the screens still read although the server never sends them (not columns of orders; they are always undefined today).
-  total_cents?: number;
-  order_number?: string;
+  // Read by InvoiceAcceptanceView although the server never sends it (not a column of orders; always undefined today, the customer's own email is the fallback).
   customer_email?: string;
   // This order's own delivery unit (NULL = legacy order: addresses.line2 already carries it after projection).
   event_address_line2?: string | null;

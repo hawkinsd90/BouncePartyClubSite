@@ -6,7 +6,7 @@ import { Plus, Edit2, Trash2, Wind, PartyPopper } from 'lucide-react';
 import { notifyError, notifySuccess, showConfirm } from '../../../lib/toasts';
 import { EventEssentialsAdmin } from './event-essentials/EventEssentialsAdmin';
 
-import type { FutureBooking } from '../../../lib/units/futureBooking';
+import { describeFutureBooking, fetchFutureBookings } from '../../../lib/units/futureBooking';
 
 interface Unit {
   id: string;
@@ -47,34 +47,7 @@ export function InventorySection({ units, onRefetch }: InventorySectionProps) {
     setSearchParams(next);
   }
 
-  async function checkFutureBookings(unitId: string): Promise<FutureBooking[]> {
-    const today = todayLocalKey();
-
-    const { data: bookings, error } = await supabase
-      .from('order_items')
-      .select(`
-        order_id,
-        orders!inner(
-          id,
-          order_number,
-          event_date,
-          event_end_date,
-          status,
-          customer_name
-        )
-      `)
-      .eq('unit_id', unitId)
-      .not('orders.status', 'in', '("voided","canceled")')
-      .or(`event_date.gte.${today},event_end_date.gte.${today}`, { referencedTable: 'orders' });
-
-    if (error) {
-      console.error('Error checking bookings:', error);
-      return [];
-    }
-
-    // select('order_id, orders!inner(...)'): the embed is not modelled in database.types.ts
-    return (bookings || []) as unknown as FutureBooking[];
-  }
+  const checkFutureBookings = (unitId: string) => fetchFutureBookings(supabase, unitId, todayLocalKey());
 
   async function handleDeleteUnit(unitId: string, unitName: string) {
     const futureBookings = await checkFutureBookings(unitId);
@@ -84,10 +57,7 @@ export function InventorySection({ units, onRefetch }: InventorySectionProps) {
     if (futureBookings.length > 0) {
       const bookingDetails = futureBookings
         .slice(0, 5)
-        .map((b) => {
-          const order = b.orders;
-          return `• Order #${order.order_number} - ${order.customer_name} on ${order.event_date}`;
-        })
+        .map(describeFutureBooking)
         .join('\n');
 
       const moreText = futureBookings.length > 5 ? `\n...and ${futureBookings.length - 5} more` : '';
