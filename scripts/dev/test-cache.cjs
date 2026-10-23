@@ -100,6 +100,16 @@ function dirDigest(dir) { // '' or '.' = the whole tree
   return dirDigestMemo.get(dir);
 }
 
+// A test that makes its own folders under the system temp directory and lists THEM is not reading the repository. It counts as such only
+// when none of its scan calls mentions a repository root (ROOT, process.cwd(), __dirname ...).
+const TMP_RE = /mkdtempSync\(|\btmpdir\(\)/;
+const REPO_ROOT_RE = /\bROOT\b|process\.cwd\(\)|__dirname|import\.meta|repoRoot|\bREPO\b/;
+function scansOnlyTempFolders(text) {
+  if (!TMP_RE.test(text)) return false;
+  for (const m of text.matchAll(/(?:readdirSync|\bwalk|\.readdir|globSync|\bglob)\(([^\n]*)/g)) if (REPO_ROOT_RE.test(m[1])) return false;
+  return true;
+}
+
 // what a test depends on beyond the files it imports or names
 const analysisMemo = new Map();
 function analysis(testRel) {
@@ -121,7 +131,7 @@ function analysis(testRel) {
       const d = m[1].replace(/^\.\//, '').replace(/\/+$/, '');
       if (d && d !== '.' && !d.startsWith('node_modules') && /^[A-Za-z0-9_.\-/]+$/.test(d) && isDir(d)) { dirs.add(d); found = true; }
     }
-    if (!found && isTestOrHelper(rel)) wholeTree = true; // a test that scans something we cannot see: be safe
+    if (!found && isTestOrHelper(rel) && !scansOnlyTempFolders(text)) wholeTree = true; // a test that scans something we cannot see: be safe
   });
   const a = {
     files,
