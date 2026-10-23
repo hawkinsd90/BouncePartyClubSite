@@ -16,6 +16,7 @@ import * as authHelpers from '../../../../supabase/functions/_shared/auth';
 import * as twilioSig from '../../../../supabase/functions/_shared/twilio-signature';
 import * as returnOrigin from '../../../../supabase/functions/_shared/booking/returnOrigin';
 import * as smsInbound from '../../../../supabase/functions/_shared/sms/inbound';
+import { unknownColumns } from '../support/schemaColumns';
 
 let passed = 0;
 let failed = 0;
@@ -42,6 +43,7 @@ function makeWorld(settings: Record<string, string> = {}) {
     invokes: [] as Array<{ fn: string; body: any }>,
     fetches: [] as string[], // every outbound HTTP request the function tried to make (Stripe, Twilio, Google, e-mail provider ...)
     rateCalls: [] as string[],
+    badColumns: [] as string[], // writes that named a column the table does not have (the real database would refuse them with 42703)
     rateDeny: '' as string, // '' = allow; 'all' = deny every bucket; otherwise the one endpoint bucket to deny
   };
 }
@@ -87,6 +89,11 @@ function makeClient(w: World) {
         then: (resolve: any, reject: any) => {
           if (op !== 'select') {
             w.writes.push({ table, op, payload });
+            const bad = unknownColumns(table, payload);
+            if (bad.length > 0) {
+              w.badColumns.push(...bad.map((c) => `${table}.${c}`));
+              return Promise.resolve({ error: { code: '42703', message: `column "${bad[0]}" of relation "${table}" does not exist` } }).then(resolve, reject);
+            }
             return Promise.resolve({ error: null }).then(resolve, reject);
           }
           let rows: any[] = [];
@@ -209,6 +216,8 @@ async function textOf(res: Response): Promise<string> {
     ok('twilio-webhook: a signed inbound message stores the conversation and answers with the auto-reply TwiML', ok1.res.status === 200 && /<Message>/.test(ok1.text) && ok1.w.writes.some((x) => x.table === 'sms_conversations' && x.op === 'insert' && x.payload.direction === 'inbound'));
     const ok2 = await twilioCall('twilio-status-callback', statusUrl, statusParams, { signature: 'valid' });
     ok('twilio-status-callback: a signed status updates only the matching message', ok2.res.status === 200 && ok2.w.writes.length === 1 && ok2.w.writes[0].table === 'sms_conversations' && ok2.w.writes[0].op === 'update' && ok2.w.writes[0].payload.status === 'delivered');
+    ok('twilio-status-callback: the status update names only columns that exist in sms_conversations (no error_code column exists)', ok2.w.badColumns.length === 0 && Object.keys(ok2.w.writes[0].payload).join() === 'status');
+    ok('twilio-webhook: the inbound message insert names only columns that exist in sms_conversations', ok1.w.badColumns.length === 0);
   }
   {
     const cfg = fs.readFileSync('supabase/config.toml', 'utf8').replace(/\r\n/g, '\n');

@@ -43,7 +43,9 @@ Deno.serve(async (req: Request) => {
     const messageStatus = formData.get("MessageStatus") as string;
     const errorCode = formData.get("ErrorCode") as string;
 
-    // console.log("Status callback:", { messageSid, messageStatus, errorCode });
+    // sms_conversations has no error_code column (no migration ever added one), so only the status is stored. A failure code is kept in the
+    // function log; storing it would need a new column (owner decision).
+    if (errorCode) console.warn(`[twilio-status-callback] message ${messageSid} reported ${messageStatus} with Twilio ErrorCode ${errorCode}`);
 
     if (!messageSid || !messageStatus) {
       return new Response(
@@ -62,7 +64,6 @@ Deno.serve(async (req: Request) => {
       .from("sms_conversations")
       .update({
         status: messageStatus,
-        error_code: errorCode || null,
       })
       .eq("twilio_message_sid", messageSid);
 

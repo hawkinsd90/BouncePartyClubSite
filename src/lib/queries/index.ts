@@ -5,6 +5,5 @@ export * from './contacts';
 export * from './units';
 export * from './pricing';
 export * from './invoices';
-export * from './tasks';
 export * from './payments';
 export * from './products';

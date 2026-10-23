@@ -2,17 +2,6 @@ import type { Database } from '../database.types';
 import { supabase } from '../supabase';
 import { executeQuery, QueryOptions } from './base';
 
-export async function getAllUnits(options?: QueryOptions) {
-  return executeQuery(
-    async () =>
-      await supabase
-        .from('units')
-        .select('*')
-        .order('sort_order', { ascending: true }),
-    { context: 'getAllUnits', ...options }
-  );
-}
-
 export async function getActiveUnits(options?: QueryOptions) {
   return executeQuery(
     async () =>
@@ -69,23 +58,6 @@ export async function getUnitById(unitId: string, options?: QueryOptions) {
   );
 }
 
-export async function getUnitsByType(type: string, options?: QueryOptions) {
-  return executeQuery(
-    async () =>
-      await supabase
-        .from('units')
-        .select('*')
-        .eq('type', type)
-        .order('sort_order', { ascending: true }),
-    { context: 'getUnitsByType', ...options }
-  );
-}
-
-// Legacy alias for backwards compatibility
-export async function getUnitsByCategory(category: string, options?: QueryOptions) {
-  return getUnitsByType(category, options);
-}
-
 export async function createUnit(unitData: Database['public']['Tables']['units']['Insert'], options?: QueryOptions) {
   return executeQuery(
     async () =>
@@ -119,56 +91,5 @@ export async function deleteUnit(unitId: string, options?: QueryOptions) {
         .delete()
         .eq('id', unitId),
     { context: 'deleteUnit', ...options }
-  );
-}
-
-export async function checkUnitAvailability(
-  unitId: string,
-  startDate: string,
-  endDate: string,
-  excludeOrderId?: string,
-  options?: QueryOptions
-) {
-  return executeQuery(
-    async () => {
-      const { data, error } = await supabase.rpc('check_unit_availability', {
-        p_unit_ids: [unitId],
-        p_start_date: startDate,
-        p_end_date: endDate,
-        p_exclude_order_id: excludeOrderId || null,
-        // The argument set matches neither overload of check_unit_availability in the migrated database (the array form has no p_exclude_order_id). This helper is not called anywhere; the call is left unchanged.
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any -- see comment above
-      } as any);
-
-      if (error) return { data: null, error };
-
-      const unitAvailability = Array.isArray(data) ? data[0] : null;
-      return {
-        data: unitAvailability?.is_available || false,
-        error: null,
-      };
-    },
-    { context: 'checkUnitAvailability', ...options }
-  );
-}
-
-export async function checkMultipleUnitsAvailability(
-  unitIds: string[],
-  startDate: string,
-  endDate: string,
-  excludeOrderId?: string,
-  options?: QueryOptions
-) {
-  return executeQuery(
-    async () =>
-      await supabase.rpc('check_unit_availability', {
-        p_unit_ids: unitIds,
-        p_start_date: startDate,
-        p_end_date: endDate,
-        p_exclude_order_id: excludeOrderId || null,
-        // Same unmatched argument set as checkUnitAvailability above (unused helper; call unchanged).
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any -- see comment above
-      } as any),
-    { context: 'checkMultipleUnitsAvailability', ...options }
   );
 }

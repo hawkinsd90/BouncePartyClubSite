@@ -31,18 +31,6 @@ export async function getInvoiceById(invoiceId: string, options?: QueryOptions) 
   );
 }
 
-export async function getInvoiceByToken(token: string, options?: QueryOptions) {
-  return executeQuery(
-    async () =>
-      await supabase
-        .from('invoices')
-        .select(INVOICE_WITH_RELATIONS)
-        .eq('token', token)
-        .maybeSingle(),
-    { context: 'getInvoiceByToken', ...options }
-  );
-}
-
 export async function getAllInvoices(options?: QueryOptions) {
   return executeQuery(
     async () =>

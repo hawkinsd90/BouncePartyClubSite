@@ -360,7 +360,6 @@ It standardizes error logging, optional throwing, and returns a consistent `{ da
 | Pricing | `queries/pricing.ts` | `pricing_rules` table read/write |
 | Payments | `queries/payments.ts` | Payment record queries and ledger operations |
 | Invoices | `queries/invoices.ts` | Invoice and invoice link queries |
-| Tasks | `queries/tasks.ts` | `task_status` table queries for crew |
 
 ### Standard Select Shapes
 

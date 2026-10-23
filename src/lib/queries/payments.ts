@@ -26,24 +26,3 @@ export async function getPaymentById(paymentId: string, options?: QueryOptions) 
 }
 
 // (Payments are written only by the server payment functions; the browser has no write access to this table.)
-
-export async function getAllPayments(options?: QueryOptions) {
-  return executeQuery(
-    async () =>
-      await supabase
-        .from('payments')
-        .select(`
-          *,
-          orders (
-            order_number,
-            customers (
-              first_name,
-              last_name,
-              email
-            )
-          )
-        `)
-        .order('created_at', { ascending: false }),
-    { context: 'getAllPayments', ...options }
-  );
-}
