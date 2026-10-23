@@ -3,7 +3,7 @@
 // without the application types following. It needs the pipeline scratch server (see scripts/dev/PIPELINE.md); without it the layer is
 // reported as SKIPPED (it did NOT run), never as passed.
 declare const require: (id: string) => any; // eslint-disable-line @typescript-eslint/no-explicit-any
-declare const process: { env: Record<string, string | undefined>; argv: string[] };
+declare const process: { env: Record<string, string | undefined>; argv: string[]; execPath: string };
 const fs = require('fs');
 const { spawnSync } = require('child_process');
 
