@@ -3,7 +3,9 @@
 // Contract (shared by Dev and production): a client-originated row carries
 //   notification_type ('email' | 'sms'), intended_recipient, subject, error_message and
 //   context { orderId, messageType, source }
-// and never order_id / channel / message_type (columns that do not exist in production).
+// and never order_id / channel / message_type. order_id does not exist in any schema; channel and message_type are added by repository
+// migrations 20260723210301 / 20260723210953 (they exist in the replayed chain) but may be absent from a hosted project that has not applied
+// them, so a client payload must not name them (pinned below by the FORBIDDEN list and the payload scan).
 // Only UNIQUE client failures (a short portal link that could not be created, so no edge function
 // ran) are recorded here. Provider send failures are recorded by the edge functions' RPC.
 //
@@ -12,7 +14,7 @@
 // are located in the current source text, evaluated against stub values, and pinned.
 //
 // The `@ts-expect-error` lines below are checked by `npm run typecheck`: if the table type ever
-// accepts the stale columns again, or stops requiring the three required fields, typecheck fails.
+// accepts the stale order_id again, or stops requiring the three required fields, typecheck fails.
 
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { Database } from '../../database.types';
@@ -71,10 +73,9 @@ export const missingType: FailureInsert = { intended_recipient: 'x', error_messa
 export const missingError: FailureInsert = { notification_type: 'sms', intended_recipient: 'x' };
 // @ts-expect-error order_id is not a notification_failures column
 export const staleOrderId: FailureInsert = { notification_type: 'sms', intended_recipient: 'x', error_message: 'e', order_id: 'o' };
-// @ts-expect-error channel is a Dev-only column and not part of the shared contract
-export const staleChannel: FailureInsert = { notification_type: 'sms', intended_recipient: 'x', error_message: 'e', channel: 'sms' };
-// @ts-expect-error message_type is a Dev-only column and not part of the shared contract
-export const staleMessageType: FailureInsert = { notification_type: 'sms', intended_recipient: 'x', error_message: 'e', message_type: 'm' };
+// channel and message_type DO exist in the replayed repository schema (so the generated type accepts them, as optional columns). The rule that a client
+// payload never writes them is a runtime/source rule (FORBIDDEN below), not a type rule, because a hosted project may not have these columns yet.
+export const channelColumnExists: FailureInsert = { notification_type: 'sms', intended_recipient: 'x', error_message: 'e', channel: 'sms', message_type: 'm' };
 // @ts-expect-error resolved_by does not exist
 export const staleResolvedBy: FailureInsert = { notification_type: 'sms', intended_recipient: 'x', error_message: 'e', resolved_by: 'u' };
 
