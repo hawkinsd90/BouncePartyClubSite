@@ -39,7 +39,10 @@ const SCAN_RE = /readdirSync|\bwalk\(|globSync|\bglob\(|\.readdir\(/;
 const GIT_RE = /ls-files/;
 const SCAN_CALL_RE = /(?:readdirSync|walk|readdir|globSync|glob)\(\s*['"`]([^'"`\n]+)['"`]/g;
 const QUOTED_RE = /['"`]([^'"`\n]{1,200})['"`]/g;
-const DB_RE = /(PAY|CORE|ROLE|HARD|SWEEP|POSTURE|DEVREFRESH)_DB|_DB_NAME|ensurePayDatabase|bpc_replay|psql|PSQL/;
+// Does this text LIST the migrations folder (so a new migration file changes what it sees)? A test that reads one named migration file has that
+// file in its closure already, and a test that only runs against the scratch databases depends on them through the database fingerprint.
+const MIGRATIONS_DIR_RE = /['"`]migrations['"`]|supabase[\/\\]migrations[\/\\]?['"`]|supabase[\/\\]migrations[\/\\]?\$\{/;
+const DB_RE =/(PAY|CORE|ROLE|HARD|SWEEP|POSTURE|DEVREFRESH)_DB|_DB_NAME|ensurePayDatabase|bpc_replay|psql|PSQL/;
 const isTestOrHelper = (rel) => /(^|\/)tests\//.test(rel) || /\.test\.[cm]?[jt]sx?$/.test(rel);
 
 const closureMemo = new Map();
@@ -136,7 +139,7 @@ function analysis(testRel) {
   const a = {
     files,
     usesDb: texts.some((t) => DB_RE.test(t)),
-    readsMigrations: texts.some((t) => /migrations/.test(t)),
+    readsMigrations: texts.some((t) => MIGRATIONS_DIR_RE.test(t)),
     wholeTree,
     dirs: [...dirs].sort(),
   };
@@ -161,13 +164,15 @@ function scratchFingerprint() {
   return scratchMemo;
 }
 
+const forgetScratchFingerprint = () => { scratchMemo = undefined; };
+
 function keyOf(testRel) {
   const a = analysis(testRel);
   return sha(JSON.stringify([
     VERSION, testRel, a.files.map((f) => [f, fileDigest(f)]), process.version,
     fileDigest('package.json'), isFile('package-lock.json') ? fileDigest('package-lock.json') : null,
     a.usesDb ? scratchFingerprint() : null,
-    a.readsMigrations || a.usesDb ? migrationsDigest() : null,
+    a.readsMigrations ? migrationsDigest() : null,
     a.wholeTree ? dirDigest('') : null,
     a.dirs.map((d) => [d, dirDigest(d)]),
   ]));
@@ -178,7 +183,7 @@ function dependsOn(testRel, relFile) {
   const a = analysis(testRel);
   if (relFile === testRel || a.files.includes(relFile)) return true;
   if (relFile === 'package.json' || relFile === 'package-lock.json') return true;
-  if ((a.readsMigrations || a.usesDb) && relFile.startsWith('supabase/migrations/')) return true;
+  if (a.readsMigrations && relFile.startsWith('supabase/migrations/')) return true;
   if (a.wholeTree) return true;
   return a.dirs.some((d) => relFile === d || relFile.startsWith(d + '/'));
 }
@@ -245,4 +250,4 @@ function open() {
   };
 }
 
-module.exports = { open, keyOf, closureOf, analysis, dependsOn, changedFiles };
+module.exports = { open, keyOf, closureOf, analysis, dependsOn, changedFiles, scratchFingerprint, forgetScratchFingerprint, MIGRATIONS_DIR_RE, DB_RE };

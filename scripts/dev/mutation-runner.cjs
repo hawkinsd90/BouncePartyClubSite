@@ -90,7 +90,7 @@ const readText = (rel) => { try { return fs.readFileSync(path.join(ROOT, rel), '
 // pointing a reference at a different file, or editing any code, does. (A target's own references are blanked when it is used as a
 // reference, so the digests are finite even for import cycles.) The mutated source itself is part of the key, so a changed anchor or
 // replacement in a mutants file is a different mutant, not a stale verdict.
-const KEY_VERSION = 'k3';
+const KEY_VERSION = 'k4';
 const EXTS = ['', '.ts', '.tsx', '.js', '.cjs', '.mjs', '/index.ts', '/index.tsx'];
 const IMPORT_RE = /((?:from|import|require)\s*\(?\s*)(['"])(\.{1,2}\/[^'"]+)\2/g;
 const PATH_RE = /(['"`])((?:src|supabase|scripts)\/[A-Za-z0-9_.\-/]+\.(?:tsx?|sql|[cm]?js|json))\1/g;
@@ -149,10 +149,18 @@ function closureDigest(testRel) {
   if (!closureDigestMemo.has(testRel)) closureDigestMemo.set(testRel, sha(JSON.stringify([...closureOf(testRel)].map(nd).sort())));
   return closureDigestMemo.get(testRel);
 }
-// Only a test that mentions the migrations folder can depend on the migrations; the others keep their verdicts when one is added.
+// Only a test that LISTS the migrations folder depends on the migration files themselves; one that reads a named file has it in its closure.
+// A test that runs against the scratch databases depends on those instead (their object ids change whenever they are rebuilt, e.g. from newer
+// migrations), so a new migration no longer invalidates every database-backed verdict, only a rebuilt database does.
+const testCache = require('./test-cache.cjs');
 const needsMigrationsMemo = new Map();
 function needsMigrations(testRel) {
-  if (!needsMigrationsMemo.has(testRel)) needsMigrationsMemo.set(testRel, [...closureOf(testRel)].some((rel) => /migrations/.test(readText(rel) ?? '')));
+  if (!needsMigrationsMemo.has(testRel)) {
+    const texts = [...closureOf(testRel)].map((rel) => readText(rel) ?? '');
+    const dir = texts.some((t) => testCache.MIGRATIONS_DIR_RE.test(t));
+    const db = texts.some((t) => testCache.DB_RE.test(t));
+    needsMigrationsMemo.set(testRel, (dir ? migrations() : '') + '|' + (db ? testCache.scratchFingerprint() : ''));
+  }
   return needsMigrationsMemo.get(testRel);
 }
 let migrationsDigest;
@@ -160,6 +168,7 @@ let migrationsDigest;
 function resetDigestCaches() {
   for (const m of [anonMemo, ndMemo, closureMemo, closureDigestMemo, needsMigrationsMemo, usesFullDbMemo]) m.clear();
   migrationsDigest = undefined;
+  testCache.forgetScratchFingerprint();
 }
 function migrations() {
   if (migrationsDigest) return migrationsDigest;
@@ -181,8 +190,8 @@ function makeKeyer(testsFor, originals) {
     try { mutated = mutatedSource(m); } catch { return null; }
     return sha(JSON.stringify([KEY_VERSION, m[1], textDigest(m[0], mutated), nd(m[0])]));
   };
-  const killerDigest = (t) => sha(JSON.stringify([closureDigest(t), needsMigrations(t) ? migrations() : null]));
-  const setDigest = (m) => { const tests = testsFor(m[0]); return sha(JSON.stringify([tests.map(closureDigest), tests.some(needsMigrations) ? migrations() : null])); };
+  const killerDigest = (t) => sha(JSON.stringify([closureDigest(t), needsMigrations(t)]));
+  const setDigest = (m) => { const tests = testsFor(m[0]); return sha(JSON.stringify([tests.map(closureDigest), tests.map(needsMigrations)])); };
   const valid = (entry, m) => {
     if (!entry || entry.status !== 'KILLED') return false;
     if (entry.killerDigest) {
@@ -192,7 +201,7 @@ function makeKeyer(testsFor, originals) {
     return entry.setDigest === setDigest(m);
   };
   const entryFor = (killerTest, detail) => ({ status: 'KILLED', detail, test: bn(killerTest), killerDigest: killerDigest(killerTest) });
-  const baselineKey = (tests) => sha(JSON.stringify([KEY_VERSION, [...new Set(tests)].map(closureDigest).sort(), tests.some(needsMigrations) ? migrations() : null]));
+  const baselineKey = (tests) => sha(JSON.stringify([KEY_VERSION, [...new Set(tests)].map(closureDigest).sort(), [...new Set(tests)].map(needsMigrations).sort()]));
   return { idOf, valid, entryFor, setDigest, killerDigest, baselineKey };
 }
 
