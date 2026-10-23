@@ -151,7 +151,11 @@ async function main() {
       ok('preview reports the exact Development rows that will be deleted (counts match reality)', m.plan.tables.every((t: any) => (m.devCountsBefore[t.name] ?? 0) === count(p.devDb, t.name)));
       ok('preview reports the exact Production rows that will be imported (counts match reality)', m.plan.tables.filter((t: any) => t.mode === 'import').every((t: any) => m.exportCounts[t.name] === count(p.prodDb, t.name)));
       ok('preview lists the Development row ids to be replaced in a file', fs.readFileSync(path.join(pv.runDir, 'dev-rows-to-replace', 'orders.ids'), 'utf8').split('\n').filter(Boolean).length === 3);
-      ok('preview names the Development-only tables emptied with their orders', m.plan.clearedWithOrders.map((c: any) => c.table).sort().join() === 'booking_setup_proofs,order_portal_links');
+      ok('preview names the Development-only tables emptied with their orders', m.plan.clearedWithOrders.map((c: any) => c.table).sort().join() === 'booking_setup_proofs,order_portal_links,task_evidence_overrides');
+      // task_evidence_overrides (photo-evidence release): dependent audit rows of tasks the refresh replaces
+      eq('the preview reports the three Development photo-rule overrides that will be emptied with their tasks', [m.devCountsBefore.task_evidence_overrides, count(p.devDb, 'task_evidence_overrides')], [3, 3]);
+      ok('the written report names the table and its row count', /task_evidence_overrides \(3 rows\)/.test(fs.readFileSync(path.join(pv.runDir, 'report.md'), 'utf8')));
+      ok('the reviewed-trigger list covers the photo-evidence trigger on task_status (the preview did not stop on it)', m.plan.triggers.some((t: any) => t.table === 'task_status' && t.name === 'trg_enforce_task_evidence' && t.reviewed));
       ok('the report states the pending Production payment and the table counts', /still 'pending'/.test(fs.readFileSync(path.join(pv.runDir, 'report.md'), 'utf8')) && /\| orders \| 3 \| 10 \|/.test(fs.readFileSync(path.join(pv.runDir, 'report.md'), 'utf8')));
       ok('the export folder holds one file per imported table', m.plan.tables.filter((t: any) => t.mode === 'import').every((t: any) => fs.existsSync(path.join(pv.runDir, 'export', `${t.name}.copy`))));
 
@@ -168,11 +172,14 @@ async function main() {
       eq('every replaced table now matches Production, row for row', scopeContentDifferences(p), []);
       ok('Development-only test orders are gone', count(p.devDb, 'orders') === 10 && scalar(p.devDb, `SELECT count(*) FROM orders WHERE special_details LIKE 'DEV ONLY%'`) === '0');
       ok('Development-only portal links and booking proofs were emptied with their orders', count(p.devDb, 'order_portal_links') === 0 && count(p.devDb, 'booking_setup_proofs') === 0);
+      eq('the old photo-rule overrides did not survive - not even the one whose task id was re-imported from Production', count(p.devDb, 'task_evidence_overrides'), 0);
+      eq('no override points at a missing task (no orphans) and every foreign key in public validates', [scalar(p.devDb, 'SELECT count(*) FROM task_evidence_overrides o LEFT JOIN task_status t ON t.id = o.task_status_id WHERE t.id IS NULL'), scalar(p.devDb, "SELECT count(*) FROM pg_constraint WHERE contype = 'f' AND NOT convalidated AND connamespace = 'public'::regnamespace")], ['0', '0']);
+      eq('the imported Production task that shares an id with an old Development task carries no inherited override', scalar(p.devDb, "SELECT count(*) FROM task_evidence_overrides WHERE task_status_id = '" + id(K.task, 1) + "'"), '0');
       ok('the older Development copy of a Production customer was replaced by the Production row', scalar(p.devDb, `SELECT last_name FROM customers WHERE id = '${id(K.customer, 1)}'`) === 'Prod');
 
       // ---- scope: what must NOT change ----
       const changed = diff(devBefore, devAfter);
-      const replaced = new Set([...Object.keys(SCOPE_CONTENT), 'order_portal_links', 'booking_setup_proofs']);
+      const replaced = new Set([...Object.keys(SCOPE_CONTENT), 'order_portal_links', 'booking_setup_proofs', 'task_evidence_overrides']);
       eq('ONLY replaced tables changed (everything else - settings, roles, inventory, pricing, templates, auth, storage, policies - is byte-identical)', changed.filter((k) => !replaced.has(k) && k !== 'triggers'), ['customer_profiles', 'site_events', 'user_consent_log']);
       ok('the two preserved tables that point at replaced rows changed ONLY in those references', scalar(p.devDb, 'SELECT count(*) FROM customer_profiles') === '3' && scalar(p.devDb, 'SELECT count(*) FROM user_consent_log') === '2');
       eq('trigger states are exactly as before', devBefore.triggers, devAfter.triggers);
@@ -229,6 +236,7 @@ async function main() {
       const r = restore({ dev: p.dev, root, id: m.id, confirm: restorePhrase(a.manifest) });
       ok('restore succeeded and verified itself', r.ok && r.mismatches.length === 0);
       eq('RESTORE RETURNED DEVELOPMENT TO THE EXACT STATE BEFORE THE REFRESH (every table, auth, storage, policies, trigger states)', diff(devBefore, snapshot(p.devDb)), []);
+      eq('restore also put the three photo-rule overrides back, attached to their tasks', [count(p.devDb, 'task_evidence_overrides'), scalar(p.devDb, 'SELECT count(*) FROM task_evidence_overrides o JOIN task_status t ON t.id = o.task_status_id')], [3, '3']);
       eq('restore also put the Development-only portal links and proofs back', [count(p.devDb, 'order_portal_links'), count(p.devDb, 'booking_setup_proofs')], [1, 1]);
       eq('Production still untouched after restore', diff(prodBefore, snapshot(p.prodDb)), []);
       ok('the sequence is still consistent after restore', scalar(p.devDb, 'SELECT (SELECT last_value FROM payments_ledger_sequence_seq) >= (SELECT max(ledger_sequence) FROM payments)') === 't');

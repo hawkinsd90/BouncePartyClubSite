@@ -158,6 +158,33 @@ const run = (prodT: any, devT: any, fks = baseFks(), triggers: any[] = [], extra
   const composite = run(base(), JSON.parse(JSON.stringify(dev)), [...baseFks(), fk('audit', ['order_id', 'id'], 'orders', 'n')]);
   ok('composite references are refused rather than guessed at', !composite.ok);
 }
+// ---- task_evidence_overrides (photo-evidence release): the real config against a synthetic schema ------------------------------------
+{
+  const scope = ['customers', 'orders', 'order_items', 'task_status'];
+  const mk = (extraTables: Record<string, any> = {}) => {
+    const t: any = base();
+    t.task_status = tbl([col('id', 'uuid', { notNull: true }), col('order_id', 'uuid'), col('task_type', 'text')]);
+    t.task_evidence_overrides = tbl([col('id', 'uuid', { notNull: true }), col('task_status_id', 'uuid', { notNull: true }), col('order_id', 'uuid', { notNull: true }), col('actor_id', 'uuid', { notNull: true })]);
+    return { ...t, ...extraTables };
+  };
+  const prodT = (() => { const t: any = mk(); delete t.task_evidence_overrides; return t; })(); // Production predates the release
+  const fks = (override: string, extra: any[] = []) => [...baseFks(), fk('task_status', ['order_id'], 'orders'), fk('task_evidence_overrides', ['task_status_id'], 'task_status', override), ...extra];
+  const analyzeReal = (devT: any, devFks: any[]) => analyze(schema(prodT), schema(devT, devFks), { scope, deferred: {}, cleared: config.CLEARED_WITH_ORDERS, reviewedTriggers: {} });
+
+  ok('the shipped config lists task_evidence_overrides among the tables emptied with their orders, and it is not also a replaced table', config.CLEARED_WITH_ORDERS.includes('task_evidence_overrides') && !config.REPLACE_TABLES.includes('task_evidence_overrides'));
+  const good = analyzeReal(mk(), fks('c'));
+  ok('with the shipped config the overrides (ON DELETE CASCADE from task_status) are planned as emptied with their tasks, not as a blocker', good.ok && good.clearedWithOrders.map((c: any) => c.table).join() === 'task_evidence_overrides' && good.clearedWithOrders[0].parent === 'task_status');
+  const noAction = analyzeReal(mk(), fks('a'));
+  ok('the same table with a non-cascading reference still stops the run (only a cascade qualifies)', !noAction.ok && noAction.blockers.some((b: string) => /expected ON DELETE CASCADE/.test(b)));
+  const sibling = mk({ zz_task_note: tbl([col('id', 'uuid', { notNull: true }), col('task_status_id', 'uuid')]) });
+  const withSibling = analyzeReal(sibling, fks('c', [fk('zz_task_note', ['task_status_id'], 'task_status', 'c')]));
+  ok('an unrecognized dependent table that cascades from task_status still stops the run', !withSibling.ok && withSibling.blockers.some((b: string) => /zz_task_note.*would delete rows of an unscoped table/.test(b)));
+  const siblingRestrict = analyzeReal(sibling, fks('c', [fk('zz_task_note', ['task_status_id'], 'task_status', 'a')]));
+  ok('an unrecognized dependent table with no cascade (the delete would fail) still stops the run', !siblingRestrict.ok);
+  ok('the photo-evidence trigger on task_status is a reviewed trigger (and an unreviewed one on task_status still blocks)', Object.prototype.hasOwnProperty.call(config.REVIEWED_TRIGGERS, 'task_status.trg_enforce_task_evidence') && !analyze(schema(prodT), schema(mk(), fks('c'), [{ table: 'task_status', name: 'zz_unreviewed', enabled: 'O', function: 'f', callsOutside: false }]), { scope, deferred: {}, cleared: config.CLEARED_WITH_ORDERS, reviewedTriggers: config.REVIEWED_TRIGGERS }).ok);
+  const gone = analyze(schema(prodT), schema(prodT, [...baseFks(), fk('task_status', ['order_id'], 'orders')]), { scope, deferred: {}, cleared: config.CLEARED_WITH_ORDERS, reviewedTriggers: {} });
+  ok('a Development database that does not have the table yet (before the release) plans normally', gone.ok && gone.clearedWithOrders.length === 0);
+}
 // ---- triggers --------------------------------------------------------------------------------------------------------
 {
   const tg = (table: string, name: string, extra: any = {}) => ({ table, name, enabled: 'O', function: 'f', callsOutside: false, ...extra });

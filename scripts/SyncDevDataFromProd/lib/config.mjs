@@ -62,7 +62,13 @@ export const DEFERRED_COLUMNS = {
 
 // Development-only tables whose rows hang off an order with ON DELETE CASCADE. They are emptied together with the orders they
 // belong to (their rows are meaningless without the order) and there is nothing to import into them.
-export const CLEARED_WITH_ORDERS = ['order_portal_links', 'booking_setup_proofs'];
+// task_evidence_overrides (release migration 20261027160000): one audit row per task that an Admin released without a proof photo. It has
+// exactly one reference, task_status_id -> task_status ON DELETE CASCADE (UNIQUE), nothing references it, and its other columns (order_id,
+// actor_id) carry no foreign key. It is therefore dependent evidence of a replaced task and is emptied with the tasks; the imported tasks
+// are already completed Production history (the evidence rule only checks the move INTO 'completed' for browser roles). Production's own
+// override rows are not carried into Development by this list; moving the table to REPLACE_TABLES (after task_status) would import them
+// once Production has the table.
+export const CLEARED_WITH_ORDERS = ['order_portal_links', 'booking_setup_proofs', 'task_evidence_overrides'];
 
 // ---------------------------------------------------------------------------------------------------------------------
 // Column rules
@@ -129,6 +135,7 @@ export const REVIEWED_TRIGGERS = {
   'payments.update_payments_updated_at': 'timestamp on UPDATE',
   'payments.trg_note_payment_applied_to_closed_order': 'would write order notes; notes are imported from Production',
   'task_status.trigger_auto_update_order_status': 'would change order status from task rows; orders are imported with their status',
+  'task_status.trg_enforce_task_evidence': 'photo-evidence rule for browser-role completion; imported tasks are Production history (the refresh does not run as a browser role)',
   'transaction_receipts.update_transaction_receipts_timestamp': 'timestamp on UPDATE',
 };
 

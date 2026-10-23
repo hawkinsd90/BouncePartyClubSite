@@ -156,6 +156,9 @@ const USER_OF = { alice: USERS.alice, bob: USERS.bob, carol: USERS.carol, dave: 
 // --------------------------------------------------------------------------------------------------------------------
 const SHAPE_PRODUCTION = `
 DROP TABLE IF EXISTS public.order_portal_links, public.booking_setup_proofs CASCADE;
+-- Production predates the photo-evidence release (migration 20261027160000): no override table, no completion-evidence trigger.
+DROP TABLE IF EXISTS public.task_evidence_overrides CASCADE;
+DROP TRIGGER IF EXISTS trg_enforce_task_evidence ON public.task_status;
 DROP TRIGGER IF EXISTS trg_guard_order_pricing_authority ON public.orders;
 DROP TRIGGER IF EXISTS trg_guard_payment_authoritative_order_changes ON public.orders;
 DROP TRIGGER IF EXISTS trg_cancel_unattempted_payments_on_order_close ON public.orders;
@@ -280,6 +283,12 @@ export function developmentSeedSql() {
     L.push(`INSERT INTO public.task_status (id, order_id, task_type, task_date, status) VALUES (${sq(id(K.task, i))}, ${sq(o)}, 'drop-off', '2026-09-01', 'pending');`);
   }
   L.push(`INSERT INTO public.order_signatures (id, order_id, customer_id, signer_name, signer_email, signer_phone, signature_image_url, typed_name, ip_address, user_agent, waiver_text_snapshot, electronic_consent_text, event_date, event_address_line1, event_city, event_state, event_zip, initials_data, waiver_version) VALUES (${sq(id(K.signature, 901))}, ${sq(id(K.order, 901))}, ${sq(dc)}, 'Dev Tester', 'devtest@example.test', '+15550000002', 'https://scratch.invalid/storage/v1/object/public/signatures/${id(K.order, 901)}/sig.png', 'Dev Tester', '203.0.113.1', 'a', 'w', 'c', '2026-09-01', '9 Dev St', 'Testville', 'MI', '48109', '{}'::jsonb, 'v1');`);
+  // Admin overrides of the photo rule (release migration 20261027160000) on Development tasks: task 1 shares its id with the Production task of the
+  // same id (it is replaced and re-imported), tasks 901 and 902 exist only in Development.
+  L.push(`INSERT INTO public.task_evidence_overrides (id, task_status_id, order_id, task_type, actor_id, reason) VALUES
+    (gen_random_uuid(), ${sq(id(K.task, 1))}, ${sq(id(K.order, 1))}, 'drop-off', ${sq(id(K.task, 1))}, 'synthetic override reason one'),
+    (gen_random_uuid(), ${sq(id(K.task, 901))}, ${sq(id(K.order, 901))}, 'drop-off', ${sq(id(K.task, 1))}, 'synthetic override reason two'),
+    (gen_random_uuid(), ${sq(id(K.task, 902))}, ${sq(id(K.order, 902))}, 'drop-off', ${sq(id(K.task, 1))}, 'synthetic override reason three');`);
   L.push(`INSERT INTO public.order_portal_links (id, order_id, short_code) VALUES (${sq(id(K.portal, 1))}, ${sq(id(K.order, 901))}, 'DEVLINK1');`);
   L.push(`INSERT INTO public.booking_setup_proofs (id, order_id, token_hash, expires_at) VALUES (${sq(id(K.proof, 1))}, ${sq(id(K.order, 901))}, 'hash', now() + interval '1 day');`);
   // Preserved tables that point at replaceable rows

@@ -87,8 +87,9 @@ truncated, and no `CASCADE` is used.
 Replaced (`lib/config.mjs`, `REPLACE_TABLES`): customers, addresses, contacts, orders, billing_addresses, order_signatures, order_items,
 order_discounts, order_custom_fees, order_notes, order_changelog, order_workflow_events, payments, order_refunds, transaction_receipts,
 invoices, invoice_links, consent_records, task_status, route_stops, crew_location_history, documents, messages, sms_conversations,
-order_pictures, order_lot_pictures, address_lot_pictures. Development-only tables hanging off orders (`order_portal_links`,
-`booking_setup_proofs`) are emptied with their orders.
+order_pictures, order_lot_pictures, address_lot_pictures. Development-only tables hanging off orders or tasks (`order_portal_links`,
+`booking_setup_proofs`, and `task_evidence_overrides` - the Admin photo-rule overrides, one per task, which cascade from `task_status`) are emptied
+with their orders; Production's own override rows are not imported (move the table to the replaced list once Production has it, if Development should carry them).
 
 Never touched: schema, migration history, Edge Functions, auth users and sessions, roles, `admin_settings` (credentials), pricing rules,
 inventory/units/media, the product catalog, templates, blackout rules, Stripe webhook log, analytics, rate limits, **Storage objects,
