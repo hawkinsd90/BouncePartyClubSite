@@ -35,6 +35,17 @@ if (process.argv.includes('--plan')) {
   process.exit(0);
 }
 
+// --full asks for everything from scratch, but a from-scratch run is only worth repeating when one is due (full-gate.cjs): the tests and the
+// mutation suites decide for themselves; the type check, lint and build decide here. Otherwise the run is incremental, and says why.
+const fullGate = require('./full-gate.cjs');
+let staticFull = full;
+if (full) {
+  const d = fullGate.decide('static');
+  if (!d.full) { staticFull = false; console.log(d.note); }
+}
+// the label for a step that was asked to run from scratch but did not (its own log carries the NOTE)
+const fromScratch = (text) => (full && !/^NOTE: a from-scratch run/m.test(text) ? ' (--full: cache ignored)' : '');
+
 // The database-backed tests and the mutation suites need the scratch PostgreSQL and its bpc_replay_* databases. If a reboot or another session
 // removed them, say so now (about a second) instead of failing 25 tests, or a mutation baseline, minutes into the run. SKIP_PREFLIGHT=1 skips it.
 if (!process.env.SKIP_PREFLIGHT && !require('./scratch-env.cjs').requireScratch('verify')) process.exit(2);
@@ -58,7 +69,7 @@ function step(name, cmd, args, env = process.env) {
 function buildStep() {
   const bc = require('./build-cache.cjs');
   const key = bc.key();
-  if (!full && process.env.BUILD_CACHE !== '0' && bc.unchanged(key)) {
+  if (!staticFull && process.env.BUILD_CACHE !== '0' && bc.unchanged(key)) {
     const log = path.join(LOGS, 'build.log');
     fs.writeFileSync(log, 'build skipped: nothing it reads changed since it last succeeded (BUILD_CACHE=0 or --full builds anyway)\n');
     console.log('ok   build (0s, reused: nothing it reads changed)');
@@ -72,7 +83,7 @@ function buildStep() {
   // Type check and lint keep a cache in node_modules/.cache (incremental tsc, eslint --cache). Measured on this repository the diagnostics are
   // byte-for-byte the same as the plain commands, and a warm run takes 45 s / 15 s instead of 125 s / 112 s. --full (and STATIC_CACHE=0) run the
   // plain commands from scratch.
-  const cachedStatic = !full && process.env.STATIC_CACHE !== '0';
+  const cachedStatic = !staticFull && process.env.STATIC_CACHE !== '0';
   const npx = process.platform === 'win32' ? 'npx.cmd' : 'npx';
   const staticChecks = Promise.all([
     cachedStatic
@@ -110,7 +121,7 @@ function buildStep() {
   }
   for (const r of all.filter((x) => /mutants$/.test(x.name))) {
     const m = fs.readFileSync(r.log, 'utf8').match(/^mutants: (\d+) \((\d+) from cache\)/m);
-    if (m) console.log(`${r.name}: ${m[1]} mutants, ${m[2]} reused from the cache, ${Number(m[1]) - Number(m[2])} run${full ? ' (--full: cache ignored)' : ''}`);
+    if (m) console.log(`${r.name}: ${m[1]} mutants, ${m[2]} reused from the cache, ${Number(m[1]) - Number(m[2])} run${fromScratch(fs.readFileSync(r.log, 'utf8'))}`);
   }
   // What did NOT run is reported, never hidden: tests skipped for lack of the evidence-derived databases, and how many were reused.
   const testsLog = all.find((x) => x.name === 'tests');
@@ -120,9 +131,10 @@ function buildStep() {
     const skipped = text.match(/^SKIPPED \(needs[^\n]*\n((?:     [^\n]+\n?)+)/m);
     if (skipped) warnings.push('tests SKIPPED, not passed (they need the evidence-derived databases, see run-tests.cjs): ' + skipped[1].split('\n').map((l) => l.trim()).filter(Boolean).join(', '));
     const reusedTests = text.match(/^reused from the cache (\d+), ran (\d+)/m);
-    if (reusedTests) console.log(`tests: ${reusedTests[1]} reused from the cache, ${reusedTests[2]} run${full ? ' (--full: cache ignored)' : ''}`);
+    if (reusedTests) console.log(`tests: ${reusedTests[1]} reused from the cache, ${reusedTests[2]} run${fromScratch(text)}`);
   }
   console.log(`\nelapsed ${Math.round((Date.now() - started) / 1000)}s; logs in ${LOGS}`);
+  if (staticFull) fullGate.record('static');
   if (warnings.length) console.log('WARNINGS:\n  ' + warnings.join('\n  '));
   if (problems.length) {
     console.log('PROBLEMS:\n  ' + problems.join('\n  '));

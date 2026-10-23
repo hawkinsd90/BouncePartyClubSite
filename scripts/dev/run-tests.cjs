@@ -47,6 +47,16 @@ const changedArg = argv.find((a) => a === '--changed' || a.startsWith('--changed
 const failedOnly = argv.includes('--failed');
 const filters = argv.filter((a) => !a.startsWith('--'));
 
+// A from-scratch request (--full, NO_CACHE=1) over the whole suite only runs from scratch when one is due (full-gate.cjs); otherwise it runs
+// incrementally and says why. Runs limited to some files, or with the cache off, are left as asked.
+const fullGate = require('./full-gate.cjs');
+let recordFull = false;
+if (process.env.NO_CACHE && !process.env.CACHE_OFF && !filters.length && !changedArg && !failedOnly) {
+  const d = fullGate.decide('tests', { cacheFile: 'node_modules/.cache/tests/results.json' });
+  if (d.full) recordFull = true;
+  else { delete process.env.NO_CACHE; console.log(d.note); }
+}
+
 const scratch = require('./scratch-env.cjs');
 const testCache = require('./test-cache.cjs');
 
@@ -199,5 +209,6 @@ function runOne(f) {
     fs.mkdirSync(path.dirname(out), { recursive: true });
     fs.writeFileSync(out, JSON.stringify({ at: new Date().toISOString(), elapsedMs: Date.now() - started, files: done.map((d) => ({ file: d.f, status: d.status, ms: d.ms })).concat(noShapes.map((f) => ({ file: f, status: 'skipped-needs-shapes', ms: 0 }))).sort((a, b) => b.ms - a.ms) }, null, 1));
   } catch { /* the report is a convenience */ }
+  if (recordFull) fullGate.record('tests');
   process.exit(fails.length ? 1 : 0);
 })();

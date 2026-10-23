@@ -26,10 +26,21 @@ turn the cache off.
 | Fixing a failure | `node scripts/dev/run-tests.cjs --failed`, or `node scripts/dev/run-tests.cjs <part of a file name>` |
 | About to hand work over or commit | `node scripts/dev/verify.cjs` (type check, lint, build, tests and mutants; everything unchanged is skipped) |
 | Not sure how long the mutants will take | `node scripts/dev/verify.cjs --plan` (says how many would run; runs nothing) |
-| Doing the final check of a piece of work | `node scripts/dev/verify.cjs --full` (everything from scratch, then remembered for next time). Once, not after every edit |
+| Asking for "everything from scratch" | `node scripts/dev/verify.cjs --full`. The tools decide whether that is really needed (see below), so it is safe to ask for at any time |
 | Tests only, no mutants | `node scripts/dev/verify.cjs --quick` |
 
 `--full` is what "uncached" or "from scratch" means. Do not use `CACHE_OFF=1` for that: it throws results away without remembering new ones.
+
+### When a from-scratch run really happens
+
+A from-scratch run is the safety net for what the cache cannot see, so it only needs repeating now and then. `--full` (and `NO_CACHE=1`) therefore check whether one is **due**, separately for the tests, each mutation suite and the static checks. It runs from scratch when:
+
+- none has been completed yet, or the stored results it left behind are gone;
+- the last one finished more than 24 hours ago (`FULL_MAX_HOURS` changes the limit);
+- node, `package-lock.json` or the pipeline's own tooling changed since the last one;
+- or you set `FORCE_FULL=1`.
+
+Otherwise it runs the normal incremental way and prints a `NOTE:` saying why. Every reused result is matched to the exact files it depends on, and the output still says how many were reused and how many ran. Runs limited to some test files, or with `CACHE_OFF=1`, are left as asked.
 
 ## Reading the output
 
@@ -74,7 +85,7 @@ It rebuilds only what is missing or older (about 90 seconds per database; a new 
 
 ## Habits that keep it fast
 
-- Leave the cache on. Do not set `CACHE_OFF=1`, and do not set `NO_CACHE=1` on every mutation run (it reruns all 395 + 218 mutants even when a few changed).
+- Leave the cache on. Do not set `CACHE_OFF=1`. `NO_CACHE=1` and `--full` are safe to use: they only run from scratch when one is due (see above).
 - Leave `PARALLEL` alone. The default (3) was measured fastest on this 2-core machine; 6 is slower.
 - While editing, use `--changed` or a file-name filter. Run the whole thing before you hand work over, and `--full` once at the very end.
 - A change to a widely shared file (for example `src/lib/database.types.ts`) legitimately reruns most tests. That is correct, not a fault.
@@ -89,7 +100,7 @@ It rebuilds only what is missing or older (about 90 seconds per database; a new 
 | A test fails that you did not touch | Either a real regression, or a database out of date | Run the warning check above, then `run-tests.cjs <file>` again |
 | A mutation survivor | A planted bug no test catches | Add or strengthen a test for that behaviour |
 | `Gave up waiting` | The queue wait limit (2 hours) passed | Find what holds the lock (`%TEMP%\bpc-db-tests.lock` holds a process number), or try again later |
-| Everything reruns after you changed one file | You changed something many tests depend on (see above), or ran with `--full` or `NO_CACHE=1` | Normal; the next run is quick again |
+| Everything reruns after you changed one file | You changed something many tests depend on (see above), or a from-scratch run was due | Normal; the next run is quick again |
 
 ## Where things live
 

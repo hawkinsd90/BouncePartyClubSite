@@ -396,6 +396,15 @@ function runTests(cwd, tests, idx, fast, dbFull) {
 // `tests` is a list, or a function (mutated file) -> list.
 exports.runMutants = async function runMutants({ M, tests, spec = 'mutants' }) {
   const started = Date.now();
+  // NO_CACHE=1 over the whole suite only runs from scratch when one is due (full-gate.cjs); otherwise it runs incrementally and says why.
+  const fullGate = require('./full-gate.cjs');
+  const gateKind = path.basename(spec).replace(/\.cjs$/, '');
+  let recordFull = false;
+  if (process.env.NO_CACHE && !process.env.CACHE_OFF && !process.env.ONLY && !process.env.ONLY_FILE && !process.env.CHANGED) {
+    const d = fullGate.decide(gateKind, { cacheFile: `node_modules/.cache/mutation/${path.basename(spec).replace(/\W/g, '_')}.json` });
+    if (d.full) recordFull = true;
+    else { delete process.env.NO_CACHE; console.log(d.note); }
+  }
   const testsFor = (file) => (typeof tests === 'function' ? tests(file) : tests);
   const workers = Math.max(1, Number(process.env.WORKERS) || os.cpus().length - 1);
   const norm = (s) => s.replace(/\r\n/g, '\n');
@@ -644,7 +653,7 @@ exports.runMutants = async function runMutants({ M, tests, spec = 'mutants' }) {
   if (errors) {
     console.log(`${errors} mutant(s) could not be judged (see ERROR lines): the run is NOT valid until they are fixed.`);
     process.exitCode = 1;
-  }
+  } else if (recordFull) fullGate.record(gateKind);
 };
 
 exports.makeKeyer = makeKeyer;
