@@ -54,6 +54,15 @@ VITE_STRIPE_PUBLISHABLE_KEY=
 npm run dev
 ```
 
+## Testing
+
+```bash
+node scripts/dev/run-tests.cjs --changed   # quick check while editing
+node scripts/dev/verify.cjs                # type check, lint, build, tests and mutation suites before handing work over
+```
+
+Results that did not change are reused, so repeat runs take seconds to minutes. See [`docs/testing.md`](docs/testing.md) for what each check means, which command to run when, and what to do when something looks wrong.
+
 ## Project Structure
 
 ```
@@ -109,6 +118,8 @@ supabase/
 | `docs/INTEGRATIONS.md` | Stripe, Twilio, Resend, Google Maps, Google Calendar |
 | `docs/ORDERS_AND_WORKFLOW.md` | Order lifecycle, approval flow, changelog, invoice system |
 | `docs/PAYMENTS_AND_RECEIPTS.md` | Payment types, Stripe webhooks, receipt logging, cash/check flows |
+| `docs/testing.md` | How to run the tests, mutation suites and checks; reading the output; troubleshooting |
+| `scripts/dev/PIPELINE.md` | Technical reference for the test pipeline: caching, the scratch database server, sharing the machine |
 
 ## Build
 

@@ -1,5 +1,7 @@
 # Verification pipeline (scripts/dev)
 
+Technical reference. For how to use it day to day (which command, when, what the output means, troubleshooting) read [`docs/testing.md`](../../docs/testing.md) first.
+
 One page for everyone who runs tests or mutation testing on this machine (several Claude sessions share it).
 
 ## Everyday commands
