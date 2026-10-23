@@ -1,4 +1,6 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
+import { showConfirm } from '../../lib/toasts';
+import { endWindowAfterDecline, endWindowExceptionMessage, isEndWindowRestricted, needsEndWindowConfirmation } from '../../lib/core/endWindowExceptions';
 
 interface EventDetails {
   event_date: string;
@@ -44,8 +46,20 @@ const initialEventDetails: EventDetails = {
   overnight_responsibility_accepted: false,
 };
 
-export function useInvoiceEventDetails() {
+interface UseInvoiceEventDetailsOptions {
+  // Asks staff to confirm an end time outside the normal customer window; resolves true to keep it. Defaults to the app's confirm dialog.
+  confirmEndWindowException?: (message: string) => Promise<boolean>;
+}
+
+const askStaff = (message: string) => showConfirm(message, { confirmText: 'Keep this end time', cancelText: 'Go back', type: 'warning' });
+
+export function useInvoiceEventDetails(options: UseInvoiceEventDetailsOptions = {}) {
+  const confirmEndWindowException = options.confirmEndWindowException ?? askStaff;
   const [eventDetails, setEventDetails] = useState<EventDetails>(initialEventDetails);
+  // The one end time staff have confirmed as an exception (session state only; nothing is stored). A different end time asks again.
+  const [confirmedEndWindow, setConfirmedEndWindow] = useState<string | null>(null);
+  const lastAcceptedEndWindow = useRef(initialEventDetails.end_window);
+  const askedEndWindow = useRef<string | null>(null);
 
   useEffect(() => {
     if (eventDetails.location_type === 'commercial') {
@@ -70,29 +84,49 @@ export function useInvoiceEventDetails() {
   }, [eventDetails.location_type]);
 
   useEffect(() => {
-    const isSameDayRestricted =
-      (eventDetails.location_type === 'residential' && eventDetails.pickup_preference === 'same_day') ||
-      eventDetails.location_type === 'commercial';
-
-    if (isSameDayRestricted) {
-      const cappedEndWindow = eventDetails.end_window > '19:00' ? '19:00' : eventDetails.end_window;
+    // A same-day or commercial rental ends on its start date. (The end TIME is handled by the exception check below: it is no longer
+    // silently cut to 19:00, because staff may have entered a later time on purpose.)
+    if (isEndWindowRestricted({ location_type: eventDetails.location_type, pickup_preference: eventDetails.pickup_preference })) {
       setEventDetails(prev => {
-        if (
-          prev.event_end_date === prev.event_date &&
-          prev.until_end_of_day === false &&
-          prev.end_window === cappedEndWindow
-        ) {
+        if (prev.event_end_date === prev.event_date && prev.until_end_of_day === false) {
           return prev;
         }
         return {
           ...prev,
           event_end_date: prev.event_date,
           until_end_of_day: false,
-          end_window: cappedEndWindow,
         };
       });
     }
   }, [eventDetails.pickup_preference, eventDetails.location_type, eventDetails.event_date]);
+
+  // An end time after 19:00 on a same-day or commercial rental is allowed for staff, but only after an explicit confirmation of that exact time.
+  // Asked when the time is entered or when the rental type changes underneath an existing time; not asked again for the same confirmed time;
+  // declining goes back to the last accepted time (or to 19:00 when that is no longer allowed).
+  useEffect(() => {
+    const ctx = { location_type: eventDetails.location_type, pickup_preference: eventDetails.pickup_preference };
+    const endWindow = eventDetails.end_window;
+    if (!needsEndWindowConfirmation({ ...ctx, end_window: endWindow, confirmedEndWindow })) {
+      lastAcceptedEndWindow.current = endWindow;
+      // A confirmed exception covers only that exact time: once the time is edited to something else, going back to it asks again.
+      if (confirmedEndWindow !== null && confirmedEndWindow !== endWindow) setConfirmedEndWindow(null);
+      return;
+    }
+    if (askedEndWindow.current === endWindow) return;
+    askedEndWindow.current = endWindow;
+    void confirmEndWindowException(endWindowExceptionMessage(endWindow)).then(keep => {
+      askedEndWindow.current = null;
+      if (keep) {
+        setConfirmedEndWindow(endWindow);
+        return;
+      }
+      setEventDetails(prev =>
+        prev.end_window !== endWindow
+          ? prev
+          : { ...prev, end_window: endWindowAfterDecline({ location_type: prev.location_type, pickup_preference: prev.pickup_preference, lastAcceptedEndWindow: lastAcceptedEndWindow.current, confirmedEndWindow }) }
+      );
+    });
+  }, [eventDetails.end_window, eventDetails.location_type, eventDetails.pickup_preference, confirmedEndWindow, confirmEndWindowException]);
 
   function updateEventDetails(updates: Partial<EventDetails>) {
     setEventDetails(prev => ({ ...prev, ...updates }));

@@ -51,11 +51,12 @@ ok('useCustomerManagement exposes the raw useState setter', /const \[showCustome
 // 3. warnings intentionally left visible (not suppressed): a business decision, or a change that belongs outside a mechanical lint commit.
 // (PrintModal and useGeneratorCheckbox were resolved in the corrective phase: see PrintModal.test.ts and useGeneratorCheckboxConversion.test.ts.)
 const LEFT_VISIBLE: Array<[string, string]> = [
-  ['src/hooks/invoices/useInvoiceEventDetails.ts', 'the 19:00 end-window cap is not re-applied when end_window is edited: REPRODUCED (useInvoiceEventDetails.test.ts); whether the limit binds staff-entered invoices is a business decision'],
   ['src/components/admin/orders/OrderDetailModal.tsx', 'loadedOrderItemsForOrderId: Admin edit-order workflow, change kept out of the lint commits'],
   ['src/components/admin/tasks/detail/TaskDetailCustomerInfo.tsx', 'task.waiverSigned: waiver code, change kept out of the lint commits'],
   ['src/App.tsx', 'navigate in the OAuth redirect effect: change kept out of the lint commits'],
 ];
+// resolved: useInvoiceEventDetails no longer carries a dependency warning (its end-time exception check lists every value it reads, and the dates effect no longer reads the end time)
+ok('useInvoiceEventDetails: no hook-dependency suppression needed', !/eslint-disable/.test(read('src/hooks/invoices/useInvoiceEventDetails.ts')));
 for (const [file, why] of LEFT_VISIBLE) {
   const t = read(file);
   const idx = t.indexOf('react-hooks/exhaustive-deps');
