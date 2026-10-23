@@ -5,7 +5,8 @@ import reactRefresh from 'eslint-plugin-react-refresh';
 import tseslint from 'typescript-eslint';
 
 export default tseslint.config(
-  { ignores: ['dist'] },
+  // .SyncDevDataFromProd/ holds backups of hosted function sources written by the Dev-refresh tool (git-ignored, not project code).
+  { ignores: ['dist', '.SyncDevDataFromProd/**'] },
   {
     extends: [js.configs.recommended, ...tseslint.configs.recommended],
     files: ['**/*.{ts,tsx}'],
