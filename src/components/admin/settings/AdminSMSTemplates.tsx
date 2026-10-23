@@ -3,16 +3,10 @@ import { supabase } from '../../../lib/supabase';
 import { Edit2 } from 'lucide-react';
 import { notifyError, notifySuccess } from '../../../lib/toasts';
 import { TextareaInput } from '../../forms/TextareaInput';
-
-interface SMSTemplate {
-  id: string;
-  template_name: string;
-  description: string;
-  message_body: string;
-}
+import { smsTemplateUpdate, type SmsTemplate } from '../../../lib/notifications/smsTemplates';
 
 interface AdminSMSTemplatesProps {
-  templates: SMSTemplate[];
+  templates: SmsTemplate[];
   onRefetch: () => void;
 }
 
@@ -28,7 +22,7 @@ const TEMPLATE_VARIABLES = [
 ];
 
 export function AdminSMSTemplates({ templates, onRefetch }: AdminSMSTemplatesProps) {
-  const [editingTemplate, setEditingTemplate] = useState<SMSTemplate | null>(null);
+  const [editingTemplate, setEditingTemplate] = useState<SmsTemplate | null>(null);
   const [savingTemplate, setSavingTemplate] = useState(false);
 
   async function handleSaveTemplate() {
@@ -38,7 +32,7 @@ export function AdminSMSTemplates({ templates, onRefetch }: AdminSMSTemplatesPro
     try {
       const { error } = await supabase
         .from('sms_message_templates')
-        .update({ message_body: editingTemplate.message_body })
+        .update(smsTemplateUpdate(editingTemplate.message_template))
         .eq('id', editingTemplate.id);
 
       if (error) throw error;
@@ -91,7 +85,7 @@ export function AdminSMSTemplates({ templates, onRefetch }: AdminSMSTemplatesPro
               </button>
             </div>
             <div className="mt-3 p-3 bg-slate-50 rounded border border-slate-200">
-              <p className="text-sm text-slate-700 font-mono whitespace-pre-wrap">{template.message_body}</p>
+              <p className="text-sm text-slate-700 font-mono whitespace-pre-wrap">{template.message_template}</p>
             </div>
           </div>
         ))}
@@ -105,8 +99,8 @@ export function AdminSMSTemplates({ templates, onRefetch }: AdminSMSTemplatesPro
             <div className="mb-4">
               <TextareaInput
                 label="Message Template"
-                value={editingTemplate.message_body}
-                onChange={(value) => setEditingTemplate({ ...editingTemplate, message_body: value })}
+                value={editingTemplate.message_template}
+                onChange={(value) => setEditingTemplate({ ...editingTemplate, message_template: value })}
                 rows={6}
                 className="font-mono"
               />

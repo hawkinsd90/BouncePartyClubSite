@@ -493,6 +493,23 @@ export function buildScenarios(): Scenario[] {
     add('unit warning: the old status spellings "voided" / "canceled" are not allowed order statuses (the constraint knows cancelled and void)', 'anon', null, `SELECT (SELECT count(*) FROM unnest(ARRAY['voided', 'canceled']) s WHERE pg_get_constraintdef((SELECT oid FROM pg_constraint WHERE conrelid = 'public.orders'::regclass AND conname = 'orders_status_check')) LIKE '%' || s || '%')::text`, '0');
     add('unit warning: the statuses the lookup ignores are exactly the cancelled / void statuses the order status constraint allows', 'anon', null, `SELECT (SELECT count(*) FROM unnest(ARRAY[${statuses}]) s WHERE pg_get_constraintdef((SELECT oid FROM pg_constraint WHERE conrelid = 'public.orders'::regclass AND conname = 'orders_status_check')) LIKE '%' || s || '%')::text`, '2');
   }
+  // ---- sms_message_templates: the Admin SMS Templates contract (the column is message_template; message_body belongs to sms_conversations) ----
+  const SMT = 'public.sms_message_templates';
+  const SMT_KEY = 'zz_test_template';
+  add('sms templates: the ORIGINAL query shape (select message_body) fails on the real schema', 'authenticated', IDS.uAdmin, `SELECT message_body FROM ${SMT} LIMIT 1`, 'ERR:42703');
+  add('sms templates: the ORIGINAL update shape (set message_body) fails on the real schema', 'authenticated', IDS.uAdmin, `UPDATE ${SMT} SET message_body = 'x'`, 'ERR:42703');
+  add('sms templates: existing templates load with their text through the corrected column list', 'authenticated', IDS.uAdmin, `SELECT count(*)::text FROM (SELECT id, template_key, template_name, message_template, description FROM ${SMT}) t WHERE t.message_template <> ''`, (v) => Number(v) >= 1);
+  add('sms templates: an Admin can add a synthetic template (creation)', 'authenticated', IDS.uAdmin, `INSERT INTO ${SMT} (template_key, template_name, message_template, description) VALUES ('${SMT_KEY}', 'Test template', 'Hello {customer_first_name}', 'synthetic') RETURNING 'inserted'`, 'inserted');
+  add('sms templates: ...it loads with its text', 'authenticated', IDS.uAdmin, `SELECT message_template FROM ${SMT} WHERE template_key = '${SMT_KEY}'`, 'Hello {customer_first_name}');
+  add('sms templates: the screens\' exact update (message_template only) changes one row', 'authenticated', IDS.uAdmin, upd(`UPDATE ${SMT} SET message_template = 'Updated {order_id}' WHERE template_key = '${SMT_KEY}'`), '1');
+  add('sms templates: reloading returns the updated text and every other column is unchanged', 'authenticated', IDS.uAdmin, `SELECT concat_ws('|', template_key, template_name, coalesce(description, ''), message_template) FROM ${SMT} WHERE template_key = '${SMT_KEY}'`, `${SMT_KEY}|Test template|synthetic|Updated {order_id}`);
+  add('sms templates: the SMS-sending functions (service role) read the updated text by template_key', 'service_role', null, `SELECT message_template FROM ${SMT} WHERE template_key = '${SMT_KEY}'`, 'Updated {order_id}');
+  add('sms templates: customer A cannot update a template', 'authenticated', IDS.uA, upd(`UPDATE ${SMT} SET message_template = 'tampered'`), '0');
+  add('sms templates: customer A cannot add a template', 'authenticated', IDS.uA, `INSERT INTO ${SMT} (template_key, template_name, message_template) VALUES ('zz_a', 'a', 'a') RETURNING 'inserted'`, denied);
+  add('sms templates: crew cannot update or delete a template', 'authenticated', IDS.uCrew, `SELECT (${n(`UPDATE ${SMT} SET message_template = 'tampered'`)} + ${n(`DELETE FROM ${SMT}`)})::text`, '0');
+  add('sms templates: anon cannot read or write templates', 'anon', null, `SELECT message_template FROM ${SMT} LIMIT 1`, denied);
+  add('sms templates: an Admin can delete the synthetic template (deletion)', 'authenticated', IDS.uAdmin, upd(`DELETE FROM ${SMT} WHERE template_key = '${SMT_KEY}'`), '1');
+  add('sms templates: ...and it is gone', 'authenticated', IDS.uAdmin, cnt('sms_message_templates', `template_key = '${SMT_KEY}'`), '0');
   return s;
 }
 

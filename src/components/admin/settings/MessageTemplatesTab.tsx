@@ -6,13 +6,7 @@ import { LoadingSpinner } from '../../common/LoadingSpinner';
 import { TextareaInput } from '../../forms/TextareaInput';
 import { TextInput } from '../../forms/TextInput';
 import { asErrorLike } from '../../../lib/core/errorLike';
-
-interface SMSTemplate {
-  id: string;
-  template_name: string;
-  description: string | null;
-  message_body: string;
-}
+import { SMS_TEMPLATE_SELECT, smsTemplateUpdate, type SmsTemplate } from '../../../lib/notifications/smsTemplates';
 
 interface EmailTemplate {
   id: string;
@@ -56,10 +50,10 @@ const EMAIL_VARIABLES = [
 ];
 
 export function MessageTemplatesTab() {
-  const [smsTemplates, setSmsTemplates] = useState<SMSTemplate[]>([]);
+  const [smsTemplates, setSmsTemplates] = useState<SmsTemplate[]>([]);
   const [emailTemplates, setEmailTemplates] = useState<EmailTemplate[]>([]);
   const [loading, setLoading] = useState(true);
-  const [editingSMS, setEditingSMS] = useState<SMSTemplate | null>(null);
+  const [editingSMS, setEditingSMS] = useState<SmsTemplate | null>(null);
   const [editingEmail, setEditingEmail] = useState<EmailTemplate | null>(null);
   const [saving, setSaving] = useState(false);
   const [activeTab, setActiveTab] = useState<'sms' | 'email'>('sms');
@@ -72,7 +66,7 @@ export function MessageTemplatesTab() {
     setLoading(true);
     try {
       const [smsRes, emailRes] = await Promise.all([
-        supabase.from('sms_message_templates').select('*').order('template_name'),
+        supabase.from('sms_message_templates').select(SMS_TEMPLATE_SELECT).order('template_name'),
         supabase.from('email_templates').select('*').order('category, template_name'),
       ]);
 
@@ -96,7 +90,7 @@ export function MessageTemplatesTab() {
     try {
       const { error } = await supabase
         .from('sms_message_templates')
-        .update({ message_body: editingSMS.message_body })
+        .update(smsTemplateUpdate(editingSMS.message_template))
         .eq('id', editingSMS.id);
 
       if (error) throw error;
@@ -266,13 +260,13 @@ export function MessageTemplatesTab() {
                   {editingSMS?.id === template.id ? (
                     <TextareaInput
                       label="Message Template"
-                      value={editingSMS.message_body}
-                      onChange={(value) => setEditingSMS({ ...editingSMS, message_body: value })}
+                      value={editingSMS.message_template}
+                      onChange={(value) => setEditingSMS({ ...editingSMS, message_template: value })}
                       rows={6}
                     />
                   ) : (
                     <div className="bg-slate-50 rounded-lg p-4 mt-3">
-                      <p className="text-sm text-slate-700 whitespace-pre-wrap font-mono">{template.message_body}</p>
+                      <p className="text-sm text-slate-700 whitespace-pre-wrap font-mono">{template.message_template}</p>
                     </div>
                   )}
                 </div>

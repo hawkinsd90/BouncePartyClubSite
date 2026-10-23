@@ -866,13 +866,12 @@ export interface Database {
           id: string
           template_key: string
           template_name: string
-          message_body: string
+          message_template: string
           description: string | null
-          is_active: boolean
           created_at: string
           updated_at: string
         }
-        Insert: Omit<Database['public']['Tables']['sms_message_templates']['Row'], 'id' | 'created_at' | 'updated_at'>
+        Insert: Omit<Database['public']['Tables']['sms_message_templates']['Row'], 'id' | 'created_at' | 'updated_at' | 'description'> & { description?: string | null }
         Update: Partial<Database['public']['Tables']['sms_message_templates']['Insert']>
         Relationships: []
       }
