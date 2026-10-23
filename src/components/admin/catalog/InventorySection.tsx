@@ -6,7 +6,8 @@ import { Plus, Edit2, Trash2, Wind, PartyPopper } from 'lucide-react';
 import { notifyError, notifySuccess, showConfirm } from '../../../lib/toasts';
 import { EventEssentialsAdmin } from './event-essentials/EventEssentialsAdmin';
 
-import { describeFutureBooking, fetchFutureBookings } from '../../../lib/units/futureBooking';
+import { checkFutureBookings } from '../../../lib/units/futureBooking';
+import { confirmUnitAction } from '../../../lib/units/futureBookingGate';
 
 interface Unit {
   id: string;
@@ -47,25 +48,16 @@ export function InventorySection({ units, onRefetch }: InventorySectionProps) {
     setSearchParams(next);
   }
 
-  const checkFutureBookings = (unitId: string) => fetchFutureBookings(supabase, unitId, todayLocalKey());
-
   async function handleDeleteUnit(unitId: string, unitName: string) {
-    const futureBookings = await checkFutureBookings(unitId);
-
-    let confirmMessage = `Are you sure you want to delete "${unitName}"?`;
-
-    if (futureBookings.length > 0) {
-      const bookingDetails = futureBookings
-        .slice(0, 5)
-        .map(describeFutureBooking)
-        .join('\n');
-
-      const moreText = futureBookings.length > 5 ? `\n...and ${futureBookings.length - 5} more` : '';
-
-      confirmMessage = `WARNING: "${unitName}" has ${futureBookings.length} future booking(s)!\n\n${bookingDetails}${moreText}\n\nDeleting this unit may cause issues with these orders. Are you sure you want to continue?`;
-    }
-
-    if (!await showConfirm(confirmMessage)) return;
+    // The unit is deleted only after the future-bookings check SUCCEEDED and the Admin confirmed. A failed check blocks the delete
+    // (the Admin can only try the check again or cancel).
+    const mayDelete = await confirmUnitAction({
+      unitName,
+      action: 'delete',
+      check: () => checkFutureBookings(supabase, unitId, todayLocalKey()),
+      ask: showConfirm,
+    });
+    if (!mayDelete) return;
 
     try {
       const { error } = await supabase.from('units').delete().eq('id', unitId);

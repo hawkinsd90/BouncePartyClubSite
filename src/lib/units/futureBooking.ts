@@ -33,21 +33,58 @@ export const FUTURE_BOOKING_SELECT = `
 // Orders that no longer hold the unit.
 export const NON_BOOKING_ORDER_STATUSES = [ORDER_STATUS.CANCELLED, ORDER_STATUS.VOID] as const;
 
-export async function fetchFutureBookings(client: SupabaseClient, unitId: string, today: string): Promise<FutureBooking[]> {
-  const { data: bookings, error } = await client
-    .from('order_items')
-    .select(FUTURE_BOOKING_SELECT)
-    .eq('unit_id', unitId)
-    .not('orders.status', 'in', `(${NON_BOOKING_ORDER_STATUSES.join(',')})`)
-    .or(`event_date.gte.${today},event_end_date.gte.${today}`, { referencedTable: 'orders' });
+// The three things a lookup can tell us. A failed lookup is NOT 'none': it means the bookings are unknown, and callers must not delete or
+// deactivate the unit on that basis.
+export type FutureBookingCheck =
+  | { status: 'none' }
+  | { status: 'found'; bookings: FutureBooking[] }
+  | { status: 'unknown'; error: string };
 
-  if (error) {
-    console.error('Error checking bookings:', error);
-    return [];
+export const FUTURE_BOOKING_LOOKUP_TIMEOUT_MS = 15000;
+
+function failureText(err: unknown): string {
+  if (err && typeof err === 'object' && 'message' in err && typeof (err as { message?: unknown }).message === 'string' && (err as { message: string }).message) {
+    return (err as { message: string }).message;
   }
+  return typeof err === 'string' && err ? err : 'the lookup failed';
+}
 
-  // The embed is not modelled in database.types.ts (it carries no relationships for orders / customers).
-  return (bookings || []) as unknown as FutureBooking[];
+export async function checkFutureBookings(
+  client: SupabaseClient,
+  unitId: string,
+  today: string,
+  options: { timeoutMs?: number } = {},
+): Promise<FutureBookingCheck> {
+  const timeoutMs = options.timeoutMs ?? FUTURE_BOOKING_LOOKUP_TIMEOUT_MS;
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  try {
+    const lookup = Promise.resolve(
+      client
+        .from('order_items')
+        .select(FUTURE_BOOKING_SELECT)
+        .eq('unit_id', unitId)
+        .not('orders.status', 'in', `(${NON_BOOKING_ORDER_STATUSES.join(',')})`)
+        .or(`event_date.gte.${today},event_end_date.gte.${today}`, { referencedTable: 'orders' }),
+    );
+    const timeout = new Promise<never>((_, reject) => {
+      timer = setTimeout(() => reject(new Error('the lookup timed out')), timeoutMs);
+    });
+    const { data: bookings, error } = await Promise.race([lookup, timeout]);
+    if (error) {
+      console.error('Error checking bookings:', error);
+      return { status: 'unknown', error: failureText(error) };
+    }
+    // A successful answer must be an array; anything else is not proof that there are no bookings.
+    if (!Array.isArray(bookings)) return { status: 'unknown', error: 'the lookup returned an unexpected answer' };
+    // The embed is not modelled in database.types.ts (it carries no relationships for orders / customers).
+    const rows = bookings as unknown as FutureBooking[];
+    return rows.length === 0 ? { status: 'none' } : { status: 'found', bookings: rows };
+  } catch (err) {
+    console.error('Error checking bookings:', err);
+    return { status: 'unknown', error: failureText(err) };
+  } finally {
+    if (timer !== undefined) clearTimeout(timer);
+  }
 }
 
 // "• Order #1A2B3C4D - Jane Smith on 2026-07-10" - the order is shown by its short id, never by a column that does not exist.

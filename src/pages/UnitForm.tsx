@@ -4,7 +4,8 @@ import { supabase } from '../lib/supabase';
 import { ArrowLeft, Save, Upload, X, Layers } from 'lucide-react';
 import { notifyError, notifySuccess, showConfirm } from '../lib/toasts';
 import { todayLocalKey } from '../lib/core/localDate';
-import { describeFutureBooking, fetchFutureBookings } from '../lib/units/futureBooking';
+import { checkFutureBookings } from '../lib/units/futureBooking';
+import { confirmUnitAction } from '../lib/units/futureBookingGate';
 import { asErrorLike } from '../lib/core/errorLike';
 
 export function UnitForm() {
@@ -135,26 +136,16 @@ export function UnitForm() {
       .replace(/(^-|-$)/g, '');
   }
 
-  const checkFutureBookings = (unitId: string) => fetchFutureBookings(supabase, unitId, todayLocalKey());
-
   async function handleActiveChange(checked: boolean) {
     if (originalActive && !checked && isEdit && id) {
-      const futureBookings = await checkFutureBookings(id);
-
-      if (futureBookings.length > 0) {
-        const bookingDetails = futureBookings
-          .slice(0, 5)
-          .map(describeFutureBooking)
-          .join('\n');
-
-        const moreText = futureBookings.length > 5 ? `\n...and ${futureBookings.length - 5} more` : '';
-
-        const confirmMessage = `WARNING: "${formData.name}" has ${futureBookings.length} future booking(s)!\n\n${bookingDetails}${moreText}\n\nMarking this unit as inactive may cause issues with these orders. Are you sure you want to continue?`;
-
-        if (!await showConfirm(confirmMessage)) {
-          return;
-        }
-      }
+      // Deactivating a unit that was active needs a SUCCESSFUL future-bookings check: a failed check keeps the unit active (Try again / Cancel).
+      const mayDeactivate = await confirmUnitAction({
+        unitName: formData.name,
+        action: 'deactivate',
+        check: () => checkFutureBookings(supabase, id, todayLocalKey()),
+        ask: showConfirm,
+      });
+      if (!mayDeactivate) return;
     }
 
     setFormData({ ...formData, active: checked });

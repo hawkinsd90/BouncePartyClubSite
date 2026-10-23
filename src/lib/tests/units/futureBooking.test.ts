@@ -2,9 +2,11 @@
 // with the status spellings "voided" / "canceled" (the real ones are 'void' and 'cancelled'). The query failed on every call, the failure was
 // only logged, and an empty list came back: the warning never fired. The database side is executed in coreDatabaseAccess ("unit warning: ...":
 // the exact columns and statuses the lookup uses are accepted by the real schema, the old ones are refused with 42703). This file pins the
-// request the lookup makes, how a booking is described, and that both screens use the shared lookup.
+// request the lookup makes, how a booking is described, that both screens use the shared lookup, and (since the fail-closed correction) that the
+// lookup reports THREE states: none / found / unknown. A failed, thrown or timed-out lookup is 'unknown', never 'none'; the delete / deactivate flows
+// built on it are executed in unitDeleteFlow.test.ts and the dialog logic in futureBookingGate.test.ts.
 import { readFileSync } from 'node:fs';
-import { describeFutureBooking, fetchFutureBookings, FUTURE_BOOKING_SELECT, NON_BOOKING_ORDER_STATUSES, type FutureBooking } from '../../units/futureBooking';
+import { describeFutureBooking, checkFutureBookings, FUTURE_BOOKING_SELECT, NON_BOOKING_ORDER_STATUSES, type FutureBooking } from '../../units/futureBooking';
 
 let passed = 0;
 let failed = 0;
@@ -42,8 +44,8 @@ async function main() {
   const rows: FutureBooking[] = [
     { order_id: 'o1', orders: { id: 'a1b2c3d4-0000-4000-8000-000000000001', event_date: '2030-06-01', event_end_date: '2030-06-01', status: 'confirmed', customers: { first_name: 'Ann', last_name: 'Lee' } } },
   ];
-  const found = await fetchFutureBookings(fakeClient({ data: rows, error: null }), 'unit-1', '2030-01-01');
-  eq('the lookup returns the bookings it found', found, rows);
+  const found = await checkFutureBookings(fakeClient({ data: rows, error: null }), 'unit-1', '2030-01-01');
+  eq('the lookup returns the bookings it found as status "found"', found, { status: 'found', bookings: rows });
   const sel = calls.find((c) => c[0] === 'select')?.[1][0] as string;
   ok('it selects only real order columns', !/order_number|customer_name/.test(sel) && REAL_ORDER_COLUMNS.every((c) => sel.includes(c)));
   ok('it reads the customer name through the customers relation (first_name, last_name)', REAL_CUSTOMER_COLUMNS.every((c) => sel.includes(c)) && /customers\(/.test(sel));
@@ -55,9 +57,19 @@ async function main() {
 
   const err = console.error;
   console.error = () => {};
-  const failedLookup = await fetchFutureBookings(fakeClient({ data: null, error: { message: 'boom' } }), 'unit-1', '2030-01-01');
+  eq('a verified empty answer is status "none"', await checkFutureBookings(fakeClient({ data: [], error: null }), 'unit-1', '2030-01-01'), { status: 'none' });
+  eq('a database (PostgREST) error is "unknown", with its message - never "none"', await checkFutureBookings(fakeClient({ data: null, error: { message: 'boom', code: '42501' } }), 'unit-1', '2030-01-01'), { status: 'unknown', error: 'boom' });
+  eq('an error object without a message is still "unknown"', await checkFutureBookings(fakeClient({ data: null, error: {} }), 'unit-1', '2030-01-01'), { status: 'unknown', error: 'the lookup failed' });
+  eq('an answer that is neither data nor an error is "unknown" (not proof of no bookings)', await checkFutureBookings(fakeClient({ data: null, error: null }), 'unit-1', '2030-01-01'), { status: 'unknown', error: 'the lookup returned an unexpected answer' });
+  const throwing = { from: () => ({ select: () => ({ eq: () => ({ not: () => ({ or: () => Promise.reject(new TypeError('Failed to fetch')) }) }) }) }) } as never;
+  eq('a rejected request (network failure) is "unknown"', await checkFutureBookings(throwing, 'unit-1', '2030-01-01'), { status: 'unknown', error: 'Failed to fetch' });
+  const syncThrow = { from: () => { throw new Error('client not ready'); } } as never;
+  eq('a synchronous exception is "unknown"', await checkFutureBookings(syncThrow, 'unit-1', '2030-01-01'), { status: 'unknown', error: 'client not ready' });
+  const hanging = { from: () => ({ select: () => ({ eq: () => ({ not: () => ({ or: () => new Promise(() => {}) }) }) }) }) } as never;
+  const started = Date.now();
+  eq('a lookup that never answers times out as "unknown"', await checkFutureBookings(hanging, 'unit-1', '2030-01-01', { timeoutMs: 30 }), { status: 'unknown', error: 'the lookup timed out' });
+  ok('...and the timeout is the configured one, not a hang', Date.now() - started < 2000);
   console.error = err;
-  eq('a failed lookup still returns an empty list (and is logged), as before', failedLookup, []);
 
   eq('a booking reads as short order id, customer name and date', describeFutureBooking(rows[0]), '• Order #A1B2C3D4 - Ann Lee on 2030-06-01');
   eq('a booking without a customer record is not "undefined undefined"', describeFutureBooking({ ...rows[0], orders: { ...rows[0].orders, customers: null } }), '• Order #A1B2C3D4 - Unknown customer on 2030-06-01');
@@ -65,7 +77,7 @@ async function main() {
 
   for (const f of ['src/components/admin/catalog/InventorySection.tsx', 'src/pages/UnitForm.tsx']) {
     const t = readFileSync(f, 'utf8').replace(/\r\n/g, '\n');
-    ok(`${f}: uses the shared lookup and description`, /fetchFutureBookings\(supabase, unitId, todayLocalKey\(\)\)/.test(t) && /\.map\(describeFutureBooking\)/.test(t));
+    ok(`${f}: uses the shared lookup through the fail-closed gate`, /checkFutureBookings\(supabase, (unitId|id), todayLocalKey\(\)\)/.test(t) && /confirmUnitAction\(/.test(t) && !/fetchFutureBookings/.test(t));
     ok(`${f}: no longer names order_number / customer_name`, !/order_number|customer_name/.test(t));
   }
 
