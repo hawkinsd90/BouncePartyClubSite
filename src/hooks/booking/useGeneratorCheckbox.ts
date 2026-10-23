@@ -509,7 +509,7 @@ export function useGeneratorCheckbox(params: UseGeneratorCheckboxParams): UseGen
       setLoading(false);
       togglingRef.current = false;
     }
-  }, [generatorProduct, resolverConfig, formData, packageConfigs, addToCart, onFormDataChange, evaluateGenerator]);
+  }, [generatorProduct, resolverConfig, formData, packageConfigs, cart, configurationReady, addToCart, onFormDataChange, evaluateGenerator]);
 
   return {
     state: {

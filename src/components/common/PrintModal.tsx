@@ -2,6 +2,7 @@ import { Printer, X, Download, ZoomIn, ZoomOut, Loader2, AlertCircle } from 'luc
 import { MODAL_PANEL_SCROLL } from '../../lib/core/modalClasses';
 import { ReactNode, useEffect, useState, useCallback, useRef } from 'react';
 import { PrintState, PrintDocumentType, PRINT_TEMPLATES } from '../../lib/documents/printableDocument';
+import { ZOOM_LEVELS, stepZoom } from '../../lib/core/printZoom';
 
 interface PrintModalProps {
   isOpen: boolean;
@@ -19,8 +20,6 @@ interface PrintModalProps {
   printState?: PrintState;
   printStateMessage?: string;
 }
-
-const ZOOM_LEVELS = [50, 75, 100, 125, 150] as const;
 
 export function PrintModal({
   isOpen,
@@ -40,6 +39,14 @@ export function PrintModal({
 }: PrintModalProps) {
   const [zoom, setZoom] = useState(100);
   const [isProcessing, setIsProcessing] = useState(false);
+  // The guard against starting a second print run is read synchronously (a state value would still be false for a second key press in the same tick),
+  // and the keyboard listener always calls the handlers of the latest render (it is bound once per isOpen / onClose).
+  const processingRef = useRef(false);
+  const setProcessing = (value: boolean) => {
+    processingRef.current = value;
+    setIsProcessing(value);
+  };
+  const handlersRef = useRef<{ print: () => void; zoomIn: () => void; zoomOut: () => void }>({ print: () => {}, zoomIn: () => {}, zoomOut: () => {} });
   const modalRef = useRef<HTMLDivElement>(null);
   const printButtonRef = useRef<HTMLButtonElement>(null);
 
@@ -72,7 +79,7 @@ export function PrintModal({
     // Ctrl/Cmd + P to print
     if ((e.ctrlKey || e.metaKey) && e.key === 'p') {
       e.preventDefault();
-      handlePrint();
+      handlersRef.current.print();
     }
 
     // Escape to close
@@ -84,13 +91,13 @@ export function PrintModal({
     // Ctrl/Cmd + Plus/Equals to zoom in
     if ((e.ctrlKey || e.metaKey) && (e.key === '+' || e.key === '=')) {
       e.preventDefault();
-      handleZoomIn();
+      handlersRef.current.zoomIn();
     }
 
     // Ctrl/Cmd + Minus to zoom out
     if ((e.ctrlKey || e.metaKey) && e.key === '-') {
       e.preventDefault();
-      handleZoomOut();
+      handlersRef.current.zoomOut();
     }
 
     // Ctrl/Cmd + 0 to reset zoom
@@ -106,10 +113,10 @@ export function PrintModal({
   }, [handleKeyDown]);
 
   const handlePrint = async () => {
-    if (isProcessing) return;
+    if (processingRef.current) return;
 
     try {
-      setIsProcessing(true);
+      setProcessing(true);
 
       if (onBeforePrint) {
         await onBeforePrint();
@@ -126,34 +133,26 @@ export function PrintModal({
           const err = error instanceof Error ? error : new Error('Print failed');
           onPrintError?.(err);
         } finally {
-          setIsProcessing(false);
+          setProcessing(false);
         }
       }, 100);
     } catch (error) {
       const err = error instanceof Error ? error : new Error('Print preparation failed');
       onPrintError?.(err);
-      setIsProcessing(false);
+      setProcessing(false);
     }
   };
 
   const handleDownload = async () => {
-    if (isProcessing) return;
+    if (processingRef.current) return;
     await handlePrint();
   };
 
-  const handleZoomIn = () => {
-    const currentIndex = ZOOM_LEVELS.indexOf(zoom as typeof ZOOM_LEVELS[number]);
-    if (currentIndex < ZOOM_LEVELS.length - 1) {
-      setZoom(ZOOM_LEVELS[currentIndex + 1]);
-    }
-  };
+  const handleZoomIn = () => setZoom((current) => stepZoom(current, 1));
 
-  const handleZoomOut = () => {
-    const currentIndex = ZOOM_LEVELS.indexOf(zoom as typeof ZOOM_LEVELS[number]);
-    if (currentIndex > 0) {
-      setZoom(ZOOM_LEVELS[currentIndex - 1]);
-    }
-  };
+  const handleZoomOut = () => setZoom((current) => stepZoom(current, -1));
+
+  handlersRef.current = { print: handlePrint, zoomIn: handleZoomIn, zoomOut: handleZoomOut };
 
   const maxWidthClasses = {
     sm: 'max-w-sm',

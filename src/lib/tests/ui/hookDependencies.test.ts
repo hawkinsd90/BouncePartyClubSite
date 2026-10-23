@@ -48,11 +48,10 @@ ok('Quote: the blackout effect lists setFormData (a raw useState setter)', /\}, 
 ok('useQuoteForm returns the raw useState setter', /const \[formData, setFormData\] = useState<QuoteFormData>\(initialFormData\);/.test(read('src/hooks/booking/useQuoteForm.ts')));
 ok('useCustomerManagement exposes the raw useState setter', /const \[showCustomerDropdown, setShowCustomerDropdown\] = useState\(false\);/.test(read('src/hooks/admin/useCustomerManagement.ts')));
 
-// 3. warnings intentionally left visible (not suppressed): each is either a functional defect to be reviewed or a change that belongs outside a mechanical lint commit
+// 3. warnings intentionally left visible (not suppressed): a business decision, or a change that belongs outside a mechanical lint commit.
+// (PrintModal and useGeneratorCheckbox were resolved in the corrective phase: see PrintModal.test.ts and useGeneratorCheckboxConversion.test.ts.)
 const LEFT_VISIBLE: Array<[string, string]> = [
-  ['src/components/common/PrintModal.tsx', 'stale zoom / isProcessing in the keyboard shortcut handler (functional defect, low severity)'],
-  ['src/hooks/booking/useGeneratorCheckbox.ts', 'performLegacyConversion reads cart / configurationReady outside its dependency list (functional defect, booking/pricing, low-medium)'],
-  ['src/hooks/invoices/useInvoiceEventDetails.ts', 'the 19:00 end-window cap does not re-run when end_window is edited (needs review)'],
+  ['src/hooks/invoices/useInvoiceEventDetails.ts', 'the 19:00 end-window cap is not re-applied when end_window is edited: REPRODUCED (useInvoiceEventDetails.test.ts); whether the limit binds staff-entered invoices is a business decision'],
   ['src/components/admin/orders/OrderDetailModal.tsx', 'loadedOrderItemsForOrderId: Admin edit-order workflow, change kept out of the lint commits'],
   ['src/components/admin/tasks/detail/TaskDetailCustomerInfo.tsx', 'task.waiverSigned: waiver code, change kept out of the lint commits'],
   ['src/App.tsx', 'navigate in the OAuth redirect effect: change kept out of the lint commits'],
