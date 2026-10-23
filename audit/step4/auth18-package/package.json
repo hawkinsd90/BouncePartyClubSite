@@ -1,0 +1,88 @@
+{
+ "stage": "AUTH-18",
+ "channel": "supabase db query --linked -f <absolute path>, one transaction per file, in order, stop on any failure",
+ "start": {
+  "count": 376,
+  "sha256": "eea22f7960f9a2478e99a652afcb12db08a386af6af3b741181ee49dc860f4d0"
+ },
+ "end_predicted": {
+  "count": 380,
+  "sha256": "fd57543a304d0dd4461cd2ceb3b4f2e678de7f00a513af6129659e9f4c14a462"
+ },
+ "steps": [
+  {
+   "step": 1,
+   "version": "20261027120000",
+   "file": "20261027120000_same_day_delivery_fee_days.sql",
+   "file_sha256": "5660702052254ce7538a00109fafb3de788b61b937a29c60233c8d802f8b39a7",
+   "script": "1_20261027120000.sql",
+   "ledger_before": {
+    "count": 376,
+    "sha256": "eea22f7960f9a2478e99a652afcb12db08a386af6af3b741181ee49dc860f4d0"
+   },
+   "ledger_after": {
+    "count": 377,
+    "sha256": "21a84d7e1186ba0603cfe7607a73704d21bba27ce7e66ad29ff89de4c54100ae"
+   },
+   "script_sha256": "61223b57a4e32fa96f732d7f4d2c0b6561ed8f134310fda935b4871b5b708d14"
+  },
+  {
+   "step": 2,
+   "version": "20261027130000",
+   "file": "20261027130000_payment_post_completion.sql",
+   "file_sha256": "c5afaa5bd9bd758e4f4a18f94b86c5ff5aefdd816b27985a4812ad42deb50465",
+   "script": "2_20261027130000.sql",
+   "ledger_before": {
+    "count": 377,
+    "sha256": "21a84d7e1186ba0603cfe7607a73704d21bba27ce7e66ad29ff89de4c54100ae"
+   },
+   "ledger_after": {
+    "count": 378,
+    "sha256": "c2bcec85c4f4fe02ec63ae4731547a6f8d9bfef1c054e063ada6049d4ab432f8"
+   },
+   "script_sha256": "e86a5826ea46f8ad5643e0de14a0bdb951fc6dc938423863ce1b9d9318e978e8"
+  },
+  {
+   "step": 3,
+   "version": "20261027150000",
+   "file": "20261027150000_require_start_mileage_setting.sql",
+   "file_sha256": "a543331b0c4922f0df15c34d7f9baf6d94a229d03e822c0673a2aad39633c9b5",
+   "script": "3_20261027150000.sql",
+   "ledger_before": {
+    "count": 378,
+    "sha256": "c2bcec85c4f4fe02ec63ae4731547a6f8d9bfef1c054e063ada6049d4ab432f8"
+   },
+   "ledger_after": {
+    "count": 379,
+    "sha256": "8b48a14fc60a6027a8099c30e1c1248cc83e9236b3adafd046a6c3253e9f8f0e"
+   },
+   "script_sha256": "79ca0e405397170603853a84b09a601f76eee04e06b736e30bfd80c35776a140"
+  },
+  {
+   "step": 4,
+   "version": "20261027160000",
+   "file": "20261027160000_task_evidence_required.sql",
+   "file_sha256": "662c38551ea12926cb045558d147b24011d7a14ad8819375a37c9a5f52dc7b60",
+   "script": "4_20261027160000.sql",
+   "ledger_before": {
+    "count": 379,
+    "sha256": "8b48a14fc60a6027a8099c30e1c1248cc83e9236b3adafd046a6c3253e9f8f0e"
+   },
+   "ledger_after": {
+    "count": 380,
+    "sha256": "fd57543a304d0dd4461cd2ceb3b4f2e678de7f00a513af6129659e9f4c14a462"
+   },
+   "script_sha256": "c99380b920fe9b7b719fabb59ce5438f4084f5cdee91fa57491879bb5fcf6a2d"
+  }
+ ],
+ "scripts": {
+  "1_20261027120000.sql": "61223b57a4e32fa96f732d7f4d2c0b6561ed8f134310fda935b4871b5b708d14",
+  "1_20261027120000_rollback.sql": "4f7cee622baac054ce8e16faa3e9c9f20fc2b7ea4f0cdff6419d3df1d7a7d9d9",
+  "2_20261027130000.sql": "e86a5826ea46f8ad5643e0de14a0bdb951fc6dc938423863ce1b9d9318e978e8",
+  "2_20261027130000_rollback.sql": "ef92909ff309ac4385c73080a9729c0a0e5c4b2de2b66b5212a6277b993ebbad",
+  "3_20261027150000.sql": "79ca0e405397170603853a84b09a601f76eee04e06b736e30bfd80c35776a140",
+  "3_20261027150000_rollback.sql": "7910bad80235800141364a34e4f99cea0f09668b7ea1a452a2f91522ae8428af",
+  "4_20261027160000.sql": "c99380b920fe9b7b719fabb59ce5438f4084f5cdee91fa57491879bb5fcf6a2d",
+  "4_20261027160000_rollback.sql": "d1d17d9786f0b23f760d22792cc7ca1b960ba26dc6d390e03377fc7af1465f5c"
+ }
+}

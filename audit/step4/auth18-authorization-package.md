@@ -1,0 +1,31 @@
+# AUTH-18: release the "Pre-release testing and fixes" work to Development (prepared 2026-10-23; NOT EXECUTED)
+
+## What is being released
+Local `Dev` is 78 commits ahead of `origin/Dev` (`3164a9d`), a fast-forward after merging the one remote commit (`3364ca2`, a byte-order-mark removal in two backup scripts, merged cleanly). The range holds 413 changed files under `src/` (type cleanup, lint, 19:00 invoice warning, unit-delete fail-closed, SMS template and changelog column fixes, portal total, and the other WP fixes), 58 files under `supabase/functions/` (type cleanup and fixes; 40 of the 52 functions change once shared modules are counted), and **four new database migrations**:
+`20261027120000_same_day_delivery_fee_days.sql`, `20261027130000_payment_post_completion.sql`, `20261027150000_require_start_mileage_setting.sql`, `20261027160000_task_evidence_required.sql`. They are additive (new columns, indexes, one table, one trigger, three settings rows, a replaced public-settings function). Development has none of them (read-only check 2026-10-23: no new columns, table or settings; no duplicate receipts; both old receipt constraints present).
+Pushing alone would deploy a frontend that expects those columns and a webhook flow that expects the new functions, so the order must be: **database, then Edge Functions, then push**.
+
+## Local verification (CLAUDE.md pipeline)
+`node scripts/dev/verify.cjs`: typecheck ok (102 s), lint ok (76 s), build ok, tests ok (230 s), payment mutants 395 reused/0 failed, pricing mutants 218 reused/0 failed: ALL CLEAR. One test was SKIPPED, not passed: `defaultPrivilegeMigration.test.ts` (needs the evidence-derived databases). `audit/evidence/tools/verify_auth18_package.py` (local scratch server): 33 PASS, 0 FAIL.
+
+## Package (`audit/step4/auth18-package/`, generator `build_auth18_package.py`, verifier `verify_auth18_package.py`)
+Start ledger 376 / `eea22f7960f9a2478e99a652afcb12db08a386af6af3b741181ee49dc860f4d0`. Four files, one transaction each, in order, stop on any failure. Each: database/role, ledger count and hash, version not recorded, S11 end state in force, preconditions; then the migration byte for byte; then postconditions (objects, grants; **the set of functions and tables anon can touch must be identical before and after**); then the ledger row `[marker, exact SQL]` and a stored-text check.
+| Step | Version | File sha256 | Script sha256 | Ledger after |
+|---|---|---|---|---|
+| 1 | 20261027120000 | `5660702052254ce7538a00109fafb3de788b61b937a29c60233c8d802f8b39a7` | `61223b57a4e32fa96f732d7f4d2c0b6561ed8f134310fda935b4871b5b708d14` | 377 / `21a84d7e...00ae` |
+| 2 | 20261027130000 | `c5afaa5bd9bd758e4f4a18f94b86c5ff5aefdd816b27985a4812ad42deb50465` | `e86a5826ea46f8ad5643e0de14a0bdb951fc6dc938423863ce1b9d9318e978e8` | 378 / `c2bcec85...32f8` |
+| 3 | 20261027150000 | `a543331b0c4922f0df15c34d7f9baf6d94a229d03e822c0673a2aad39633c9b5` | `79ca0e405397170603853a84b09a601f76eee04e06b736e30bfd80c35776a140` | 379 / `8b48a14f...0f0e` |
+| 4 | 20261027160000 | `662c38551ea12926cb045558d147b24011d7a14ad8819375a37c9a5f52dc7b60` | `c99380b920fe9b7b719fabb59ce5438f4084f5cdee91fa57491879bb5fcf6a2d` | **380 / `fd57543a304d0dd4461cd2ceb3b4f2e678de7f00a513af6129659e9f4c14a462`** |
+Rollback scripts `N_<version>_rollback.sql` exist and were exercised in the local fixture (they drop the new objects and delete the ledger row; the receipt-constraint restore in step 2 is only valid while no receipt without a Stripe id has been written since).
+Behaviour changes to expect on Development: crew cannot complete a delivery/pickup task without a photo unless an admin override exists (setting `require_*_photo` can switch it off); same-day fee days become a setting (default Monday to Friday, as today); deposit post-completion runs on the server for deposits created after the migration.
+
+## Edge Functions (40 of 52; verify_jwt preserved exactly as hosted today)
+verify_jwt **true**: backfill-oauth-customers backfill-payment-methods calculate-route-mileage charge-deposit create-admin-user fix-payment-method record-cash-payment record-check-payment record-consent save-payment-method-from-session save-signup-address send-email send-invoice send-sms-notification staff-order-save stripe-checkout stripe-refund sync-google-calendar task-evidence upload-physical-waiver.
+verify_jwt **false**: check-availability checkout-bridge complete-booking create-booking customer-balance-payment customer-cancel-order customer-portal-action customer-portal-data generate-blank-waiver generate-signed-waiver get-waiver-status order-lifecycle portal-link reconcile-balance-payment request-portal-link save-signature send-error-notification stripe-webhook twilio-status-callback twilio-webhook.
+(config.toml differs from hosted only for `save-signup-address`, a known accepted difference; the flags above override config.) The other 12 functions are unchanged and are not redeployed.
+
+## Rollback
+Netlify: publish deploy `6ad822b3d023b6beba0a0725` (current). Functions: redeploy from commit `3164a9d` (plus the webhook fix `315e4e4`). Database: the rollback scripts, in reverse order.
+
+## Owner statement (one authorization)
+> AUTH-18: In Development project srxunxiytojjsuhcmzjg only, in this order and stopping on any failed check: (1) run audit/step4/auth18-package/1_20261027120000.sql, 2_20261027130000.sql, 3_20261027150000.sql, 4_20261027160000.sql unchanged (sha256 values above) with `supabase db query --linked -f`, one transaction each, ledger 376 to 380 (fd57543a...); (2) deploy the 40 Edge Functions listed, from the repo at the commit being pushed, with `supabase functions deploy --use-api` and verify_jwt exactly as listed (true/false), no other function, secret or setting changed; (3) after verification I push `Dev` myself (fast-forward, no force, nothing to main) so Netlify deploys the frontend. After each stage verify the ledger hash, the anon allow-list gates, `s11-post-probe.sh`, deployed function versions and verify_jwt flags, business-data counts (orders 171, payments 185) and the Netlify deploy. Reverse only by the prepared rollback on a failed post-check. Production untouched; the Supabase GitHub integration is not changed.
