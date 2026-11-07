@@ -40,3 +40,13 @@ audit/evidence/tools/__pycache__/c4_sql_fingerprint.cpython-314.pyc
 
 __pycache__/
 
+release-planning/manual-testing-batch-1-plan.md
+RELEASE_NOTES_DRAFT.md
+
+# Local only, never committed: audit evidence, investigations, plans, reports and release-cycle notes.
+# NOTE: audit/ files that were already tracked before this rule stay tracked (a few tests and scripts in
+# src/lib/tests/security and scripts/dev read them); this rule keeps every NEW file in audit/ out of Git.
+audit/
+
+# Future-state documentation stays local until the owner decides to publish it.
+docs/target/
