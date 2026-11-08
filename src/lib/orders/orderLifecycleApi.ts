@@ -1,5 +1,6 @@
 import { getEdgeAuthToken } from '../core/edgeAuth';
 import { asErrorLike } from '../core/errorLike';
+import { isAvailabilityRefusal, type LifecycleResult } from './lifecycleRefusal';
 
 const LIFECYCLE_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/order-lifecycle`;
 
@@ -20,7 +21,11 @@ export type PaymentOutcome =
   | 'custom_paid'
   | 'cash';
 
-async function callLifecycle(body: object, proof?: LifecycleProof): Promise<{ success: boolean; error?: string; alreadySent?: boolean }> {
+// LifecycleResult / isAvailabilityRefusal live in lifecycleRefusal.ts (pure, testable) and are re-exported here.
+export { isAvailabilityRefusal };
+export type { LifecycleResult };
+
+async function callLifecycle(body: object, proof?: LifecycleProof): Promise<LifecycleResult> {
   try {
     const response = await fetch(LIFECYCLE_URL, {
       method: 'POST',
@@ -35,7 +40,7 @@ async function callLifecycle(body: object, proof?: LifecycleProof): Promise<{ su
       }),
     });
 
-    let data: { success: boolean; error?: string; alreadySent?: boolean };
+    let data: LifecycleResult;
     try {
       data = await response.json();
     } catch {
@@ -70,6 +75,6 @@ export async function enterConfirmed(
   paymentOutcome: PaymentOutcome,
   oldStatusHint?: string | null,
   proof?: LifecycleProof
-): Promise<{ success: boolean; error?: string }> {
+): Promise<LifecycleResult> {
   return callLifecycle({ action: 'enter_confirmed', orderId, source, paymentOutcome, ...(oldStatusHint ? { oldStatusHint } : {}) }, proof);
 }

@@ -136,6 +136,8 @@ export interface OrderSummaryDisplay {
     amount: number;
     // A waived fee whose historical amount is unknown: shown as "Waived" without a dollar figure.
     amountUnknown?: boolean;
+    // A waived fee is displayed (struck through, labelled WAIVED) but is not charged.
+    waived?: boolean;
   }>;
   discounts: Array<{
     name: string;
@@ -310,7 +312,11 @@ export async function buildOrderSummaryData(
       pickup_preference: order.pickup_preference,
       event_date: order.event_date,
       event_end_date: order.event_end_date || undefined,
+      travel_fee_waived: order.travel_fee_waived || false,
+      surface_fee_waived: order.surface_fee_waived || false,
+      same_day_pickup_fee_waived: order.same_day_pickup_fee_waived || false,
       same_day_weekday_delivery_fee_waived: order.same_day_weekday_delivery_fee_waived || false,
+      generator_fee_waived: order.generator_fee_waived || false,
       setup_fee_cents: order.setup_fee_cents || 0,
     };
   } catch (error) {

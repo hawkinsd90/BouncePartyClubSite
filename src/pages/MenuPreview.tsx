@@ -1,5 +1,5 @@
-import { useEffect, useMemo, useState } from 'react';
-import { addOnPriceLabel, paginate, type MenuAddOn } from '../lib/menu/menuAddOns';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { addOnPriceLabel, describeOmittedPackages, menuCanvasScale, menuExportBaseName, MENU_PACKAGE_PAGE_SIZE, packageComponentLine, paginate, splitMenuAddOns, type MenuAddOn, type OmittedMenuPackage } from '../lib/menu/menuAddOns';
 import { useNavigate } from 'react-router-dom';
 import { ArrowLeft, Printer, Download } from 'lucide-react';
 import { notifyError } from '../lib/toasts';
@@ -24,6 +24,9 @@ type MenuPreviewData = {
   units: Unit[];
   // Party Add-Ons (Event Essentials) section; absent or empty = none (older saved data, filtered or date-checked menus).
   addOns?: MenuAddOn[];
+  // Present ONLY when a signed-in Admin or Master built the menu (Catalog): packages left out because their contents could not be resolved. Shown
+  // as a screen-only notice; never drawn in the PDF or the image, and absent from every customer's menu data.
+  adminOmittedPackages?: OmittedMenuPackage[];
   title?: string;
   availabilityChecked?: boolean;
   availabilityDateFormatted?: string | null;
@@ -131,6 +134,99 @@ function wrapText(ctx: CanvasRenderingContext2D, text: string, maxWidth: number)
   return lines;
 }
 
+const PACKAGE_CONTENTS_FONT = '600 11px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif';
+// "Includes" label + one 14px line per wrapped component line + a little air; 0 when the package has no contents list.
+function packageContentsHeight(lineCount: number): number {
+  return lineCount > 0 ? 18 + lineCount * 14 + 4 : 0;
+}
+
+function drawSectionHeading(ctx: CanvasRenderingContext2D, x: number, sectionY: number, title: string, subtitle: string) {
+  ctx.fillStyle = '#0f766e';
+  ctx.font = `900 22px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif`;
+  ctx.textAlign = 'left';
+  ctx.fillText(title, x, sectionY + 30);
+  ctx.fillStyle = '#64748b';
+  ctx.font = `600 12px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif`;
+  ctx.fillText(subtitle, x, sectionY + 48);
+}
+
+// One Party Add-On / Party Package card. contentLines (packages only) are the already-wrapped component lines; the card height was sized for them.
+function drawAddOnCard(
+  ctx: CanvasRenderingContext2D,
+  a: MenuAddOn,
+  img: HTMLImageElement | null | undefined,
+  cx: number,
+  cy: number,
+  cardW: number,
+  imgH: number,
+  cardH: number,
+  contentLines: string[]
+) {
+  ctx.fillStyle = 'rgba(15,23,42,0.07)';
+  roundRect(ctx, cx + 2, cy + 3, cardW, cardH, 12);
+  ctx.fill();
+  ctx.fillStyle = '#ffffff';
+  roundRect(ctx, cx, cy, cardW, cardH, 12);
+  ctx.fill();
+  ctx.strokeStyle = '#e2e8f0';
+  ctx.lineWidth = 1;
+  roundRect(ctx, cx, cy, cardW, cardH, 12);
+  ctx.stroke();
+  ctx.save();
+  roundRect(ctx, cx, cy, cardW, imgH, 12);
+  ctx.rect(cx, cy + imgH - 12, cardW, 12);
+  ctx.clip();
+  if (img) {
+    const iRatio = img.naturalWidth / img.naturalHeight;
+    const cRatio = cardW / imgH;
+    let sw = img.naturalWidth, sh = img.naturalHeight, sx = 0, sy = 0;
+    if (iRatio > cRatio) { sw = Math.round(sh * cRatio); sx = Math.round((img.naturalWidth - sw) / 2); } else { sh = Math.round(sw / cRatio); sy = Math.round((img.naturalHeight - sh) / 2); }
+    ctx.drawImage(img, sx, sy, sw, sh, cx, cy, cardW, imgH);
+  } else {
+    ctx.fillStyle = '#ccfbf1';
+    ctx.fillRect(cx, cy, cardW, imgH);
+    ctx.fillStyle = '#0f766e';
+    ctx.font = '500 13px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText(a.kind === 'package' ? 'Party Package' : 'Party Add-On', cx + cardW / 2, cy + imgH / 2 + 5);
+    ctx.textAlign = 'left';
+  }
+  ctx.restore();
+  const tx = cx + 12;
+  const textW = cardW - 24;
+  let ty = cy + imgH + 20;
+  ctx.fillStyle = '#0f172a';
+  ctx.font = `800 14px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif`;
+  const lines = wrapText(ctx, a.name, textW);
+  lines.slice(0, 1).forEach((line) => ctx.fillText(line, tx, ty));
+  ty += 16;
+  ctx.fillStyle = '#64748b';
+  ctx.font = `700 11px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif`;
+  ctx.fillText(a.categoryName ?? '', tx, ty);
+  ty += 20;
+  if (contentLines.length > 0) {
+    ctx.fillStyle = '#0f172a';
+    ctx.font = `800 11px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif`;
+    ctx.fillText('Includes', tx, ty - 4);
+    ctx.font = PACKAGE_CONTENTS_FONT;
+    ctx.fillStyle = '#334155';
+    contentLines.forEach((line, li) => ctx.fillText(line, tx + 8, ty + 12 + li * 14));
+    ty += packageContentsHeight(contentLines.length);
+  }
+  ctx.fillStyle = '#f0fdfa';
+  roundRect(ctx, tx, ty - 14, textW, 24, 6);
+  ctx.fill();
+  ctx.strokeStyle = '#5eead4';
+  roundRect(ctx, tx, ty - 14, textW, 24, 6);
+  ctx.stroke();
+  ctx.fillStyle = '#115e59';
+  ctx.font = `800 12px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif`;
+  ctx.fillText(addOnPriceLabel(a), tx + 8, ty + 2);
+  ctx.textAlign = 'right';
+  ctx.fillText(formatCurrency(a.priceCents), tx + textW - 8, ty + 2);
+  ctx.textAlign = 'left';
+}
+
 // Draw the full menu onto a canvas and return it as a PNG data URL.
 // All drawing is pure Canvas 2D — no DOM capture, no html-to-image, no CORS issues.
 async function drawMenuToCanvas(
@@ -139,7 +235,6 @@ async function drawMenuToCanvas(
   unitImages: (HTMLImageElement | null)[],
   addOnImages: (HTMLImageElement | null)[] = []
 ): Promise<string> {
-  const SCALE = 2; // retina
   const W = 1200;
   const COLS = 3;
   const PAD = 32;
@@ -153,20 +248,33 @@ async function drawMenuToCanvas(
   const FOOTER_H = 56;
   const ROWS = Math.ceil(data.units.length / COLS);
   const GRID_H = ROWS * CARD_H + (ROWS - 1) * GAP;
-  // Party Add-Ons section (optional): a heading band, then smaller cards in the same 3 columns.
+  const canvas = document.createElement('canvas');
+  const ctx = canvas.getContext('2d')!;
+  // Party Add-Ons (products) and Party Packages are two optional sections: a heading band, then smaller cards in the same 3 columns. A package
+  // card grows with the lines of its contents, so every package row's height is measured before the canvas is sized.
   const addOns = data.addOns ?? [];
-  const ADDON_HEADING_H = addOns.length > 0 ? 56 : 0;
+  const split = splitMenuAddOns(addOns.map((a, i) => ({ ...a, imageIndex: i })));
+  const ADDON_HEADING_H = split.products.length > 0 ? 56 : 0;
   const ADDON_IMG_H = 110;
   const ADDON_CARD_H = ADDON_IMG_H + 78;
-  const ADDON_ROWS = Math.ceil(addOns.length / COLS);
-  const ADDON_GRID_H = addOns.length > 0 ? ADDON_ROWS * ADDON_CARD_H + (ADDON_ROWS - 1) * GAP : 0;
-  const ADDON_SECTION_H = addOns.length > 0 ? ADDON_HEADING_H + ADDON_GRID_H + PAD : 0;
+  const ADDON_ROWS = Math.ceil(split.products.length / COLS);
+  const ADDON_GRID_H = split.products.length > 0 ? ADDON_ROWS * ADDON_CARD_H + (ADDON_ROWS - 1) * GAP : 0;
+  const PRODUCT_SECTION_H = split.products.length > 0 ? ADDON_HEADING_H + ADDON_GRID_H + PAD : 0;
+  const PACKAGE_HEADING_H = split.packages.length > 0 ? 56 : 0;
+  ctx.font = PACKAGE_CONTENTS_FONT;
+  const packageLines = split.packages.map((a) => (a.components ?? []).flatMap((c) => wrapText(ctx, packageComponentLine(c), CARD_W - 24 - 8)));
+  const packageCardHeights = packageLines.map((lines) => ADDON_CARD_H + packageContentsHeight(lines.length));
+  const packageRowHeights: number[] = [];
+  for (let r = 0; r * COLS < split.packages.length; r++) packageRowHeights.push(Math.max(...packageCardHeights.slice(r * COLS, r * COLS + COLS)));
+  const PACKAGE_GRID_H = packageRowHeights.reduce((a, b) => a + b, 0) + Math.max(0, packageRowHeights.length - 1) * GAP;
+  const PACKAGE_SECTION_H = split.packages.length > 0 ? PACKAGE_HEADING_H + PACKAGE_GRID_H + PAD : 0;
+  const ADDON_SECTION_H = PRODUCT_SECTION_H + PACKAGE_SECTION_H;
   const TOTAL_H = HEADER_H + PAD + GRID_H + PAD + ADDON_SECTION_H + FOOTER_H;
 
-  const canvas = document.createElement('canvas');
-  canvas.width = W * SCALE;
-  canvas.height = TOTAL_H * SCALE;
-  const ctx = canvas.getContext('2d')!;
+  // Retina, unless a long menu would pass the mobile canvas area limit (then it scales down so the image still saves).
+  const SCALE = menuCanvasScale(W, TOTAL_H);
+  canvas.width = Math.floor(W * SCALE);
+  canvas.height = Math.floor(TOTAL_H * SCALE);
   ctx.scale(SCALE, SCALE);
 
   // Background
@@ -404,78 +512,31 @@ async function drawMenuToCanvas(
   }
 
   // --- Party Add-Ons ---
-  if (addOns.length > 0) {
+  if (split.products.length > 0) {
     const sectionY = HEADER_H + PAD + GRID_H + PAD;
-    ctx.fillStyle = '#0f766e';
-    ctx.font = `900 22px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif`;
-    ctx.textAlign = 'left';
-    ctx.fillText('Party Add-Ons', PAD, sectionY + 30);
-    ctx.fillStyle = '#64748b';
-    ctx.font = `600 12px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif`;
-    ctx.fillText('Tables, chairs, tents and more to go with your inflatables', PAD, sectionY + 48);
+    drawSectionHeading(ctx, PAD, sectionY, 'Party Add-Ons', 'Tables, chairs, tents and more to go with your inflatables');
     const gridTop = sectionY + ADDON_HEADING_H;
-    for (let i = 0; i < addOns.length; i++) {
-      const a = addOns[i];
-      const img = addOnImages[i];
+    split.products.forEach((a, i) => {
       const col = i % COLS;
       const row = Math.floor(i / COLS);
-      const cx = PAD + col * (CARD_W + GAP);
-      const cy = gridTop + row * (ADDON_CARD_H + GAP);
-      ctx.fillStyle = 'rgba(15,23,42,0.07)';
-      roundRect(ctx, cx + 2, cy + 3, CARD_W, ADDON_CARD_H, 12);
-      ctx.fill();
-      ctx.fillStyle = '#ffffff';
-      roundRect(ctx, cx, cy, CARD_W, ADDON_CARD_H, 12);
-      ctx.fill();
-      ctx.strokeStyle = '#e2e8f0';
-      ctx.lineWidth = 1;
-      roundRect(ctx, cx, cy, CARD_W, ADDON_CARD_H, 12);
-      ctx.stroke();
-      ctx.save();
-      roundRect(ctx, cx, cy, CARD_W, ADDON_IMG_H, 12);
-      ctx.rect(cx, cy + ADDON_IMG_H - 12, CARD_W, 12);
-      ctx.clip();
-      if (img) {
-        const iRatio = img.naturalWidth / img.naturalHeight;
-        const cRatio = CARD_W / ADDON_IMG_H;
-        let sw = img.naturalWidth, sh = img.naturalHeight, sx = 0, sy = 0;
-        if (iRatio > cRatio) { sw = Math.round(sh * cRatio); sx = Math.round((img.naturalWidth - sw) / 2); } else { sh = Math.round(sw / cRatio); sy = Math.round((img.naturalHeight - sh) / 2); }
-        ctx.drawImage(img, sx, sy, sw, sh, cx, cy, CARD_W, ADDON_IMG_H);
-      } else {
-        ctx.fillStyle = '#ccfbf1';
-        ctx.fillRect(cx, cy, CARD_W, ADDON_IMG_H);
-        ctx.fillStyle = '#0f766e';
-        ctx.font = '500 13px sans-serif';
-        ctx.textAlign = 'center';
-        ctx.fillText('Party Add-On', cx + CARD_W / 2, cy + ADDON_IMG_H / 2 + 5);
-        ctx.textAlign = 'left';
+      drawAddOnCard(ctx, a, addOnImages[a.imageIndex], PAD + col * (CARD_W + GAP), gridTop + row * (ADDON_CARD_H + GAP), CARD_W, ADDON_IMG_H, ADDON_CARD_H, []);
+    });
+  }
+
+  // --- Party Packages ---
+  if (split.packages.length > 0) {
+    const sectionY = HEADER_H + PAD + GRID_H + PAD + PRODUCT_SECTION_H;
+    drawSectionHeading(ctx, PAD, sectionY, 'Party Packages', 'What is included in each package');
+    let rowTop = sectionY + PACKAGE_HEADING_H;
+    packageRowHeights.forEach((rowH, r) => {
+      for (let col = 0; col < COLS; col++) {
+        const i = r * COLS + col;
+        if (i >= split.packages.length) break;
+        const a = split.packages[i];
+        drawAddOnCard(ctx, a, addOnImages[a.imageIndex], PAD + col * (CARD_W + GAP), rowTop, CARD_W, ADDON_IMG_H, packageCardHeights[i], packageLines[i]);
       }
-      ctx.restore();
-      const tx = cx + 12;
-      const textW = CARD_W - 24;
-      let ty = cy + ADDON_IMG_H + 20;
-      ctx.fillStyle = '#0f172a';
-      ctx.font = `800 14px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif`;
-      const lines = wrapText(ctx, a.name, textW);
-      lines.slice(0, 1).forEach((line) => ctx.fillText(line, tx, ty));
-      ty += 16;
-      ctx.fillStyle = '#64748b';
-      ctx.font = `700 11px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif`;
-      ctx.fillText(a.categoryName ?? '', tx, ty);
-      ty += 20;
-      ctx.fillStyle = '#f0fdfa';
-      roundRect(ctx, tx, ty - 14, textW, 24, 6);
-      ctx.fill();
-      ctx.strokeStyle = '#5eead4';
-      roundRect(ctx, tx, ty - 14, textW, 24, 6);
-      ctx.stroke();
-      ctx.fillStyle = '#115e59';
-      ctx.font = `800 12px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif`;
-      ctx.fillText(addOnPriceLabel(a), tx + 8, ty + 2);
-      ctx.textAlign = 'right';
-      ctx.fillText(formatCurrency(a.priceCents), tx + textW - 8, ty + 2);
-      ctx.textAlign = 'left';
-    }
+      rowTop += rowH + GAP;
+    });
   }
 
   // --- Footer ---
@@ -536,8 +597,12 @@ export function MenuPreview() {
     }
   }, []);
 
+  // The PDF file name comes from the page title while printing (see handlePrint). This puts the original title back after printing, and on leaving.
+  const restoreTitleRef = useRef<(() => void) | null>(null);
+
   useEffect(() => {
     return () => {
+      restoreTitleRef.current?.();
       sessionStorage.removeItem('menu-preview-data');
       sessionStorage.removeItem('menu-preview-return-to');
     };
@@ -556,6 +621,20 @@ export function MenuPreview() {
 
     const logoUrl = `${window.location.origin}/bounce party club logo.png`;
 
+    // F-32: the browser proposes the PDF file name from the page title, so set the same base name the image uses, and restore the real title
+    // after printing (afterprint), on error and on leaving the page.
+    if (!restoreTitleRef.current) {
+      const previousTitle = document.title;
+      const restore = () => {
+        document.title = previousTitle;
+        window.removeEventListener('afterprint', restore);
+        restoreTitleRef.current = null;
+      };
+      restoreTitleRef.current = restore;
+      window.addEventListener('afterprint', restore);
+    }
+    document.title = menuExportBaseName(data);
+
     try {
       document.body.classList.add('print-menu-preview');
       await preloadImages([logoUrl, ...getUnitImageUrls(data.units), ...(data.addOns ?? []).map((a) => a.imageUrl ?? '')]);
@@ -565,6 +644,7 @@ export function MenuPreview() {
       console.error(e);
       notifyError('Could not prepare print preview.');
       document.body.classList.remove('print-menu-preview');
+      restoreTitleRef.current?.();
     } finally {
       setTimeout(() => document.body.classList.remove('print-menu-preview'), 750);
     }
@@ -592,7 +672,8 @@ export function MenuPreview() {
       // and also get an object URL for the desktop anchor download.
       const res = await fetch(dataUrl);
       const blob = await res.blob();
-      const file = new File([blob], 'bounce-party-club-menu.png', { type: 'image/png' });
+      const imageFileName = `${menuExportBaseName(data)}.png`;
+      const file = new File([blob], imageFileName, { type: 'image/png' });
 
       // Web Share API with files triggers the native share sheet on iOS/Android.
       // On desktop browsers (Windows/macOS), canShare() may return true but opens
@@ -603,7 +684,7 @@ export function MenuPreview() {
       } else {
         const url = URL.createObjectURL(blob);
         const link = document.createElement('a');
-        link.download = 'bounce-party-club-menu.png';
+        link.download = imageFileName;
         link.href = url;
         link.click();
         URL.revokeObjectURL(url);
@@ -648,6 +729,36 @@ export function MenuPreview() {
   }
 
   const generatedDate = new Date(data.generatedAtIso);
+  const { products: menuProducts, packages: menuPackages } = splitMenuAddOns(data.addOns ?? []);
+
+  // One Party Add-On or Party Package card (screen and print). A package lists its real components and quantities when the definition resolved.
+  const renderAddOnCard = (a: MenuAddOn) => (
+    <div key={a.id} className="menu-unit-card">
+      {a.imageUrl ? (
+        <img src={a.imageUrl} alt={a.name} className="menu-unit-image" onError={(e) => ((e.currentTarget.style.display = 'none'))} />
+      ) : null}
+      <div className="menu-unit-name-row">
+        <div className="menu-unit-name">{a.name}</div>
+      </div>
+      <div className="menu-unit-type">{a.categoryName ?? ''}</div>
+      {a.kind === 'package' && a.components && a.components.length > 0 ? (
+        <div className="menu-package-includes">
+          <div className="menu-package-includes-title">Includes</div>
+          <ul className="menu-package-includes-list">
+            {a.components.map((c, ci) => (
+              <li key={ci}>{packageComponentLine(c)}</li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
+      <div className="menu-unit-pricing">
+        <div className="menu-price-row">
+          <span className="menu-price-label">{addOnPriceLabel(a)}</span>
+          <span className="menu-price-value">{formatCurrency(a.priceCents)}</span>
+        </div>
+      </div>
+    </div>
+  );
 
   return (
     <div className="menu-preview-route min-h-screen bg-slate-50 py-8 px-4">
@@ -680,6 +791,12 @@ export function MenuPreview() {
           </button>
         </div>
       </div>
+
+      {(data.adminOmittedPackages ?? []).length > 0 && (
+        <div role="alert" className="menu-admin-omitted-notice max-w-5xl mx-auto mb-4 rounded-lg border border-amber-300 bg-amber-50 px-4 py-3 text-sm font-semibold text-amber-900 no-print">
+          {describeOmittedPackages(data.adminOmittedPackages ?? [])} This notice is only shown to Admins and is not part of the PDF or image.
+        </div>
+      )}
 
       {/* Screen preview and PDF print target */}
       <div id="menu-content">
@@ -805,12 +922,12 @@ export function MenuPreview() {
           })()}
 
 
-          {(data.addOns ?? []).length > 0 && (
+          {menuProducts.length > 0 && (
             <div className="menu-print-addons">
-              {paginate(data.addOns ?? []).map((pageItems, pageIdx, all) => (
+              {paginate(menuProducts).map((pageItems, pageIdx, all) => (
                 <div
                   key={`addons-${pageIdx}`}
-                  className={`menu-print-page-group${pageIdx < all.length - 1 ? ' menu-print-page-break' : ''}`}
+                  className={`menu-print-page-group${pageIdx < all.length - 1 || menuPackages.length > 0 ? ' menu-print-page-break' : ''}`}
                 >
                   {pageIdx === 0 && (
                     <div className="menu-addons-heading">
@@ -821,23 +938,32 @@ export function MenuPreview() {
                   <div className="menu-print-grid">
                     {Array.from({ length: Math.ceil(pageItems.length / 2) }, (_, r) => pageItems.slice(r * 2, r * 2 + 2)).map((pair, rowIdx) => (
                       <div key={rowIdx} className="menu-print-row">
-                        {pair.map((a) => (
-                          <div key={a.id} className="menu-unit-card">
-                            {a.imageUrl ? (
-                              <img src={a.imageUrl} alt={a.name} className="menu-unit-image" onError={(e) => ((e.currentTarget.style.display = 'none'))} />
-                            ) : null}
-                            <div className="menu-unit-name-row">
-                              <div className="menu-unit-name">{a.name}</div>
-                            </div>
-                            <div className="menu-unit-type">{a.categoryName ?? ''}</div>
-                            <div className="menu-unit-pricing">
-                              <div className="menu-price-row">
-                                <span className="menu-price-label">{addOnPriceLabel(a)}</span>
-                                <span className="menu-price-value">{formatCurrency(a.priceCents)}</span>
-                              </div>
-                            </div>
-                          </div>
-                        ))}
+                        {pair.map((a) => renderAddOnCard(a))}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {menuPackages.length > 0 && (
+            <div className="menu-print-addons menu-print-packages">
+              {paginate(menuPackages, MENU_PACKAGE_PAGE_SIZE).map((pageItems, pageIdx, all) => (
+                <div
+                  key={`packages-${pageIdx}`}
+                  className={`menu-print-page-group${pageIdx < all.length - 1 ? ' menu-print-page-break' : ''}`}
+                >
+                  {pageIdx === 0 && (
+                    <div className="menu-addons-heading">
+                      <div className="menu-addons-title menu-packages-title">Party Packages</div>
+                      <div className="menu-addons-subtitle">What is included in each package</div>
+                    </div>
+                  )}
+                  <div className="menu-print-grid">
+                    {Array.from({ length: Math.ceil(pageItems.length / 2) }, (_, r) => pageItems.slice(r * 2, r * 2 + 2)).map((pair, rowIdx) => (
+                      <div key={rowIdx} className="menu-print-row">
+                        {pair.map((a) => renderAddOnCard(a))}
                       </div>
                     ))}
                   </div>

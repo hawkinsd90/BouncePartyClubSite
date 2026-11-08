@@ -117,6 +117,8 @@ async function main() {
   ok('the queued follow-up refresh is a background load', /pendingRefreshRef\.current = false;\n\s+loadTasksForMonth\(currentMonthRef\.current, \{ background: true \}\)/.test(hook));
   ok('a month change is the only foreground load', (hook.match(/loadTasksForMonth\(currentMonth\);/g) ?? []).length === 1);
   ok('the spinner goes through the shared policy', /shouldRaiseLoading\(\{ background, hasData: false \}\)/.test(hook) && !/\n\s+setLoading\(true\);/.test(hook));
+  // source-level (WP-P1-23): the hook's order query uses the shared calendar status list, which includes awaiting_customer_approval
+  ok('the order query uses the shared calendar status list for the role of the caller (Admin sees awaiting_customer_approval; crew does not)', /\.in\('status', \[\.\.\.calendarOrderStatusesFor\(isAdminRef\.current\)\]\)/.test(hook));
   const cal = read('src/components/AdminCalendar.tsx');
   ok('mileage saves bump a version that the open task screen watches', /setMileageVersion\(\(v\) => v \+ 1\)/.test(cal) && /mileageVersion=\{mileageVersion\}/.test(cal));
   ok('the calendar month range for mileage dots uses local dates', /localDateKey\(startOfMonth\(currentMonth\)\)/.test(cal) && !/toISOString\(\)\.split/.test(cal));

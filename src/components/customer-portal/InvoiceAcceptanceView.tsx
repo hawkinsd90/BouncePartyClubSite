@@ -19,7 +19,7 @@ import { CancelOrderModal } from './CancelOrderModal';
 import { showToast } from '../../lib/toasts';
 import { portalAction, PortalActionError } from '../../lib/portal/customerPortalApi';
 import { checkEventEssentialsAvailability } from '../../lib/queries/products';
-import { enterConfirmed } from '../../lib/orders/orderLifecycleApi';
+import { enterConfirmed, isAvailabilityRefusal } from '../../lib/orders/orderLifecycleApi';
 import {
   generateConfirmationReceiptEmail,
   generateConfirmationSmsMessage,
@@ -275,13 +275,15 @@ export function InvoiceAcceptanceView({
           // function confirms it below.
           await portalAction(order.id, invoiceToken, 'invoice_confirm_no_card');
           const confirmation = await enterConfirmed(order.id, 'invoice_acceptance_no_card', 'waived', order.status, { invoiceToken: invoiceToken ?? null });
-          if (!confirmation.success) throw new Error('lifecycle refused the confirmation');
+          if (!confirmation.success) throw new Error(isAvailabilityRefusal(confirmation) ? confirmation.error : 'lifecycle refused the confirmation');
         } catch (confirmError) {
           console.error('Error confirming order:', confirmError instanceof Error ? confirmError.message : 'unknown');
           showToast(
             confirmError instanceof PortalActionError && confirmError.code === 'items_unavailable'
               ? 'Sorry, one or more items in your order are no longer available for your event date. Please contact us to reschedule.'
-              : 'Failed to confirm booking. Please try again or contact support.',
+              : confirmError instanceof Error && confirmError.message.startsWith('This order could not be confirmed')
+                ? confirmError.message
+                : 'Failed to confirm booking. Please try again or contact support.',
             'error'
           );
           setProcessing(false);

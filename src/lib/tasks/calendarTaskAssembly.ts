@@ -48,6 +48,28 @@ export function deriveWaiverType(
   return null;
 }
 
+// Order statuses the Admin calendar loads (WP-P1-23 / DEC-09). awaiting_customer_approval invoices are DISPLAYED so staff see the
+// planned date; nothing here makes them hold stock (B-11 is unresolved). Cancelled, void and draft stay off the calendar.
+export const CALENDAR_ORDER_STATUSES: readonly string[] = [
+  ORDER_STATUS.CONFIRMED,
+  ORDER_STATUS.IN_PROGRESS,
+  ORDER_STATUS.COMPLETED,
+  ORDER_STATUS.PENDING,
+  ORDER_STATUS.AWAITING_CUSTOMER_APPROVAL,
+];
+
+// D4: the awaiting-approval invoices are an Admin planning aid only. Anyone who is not an Admin (crew) never loads them, so no
+// premature task of any kind reaches the crew calendar. Admin sees them as planning-only (isUnconfirmedOrderStatus below).
+export function calendarOrderStatusesFor(isAdmin: boolean): readonly string[] {
+  return isAdmin ? CALENDAR_ORDER_STATUSES : CALENDAR_ORDER_STATUSES.filter((s) => s !== ORDER_STATUS.AWAITING_CUSTOMER_APPROVAL);
+}
+
+// Orders the customer or staff has not finished confirming: their tasks are visible for planning but are never actionable
+// route stops (no crew work, no pickup readiness).
+export function isUnconfirmedOrderStatus(orderStatus: string | null | undefined): boolean {
+  return orderStatus === ORDER_STATUS.PENDING || orderStatus === ORDER_STATUS.AWAITING_CUSTOMER_APPROVAL;
+}
+
 export function derivePickupReadiness(
   orderStatus: string,
   dropOffTaskStatus: string | null,
@@ -55,8 +77,8 @@ export function derivePickupReadiness(
   balanceDue: number
 ): PickupReadiness {
   if (pickUpTaskStatus === 'completed') return 'completed';
-  // pending_review orders are not yet confirmed — treat pickup as planning-only
-  if (orderStatus === ORDER_STATUS.PENDING) return 'projected';
+  // pending_review / awaiting_customer_approval orders are not yet confirmed — treat pickup as planning-only
+  if (isUnconfirmedOrderStatus(orderStatus)) return 'projected';
   if (dropOffTaskStatus !== 'completed') return 'projected';
   if (balanceDue > 0) return 'blocked';
   return 'ready';
@@ -69,7 +91,7 @@ export function derivePickupBlockReason(
   orderStatus?: string
 ): string | undefined {
   if (readiness === 'projected') {
-    if (orderStatus === ORDER_STATUS.PENDING) return 'Order not yet confirmed';
+    if (isUnconfirmedOrderStatus(orderStatus)) return 'Order not yet confirmed';
     if (!dropOffTaskStatus || dropOffTaskStatus === 'pending') return 'Drop-off not yet started';
     if (dropOffTaskStatus === 'en_route') return 'Drop-off in progress';
     if (dropOffTaskStatus === 'arrived') return 'Drop-off in progress';

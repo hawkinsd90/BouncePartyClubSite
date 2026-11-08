@@ -1,6 +1,8 @@
 import { useState, useEffect } from 'react';
 import { SafeStorage } from '../../lib/core/safeStorage';
-import { isPreciseGeocode } from '../../lib/booking/addressEdit';
+import { QUOTE_ADDRESS_EDIT_RESET } from '../../lib/booking/addressEdit';
+import { geocodeSavedAddress, type GeocoderLike } from '../../lib/booking/savedAddressGeocode';
+import { ensureGoogleMapsLoaded } from '../../lib/routing/googleMapsLoader';
 
 export interface QuoteFormData {
   event_date: string;
@@ -145,29 +147,37 @@ export function useQuoteForm() {
   }, [formData.pickup_preference, formData.location_type, formData.event_date, isInitialized]);
 
   useEffect(() => {
+    let cancelled = false;
     async function geocodeAddress() {
       // Only a saved profile/prefilled street address is geocoded here, from the FULL street address, and only a precise match is
       // accepted. A city/ZIP centroid is never used for pricing: the customer reselects the address instead.
       if (formData.address_line1 && formData.city && formData.state && formData.zip && !formData.lat && !formData.lng) {
-        try {
-          const geocoder = new google.maps.Geocoder();
-          const address = `${formData.address_line1}, ${formData.city}, ${formData.state} ${formData.zip}`;
-          const result = await geocoder.geocode({ address });
-
-          if (result.results && result.results[0] && isPreciseGeocode(result.results[0])) {
-            const location = result.results[0].geometry.location;
-            const lat = location.lat();
-            const lng = location.lng();
-
-            setFormData(prev => ({ ...prev, lat, lng }));
-          }
-        } catch (error) {
-          console.error('Error geocoding address:', error);
+        const street = formData.address_line1;
+        const address = `${formData.address_line1}, ${formData.city}, ${formData.state} ${formData.zip}`;
+        // Waits for the Google Maps script and retries (F-40): the lookup used to run at once and was never retried.
+        const outcome = await geocodeSavedAddress(address, {
+          ensureMapsLoaded: ensureGoogleMapsLoaded,
+          createGeocoder: () => new google.maps.Geocoder() as unknown as GeocoderLike,
+          wait: (ms) => new Promise<void>((resolve) => setTimeout(resolve, ms)),
+        });
+        if (cancelled) return;
+        if (outcome.status === 'found') {
+          // Applied only while the form still holds the street that was looked up and still has no coordinates.
+          setFormData(prev => (prev.address_line1 === street && !prev.lat && !prev.lng ? { ...prev, lat: outcome.lat, lng: outcome.lng } : prev));
+        } else if (outcome.status === 'imprecise') {
+          // The saved street cannot be priced automatically: empty the box so it is visibly empty and the Quote says to choose an address.
+          setFormData(prev => (prev.address_line1 === street && !prev.lat && !prev.lng ? { ...prev, ...QUOTE_ADDRESS_EDIT_RESET } : prev));
+          setAddressInput('');
+        } else {
+          console.error('Error geocoding address: Google Maps could not be loaded or the lookup failed');
         }
       }
     }
 
-    geocodeAddress();
+    void geocodeAddress();
+    return () => {
+      cancelled = true;
+    };
   }, [formData.address_line1, formData.city, formData.state, formData.zip, formData.lat, formData.lng]);
 
   function applyPrefillData(prefillData: QuotePrefillData) {

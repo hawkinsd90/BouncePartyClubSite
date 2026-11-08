@@ -23,6 +23,8 @@ import * as returnOriginHelpers from '../../../../supabase/functions/_shared/boo
 import * as eeAvailability from '../../../../supabase/functions/_shared/booking/eeOrderItemAvailability';
 import * as signatureValidation from '../../../../supabase/functions/_shared/waiver/signature-validation';
 import * as bookingAvailability from '../../../../supabase/functions/_shared/booking/bookingAvailability';
+import * as orderConfirmAvailability from '../../../../supabase/functions/_shared/booking/orderConfirmAvailability';
+import { escapeHtml } from '../../../../supabase/functions/_shared/booking/travelCityReview';
 
 export type Row = Record<string, any>;
 
@@ -326,6 +328,8 @@ export function loadFunction(fnDir: string, h: Harness): (req: Request) => Promi
     ...signatureValidation,
     checkEventEssentialsAvailabilityWith: eeAvailability.checkEventEssentialsAvailabilityWith,
     supabaseAvailabilityPort: bookingAvailability.supabaseAvailabilityPort,
+    ...orderConfirmAvailability,
+    escapeHtml,
     getSiteOrigin: () => siteOriginHelpers.getSiteOrigin({ get: (k: string) => env[k] }),
     configuredOrigins: () => siteOriginHelpers.configuredOrigins({ get: (k: string) => env[k] }),
     resolveReturnOrigin: returnOriginHelpers.resolveReturnOrigin,

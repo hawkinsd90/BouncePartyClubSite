@@ -17,6 +17,17 @@ import { storedOrderTotalCents, type OrderMoneyComponents } from "../_shared/boo
 import { getOrCreatePortalLink } from "../_shared/portal-link.ts";
 import { getSiteOrigin } from "../_shared/siteOrigin.ts";
 import { escapeHtml, loadTravelCityReviewNotes, TRAVEL_CITY_REVIEW_SMS_SUFFIX } from "../_shared/booking/travelCityReview.ts";
+import { supabaseAvailabilityPort } from "../_shared/booking/bookingAvailability.ts";
+import {
+  checkOrderAvailabilityForConfirm,
+  confirmAvailabilityBlocks,
+  blockedConfirmationMessage,
+  AVAILABILITY_CONFLICT_CHANGE_TYPE,
+  AVAILABILITY_UNVERIFIED_CHANGE_TYPE,
+  AVAILABILITY_CONFLICT_SMS_SUFFIX,
+  AVAILABILITY_UNVERIFIED_SMS_SUFFIX,
+  type ConfirmAvailabilityResult,
+} from "../_shared/booking/orderConfirmAvailability.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -246,6 +257,87 @@ async function enterPendingReview(
   return { success: true };
 }
 
+// ------------------------------------------------------------------------------------------------------------------
+// WP-P1-16 (D1) confirmation availability helpers
+// ------------------------------------------------------------------------------------------------------------------
+async function runConfirmAvailabilityCheck(
+  supabase: SupabaseClient,
+  orderId: string,
+  order: { event_date: string | null; event_end_date?: string | null },
+): Promise<ConfirmAvailabilityResult> {
+  try {
+    const { data: itemRows, error: itemsError } = await supabase
+      .from("order_items")
+      .select("unit_id, product_id, bundle_id, qty, component_snapshot")
+      .eq("order_id", orderId);
+    return await checkOrderAvailabilityForConfirm(
+      supabaseAvailabilityPort(supabase),
+      { id: orderId, event_date: order.event_date, event_end_date: order.event_end_date },
+      itemsError ? null : (itemRows ?? null),
+      {
+        units: async (ids: string[]) => {
+          const { data } = await supabase.from("units").select("id, name").in("id", ids);
+          const map: Record<string, string> = {};
+          for (const u of (data ?? []) as Array<{ id: string; name: string | null }>) if (u.name) map[u.id] = u.name;
+          return map;
+        },
+      },
+    );
+  } catch {
+    return { kind: "unverifiable", note: "Availability for this order's equipment could not be verified." };
+  }
+}
+
+// A blocked confirmation: nothing was written to the order. The attempt is recorded once per distinct situation (history) and the
+// Admin is told once (so a customer who retries does not text the Admin each time). The caller's response names the equipment.
+async function refuseConfirmationForAvailability(
+  supabase: SupabaseClient,
+  orderId: string,
+  order: { id: string; event_date: string | null; customers?: unknown },
+  check: Exclude<ConfirmAvailabilityResult, { kind: "ok" }>,
+): Promise<{ success: boolean; error?: string; code?: string; unavailable?: string[] }> {
+  const changeType = check.kind === "conflict" ? AVAILABILITY_CONFLICT_CHANGE_TYPE : AVAILABILITY_UNVERIFIED_CHANGE_TYPE;
+  const notes = `Confirmation blocked: ${check.note}`;
+  try {
+    const { data: prior } = await supabase
+      .from("order_changelog")
+      .select("notes")
+      .eq("order_id", orderId)
+      .eq("change_type", changeType)
+      .eq("new_value", "blocked");
+    const alreadyRecorded = Array.isArray(prior) && prior.some((r: { notes?: string | null }) => r?.notes === notes);
+    if (!alreadyRecorded) {
+      await supabase.from("order_changelog").insert({
+        order_id: orderId,
+        user_id: null,
+        change_type: changeType,
+        field_changed: "availability",
+        old_value: null,
+        new_value: "blocked",
+        notes,
+      });
+      const settings = await getAdminSettings(supabase);
+      const shortId = formatOrderId(orderId);
+      const sms = `CONFIRMATION BLOCKED: ${check.kind === "conflict" ? "equipment conflict" : "availability could not be verified"} on Order #${shortId}. Review in the admin panel.`;
+      if (settings.phone) await sendAdminSmsViaFunction(supabase, sms, orderId, settings.phone);
+      if (settings.email) {
+        const adminBase = getSiteOrigin();
+        const link = `${adminBase}/admin?tab=orders&orderId=${orderId}`;
+        const html = `<p><strong>Confirmation blocked for Order #${shortId}.</strong></p><p>${escapeHtml(notes)}</p><p>The order was not confirmed and no payment was changed. <a href="${link}">Open the order</a> to reschedule, adjust the equipment, or resolve the conflict.</p>`;
+        await sendAdminEmailViaFunction(supabase, settings.email, `Confirmation blocked - #${shortId}`, html);
+      }
+    }
+  } catch (e) {
+    console.warn("[order-lifecycle] recording a blocked confirmation failed (non-fatal):", e);
+  }
+  return {
+    success: false,
+    code: check.kind === "conflict" ? "AVAILABILITY_CONFLICT" : "AVAILABILITY_UNVERIFIABLE",
+    error: blockedConfirmationMessage(check),
+    ...(check.kind === "conflict" ? { unavailable: check.unavailable } : {}),
+  };
+}
+
 // ============================================================
 // AUTHORITATIVE HANDLER B: enterConfirmed
 // ============================================================
@@ -263,11 +355,11 @@ async function enterConfirmed(
   oldStatusHint: string | null = null,
   trustedCaller = false,
   customerProof: CustomerProof | null = null
-): Promise<{ success: boolean; error?: string; alreadySent?: boolean }> {
+): Promise<{ success: boolean; error?: string; alreadySent?: boolean; code?: string; unavailable?: string[] }> {
   const { data: order, error: fetchError } = await supabase
     .from("orders")
     .select(`
-      id, status, event_date, confirmed_admin_alerted, customer_approved_at,
+      id, status, event_date, event_end_date, confirmed_admin_alerted, customer_approved_at,
       stripe_customer_id, stripe_payment_method_id, stripe_payment_status, require_card_on_file,
       subtotal_cents, travel_fee_cents, surface_fee_cents,
       same_day_pickup_fee_cents, same_day_weekday_delivery_fee_cents, generator_fee_cents, setup_fee_cents, tax_cents,
@@ -309,7 +401,10 @@ async function enterConfirmed(
     paymentOutcome = verdict.outcome;
   }
 
-  const allowedFromStatuses = ["draft", "pending_review", "awaiting_customer_approval", "confirmed"];
+  // "quote" is eligible too: the card-save webhook for an Admin Invoice with nothing to collect used to write "confirmed" itself for a quote
+  // order (skipping the stock gate below); it now leaves the write to this function, which has to accept the status it will write from.
+  // An untrusted (customer) caller is still limited by evaluateCustomerConfirmation above.
+  const allowedFromStatuses = ["draft", "quote", "pending_review", "awaiting_customer_approval", "confirmed"];
 
   if (!allowedFromStatuses.includes(order.status)) {
     return {
@@ -341,6 +436,20 @@ async function enterConfirmed(
         error: `Cannot confirm: deposit of $${(depositDue / 100).toFixed(2)} has not been collected (paid: $${(depositPaid / 100).toFixed(2)})`,
       };
     }
+  }
+
+  // WP-P1-16 (D1): when this function is the one that moves the order to confirmed (the status is not yet confirmed) and no money has
+  // just been collected by this call, a known stock conflict, or a check that cannot be completed, stops the transition BEFORE anything is
+  // written (no waived-deposit marker, no status, no approval stamp, no customer message). Payments are never touched: this function
+  // writes none. When the status was already written by someone else (an Admin approval, a payment RPC) or money was just collected, the
+  // check below only records and alerts (it cannot, and must not, undo a confirmed paid order).
+  const gateBlocks = confirmAvailabilityBlocks(paymentOutcome, order.status);
+  let availabilityCheck: ConfirmAvailabilityResult | null = null;
+  if (gateBlocks) {
+    availabilityCheck = await runConfirmAvailabilityCheck(supabase, orderId, order);
+  }
+  if (gateBlocks && availabilityCheck && availabilityCheck.kind !== "ok") {
+    return await refuseConfirmationForAvailability(supabase, orderId, order, availabilityCheck);
   }
 
   // A waived deposit: when a signed-in admin approves an order whose deposit is zero, the deposit obligation is satisfied by that
@@ -408,6 +517,32 @@ async function enterConfirmed(
     console.warn("[order-lifecycle] Changelog insert failed (non-fatal):", e);
   }
 
+  // WP-P1-16 (D1), WARN side: the order is confirmed now (this function wrote it, or someone else did first). A conflict that is only
+  // found now (a paid / already-confirmed order, or money just collected) cannot be refused: it is recorded in the order's history and
+  // added to the Admin alert so staff can act. An unverifiable check is recorded the same way. No payment code runs.
+  let availabilityNote: string | null = null;
+  let availabilitySmsSuffix = "";
+  try {
+    const check = availabilityCheck ?? (await runConfirmAvailabilityCheck(supabase, orderId, order));
+    if (check.kind === "conflict" || check.kind === "unverifiable") {
+      availabilityNote = check.kind === "conflict"
+        ? `Availability warning at confirmation: ${check.note} The order is confirmed (money was collected or the status was already set); check the equipment and reschedule or adjust if needed.`
+        : `Availability could not be verified at confirmation. The order is confirmed (money was collected or the status was already set); check the equipment before the event.`;
+      availabilitySmsSuffix = check.kind === "conflict" ? AVAILABILITY_CONFLICT_SMS_SUFFIX : AVAILABILITY_UNVERIFIED_SMS_SUFFIX;
+      await supabase.from("order_changelog").insert({
+        order_id: orderId,
+        user_id: null,
+        change_type: check.kind === "conflict" ? AVAILABILITY_CONFLICT_CHANGE_TYPE : AVAILABILITY_UNVERIFIED_CHANGE_TYPE,
+        field_changed: "availability",
+        old_value: null,
+        new_value: check.kind === "conflict" ? "conflict" : "unverified",
+        notes: availabilityNote,
+      });
+    }
+  } catch (e) {
+    console.warn("[order-lifecycle] confirmation availability re-check failed (non-fatal):", e);
+  }
+
   // Already alerted for an earlier confirmation: the transition above is recorded, but the admin is not alerted twice.
   if (alreadyAlerted) {
     return { success: true, alreadySent: true };
@@ -416,7 +551,7 @@ async function enterConfirmed(
   const customer = Array.isArray(order.customers) ? order.customers[0] : order.customers;
   const address = Array.isArray(order.addresses) ? order.addresses[0] : order.addresses;
 
-  await sendAdminConfirmedAlert(supabase, order, customer, address, paymentOutcome);
+  await sendAdminConfirmedAlert(supabase, order, customer, address, paymentOutcome, availabilityNote, availabilitySmsSuffix);
 
   await supabase
     .from("orders")
@@ -603,7 +738,9 @@ async function sendAdminConfirmedAlert(
   order: AlertOrder,
   customer: AlertCustomer | null | undefined,
   address: AlertAddress | null | undefined,
-  paymentOutcome: string
+  paymentOutcome: string,
+  availabilityNote: string | null = null,
+  availabilitySmsSuffix = AVAILABILITY_CONFLICT_SMS_SUFFIX
 ) {
   const settings = await getAdminSettings(supabase);
   const shortId = formatOrderId(order.id);
@@ -635,7 +772,8 @@ async function sendAdminConfirmedAlert(
   if (settings.phone) {
     const smsMessage =
       `BOOKING CONFIRMED! ${customerName} for ${eventDateStr}. ` +
-      `Payment: ${paymentDesc}. Order #${shortId}`;
+      `Payment: ${paymentDesc}. Order #${shortId}` +
+      (availabilityNote ? availabilitySmsSuffix : "");
     await sendAdminSmsViaFunction(supabase, smsMessage, order.id, settings.phone);
   }
 
@@ -693,6 +831,7 @@ async function sendAdminConfirmedAlert(
           </table>
         </td></tr>
       </table>
+      ${availabilityNote ? `<table width="100%" cellpadding="0" cellspacing="0" style="background-color:#fef3c7;border:1px solid #f59e0b;border-radius:6px;margin-bottom:20px;"><tr><td style="padding:14px 20px;"><p style="margin:0 0 6px;font-weight:bold;color:#92400e;font-size:15px;">Check the equipment</p><p style="margin:0;color:#78350f;font-size:14px;">${escapeHtml(availabilityNote)}</p></td></tr></table>` : ""}
       <div style="text-align:center;margin-bottom:24px;">
         <a href="${portalLink}" style="display:inline-block;background-color:#2563eb;color:#ffffff;text-decoration:none;font-weight:bold;font-size:15px;padding:12px 32px;border-radius:6px;">View Order</a>
       </div>

@@ -3,6 +3,7 @@ import { AddressAutocomplete, type AddressResult } from '../order/AddressAutocom
 import { TimePickerInput } from '../ui/TimePickerInput';
 import { ADMIN_ADDRESS_EDIT_RESET } from '../../lib/booking/addressEdit';
 import { surfaceControlState } from '../../lib/orders/surfaceChoice';
+import { END_BEFORE_START_MESSAGE, isEndAfterStart, isSameDateRental } from '../../lib/core/eventTimeWindow';
 
 // The fields this editor writes. Every update it sends is one or more of these (the address reset adds the three address_* columns of the Admin order editor).
 export interface EventEditorUpdates {
@@ -105,6 +106,7 @@ export function EventDetailsEditor({
               <label className={labelClass}>Start Time</label>
               <TimePickerInput
                 value={editedOrder.start_window}
+                ariaLabel="Start Time"
                 onChange={(value) => onOrderChange({ start_window: value })}
               />
             </div>
@@ -113,11 +115,15 @@ export function EventDetailsEditor({
               <label className={labelClass}>End Time</label>
               <TimePickerInput
                 value={editedOrder.end_window}
+                ariaLabel="End Time"
                 onChange={(value) => onOrderChange({ end_window: value })}
                 disabled={showUntilEndOfDay && editedOrder.until_end_of_day}
               />
             </div>
           </div>
+          {!isEndAfterStart(editedOrder.start_window, editedOrder.end_window, isSameDateRental(editedOrder)) && (
+            <p role="alert" className="text-xs font-medium text-red-600">{END_BEFORE_START_MESSAGE}</p>
+          )}
 
           {showUntilEndOfDay && (
             <div>

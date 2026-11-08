@@ -2,7 +2,7 @@
 // PASS - LOCAL AUTOMATED (pure rules + source assertions). Layout at 320/360/390, a real menu print/PDF/image export, and device keyboards are
 // REQUIRES HOSTED DEV VERIFICATION (G23, M-xx widths).
 import { readFileSync } from 'node:fs';
-import { addOnPriceLabel, buildMenuAddOns, MENU_PAGE_SIZE, paginate, shouldIncludeAddOns } from '../../menu/menuAddOns';
+import { addOnPriceLabel, buildMenuAddOns, buildMenuAddOnsWithReport, describeOmittedPackages, MENU_CANVAS_MAX_PIXELS, MENU_PAGE_SIZE, menuCanvasScale, menuExportBaseName, packageComponentLine, paginate, shouldIncludeAddOns, splitMenuAddOns } from '../../menu/menuAddOns';
 import { addPendingPhotos, MAX_PHOTO_BYTES, releaseAll, removePendingPhoto } from '../../portal/pendingPhotos';
 import { quoteContinueState } from '../../booking/quoteContinueBar';
 import { cartBarItemLabel, shouldShowCartBar } from '../../eventEssentials/catalogCartBar';
@@ -41,7 +41,7 @@ const cats = [
 ];
 const prod = (id: string, name: string, category: string | null, extra: Record<string, unknown> = {}) => ({ id, name, image_url: `https://img/${id}.jpg`, active: true, public_visible: true, category_id: category, sort_order: 0, ...extra });
 const price = (product_id: string, standalone: number | null, addon: number | null, se = standalone != null, ae = addon != null) => ({ product_id, standalone_price_cents: standalone, addon_price_cents: addon, standalone_enabled: se, addon_enabled: ae });
-const pkg = (id: string, name: string, extra: Record<string, unknown> = {}) => ({ id, name, image_url: null, active: true, public_visible: true, menu_visible: true, standalone_price_cents: 20000, addon_price_cents: null, standalone_enabled: true, addon_enabled: false, sort_order: 0, ...extra });
+const pkg = (id: string, name: string, extra: Record<string, unknown> = {}) => ({ id, name, image_url: null, active: true, public_visible: true, menu_visible: true, standalone_price_cents: 20000, addon_price_cents: null, standalone_enabled: true, addon_enabled: false, sort_order: 0, product_bundle_components: [{ quantity_per_bundle: 1, inventory_products: { name: 'ZZ TEST Part', active: true, public_visible: true } }], ...extra });
 
 {
   const out = buildMenuAddOns({
@@ -80,17 +80,74 @@ eq('paging uses the same page size as the inflatable cards', [MENU_PAGE_SIZE, pa
 
 const catalog = read('src/pages/Catalog.tsx');
 const preview = read('src/pages/MenuPreview.tsx');
-ok('catalog: the menu data carries addOns, loaded when the menu is saved', /const addOns = await loadMenuAddOns\(\);/.test(catalog) && /addOns,\n\s+availabilityChecked/.test(catalog) && /handleExportMenu = async \(\)/.test(catalog));
-ok('catalog: a failure loading add-ons never blocks the menu (empty list and a notice)', /notifyError\('Party Add-Ons could not be included in the menu this time\.'\);\n\s+return \[\];/.test(catalog));
+ok('catalog: the menu data carries addOns, loaded when the menu is saved', /const \{ addOns, omittedPackages \} = await loadMenuAddOns\(\);/.test(catalog) && /addOns,\n\s+availabilityChecked/.test(catalog) && /handleExportMenu = async \(\)/.test(catalog));
+ok('catalog: a failure loading add-ons never blocks the menu (empty list and a notice)', /notifyError\('Party Add-Ons could not be included in the menu this time\.'\);\n\s+return \{ addOns: \[\], omittedPackages: \[\] \};/.test(catalog));
 ok('catalog: add-ons honour the Party Add-Ons page setting and the plain-menu rule', /shouldIncludeAddOns\(\{ eventEssentialsEnabled: settings\.event_essentials_page_enabled, filterType, availabilityChecked \}\)/.test(catalog));
-ok('catalog: uses the existing public product queries (active + public visible only)', /fetchInventoryProducts\(\), fetchProductPricing\(\), fetchProductBundles\(\), fetchProductCategories\(\)/.test(catalog));
-ok('menu preview screen/print: an add-ons section with its own heading, paged like the cards, after the units', /menu-addons-title/.test(preview) && /paginate\(data\.addOns \?\? \[\]\)/.test(preview) && preview.indexOf('menu-print-addons') > preview.indexOf('menu-print-page-group') && /menu-print-page-break/.test(preview.slice(preview.indexOf('menu-print-addons'))));
+ok('catalog: uses the existing public product queries (active + public visible only)', /fetchInventoryProducts\(\), fetchProductPricing\(\), fetchProductBundlesWithAllComponents\(\), fetchProductCategories\(\)/.test(catalog) && !/fetchProductBundles\(\)/.test(catalog));
+ok('menu preview screen/print: an add-ons section with its own heading, paged like the cards, after the units', /menu-addons-title/.test(preview) && /paginate\(menuProducts\)/.test(preview) && preview.indexOf('menu-print-addons') > preview.indexOf('menu-print-page-group') && /menu-print-page-break/.test(preview.slice(preview.indexOf('menu-print-addons'))));
 ok('menu preview: the last inflatable page breaks before the add-ons', /pageIdx < pages\.length - 1 \|\| \(data\.addOns \?\? \[\]\)\.length > 0/.test(preview));
 ok('menu preview image export: the canvas grows for the add-on rows and draws them before the footer', /const TOTAL_H = HEADER_H \+ PAD \+ GRID_H \+ PAD \+ ADDON_SECTION_H \+ FOOTER_H;/.test(preview) && preview.indexOf('// --- Party Add-Ons ---') < preview.indexOf('// --- Footer ---') && /const fy = HEADER_H \+ PAD \+ GRID_H \+ PAD \+ ADDON_SECTION_H;/.test(preview));
 ok('menu preview: add-on images are loaded for the image export and preloaded for print', /addOns\.map\(\(a\) => loadImageForCanvas\(a\.imageUrl \?\? ''\)\)/.test(preview) && /\.\.\.\(data\.addOns \?\? \[\]\)\.map\(\(a\) => a\.imageUrl \?\? ''\)/.test(preview));
-ok('menu preview: an older saved menu without addOns renders exactly as before', /const addOns = data\.addOns \?\? \[\];\n\s+const ADDON_HEADING_H = addOns\.length > 0 \? 56 : 0;/.test(preview) && /addOns\?: MenuAddOn\[\]/.test(preview));
+ok('menu preview: an older saved menu without addOns renders exactly as before', /const addOns = data\.addOns \?\? \[\];/.test(preview) && /const ADDON_HEADING_H = split\.products\.length > 0 \? 56 : 0;/.test(preview) && /addOns\?: MenuAddOn\[\]/.test(preview));
 const css = read('src/index.css');
 ok('css: screen and print styles for the add-ons heading exist', /\.menu-preview-route \.menu-addons-title/.test(css) && /body\.print-menu-preview #root \.menu-addons-title/.test(css));
+
+// --- WP-P2-15 (F-31, F-32): package contents, sections, export names ---------------------------------------------------------------
+{
+  const comp = (name: string, qty: number, extra: Record<string, unknown> = {}) => ({ quantity_per_bundle: qty, inventory_products: { name, active: true, public_visible: true, ...extra } });
+  const infl = (name: string, qty: number, mode: 'dry' | 'water' | 'customer_choice' = 'dry', extra: Record<string, unknown> = {}) => ({ quantity_per_bundle: qty, selection_mode: mode, unit: { name, active: true, ...extra } });
+  const menuWith = (bundleExtra: Record<string, unknown>) => buildMenuAddOns({ products: [], pricing: [], bundles: [pkg('b1', 'ZZ TEST Seating', bundleExtra)], categories: [] });
+  const only = (bundleExtra: Record<string, unknown>) => menuWith(bundleExtra)[0];
+
+  eq('a package lists its real product components with quantities, from the definition', only({ product_bundle_components: [comp('ZZ TEST Table', 2), comp('ZZ TEST Chair', 16)] }).components, [{ name: 'ZZ TEST Table', quantity: 2 }, { name: 'ZZ TEST Chair', quantity: 16 }]);
+  eq('inflatable components come first and carry how the unit is rented', only({ package_inflatable_components: [infl('ZZ TEST Castle', 1, 'customer_choice')], product_bundle_components: [comp('ZZ TEST Table', 3)] }).components, [{ name: 'ZZ TEST Castle', quantity: 1, mode: 'customer_choice' }, { name: 'ZZ TEST Table', quantity: 3 }]);
+  eq('component lines read "2 x Name" with the inflatable mode', [packageComponentLine({ name: 'Table', quantity: 2 }), packageComponentLine({ name: 'Castle', quantity: 1, mode: 'dry' }), packageComponentLine({ name: 'Slide', quantity: 1, mode: 'water' }), packageComponentLine({ name: 'Combo', quantity: 2, mode: 'customer_choice' })], ['2 \u00d7 Table', '1 \u00d7 Castle (dry)', '1 \u00d7 Slide (water)', '2 \u00d7 Combo (dry or water)']);
+  // D6 (WP-P2-15): a package whose contents cannot ALL be resolved is EXCLUDED from the menu (never shown with a partial or hidden list) and
+  // reported for the Admin message; resolvable packages are complete in the export.
+  const report = (bundleExtra: Record<string, unknown>) => buildMenuAddOnsWithReport({ products: [], pricing: [], bundles: [pkg('b1', 'ZZ TEST Seating', bundleExtra)], categories: [] });
+  const excluded = (bundleExtra: Record<string, unknown>) => { const r = report(bundleExtra); return r.items.length === 0 && r.omittedPackages.length === 1 && r.omittedPackages[0].id === 'b1' && r.omittedPackages[0].name === 'ZZ TEST Seating'; };
+  ok('a hidden component (not public) EXCLUDES the package and the reason names it for the Admin', excluded({ product_bundle_components: [comp('ZZ TEST Table', 2), comp('ZZ TEST Secret', 1, { public_visible: false })] }) && /ZZ TEST Secret.*not public/.test(report({ product_bundle_components: [comp('ZZ TEST Secret', 1, { public_visible: false })] }).omittedPackages[0].reason));
+  ok('an inactive product component excludes the package', excluded({ product_bundle_components: [comp('ZZ TEST Table', 2, { active: false })] }));
+  ok('an inactive inflatable component excludes the package', excluded({ package_inflatable_components: [infl('ZZ TEST Castle', 1, 'dry', { active: false })] }));
+  ok('a component whose product could not be read (unavailable component data) excludes the package', excluded({ product_bundle_components: [{ quantity_per_bundle: 1, inventory_products: null }] }) && excluded({ package_inflatable_components: [{ quantity_per_bundle: 1, selection_mode: 'dry', unit: null }] }));
+  ok('a bad quantity (0, negative, fractional) excludes the package', [0, -1, 1.5].every((q) => excluded({ product_bundle_components: [comp('ZZ TEST Table', q)] })));
+  ok('definition not loaded (no component arrays), or empty, excludes the package', excluded({ product_bundle_components: undefined }) && excluded({ product_bundle_components: [], package_inflatable_components: [] }));
+  ok('one bad component among good ones leaves no partial package: the whole package is excluded, others stay', (() => {
+    const r = buildMenuAddOnsWithReport({ products: [], pricing: [], categories: [], bundles: [pkg('good', 'ZZ TEST Good', { product_bundle_components: [comp('ZZ TEST Table', 2)] }), pkg('bad', 'ZZ TEST Bad', { product_bundle_components: [comp('ZZ TEST Table', 2), comp('ZZ TEST Gone', 1, { active: false })] })] });
+    return r.items.map((a) => a.name).join() === 'ZZ TEST Good' && r.omittedPackages.map((o) => o.name).join() === 'ZZ TEST Bad' && r.items[0].components?.length === 1;
+  })());
+  ok('buildMenuAddOns (items only) agrees with the report and never contains an excluded package', buildMenuAddOns({ products: [], pricing: [], bundles: [pkg('b1', 'ZZ TEST Seating', { product_bundle_components: [comp('ZZ TEST Secret', 1, { public_visible: false })] })], categories: [] }).length === 0);
+  ok('a package that is not on the menu anyway (inactive, hidden, unpriced) is not reported as omitted', buildMenuAddOnsWithReport({ products: [], pricing: [], categories: [], bundles: [pkg('o1', 'A', { active: false }), pkg('o2', 'B', { menu_visible: false }), pkg('o3', 'C', { standalone_price_cents: 0 })] }).omittedPackages.length === 0);
+  ok('package pricing is unchanged for a complete package', only({ product_bundle_components: [comp('ZZ TEST Table', 2)] }).priceCents === 20000);
+  ok('the Admin message names each omitted package and reason and says nothing was changed', (() => { const m = describeOmittedPackages([{ id: 'x', name: 'ZZ TEST Seating', reason: 'the product "ZZ TEST Secret" is not public' }, { id: 'y', name: 'ZZ TEST Other', reason: 'it has no components defined' }]); return m.includes('"ZZ TEST Seating": the product "ZZ TEST Secret" is not public') && m.includes('"ZZ TEST Other"') && /nothing was changed/.test(m); })());
+  ok('products never carry components', buildMenuAddOns({ products: [prod('p1', 'ZZ TEST Table', null)], pricing: [price('p1', 500, null)], bundles: [], categories: [] })[0].components === undefined);
+  // F-54: the data-hiding route works (inactive / non-public rows and hidden categories are excluded); no name-based filter exists
+  const synthetic = buildMenuAddOns({ products: [prod('z1', 'ZZ TEST Hidden', null, { active: false }), prod('z2', 'ZZ TEST Private', null, { public_visible: false }), prod('z3', 'ZZ TEST In Hidden Cat', 'c-hidden')], pricing: [price('z1', 100, null), price('z2', 100, null), price('z3', 100, null)], bundles: [pkg('zb', 'ZZ TEST Off', { active: false })], categories: cats });
+  eq('F-54: synthetic items hidden by data (inactive, non-public, hidden category) never reach the menu', synthetic, []);
+  // pricing display is the approved behaviour and is unchanged
+  eq('pricing display unchanged: standalone shows when both exist, add-on price only when it is the only price', [buildMenuAddOns({ products: [prod('x', 'X', null)], pricing: [price('x', 500, 400)], bundles: [], categories: [] })[0].priceKind, buildMenuAddOns({ products: [prod('y', 'Y', null)], pricing: [price('y', null, 400)], bundles: [], categories: [] })[0].priceKind], ['standalone', 'add-on']);
+
+  const mixed = [{ kind: 'product', n: 1 }, { kind: 'package', n: 2 }, { kind: 'product', n: 3 }] as const;
+  eq('Party Add-Ons and Party Packages split into separate lists, order kept', [splitMenuAddOns(mixed).products.map((a) => a.n), splitMenuAddOns(mixed).packages.map((a) => a.n)], [[1, 3], [2]]);
+
+  // file names (F-32): one base for PDF and image
+  const d = new Date('2026-07-10T12:00:00Z');
+  const stamp = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  eq('export base name: brand, menu and the generated date', menuExportBaseName({ generatedAtIso: d.toISOString() }), `Bounce-Party-Club-Menu-${stamp}`);
+  eq('export base name: a filtered menu adds the filter, a date-checked one adds Available', [menuExportBaseName({ generatedAtIso: d.toISOString(), activeFilter: 'Water Slides' }), menuExportBaseName({ generatedAtIso: d.toISOString(), availabilityChecked: true })], [`Bounce-Party-Club-Menu-${stamp}-Water-Slides`, `Bounce-Party-Club-Menu-${stamp}-Available`]);
+  ok('export base name is filename-safe (letters, digits, hyphens) even for odd filter text', /^[A-Za-z0-9-]+$/.test(menuExportBaseName({ generatedAtIso: d.toISOString(), activeFilter: 'Caf\u00e9 / "Slides" <&> ' })));
+  ok('export base name survives a bad date', menuExportBaseName({ generatedAtIso: 'not a date' }) === 'Bounce-Party-Club-Menu');
+  // PNG size cap (mobile canvas limit about 16.7 M px)
+  eq('canvas scale stays 2x for a normal menu', menuCanvasScale(1200, 3000), 2);
+  const tall = 12000; // 12000 css px tall at 2x would be 2400 x 24000 = 57.6 M px
+  ok('a long menu is scaled down so the canvas area stays under the cap', 1200 * menuCanvasScale(1200, tall) * tall * menuCanvasScale(1200, tall) <= MENU_CANVAS_MAX_PIXELS + 1 && menuCanvasScale(1200, tall) < 2 && MENU_CANVAS_MAX_PIXELS < 16777216);
+  // source-level (NOT a UI integration test): names, title restore, sections, raw image URLs
+  ok('source-level: both literal image file names are gone; PDF title uses the same helper and is restored on afterprint, error and unmount', !/bounce-party-club-menu\.png/.test(preview) && (preview.match(/menuExportBaseName\(data\)/g) ?? []).length === 2 && /addEventListener\('afterprint', restore\)/.test(preview) && /removeEventListener\('afterprint', restore\)/.test(preview) && /restoreTitleRef\.current\?\.\(\);\n\s+sessionStorage\.removeItem\('menu-preview-data'\)/.test(preview) && /Could not prepare print preview\.'\);\n[^\n]*\n\s+restoreTitleRef\.current\?\.\(\)/.test(preview));
+  ok('source-level: the image export still loads the stored image URLs unchanged (no transformed/resized URLs, CORS-safe originals)', /loadImageForCanvas\(a\.imageUrl \?\? ''\)/.test(preview) && /loadImageForCanvas\(getUnitImageUrl\(u\)\)/.test(preview) && !/render\/image|\?width=|transform=/.test(preview));
+  ok('source-level: Party Packages are their own section after Party Add-Ons in preview and image', preview.indexOf('menu-print-packages') > preview.indexOf('menu-print-addons') && preview.indexOf('// --- Party Packages ---') > preview.indexOf('// --- Party Add-Ons ---') && preview.indexOf('// --- Party Packages ---') < preview.indexOf('// --- Footer ---') && /paginate\(menuPackages, MENU_PACKAGE_PAGE_SIZE\)/.test(preview));
+  ok('source-level: print and screen styles exist for the package contents list', /\.menu-preview-route \.menu-package-includes-list/.test(css) && /body\.print-menu-preview #root \.menu-package-includes-list/.test(css));
+  ok('source-level: only an Admin or Master gets the omitted-package warning (toast) and the menu data carries it only then; the preview notice is screen-only', /const \{ isAdmin \} = useAuth\(\);/.test(catalog) && /const adminOmittedPackages = isAdmin \? omittedPackages : \[\];/.test(catalog) && /if \(adminOmittedPackages\.length > 0\) notifyWarning\(describeOmittedPackages\(adminOmittedPackages\)/.test(catalog) && /\.\.\.\(adminOmittedPackages\.length > 0 \? \{ adminOmittedPackages \} : \{\}\)/.test(catalog) && /menu-admin-omitted-notice[^>]*no-print/.test(preview) && !/adminOmittedPackages/.test(preview.slice(preview.indexOf('async function drawMenuToCanvas'), preview.indexOf('export function MenuPreview'))));
+}
 
 // =====================================================================================================================
 // WP-24
@@ -161,7 +218,7 @@ ok('submitting wins over the other states', quoteContinueState({ ...ready, hasTo
 const quote = read('src/pages/Quote.tsx');
 const summary = read('src/components/quote/QuoteSummarySection.tsx');
 ok('Quote: the total and Continue are pinned to the bottom on phones, the card button shows on wide screens only', /data-testid="quote-mobile-bar"/.test(summary) && /lg:hidden fixed inset-x-0 bottom-0 z-30/.test(summary) && /hidden lg:block w-full/.test(summary) && /pb-\[calc\(0\.75rem\+env\(safe-area-inset-bottom\)\)\]/.test(summary) && (summary.match(/\{cont\.label\}/g) ?? []).length === 2);
-ok('Quote: both Continue buttons share one rule', /quoteContinueState\(\{ hasTotals: !!totals, pricingConfigError, isCalculating, depositError: totals\?\.depositError, submitting \}\)/.test(summary) && (summary.match(/disabled=\{cont\.disabled\}/g) ?? []).length === 2);
+ok('Quote: both Continue buttons share one rule', /quoteContinueState\(\{ hasTotals: !!totals, pricingConfigError, isCalculating, depositError: totals\?\.depositError, submitting, needsAddress \}\)/.test(summary) && (summary.match(/disabled=\{cont\.disabled\}/g) ?? []).length === 2);
 ok('Quote: the page leaves room for the pinned bar', /pb-28 lg:pb-16/.test(quote));
 ok('Quote: the error toast sits above the pinned bar, is announced, and has a 44px close', /bottom-\[calc\(5\.5rem\+env\(safe-area-inset-bottom\)\)\] lg:bottom-4/.test(quote) && /role="alert" aria-live="assertive" className="fixed bottom-/.test(quote) && /min-h-\[44px\] min-w-\[44px\]/.test(quote));
 ok('Quote: Continue ignores a second press and shows progress while availability is re-checked', /if \(submitting\) return;/.test(quote) && /setSubmitting\(true\);[\s\S]{0,260}finally \{\s+setSubmitting\(false\);/.test(quote) && /submitting=\{submitting\}/.test(quote));

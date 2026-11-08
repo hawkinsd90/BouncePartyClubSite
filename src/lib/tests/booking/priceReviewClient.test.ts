@@ -83,6 +83,32 @@ async function withFetch(response: { ok: boolean; status: number; body: any }, r
     eq('success returns the server totals and expiry', [booking.orderId, booking.expiresAt, booking.totals], ['o1', '2030-01-01T00:00:00Z', { totalCents: 100, depositCents: 50 }]);
   });
 
+  // WP-P1-06: the explanatory values on a PRICE_CHANGED answer
+  await withFetch({ ok: false, status: 409, body: { success: false, error: 'x', code: 'PRICE_CHANGED', totals: { totalCents: 31000, depositCents: 6000 }, travelFeeCents: 2506, travelCityStatus: 'unverified' } }, async () => {
+    try {
+      await createBooking({});
+    } catch (e) {
+      eq('PRICE_CHANGED carries the delivery fee and city status next to the totals', (e as any).totals, { totalCents: 31000, depositCents: 6000, travelFeeCents: 2506, travelCityStatus: 'unverified' });
+    }
+  });
+  await withFetch({ ok: false, status: 409, body: { success: false, error: 'x', code: 'PRICE_CHANGED', totals: { totalCents: 1, depositCents: 1 }, travelFeeCents: -5, travelCityStatus: '<b>x</b>' } }, async () => {
+    try {
+      await createBooking({});
+    } catch (e) {
+      eq('a malformed fee or an unknown status is ignored', (e as any).totals, { totalCents: 1, depositCents: 1 });
+    }
+  });
+  const { explainPriceChange } = await import('../../booking/priceChangeExplanation');
+  const money = (c: number) => `$${(c / 100).toFixed(2)}`;
+  const T = (travelFeeCents?: number, travelCityStatus?: string) => ({ totalCents: 0, depositCents: 0, ...(travelFeeCents === undefined ? {} : { travelFeeCents }), ...(travelCityStatus ? { travelCityStatus } : {}) });
+  const up = explainPriceChange(T(0), T(2506, 'unverified'), money);
+  eq('unverified fee increase: delta, names the cause and says what to do', [up.travelFeeDeltaCents, /\$25\.06 higher/.test(up.sentence ?? ''), /could not automatically confirm/.test(up.sentence ?? ''), /contact us/.test(up.sentence ?? '')], [2506, true, true, true]);
+  eq('mismatch fee increase names the free-delivery cities', /outside the free-delivery cities/.test(explainPriceChange(T(0), T(1200, 'verified_mismatch'), money).sentence ?? ''), true);
+  eq('other fee increase states only the amount', explainPriceChange(T(0), T(1200, 'not_checked'), money), { sentence: 'The delivery fee is $12.00 higher than the quote showed.', travelFeeDeltaCents: 1200 });
+  eq('fee decrease', explainPriceChange(T(1200), T(0, 'verified_match'), money), { sentence: 'The delivery fee is $12.00 lower than the quote showed.', travelFeeDeltaCents: -1200 });
+  eq('no fee change: no sentence (the generic text stays)', explainPriceChange(T(500), T(500, 'unverified'), money), { sentence: null, travelFeeDeltaCents: 0 });
+  eq('an unknown previous fee never invents a cause', explainPriceChange(T(), T(2506, 'unverified'), money), { sentence: null, travelFeeDeltaCents: null });
+
   // Page wiring
   const checkout = read('src/pages/Checkout.tsx');
   eq('Checkout sends the displayed total and deposit as claims', checkout.includes('claimedTotalCents: acceptedTotalsRef.current?.totalCents ?? unifiedTotals.totalCents') && checkout.includes('claimedDepositCents: acceptedTotalsRef.current?.depositCents ?? unifiedTotals.depositCents'), true);
@@ -92,6 +118,8 @@ async function withFetch(response: { ok: boolean; status: number; body: any }, r
   const review = read('src/components/checkout/PriceChangedReview.tsx');
   eq('the review shows old and new total and deposit and says nothing was charged', ['Total shown before', 'New total', 'Deposit shown before', 'New deposit', 'Nothing has been charged'].every((t) => review.includes(t)), true);
   eq('the review dialog is accessible and scrollable on small screens', review.includes('role="alertdialog"') && review.includes('aria-modal="true"') && review.includes('max-h-[90dvh]') && review.includes('min-h-[44px]'), true);
+  eq('source: the review shows the reason sentence and the delivery-fee change from the pure explanation', review.includes('explainPriceChange(previous, updated, formatCurrency)') && review.includes('price-change-reason') && review.includes('Delivery fee change'), true);
+  eq('source: Checkout passes the delivery fee the customer was shown as the previous fee', checkout.includes('travelFeeCents: priceBreakdown.travel_fee_cents as number'), true);
   const quote = read('src/pages/Quote.tsx');
   eq('Quote reads the free-city list from included_cities first (the server rule)', quote.includes('(data.included_cities as string[] | null) ?? (data.included_city_list_json as string[] | null)'), true);
 

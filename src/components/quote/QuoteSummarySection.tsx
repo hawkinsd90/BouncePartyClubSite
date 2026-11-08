@@ -26,6 +26,8 @@ interface QuoteSummarySectionProps {
   pricingConfigError: string | null;
   isCalculating: boolean;
   submitting?: boolean;
+  /** No event address has been chosen yet (no street or no coordinates), so no price can be shown: say so (F-40). */
+  needsAddress?: boolean;
 }
 
 export { getQuotePricingDisplayState } from '../../lib/booking/quotePricingDisplayState';
@@ -34,7 +36,7 @@ function isInflatable(item: UnifiedCartItem): item is InflatableCartItem {
   return item.item_type === undefined || item.item_type === 'inflatable';
 }
 
-export function QuoteSummarySection({ cart, priceBreakdown, totals, pricingConfigError, isCalculating, submitting = false }: QuoteSummarySectionProps) {
+export function QuoteSummarySection({ cart, priceBreakdown, totals, pricingConfigError, isCalculating, submitting = false, needsAddress = false }: QuoteSummarySectionProps) {
   if (cart.length === 0) {
     return (
       <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-4 sm:p-6 lg:sticky lg:top-[calc(var(--site-header-height)_+_2rem)]">
@@ -62,7 +64,7 @@ export function QuoteSummarySection({ cart, priceBreakdown, totals, pricingConfi
   const hasUnavailableItems = cart.some((item) => item.isAvailable === false);
 
   const showPricingSection = totals !== null && !pricingConfigError;
-  const cont = quoteContinueState({ hasTotals: !!totals, pricingConfigError, isCalculating, depositError: totals?.depositError, submitting });
+  const cont = quoteContinueState({ hasTotals: !!totals, pricingConfigError, isCalculating, depositError: totals?.depositError, submitting, needsAddress });
 
   return (
     <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-4 sm:p-6 lg:sticky lg:top-[calc(var(--site-header-height)_+_2rem)]">
@@ -274,6 +276,10 @@ export function QuoteSummarySection({ cart, priceBreakdown, totals, pricingConfi
               Unable to calculate deposit: {totals.depositError}. Please contact us for assistance.
             </p>
           </div>
+        )}
+
+        {needsAddress && !totals && (
+          <p role="status" className="hidden lg:block text-xs sm:text-sm text-slate-600 text-center leading-snug">{cont.reason}</p>
         )}
 
         {/* Wide screens: the button sits in the card. Phones: it is pinned to the bottom (below) so Continue and the total are always in reach. */}

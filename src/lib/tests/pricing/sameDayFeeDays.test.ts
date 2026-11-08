@@ -1,7 +1,7 @@
 // WP-14 (B2): the days on which the same-day delivery fee applies are a pricing rule. The default (Monday to Friday) reproduces the old
 // hard-coded behavior; the Detroit calendar date decides "today", never the computer's or UTC's.
 import { readFileSync } from 'node:fs';
-import { DEFAULT_SAME_DAY_FEE_DAYS, isSameDayFeeDay, isSameDayWeekdayDelivery } from '../../pricing';
+import { DEFAULT_SAME_DAY_FEE_DAYS, calculatePrice, isSameDayFeeDay, isSameDayWeekdayDelivery, type PricingRules } from '../../pricing';
 
 let passed = 0;
 let failed = 0;
@@ -77,7 +77,61 @@ for (let day = 0; day < 366 && parity; day++) {
 eq('default behavior is identical to the old Monday-Friday rule', parity, true);
 eq('exported function keeps working without a days argument', typeof isSameDayWeekdayDelivery('2000-01-01'), 'boolean');
 
+// --- WP-P1-01 (F-01): the configured days reach the price, end to end ----------------------------------------------------------
+// Monday 2026-11-09 and Tuesday 2026-11-10, mid-morning in Detroit. "Monday excluded" is the saved setting [Tue-Fri].
+const MON_NOW = at('2026-11-09T15:00:00Z');
+const TUE_NOW = at('2026-11-10T15:00:00Z');
+const SAME_DAY_FEE_CENTS = 5000;
+const quoteRules = (days: number[] | null | undefined): PricingRules => ({
+  base_radius_miles: 20,
+  included_city_list_json: ['Detroit'],
+  included_cities: ['Detroit'],
+  per_mile_after_base_cents: 300,
+  zone_overrides_json: [],
+  surface_sandbag_fee_cents: 0,
+  residential_multiplier: 1,
+  commercial_multiplier: 1,
+  overnight_holiday_only: false,
+  extra_day_pct: 0,
+  generator_price_cents: 0,
+  same_day_pickup_fee_cents: 0,
+  same_day_weekday_delivery_fee_cents: SAME_DAY_FEE_CENTS,
+  same_day_delivery_fee_days: days,
+});
+// The chain the Quote page runs: the flag comes from the rules' days (here with an injected "now"), then the price is built from it.
+function sameDayFeeFor(eventDate: string, now: Date, rules: PricingRules): number {
+  const flag = isSameDayFeeDay(eventDate, now, TZ, rules.same_day_delivery_fee_days);
+  return calculatePrice({
+    items: [{ unit_id: 'u1', wet_or_dry: 'dry', unit_price_cents: 15000, qty: 1 }],
+    location_type: 'residential',
+    surface: 'grass',
+    can_use_stakes: true,
+    overnight_allowed: true,
+    num_days: 1,
+    distance_miles: 5,
+    city: 'Detroit',
+    zip: '48201',
+    has_generator: false,
+    is_same_day_weekday_delivery: flag,
+    rules,
+  }).same_day_weekday_delivery_fee_cents;
+}
+eq('Monday excluded: no same-day fee on a Monday', sameDayFeeFor('2026-11-09', MON_NOW, quoteRules([2, 3, 4, 5])), 0);
+eq('enabled weekday (Tuesday) still pays the configured fee', sameDayFeeFor('2026-11-10', TUE_NOW, quoteRules([2, 3, 4, 5])), SAME_DAY_FEE_CENTS);
+eq('Monday enabled pays the fee on a Monday', sameDayFeeFor('2026-11-09', MON_NOW, quoteRules([1])), SAME_DAY_FEE_CENTS);
+eq('empty days list: no weekday pays', sameDayFeeFor('2026-11-10', TUE_NOW, quoteRules([])), 0);
+eq('no days supplied (undefined): Monday-Friday fallback charges Monday', sameDayFeeFor('2026-11-09', MON_NOW, quoteRules(undefined)), SAME_DAY_FEE_CENTS);
+eq('no days supplied (null): Monday-Friday fallback charges Monday', sameDayFeeFor('2026-11-09', MON_NOW, quoteRules(null)), SAME_DAY_FEE_CENTS);
+eq('no days supplied: Saturday is still free', sameDayFeeFor('2026-11-14', at('2026-11-14T15:00:00Z'), quoteRules(undefined)), 0);
+// The defect, shown on purpose: if a rules object drops the saved days, the browser charges Monday although the setting excludes it.
+eq('DEFECT SHAPE: days dropped from the rules, Monday is wrongly charged', sameDayFeeFor('2026-11-09', MON_NOW, quoteRules(undefined)) !== sameDayFeeFor('2026-11-09', MON_NOW, quoteRules([2, 3, 4, 5])), true);
+
 // --- wiring (source) ---------------------------------------------------------------------------------------------------------
+// The Quote page builds its own PricingRules object field by field. F-01: it left the days out, so the saved setting never reached the browser price.
+const quotePage = read('src/pages/Quote.tsx');
+eq('Quote page maps the saved days from the pricing row, unchanged', /same_day_delivery_fee_days:\s*data\.same_day_delivery_fee_days\s*,/.test(quotePage), true);
+eq('Quote page does not replace the saved days with the default', !/same_day_delivery_fee_days:[^\n]*DEFAULT_SAME_DAY_FEE_DAYS/.test(quotePage), true);
+eq('invoice builder maps the saved days too', read('src/hooks/invoices/useInvoiceData.ts').includes('same_day_delivery_fee_days: r.same_day_delivery_fee_days'), true);
 const orderCalc = read('src/lib/pricing/orderPricingCalculation.ts');
 eq('order pricing passes the rule days into the check', orderCalc.includes('resolved.isSameDayWeekdayDelivery(eventDetails.event_date, pricingRules?.same_day_delivery_fee_days)'), true);
 eq('quote pricing passes the rule days', read('src/hooks/booking/useQuotePricing.ts').includes('isSameDayWeekdayDelivery(formData.event_date, pricingRules.same_day_delivery_fee_days)'), true);

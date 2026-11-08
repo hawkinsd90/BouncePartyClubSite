@@ -2,6 +2,7 @@ import { Plus, Minus, Trash2 } from 'lucide-react';
 import { clampQuantity, maxQtyForKind, qtyKindOf, quantityLimitMessage } from '../../lib/orders/quantityLimits';
 import { showToast } from '../../lib/toasts';
 import { formatCurrency } from '../../lib/pricing';
+import { effectiveWaterPriceCents, unitSupportsWater } from '../../lib/pricing/unitWaterPricing';
 
 // What the list reads of a package line's stored contents (every snapshot type in the app has at least this).
 interface PackageContents {
@@ -275,12 +276,12 @@ export function ItemsEditor<TUnit extends EditorUnit>({
                       Dry {formatCurrency(unit.price_dry_cents || 0)}
                     </button>
                   ) : null}
-                  {(unit.price_water_cents || 0) > 0 && (
+                  {unitSupportsWater(unit) && (
                     <button
                       onClick={() => onAddItem(unit, 'water')}
                       className="flex-1 bg-cyan-600 hover:bg-cyan-700 text-white text-xs py-2 px-3 rounded transition-colors"
                     >
-                      Water {formatCurrency(unit.price_water_cents || 0)}
+                      Water {formatCurrency(effectiveWaterPriceCents(unit) || 0)}
                     </button>
                   )}
                 </div>

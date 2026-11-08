@@ -1,13 +1,14 @@
 import { useEffect, useState, useCallback, useRef } from 'react';
-import { fetchInventoryProducts, fetchProductBundles, fetchProductCategories, fetchProductPricing } from '../lib/queries/products';
+import { fetchInventoryProducts, fetchProductBundlesWithAllComponents, fetchProductCategories, fetchProductPricing } from '../lib/queries/products';
 import { getPublicBusinessSettings } from '../lib/core/adminSettingsCache';
-import { buildMenuAddOns, shouldIncludeAddOns, type MenuAddOn, type MenuAddOnInput } from '../lib/menu/menuAddOns';
+import { buildMenuAddOnsWithReport, describeOmittedPackages, shouldIncludeAddOns, type MenuAddOn, type MenuAddOnInput, type OmittedMenuPackage } from '../lib/menu/menuAddOns';
+import { useAuth } from '../contexts/AuthContext';
 import { todayLocalKey } from '../lib/core/localDate';
 import { Link, useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import { SafeStorage } from '../lib/core/safeStorage';
 import { Users, Maximize, Zap, Droplets, Download, Search, XCircle, CheckCircle, Tag } from 'lucide-react';
-import { notifyError } from '../lib/toasts';
+import { notifyError, notifyWarning } from '../lib/toasts';
 import { DatePickerInput } from '../components/ui/DatePickerInput';
 import { checkMultipleUnitsAvailabilityPublic } from '../lib/booking/availability';
 
@@ -33,6 +34,7 @@ interface Unit {
 
 export function Catalog() {
   const navigate = useNavigate();
+  const { isAdmin } = useAuth();
   const [units, setUnits] = useState<Unit[]>([]);
   const [loading, setLoading] = useState(true);
   const [filterType, setFilterType] = useState<string>('all');
@@ -186,22 +188,23 @@ export function Catalog() {
 
   // Party Add-Ons for the menu: loaded when the menu is saved, and only on the plain "everything" menu (see shouldIncludeAddOns). A failure here
   // never blocks the menu; it is saved without the add-ons and the visitor is told.
-  const loadMenuAddOns = async (): Promise<MenuAddOn[]> => {
+  const loadMenuAddOns = async (): Promise<{ addOns: MenuAddOn[]; omittedPackages: OmittedMenuPackage[] }> => {
     try {
       const settings = await getPublicBusinessSettings();
-      if (!shouldIncludeAddOns({ eventEssentialsEnabled: settings.event_essentials_page_enabled, filterType, availabilityChecked })) return [];
-      const [products, pricing, bundles, categories] = await Promise.all([fetchInventoryProducts(), fetchProductPricing(), fetchProductBundles(), fetchProductCategories()]);
+      if (!shouldIncludeAddOns({ eventEssentialsEnabled: settings.event_essentials_page_enabled, filterType, availabilityChecked })) return { addOns: [], omittedPackages: [] };
+      const [products, pricing, bundles, categories] = await Promise.all([fetchInventoryProducts(), fetchProductPricing(), fetchProductBundlesWithAllComponents(), fetchProductCategories()]);
       if (products.error || pricing.error || bundles.error || categories.error) throw new Error('add-on data unavailable');
-      return buildMenuAddOns({
+      const built = buildMenuAddOnsWithReport({
         products: (products.data ?? []) as unknown as MenuAddOnInput['products'],
         pricing: (pricing.data ?? []) as unknown as MenuAddOnInput['pricing'],
         bundles: (bundles.data ?? []) as unknown as MenuAddOnInput['bundles'],
         categories: (categories.data ?? []) as unknown as MenuAddOnInput['categories'],
       });
+      return { addOns: built.items, omittedPackages: built.omittedPackages };
     } catch (err) {
       console.error('Menu add-ons unavailable:', err);
       notifyError('Party Add-Ons could not be included in the menu this time.');
-      return [];
+      return { addOns: [], omittedPackages: [] };
     }
   };
 
@@ -223,7 +226,14 @@ export function Catalog() {
       ? `Available Inflatables — ${formattedDate}`
       : 'Bounce Party Club Menu';
 
-    const addOns = await loadMenuAddOns();
+    const { addOns, omittedPackages } = await loadMenuAddOns();
+    // D6: a package with unresolvable contents is already excluded from addOns. Only a signed-in Admin or Master is told which one and why (a
+    // toast now, plus a banner on the preview that is screen-only); customers get the menu without it and no hint. The reason can name a
+    // hidden component, so it is never put into the saved menu data for anyone else.
+    // Scope: this warning exists only for the current Admin export session (the toast and the preview banner, which lives in this browser's
+    // sessionStorage). A durable Admin notification (kept after the session, visible to other Admins) is out of scope for this package.
+    const adminOmittedPackages = isAdmin ? omittedPackages : [];
+    if (adminOmittedPackages.length > 0) notifyWarning(describeOmittedPackages(adminOmittedPackages), { duration: 15000 });
 
     const menuData = {
       generatedAtIso: new Date().toISOString(),
@@ -233,6 +243,7 @@ export function Catalog() {
       availabilityChecked,
       availabilityDateFormatted: availabilityChecked ? formattedDate : null,
       activeFilter: filterType !== 'all' ? filterLabels[filterType] : null,
+      ...(adminOmittedPackages.length > 0 ? { adminOmittedPackages } : {}),
     };
 
     sessionStorage.setItem('menu-preview-data', JSON.stringify(menuData));
@@ -395,7 +406,7 @@ export function Catalog() {
           </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 sm:gap-8">
-            {filteredUnits.map((unit) => (
+            {filteredUnits.map((unit, unitIndex) => (
               <Link
                 key={unit.id}
                 to={`/units/${unit.slug}`}
@@ -406,7 +417,13 @@ export function Catalog() {
                     <img
                       src={unit.media[0].url}
                       alt={unit.media[0].alt}
-                      loading="lazy"
+                      // F-30: the first row is above the fold (load it right away); the rest load lazily. Dimensions reserve the 16:9 box so
+                      // nothing jumps while photos arrive; decoding off the main thread keeps scrolling smooth on phones.
+                      loading={unitIndex < 3 ? 'eager' : 'lazy'}
+                      fetchPriority={unitIndex < 3 ? 'high' : 'auto'}
+                      decoding="async"
+                      width={640}
+                      height={360}
                       className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500"
                     />
                   ) : (

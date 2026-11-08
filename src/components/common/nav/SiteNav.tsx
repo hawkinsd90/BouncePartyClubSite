@@ -14,7 +14,7 @@ interface Props {
 const linkClass = 'whitespace-nowrap text-sm xl:text-base text-slate-700 hover:text-blue-600 font-medium transition-colors min-h-[44px] flex items-center';
 
 // Desktop navigation: ONE row. A link with children (Party Add-Ons with the Admin-configured menu groups) is a dropdown that opens on
-// click and closes on Escape, a click outside, or choosing a link.
+// the chevron (the label itself is a link to the page) and closes on Escape, a click outside, or choosing a link.
 export function SiteNav({ links, addOnsOpen, onToggleAddOns, onClose }: Props) {
   const ref = useRef<HTMLDivElement>(null);
   useDismissable(ref, addOnsOpen, onClose);
@@ -23,22 +23,31 @@ export function SiteNav({ links, addOnsOpen, onToggleAddOns, onClose }: Props) {
     <nav aria-label="Main" className="hidden md:flex items-center gap-x-4 lg:gap-x-6 xl:gap-x-8 ml-4 lg:ml-8">
       {links.map((link) =>
         link.children ? (
-          <div key={link.id} ref={ref} className="relative">
+          <div key={link.id} ref={ref} className="relative flex items-center">
+            {/* The word goes to the page; the chevron beside it opens the list (WP-P2-23a / F-28). */}
+            <Link to={link.to} className={linkClass} onClick={onClose}>
+              {link.label}
+            </Link>
             <button
               type="button"
               onClick={onToggleAddOns}
               aria-expanded={addOnsOpen}
               aria-haspopup="true"
               aria-controls="addons-menu-panel"
-              className={`${linkClass} gap-1`}
+              aria-label={`${link.label} menu`}
+              className="flex items-center justify-center min-h-[44px] min-w-[32px] text-slate-700 hover:text-blue-600 transition-colors"
             >
-              {link.label}
               <ChevronDown className={`w-4 h-4 transition-transform ${addOnsOpen ? 'rotate-180' : ''}`} />
             </button>
             {addOnsOpen && (
-              <div id="addons-menu-panel" className="absolute left-0 mt-1 w-64 max-h-[70vh] overflow-y-auto bg-white border border-slate-200 rounded-lg shadow-lg py-1 z-50">
+              <div id="addons-menu-panel" className="absolute left-0 top-full mt-1 w-64 max-h-[70vh] overflow-y-auto bg-white border border-slate-200 rounded-lg shadow-lg py-1 z-50">
                 {link.children.map((child) => (
-                  <Link key={child.id} to={child.to} onClick={onClose} className="block px-4 py-3 text-slate-700 hover:bg-blue-50 hover:text-blue-700 font-medium min-h-[44px]">
+                  <Link
+                    key={child.id}
+                    to={child.to}
+                    onClick={onClose}
+                    className={`block px-4 py-3 text-slate-700 hover:bg-blue-50 hover:text-blue-700 font-medium min-h-[44px]${child.separated ? ' border-t border-slate-100 mt-1' : ''}`}
+                  >
                     {child.label}
                   </Link>
                 ))}

@@ -535,8 +535,12 @@ function price(which: Which, bundle: any, candidate: string, over: Record<string
   const lines: ResolverInputLine[] = [
     { resolverKey: 'cand', itemType: 'event_essential_product', qty: 1, productId: candidate },
     { resolverKey: 'pkg', itemType: 'event_essential_bundle', qty: 1, bundleId: bundle.id },
+    // D3 / WP-P1-26: add-on discounts need a valid active inflatable in the order. A zero-price
+    // one opens that gate without changing any qualifying subtotal (this file tests the
+    // category/threshold rules, not the inflatable requirement).
+    { resolverKey: 'zz_inf', itemType: 'inflatable', qty: 1, unitId: 'u_zz', selectedUnitPriceCents: 0, wetOrDry: 'dry' },
   ];
-  const input: ResolverInput = { lines, productConfigs: cfg.productConfigs, bundleConfigs: cfg.bundleConfigs, categories: cfg.categories, units: {} };
+  const input: ResolverInput = { lines, productConfigs: cfg.productConfigs, bundleConfigs: cfg.bundleConfigs, categories: cfg.categories, units: { u_zz: { id: 'u_zz', active: true } } };
   const out = resolveEventEssentialsPricing(input);
   const l = out.lines.find((x) => x.resolverKey === 'cand')!;
   return { selectable: l.selectable, ctx: l.resolvedPricingContext, price: l.resolvedUnitPriceCents, addonQualified: l.addonQualified, qualifying: l.qualifyingSubtotalCents };

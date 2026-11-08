@@ -249,6 +249,28 @@ async function setupConfirmation(
   };
 }
 
+// The payment outcome a card-save event reports to order-lifecycle. A card save collects NO money, so it is never "charged_now" (that label
+// skips the stock gate because money was just collected). This is only reached when no principal is left to collect: a deposit that is
+// due has therefore already been paid ("already_paid"), otherwise nothing was due ("zero_due_with_card"). Both outcomes are gated.
+export function setupConfirmOutcome(depositDue: number): "already_paid" | "zero_due_with_card" {
+  return depositDue > 0 ? "already_paid" : "zero_due_with_card";
+}
+
+// What a card-save event does to the order. A booking request goes to review. An Admin Invoice is confirmed only when no principal is left
+// to collect, and then ONLY through order-lifecycle (which re-checks stock): the webhook never writes "confirmed" itself, for any eligible
+// status (draft, quote, pending_review). `writeStatus` is what the webhook may write directly (null = leave the status alone).
+export function planSetupConfirmation(c: { isAdminInvoice: boolean; principalOutstanding: boolean; currentStatus: string; depositDue: number }) {
+  const target = c.isAdminInvoice ? (c.principalOutstanding ? null : "confirmed") : "pending_review";
+  const safeToAdvance = target !== null && ["draft", "quote", "pending_review"].includes(c.currentStatus);
+  const lifecycleConfirms = safeToAdvance && target === "confirmed";
+  return {
+    safeToAdvance,
+    lifecycleConfirms,
+    writeStatus: safeToAdvance && !lifecycleConfirms ? target : null,
+    outcome: setupConfirmOutcome(c.depositDue),
+  };
+}
+
 export async function handleCheckoutSessionCompleted(
   session: Stripe.Checkout.Session,
   supabaseClient: SupabaseClient,
@@ -307,14 +329,18 @@ export async function handleCheckoutSessionCompleted(
     }
 
     const { isAdminInvoice, principalOutstanding, currentStatus, depositDue } = await setupConfirmation(supabaseClient, orderId);
-    // A booking request goes to review. An Admin Invoice is confirmed only when no principal is left to collect.
-    const newStatus = isAdminInvoice ? (principalOutstanding ? null : "confirmed") : "pending_review";
-    const setupSafeToAdvance = newStatus !== null && ["draft", "quote", "pending_review"].includes(currentStatus);
+    // D1 (WP-P1-16): a card save collects no money, so for an Admin Invoice with nothing to collect the CONFIRMATION is left to order-lifecycle,
+    // which re-checks stock before it writes "confirmed" (and refuses on a conflict or an unverifiable check). The card, customer and
+    // tip are still stored below either way, so nothing about the saved payment method is lost; the customer's return page retries the
+    // confirmation (invoice_card_saved_fallback) and the Admin is alerted by the lifecycle function when it refuses.
+    // Every eligible status (draft, quote, pending_review) goes through that gate: the webhook never writes "confirmed" on a card save.
+    const plan = planSetupConfirmation({ isAdminInvoice, principalOutstanding, currentStatus, depositDue });
+    const setupSafeToAdvance = plan.safeToAdvance;
 
     const { error: updateError } = await supabaseClient
       .from("orders")
       .update({
-        ...(setupSafeToAdvance ? { status: newStatus } : {}),
+        ...(plan.writeStatus ? { status: plan.writeStatus } : {}),
         stripe_payment_method_id: actualPaymentMethodId,
         stripe_customer_id: stripeCustomerId,
         ...(tipCents > 0 ? { tip_cents: tipCents } : {}),
@@ -327,7 +353,7 @@ export async function handleCheckoutSessionCompleted(
       console.error(`[WEBHOOK] Error updating order ${orderId}:`, updateError);
     } else if (setupSafeToAdvance) {
       if (isAdminInvoice) {
-        await invokeLifecycle(supabaseClient, "enter_confirmed", orderId, "webhook_setup_session_admin_invoice", depositDue > 0 ? "charged_now" : "zero_due_with_card", "draft");
+        await invokeLifecycle(supabaseClient, "enter_confirmed", orderId, "webhook_setup_session_admin_invoice", plan.outcome, currentStatus);
       } else {
         await invokeLifecycle(supabaseClient, "enter_pending_review", orderId, "webhook_setup_session_checkout", undefined, "draft");
       }
@@ -527,14 +553,18 @@ export async function handleSetupIntentSucceeded(
   }
 
   const { isAdminInvoice, principalOutstanding, currentStatus, depositDue } = await setupConfirmation(supabaseClient, orderId);
-  // A booking request goes to review. An Admin Invoice is confirmed only when no principal is left to collect.
-  const newStatus = isAdminInvoice ? (principalOutstanding ? null : "confirmed") : "pending_review";
-  const siSafeToAdvance = newStatus !== null && ["draft", "quote", "pending_review"].includes(currentStatus);
+  // D1 (WP-P1-16): a card save collects no money, so for an Admin Invoice with nothing to collect the CONFIRMATION is left to order-lifecycle,
+  // which re-checks stock before it writes "confirmed" (and refuses on a conflict or an unverifiable check). The card, customer and
+  // tip are still stored below either way, so nothing about the saved payment method is lost; the customer's return page retries the
+  // confirmation (invoice_card_saved_fallback) and the Admin is alerted by the lifecycle function when it refuses.
+  // Every eligible status (draft, quote, pending_review) goes through that gate: the webhook never writes "confirmed" on a card save.
+  const plan = planSetupConfirmation({ isAdminInvoice, principalOutstanding, currentStatus, depositDue });
+  const siSafeToAdvance = plan.safeToAdvance;
 
   const { error: updateError } = await supabaseClient
     .from("orders")
     .update({
-      ...(siSafeToAdvance ? { status: newStatus } : {}),
+      ...(plan.writeStatus ? { status: plan.writeStatus } : {}),
       stripe_payment_method_id: paymentMethodId,
       stripe_customer_id: stripeCustomerId,
       ...(siCardBrand ? { payment_method_brand: siCardBrand } : {}),
@@ -546,7 +576,7 @@ export async function handleSetupIntentSucceeded(
     console.error(`[WEBHOOK] Error updating order ${orderId}:`, updateError);
   } else if (siSafeToAdvance) {
     if (isAdminInvoice) {
-      await invokeLifecycle(supabaseClient, "enter_confirmed", orderId, "webhook_setup_intent_admin_invoice", depositDue > 0 ? "charged_now" : "zero_due_with_card", "draft");
+      await invokeLifecycle(supabaseClient, "enter_confirmed", orderId, "webhook_setup_intent_admin_invoice", plan.outcome, currentStatus);
     } else {
       await invokeLifecycle(supabaseClient, "enter_pending_review", orderId, "webhook_setup_intent_standard", undefined, "draft");
     }

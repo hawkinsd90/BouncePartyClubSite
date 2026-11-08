@@ -8,8 +8,10 @@ export interface NavLink {
   id: string;
   label: string;
   to: string;
-  // Present only for a dropdown (Party Add-Ons with Admin-configured menu groups).
+  // Present only for a dropdown (Party Add-Ons with Admin-configured menu groups and/or the Party Packages entry).
   children?: NavLink[];
+  // Dropdown entry drawn apart (a divider above it): Party Packages is not one of the Party Add-Ons groups.
+  separated?: boolean;
 }
 
 export interface MenuGroupLike {
@@ -24,6 +26,8 @@ export interface NavInput {
   isCrew: boolean;
   eventEssentialsEnabled: boolean;
   menuGroups: MenuGroupLike[];
+  // True when at least one public Party Package exists (the header then offers a separate "Party Packages" entry). Optional: absent = false.
+  hasPackages?: boolean;
 }
 
 export interface NavModel {
@@ -33,6 +37,10 @@ export interface NavModel {
 }
 
 export const ADD_ONS_PATH = '/event-essentials';
+// WP-P2-18 / F-33: the signed-out account link names both things the page offers (/login also links to Sign up).
+export const LOGIN_LABEL = 'Login / Sign Up';
+// The Party Packages section of the Add-Ons page (the page scrolls to it). Party Packages are listed apart from the Party Add-Ons groups.
+export const PACKAGES_PATH = `${ADD_ONS_PATH}?section=packages`;
 
 export function menuGroupPath(group: Pick<MenuGroupLike, 'category_slugs'>): string {
   return `${ADD_ONS_PATH}?categories=${group.category_slugs.join(',')}`;
@@ -47,10 +55,11 @@ export function buildNavLinks(input: NavInput): NavModel {
   if (input.eventEssentialsEnabled) {
     const groups = input.menuGroups.filter((g) => g.title && g.category_slugs.length > 0);
     const addOns: NavLink = { id: 'addons', label: 'Party Add-Ons', to: ADD_ONS_PATH };
-    if (groups.length > 0) {
+    if (groups.length > 0 || input.hasPackages) {
       addOns.children = [
         ...groups.map((g) => ({ id: `group-${g.id}`, label: g.title, to: menuGroupPath(g) })),
         { id: 'addons-all', label: 'View all add-ons', to: ADD_ONS_PATH },
+        ...(input.hasPackages ? [{ id: 'addons-packages', label: 'Party Packages', to: PACKAGES_PATH, separated: true }] : []),
       ];
     }
     primary.push(addOns);

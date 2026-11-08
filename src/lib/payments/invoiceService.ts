@@ -79,6 +79,8 @@ export interface InvoiceData {
   sameDayWeekdayDeliveryFeeWaived?: boolean;
   sameDayWeekdayDeliveryFeeWaiveReason?: string;
   requireCardOnFile?: boolean;
+  // Admin / Master confirmed an end time after 19:00 on a same-day or commercial rental (D5). The server honours it only for those roles.
+  endWindowExceptionConfirmed?: boolean;
 }
 
 export function buildInvoiceRequest(invoiceData: InvoiceData) {
@@ -112,6 +114,7 @@ export function buildInvoiceRequest(invoiceData: InvoiceData) {
     customSetupFeeCents: invoiceData.customSetupFeeCents ?? null,
     adminMessage: invoiceData.adminMessage,
     requireCardOnFile: invoiceData.requireCardOnFile !== false,
+    ...(invoiceData.endWindowExceptionConfirmed === true ? { endWindowExceptionConfirmed: true } : {}),
   };
 }
 

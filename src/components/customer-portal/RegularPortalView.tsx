@@ -521,7 +521,14 @@ export function RegularPortalView({ order, orderId, orderItems: _orderItems, ord
                       ? orderSummary.fees.map((fee, i) => (
                           <div key={i} className="flex justify-between text-sm">
                             <span className="text-slate-600">{fee.name}:</span>
-                            <span className="font-semibold text-slate-900">{formatCurrency(fee.amount)}</span>
+                            <span className="flex items-center gap-2">
+                              {!(fee.waived && fee.amountUnknown) && (
+                                <span className={fee.waived ? 'font-semibold line-through text-red-600' : 'font-semibold text-slate-900'}>{formatCurrency(fee.amount)}</span>
+                              )}
+                              {fee.waived && (
+                                <span className="text-xs bg-red-100 text-red-700 px-2 py-0.5 rounded font-semibold">WAIVED</span>
+                              )}
+                            </span>
                           </div>
                         ))
                       : <>

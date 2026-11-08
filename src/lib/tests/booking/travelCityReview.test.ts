@@ -63,6 +63,17 @@ function fakeDb(opts: { failInsert?: boolean; throwOnRead?: boolean } = {}) {
   ok('contradicted without a verified city still reads sensibly', /another city/.test(travelCityReviewNote('typed_free_city_contradicted', 'Detroit', null)));
   ok('a blank typed city is shown as (blank)', /\(blank\)/.test(travelCityReviewNote('typed_free_city_not_verified', '   ', null)));
 
+  // WP-P1-05: the reason is appended to the note (unverified only); the note without a reason is unchanged
+  const n3 = travelCityReviewNote('typed_free_city_not_verified', 'Detroit', null, 'imprecise location (GEOMETRIC_CENTER)');
+  ok('unverified note appends the verification detail and keeps the rest', /Verification detail: imprecise location \(GEOMETRIC_CENTER\)\./.test(n3) && /could not be confirmed from the street address\./.test(n3) && /waive the travel fee with a reason/.test(n3));
+  ok('no reason, or a blank one, leaves the note exactly as before', travelCityReviewNote('typed_free_city_not_verified', 'Detroit', null, undefined) === n1 && travelCityReviewNote('typed_free_city_not_verified', 'Detroit', null, '  ') === n1);
+  ok('the contradicted note does not carry a verification detail', !/Verification detail/.test(travelCityReviewNote('typed_free_city_contradicted', 'Detroit', 'Utica', 'ignored')));
+  {
+    const db = fakeDb();
+    await recordTravelCityReview(db, { orderId: 'o9', travelCity: { review: 'typed_free_city_not_verified', city: '', status: 'unverified', reason: 'partial match' }, typedCity: 'Detroit', userId: null });
+    ok('the recorded changelog note includes the reason', /Verification detail: partial match\./.test(db.rows[0].notes));
+  }
+
   // --- recorder ---
   {
     const db = fakeDb();

@@ -134,8 +134,19 @@ function buildInput(
     bundles?: Record<string, ResolverBundleConfig>;
     categories?: Record<string, ResolverCategory>;
     units?: Record<string, ResolverUnitConfig>;
+    /**
+     * D3 / WP-P1-26: append one VALID, ACTIVE, zero-priced inflatable line so the
+     * add-on discount gate (valid inflatable required) is open without changing
+     * any qualifying subtotal. Used by scenarios that test the threshold/category
+     * rules, not the inflatable requirement.
+     */
+    qualifyingInflatable?: boolean;
   } = {},
 ): ResolverInput {
+  if (opts.qualifyingInflatable) {
+    lines = [...lines, inflatableLine('zz_qual_inf', U_QUAL_INF, 0)];
+    opts = { ...opts, units: { ...(opts.units ?? {}), [U_QUAL_INF]: unit(U_QUAL_INF) } };
+  }
   return {
     lines,
     productConfigs: opts.products ?? {},
@@ -155,6 +166,7 @@ const C_MISC = 'cat_misc';
 
 const U_TROPICAL = 'unit_tropical';
 const U_SLIDE = 'unit_slide';
+const U_QUAL_INF = 'unit_qual_inf';
 
 const P_TABLES = prod('p_tables', C_TABLES, {
   standalonePriceCents: 10000,
@@ -256,7 +268,7 @@ function testProductPricing(): void {
       addonQualifyingThresholdCents: 0,
     });
     const r = resolveEventEssentialsPricing(
-      buildInput([productLine('k5', 'p5')], { products: { p5: cfg }, categories: baseCategories }),
+      buildInput([productLine('k5', 'p5')], { products: { p5: cfg }, categories: baseCategories, qualifyingInflatable: true }),
     );
     const l = findByKey(r, 'k5');
     ok('5 threshold-zero qualifies', l.addonQualified && l.resolvedPricingContext === 'addon' && l.resolvedUnitPriceCents === 6000 && l.remainingAmountCents === 0);
@@ -320,7 +332,7 @@ function testProductPricing(): void {
     const r = resolveEventEssentialsPricing(
       buildInput(
         [productLine('k10', 'p_tables', 1), productLine('k10chairs', 'p_chairs', 3)],
-        { products: { p_tables: P_TABLES, p_chairs: P_CHAIRS }, categories: baseCategories },
+        { products: { p_tables: P_TABLES, p_chairs: P_CHAIRS }, categories: baseCategories, qualifyingInflatable: true },
       ),
     );
     const l = findByKey(r, 'k10');
@@ -398,7 +410,7 @@ function testProductPricing(): void {
     const r = resolveEventEssentialsPricing(
       buildInput(
         [productLine('k14a', 'p_gen', 1), bundleLine('k14ab', 'b14a', 1)],
-        { products: { p_gen: gen }, bundles: { b14a: b }, categories: cats },
+        { products: { p_gen: gen }, bundles: { b14a: b }, categories: cats, qualifyingInflatable: true },
       ),
     );
     const l = findByKey(r, 'k14a');
@@ -425,7 +437,7 @@ function testProductPricing(): void {
     const r = resolveEventEssentialsPricing(
       buildInput(
         [productLine('k14b', 'p_gen2', 1), bundleLine('k14bb', 'b14b', 2)],
-        { products: { p_gen2: gen }, bundles: { b14b: b }, categories: cats },
+        { products: { p_gen2: gen }, bundles: { b14b: b }, categories: cats, qualifyingInflatable: true },
       ),
     );
     const l = findByKey(r, 'k14b');
@@ -462,7 +474,7 @@ function testProductPricing(): void {
     const r = resolveEventEssentialsPricing(
       buildInput(
         [productLine('k14d', 'p_chairs', 1), bundleLine('k14db', 'b14d', 1)],
-        { products: { p_chairs: P_CHAIRS }, bundles: { b14d: b }, categories: baseCategories },
+        { products: { p_chairs: P_CHAIRS }, bundles: { b14d: b }, categories: baseCategories, qualifyingInflatable: true },
       ),
     );
     const l = findByKey(r, 'k14d');
@@ -493,7 +505,7 @@ function testProductPricing(): void {
     const r = resolveEventEssentialsPricing(
       buildInput(
         [productLine('k14e', 'p_gen3', 1), bundleLine('k14eb', 'b14e', 1)],
-        { products: { p_gen3: gen }, bundles: { b14e: b }, categories: cats },
+        { products: { p_gen3: gen }, bundles: { b14e: b }, categories: cats, qualifyingInflatable: true },
       ),
     );
     const l = findByKey(r, 'k14e');
@@ -654,7 +666,7 @@ function testProductPricing(): void {
     const r = resolveEventEssentialsPricing(
       buildInput(
         [productLine('k17a', 'p_a', 1), productLine('k17b', 'p_b', 1)],
-        { products: { p_a: cfgA, p_b: cfgB }, categories: baseCategories },
+        { products: { p_a: cfgA, p_b: cfgB }, categories: baseCategories, qualifyingInflatable: true },
       ),
     );
     const a = findByKey(r, 'k17a');
@@ -682,7 +694,7 @@ function testProductPricing(): void {
     const r = resolveEventEssentialsPricing(
       buildInput(
         [productLine('k18a', 'p_a2', 1), productLine('k18b', 'p_b2', 1)],
-        { products: { p_a2: cfgA, p_b2: cfgB }, categories: baseCategories },
+        { products: { p_a2: cfgA, p_b2: cfgB }, categories: baseCategories, qualifyingInflatable: true },
       ),
     );
     const a = findByKey(r, 'k18a');
@@ -766,7 +778,7 @@ function testPackagePricing(): void {
       inflatableEligibilityMode: 'none',
     });
     const r = resolveEventEssentialsPricing(
-      buildInput([bundleLine('k20', 'b20', 1)], { bundles: { b20: b }, categories: baseCategories }),
+      buildInput([bundleLine('k20', 'b20', 1)], { bundles: { b20: b }, categories: baseCategories, qualifyingInflatable: true }),
     );
     const l = findByKey(r, 'k20');
     ok('20 threshold-zero qualifies', l.addonQualified && l.resolvedPricingContext === 'addon' && l.remainingAmountCents === 0);
@@ -875,7 +887,7 @@ function testPackagePricing(): void {
     const r = resolveEventEssentialsPricing(
       buildInput(
         [bundleLine('k26', 'b26', 1), productLine('k26tables', 'p_tables', 2)],
-        { products: { p_tables: P_TABLES }, bundles: { b26: b }, categories: baseCategories },
+        { products: { p_tables: P_TABLES }, bundles: { b26: b }, categories: baseCategories, qualifyingInflatable: true },
       ),
     );
     const l = findByKey(r, 'k26');
@@ -954,7 +966,7 @@ function testPackagePricing(): void {
     const r = resolveEventEssentialsPricing(
       buildInput(
         [bundleLine('k30', 'b30', 1), productLine('k30tables', 'p_tables', 3)],
-        { products: { p_tables: P_TABLES }, bundles: { b30: b }, categories: baseCategories },
+        { products: { p_tables: P_TABLES }, bundles: { b30: b }, categories: baseCategories, qualifyingInflatable: true },
       ),
     );
     const l = findByKey(r, 'k30');
@@ -1902,7 +1914,7 @@ function testCorrectedBehaviors(): void {
       addonQualifyingThresholdCents: 0,
     });
     const r = resolveEventEssentialsPricing(
-      buildInput([productLine('kISV_C', 'p_isv_c', 1)], { products: { p_isv_c: cfg }, categories: baseCategories }),
+      buildInput([productLine('kISV_C', 'p_isv_c', 1)], { products: { p_isv_c: cfg }, categories: baseCategories, qualifyingInflatable: true }),
     );
     const l = findByKey(r, 'kISV_C');
     ok('isv-C invalid standalone + threshold-0 -> addon',
@@ -2226,14 +2238,15 @@ function testDeterminism(): void {
     const r = resolveEventEssentialsPricing(
       buildInput(
         [productLine('k79', 'pA', 1), productLine('k79', 'pB', 1)],
-        { products: { pA: cfgA, pB: cfgB }, categories: baseCategories },
+        { products: { pA: cfgA, pB: cfgB }, categories: baseCategories, qualifyingInflatable: true },
       ),
     );
     // Both share resolverKey 'k79' but are different products (cross-category).
     // Each should see the other's contribution and qualify (threshold 8000,
     // standalone 10000 >= 8000). Position-based self-exclusion means line 0
     // excludes only line 0, and line 1 excludes only line 1.
-    ok('79 shared-key cross-category both qualify', r.lines.length === 2 && r.lines.every((l) => l.addonQualified && l.resolvedPricingContext === 'addon'));
+    const eeLines79 = r.lines.filter((l) => l.resolverKey === 'k79'); // excludes the zero-price qualifying inflatable
+    ok('79 shared-key cross-category both qualify', eeLines79.length === 2 && eeLines79.every((l) => l.addonQualified && l.resolvedPricingContext === 'addon'));
   }
 
   // 80. Package lines never create circular qualification.
@@ -2270,13 +2283,13 @@ function testDeterminism(): void {
     const r1 = resolveEventEssentialsPricing(
       buildInput(
         [productLine('k81a', 'pA', 1), productLine('k81b', 'pB', 1)],
-        { products: { pA: cfgA, pB: cfgB }, categories: baseCategories },
+        { products: { pA: cfgA, pB: cfgB }, categories: baseCategories, qualifyingInflatable: true },
       ),
     );
     const r2 = resolveEventEssentialsPricing(
       buildInput(
         [productLine('k81a', 'pA', 1), productLine('k81b', 'pB', 1)],
-        { products: { pA: cfgA, pB: cfgB }, categories: baseCategories },
+        { products: { pA: cfgA, pB: cfgB }, categories: baseCategories, qualifyingInflatable: true },
       ),
     );
     eq('81 stable after both addon', r1, r2);

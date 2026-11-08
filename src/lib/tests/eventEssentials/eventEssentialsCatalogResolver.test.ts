@@ -198,7 +198,20 @@ function buildCtx(params: {
   bundles?: ProductBundleWithConfiguration[];
   units?: { id: string; active: boolean }[];
   cart: UnifiedCartItem[];
+  /**
+   * D3 / WP-P1-26: add one VALID, ACTIVE, zero-priced inflatable to the cart so the
+   * add-on gate (a valid inflatable must be in the order) is open without
+   * changing any qualifying subtotal.
+   */
+  qualifyingInflatable?: boolean;
 }): CandidateEvalContext {
+  if (params.qualifyingInflatable) {
+    params = {
+      ...params,
+      units: [...(params.units ?? []), { id: 'unit_qual_inf', active: true }],
+      cart: [...params.cart, makeInflatableCart('unit_qual_inf', 0)],
+    };
+  }
   const productConfigs = buildProductConfigMap(params.products, params.pricing);
   const bundleConfigs = buildBundleConfigMap(params.bundles ?? []);
   const categories = buildCategoryMap(params.categories);
@@ -279,6 +292,7 @@ function runTests(): void {
     const categories = [makeCategory(C_TABLES), makeCategory(C_CHAIRS)];
     const ctx = buildCtx({
       products, pricing, categories,
+      qualifyingInflatable: true,
       cart: [makeProductCart('p_c', 2, 10000, 'standalone')],
     });
     const out = evaluateProductCandidate(ctx, { productId: 'p_t', qty: 1 });
@@ -476,6 +490,7 @@ function runTests(): void {
       products, pricing, categories,
       // Cart stores add-on price 3000, but authoritative standalone is 10000.
       cart: [makeProductCart('p_c', 1, 3000, 'addon')],
+      qualifyingInflatable: true,
     });
     const out = evaluateProductCandidate(ctx, { productId: 'p_t', qty: 1 });
     // Contribution must be 10000 (authoritative standalone), not 3000 (stored add-on).
@@ -1035,6 +1050,7 @@ function runTests(): void {
     const ctx = buildCtx({
       products, pricing, categories, bundles,
       cart: [makeBundleCart('b_celebration', 1, 15000, 'standalone')],
+      qualifyingInflatable: true,
     });
     const out = evaluateProductCandidate(ctx, { productId: 'p_gen', qty: 1 });
     ok('54 package qualifies product candidate',
@@ -1113,6 +1129,7 @@ function runTests(): void {
     const ctx = buildCtx({
       products, pricing, categories, bundles,
       cart: [makeBundleCart('b_pkg2', 2, 15000, 'standalone')],
+      qualifyingInflatable: true,
     });
     const out = evaluateProductCandidate(ctx, { productId: 'p_gen', qty: 1 });
     ok('57 package qty multiplication',
@@ -1293,6 +1310,7 @@ function runTests(): void {
     const ctx = buildCtx({
       products, pricing, categories, bundles,
       cart: [makeBundleCart('b_celebration_valid', 1, 15000, 'standalone')],
+      qualifyingInflatable: true,
     });
     const out = evaluateProductCandidate(ctx, { productId: 'p_gen', qty: 1 });
     ok('65 valid Celebration Seating qualifies Generator at $150',

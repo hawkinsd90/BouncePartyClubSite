@@ -121,7 +121,14 @@ export interface TrustedTravelCity {
   /** `null` when nothing needs attention; otherwise why a human should look. */
   review: null | "typed_free_city_not_verified" | "typed_free_city_contradicted";
   status: CityVerification["status"] | "not_checked";
+  /** Diagnostic only (F-02 / WP-P1-05): why the status is `unverified`. Never changes a price; present only when `status` is `unverified`. */
+  reason?: string;
 }
+
+/** Reason recorded when no verifier result exists although the free list is not empty (verifier absent, or it returned nothing). */
+export const NO_VERIFICATION_RESULT_REASON = "no verification result";
+/** Reason recorded when the verifier threw. */
+export const VERIFIER_THREW_REASON = "verifier threw";
 
 /**
  * The city that may decide a free delivery, given a verification result.
@@ -135,12 +142,12 @@ export function resolveTrustedTravelCity(
 ): TrustedTravelCity {
   const typedIsFree = matchesIncludedCity(typedCity, includedCities);
   if (includedCities.length === 0) return { city: typedCity, review: null, status: "not_checked" };
-  if (!verification) return { city: "", review: typedIsFree ? "typed_free_city_not_verified" : null, status: "unverified" };
+  if (!verification) return { city: "", review: typedIsFree ? "typed_free_city_not_verified" : null, status: "unverified", reason: NO_VERIFICATION_RESULT_REASON };
   if (verification.status === "verified_match") return { city: verification.city, review: null, status: "verified_match" };
   if (verification.status === "verified_mismatch") {
     return { city: verification.city, review: typedIsFree ? "typed_free_city_contradicted" : null, status: "verified_mismatch" };
   }
-  return { city: "", review: typedIsFree ? "typed_free_city_not_verified" : null, status: "unverified" };
+  return { city: "", review: typedIsFree ? "typed_free_city_not_verified" : null, status: "unverified", reason: verification.reason || NO_VERIFICATION_RESULT_REASON };
 }
 
 export { normalizeCityName };

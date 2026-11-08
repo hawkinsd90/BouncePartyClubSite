@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
-import { showConfirm } from '../../lib/toasts';
-import { endWindowAfterDecline, endWindowExceptionMessage, isEndWindowRestricted, needsEndWindowConfirmation } from '../../lib/core/endWindowExceptions';
+import { showConfirm, showToast } from '../../lib/toasts';
+import { endWindowAfterDecline, endWindowExceptionMessage, endWindowNotPermittedMessage, isEndWindowRestricted, needsEndWindowConfirmation } from '../../lib/core/endWindowExceptions';
 
 interface EventDetails {
   event_date: string;
@@ -27,8 +27,9 @@ interface EventDetails {
 const initialEventDetails: EventDetails = {
   event_date: '',
   event_end_date: '',
-  start_window: '09:00',
-  end_window: '17:00',
+  // Blank until staff choose them (F-34): no invented 9:00 AM / 5:00 PM. The builders ask for both before saving.
+  start_window: '',
+  end_window: '',
   until_end_of_day: false,
   location_type: 'residential',
   address_line1: '',
@@ -47,17 +48,26 @@ const initialEventDetails: EventDetails = {
 };
 
 interface UseInvoiceEventDetailsOptions {
+  // Only Admin / Master may keep an end time after 19:00 on a same-day or commercial rental (D5, WP-P2-25). False (the default, and what the Crew
+  // invoice builder gets) refuses such a time with a message and offers no confirmation; the server enforces the same rule by role.
+  canApproveEndWindowException?: boolean;
   // Asks staff to confirm an end time outside the normal customer window; resolves true to keep it. Defaults to the app's confirm dialog.
   confirmEndWindowException?: (message: string) => Promise<boolean>;
+  // Tells a user who cannot approve the exception why the time was refused. Defaults to an error toast.
+  onEndWindowRefused?: (message: string) => void;
 }
 
 const askStaff = (message: string) => showConfirm(message, { confirmText: 'Keep this end time', cancelText: 'Go back', type: 'warning' });
+const tellUser = (message: string) => showToast(message, 'error');
 
 export function useInvoiceEventDetails(options: UseInvoiceEventDetailsOptions = {}) {
+  const canApprove = options.canApproveEndWindowException === true;
   const confirmEndWindowException = options.confirmEndWindowException ?? askStaff;
+  const onEndWindowRefused = options.onEndWindowRefused ?? tellUser;
   const [eventDetails, setEventDetails] = useState<EventDetails>(initialEventDetails);
   // The one end time staff have confirmed as an exception (session state only; nothing is stored). A different end time asks again.
   const [confirmedEndWindow, setConfirmedEndWindow] = useState<string | null>(null);
+  // '' (no end time chosen yet) until the first accepted end time; a declined exception then clears back to blank, not to an invented time.
   const lastAcceptedEndWindow = useRef(initialEventDetails.end_window);
   const askedEndWindow = useRef<string | null>(null);
 
@@ -108,8 +118,21 @@ export function useInvoiceEventDetails(options: UseInvoiceEventDetailsOptions = 
     const endWindow = eventDetails.end_window;
     if (!needsEndWindowConfirmation({ ...ctx, end_window: endWindow, confirmedEndWindow })) {
       lastAcceptedEndWindow.current = endWindow;
+      if (!canApprove) askedEndWindow.current = null;
       // A confirmed exception covers only that exact time: once the time is edited to something else, going back to it asks again.
       if (confirmedEndWindow !== null && confirmedEndWindow !== endWindow) setConfirmedEndWindow(null);
+      return;
+    }
+    if (!canApprove) {
+      // No authority to approve: refuse the time (back to the last accepted time, or 19:00) and say why. Nothing to confirm, nothing stored.
+      if (askedEndWindow.current === endWindow) return;
+      askedEndWindow.current = endWindow;
+      onEndWindowRefused(endWindowNotPermittedMessage(endWindow));
+      setEventDetails(prev =>
+        prev.end_window !== endWindow
+          ? prev
+          : { ...prev, end_window: endWindowAfterDecline({ location_type: prev.location_type, pickup_preference: prev.pickup_preference, lastAcceptedEndWindow: lastAcceptedEndWindow.current, confirmedEndWindow: null }) }
+      );
       return;
     }
     if (askedEndWindow.current === endWindow) return;
@@ -126,7 +149,7 @@ export function useInvoiceEventDetails(options: UseInvoiceEventDetailsOptions = 
           : { ...prev, end_window: endWindowAfterDecline({ location_type: prev.location_type, pickup_preference: prev.pickup_preference, lastAcceptedEndWindow: lastAcceptedEndWindow.current, confirmedEndWindow }) }
       );
     });
-  }, [eventDetails.end_window, eventDetails.location_type, eventDetails.pickup_preference, confirmedEndWindow, confirmEndWindowException]);
+  }, [eventDetails.end_window, eventDetails.location_type, eventDetails.pickup_preference, confirmedEndWindow, confirmEndWindowException, canApprove, onEndWindowRefused]);
 
   function updateEventDetails(updates: Partial<EventDetails>) {
     setEventDetails(prev => ({ ...prev, ...updates }));
@@ -136,8 +159,13 @@ export function useInvoiceEventDetails(options: UseInvoiceEventDetailsOptions = 
     setEventDetails(initialEventDetails);
   }
 
+  // True only for an Admin / Master who confirmed THIS exact end time; the builder sends it so the server honours the exception (the server
+  // ignores it for any other role). The server only looks at it when the time is actually outside the window.
+  const endWindowExceptionConfirmed = canApprove && confirmedEndWindow !== null && confirmedEndWindow === eventDetails.end_window;
+
   return {
     eventDetails,
+    endWindowExceptionConfirmed,
     setEventDetails,
     updateEventDetails,
     resetEventDetails,

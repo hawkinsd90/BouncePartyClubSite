@@ -2,7 +2,7 @@ import { useEffect, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import { ChevronDown, LogIn, LogOut, Phone, X } from 'lucide-react';
 import type { NavModel } from '../../../lib/core/navLinks';
-import { nextFocusIndex } from '../../../lib/core/navLinks';
+import { LOGIN_LABEL, nextFocusIndex } from '../../../lib/core/navLinks';
 import { useBodyScrollLock } from '../../../hooks/core/useBodyScrollLock';
 
 interface Props {
@@ -80,14 +80,26 @@ export function MobileDrawer({ open, model, email, businessPhone, addOnsExpanded
           {model.primary.map((link) =>
             link.children ? (
               <div key={link.id}>
-                <button type="button" onClick={onToggleAddOns} aria-expanded={addOnsExpanded} aria-controls="mobile-addons-list" className={`${rowClass} justify-between`}>
-                  {link.label}
-                  <ChevronDown className={`w-5 h-5 transition-transform ${addOnsExpanded ? 'rotate-180' : ''}`} />
-                </button>
+                {/* The label goes to the page; the chevron beside it expands the list (WP-P2-23a / F-28). */}
+                <div className="flex items-stretch">
+                  <Link to={link.to} onClick={onClose} className={`${rowClass} flex-1`}>
+                    {link.label}
+                  </Link>
+                  <button
+                    type="button"
+                    onClick={onToggleAddOns}
+                    aria-expanded={addOnsExpanded}
+                    aria-controls="mobile-addons-list"
+                    aria-label={`${link.label} menu`}
+                    className="flex items-center justify-center min-w-[44px] min-h-[44px] text-slate-700 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                  >
+                    <ChevronDown className={`w-5 h-5 transition-transform ${addOnsExpanded ? 'rotate-180' : ''}`} />
+                  </button>
+                </div>
                 {addOnsExpanded && (
                   <div id="mobile-addons-list" className="ml-3 pl-3 border-l border-slate-200 space-y-1">
                     {link.children.map((child) => (
-                      <Link key={child.id} to={child.to} onClick={onClose} className={rowClass}>
+                      <Link key={child.id} to={child.to} onClick={onClose} className={`${rowClass}${child.separated ? ' border-t border-slate-100 rounded-none' : ''}`}>
                         {child.label}
                       </Link>
                     ))}
@@ -127,7 +139,7 @@ export function MobileDrawer({ open, model, email, businessPhone, addOnsExpanded
             ) : (
               <Link to="/login" onClick={onClose} className={rowClass}>
                 <LogIn className="w-5 h-5 mr-3" />
-                Login
+                {LOGIN_LABEL}
               </Link>
             )}
           </div>

@@ -44,6 +44,25 @@ export interface CatalogUnit {
   price_dry_cents: number;
   price_water_cents: number | null;
   active: boolean;
+  // Unit types ('Combo', 'Water Slide', ...). Tells whether the unit can be rented in Water mode (F-19).
+  types?: string[] | null;
+}
+
+// F-19: can this unit be rented in Water mode? A unit is wet-capable when its types say so (Combo / Water Slide, the same test the Unit
+// form, the catalog and the Admin editor use) or when it carries a real water price. A dry-only unit is not, so a crafted `water` line for it
+// is refused instead of being priced at its (0 or null) water price.
+export function unitSupportsWater(unit: Pick<CatalogUnit, "price_water_cents" | "types">): boolean {
+  const types = Array.isArray(unit.types) ? unit.types : [];
+  if (types.includes("Combo") || types.includes("Water Slide")) return true;
+  return typeof unit.price_water_cents === "number" && unit.price_water_cents > 0;
+}
+
+// F-19: the price of a unit in the given mode. A water price of 0 (or none) on a wet-capable unit means "same as the base rental price", never
+// free. Returns null when the unit cannot be rented in that mode.
+export function effectiveUnitPriceCents(unit: Pick<CatalogUnit, "price_dry_cents" | "price_water_cents" | "types">, mode: "dry" | "water"): number | null {
+  if (mode === "dry") return unit.price_dry_cents;
+  if (!unitSupportsWater(unit)) return null;
+  return typeof unit.price_water_cents === "number" && unit.price_water_cents > 0 ? unit.price_water_cents : unit.price_dry_cents;
 }
 export interface CatalogProduct {
   id: string;
@@ -161,8 +180,10 @@ export function buildBooking(input: BookingInput, catalog: BookingCatalog, now: 
     if (it.type === "inflatable") {
       const unit = unitsById.get(it.unit_id);
       if (!unit || unit.active !== true) return fail("item_unavailable", "One of the selected items is not available.");
-      const price = it.wet_or_dry === "water" ? unit.price_water_cents : unit.price_dry_cents;
+      const price = effectiveUnitPriceCents(unit, it.wet_or_dry);
       if (typeof price !== "number" || !Number.isSafeInteger(price) || price < 0) return fail("item_unavailable", "One of the selected items is not available.");
+      // A rental that is priced at $0 although the base rental has a price would be a free unit: never create one.
+      if (price === 0 && unit.price_dry_cents > 0) return fail("item_unavailable", "One of the selected items is not available.");
       const line: InflatableCartItem = {
         item_type: "inflatable",
         unit_id: unit.id,
@@ -170,7 +191,8 @@ export function buildBooking(input: BookingInput, catalog: BookingCatalog, now: 
         wet_or_dry: it.wet_or_dry,
         unit_price_cents: price,
         price_dry_cents: unit.price_dry_cents,
-        ...(typeof unit.price_water_cents === "number" ? { price_water_cents: unit.price_water_cents } : {}),
+        // The effective water price (a 0 surcharge means the base price), so the repricer never reads a zero water price as free.
+        ...(unitSupportsWater(unit) ? { price_water_cents: effectiveUnitPriceCents(unit, "water") as number } : typeof unit.price_water_cents === "number" ? { price_water_cents: unit.price_water_cents } : {}),
         qty: it.qty,
       };
       cart.push(line);

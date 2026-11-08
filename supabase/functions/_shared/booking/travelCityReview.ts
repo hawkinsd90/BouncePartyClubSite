@@ -21,17 +21,19 @@ type Db = any;
 export type TravelCityReviewCode = NonNullable<TrustedTravelCity["review"]>;
 
 /** The sentence the Admin reads. `typedCity` is customer text: callers that put it in HTML must escape it. */
-export function travelCityReviewNote(review: TravelCityReviewCode, typedCity: string, verifiedCity: string | null): string {
+export function travelCityReviewNote(review: TravelCityReviewCode, typedCity: string, verifiedCity: string | null, reason?: string | null): string {
   const typed = typedCity.trim() || "(blank)";
   if (review === "typed_free_city_contradicted") {
     return `The customer entered "${typed}", which is on the free-delivery list, but the address is in ${verifiedCity ? `"${verifiedCity}"` : "another city"}. The distance-based travel fee was applied. Check the address; if free delivery is correct, waive the travel fee with a reason.`;
   }
-  return `The customer entered "${typed}", which is on the free-delivery list, but the city could not be confirmed from the street address. The distance-based travel fee was applied. Check the address; if the city is correct, waive the travel fee with a reason.`;
+  // F-02 diagnostic: say WHY the city could not be confirmed (never changes the price).
+  const why = reason && reason.trim() ? ` Verification detail: ${reason.trim()}.` : "";
+  return `The customer entered "${typed}", which is on the free-delivery list, but the city could not be confirmed from the street address.${why} The distance-based travel fee was applied. Check the address; if the city is correct, waive the travel fee with a reason.`;
 }
 
 export interface RecordTravelCityReviewInput {
   orderId: string;
-  travelCity: Pick<TrustedTravelCity, "review" | "city" | "status">;
+  travelCity: Pick<TrustedTravelCity, "review" | "city" | "status" | "reason">;
   typedCity: string;
   /** The staff member who saved the order, or null for a customer booking. */
   userId: string | null;
@@ -62,7 +64,7 @@ export async function recordTravelCityReview(db: Db, input: RecordTravelCityRevi
       field_changed: "travel_city",
       old_value: input.typedCity.trim(),
       new_value: review,
-      notes: travelCityReviewNote(review, input.typedCity, input.travelCity.status === "verified_mismatch" ? input.travelCity.city : null),
+      notes: travelCityReviewNote(review, input.typedCity, input.travelCity.status === "verified_mismatch" ? input.travelCity.city : null, input.travelCity.reason),
     });
     if (error) {
       console.error(`[travel-city-review] could not record the review for order ${input.orderId}: ${error.message ?? error}`);

@@ -64,7 +64,9 @@ const editor = read('src/components/order-detail/EventDetailsEditor.tsx');
 ok('admin editor (both layouts) clears coordinates on typing', (editor.match(/onChange=\{\(value\) => onOrderChange\(\{ address_line1: value, \.\.\.ADMIN_ADDRESS_EDIT_RESET \}\)\}/g) || []).length === 2);
 const form = read('src/hooks/booking/useQuoteForm.ts');
 ok('city/ZIP centroid geocode removed', !/`\$\{formData\.city\}, \$\{formData\.state\} \$\{formData\.zip\}`/.test(form));
-ok('prefill geocode uses the street address and a precision check', /address_line1\}, \$\{formData\.city\}/.test(form) && form.includes('isPreciseGeocode(result.results[0])'));
+// The precision check moved into src/lib/booking/savedAddressGeocode.ts with the Maps wait and retry (WP-P1-12, F-40); behaviour is tested in eventTimeWindow.test.ts.
+const geocodeHelper = read('src/lib/booking/savedAddressGeocode.ts');
+ok('prefill geocode uses the street address and a precision check', /address_line1\}, \$\{formData\.city\}/.test(form) && form.includes('geocodeSavedAddress(address') && geocodeHelper.includes('isPreciseGeocode(first)'));
 ok('geocode effect depends on the street', form.includes('[formData.address_line1, formData.city, formData.state, formData.zip, formData.lat, formData.lng]'));
 
 // The canonical address upsert must never null out coordinates already stored when a geocode fails (plan WP-04 null-overwrite guard).

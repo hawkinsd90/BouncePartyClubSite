@@ -1,5 +1,6 @@
 import { formatCurrency } from '../../lib/pricing';
 import type { ServerTotals } from '../../lib/booking/bookingApi';
+import { explainPriceChange } from '../../lib/booking/priceChangeExplanation';
 
 interface PriceChangedReviewProps {
   /** The price the customer was shown. */
@@ -15,6 +16,7 @@ interface PriceChangedReviewProps {
 // Nothing has been created or charged at this point: the customer chooses whether to continue at the new price.
 export function PriceChangedReview({ previous, updated, busy = false, onAccept, onReview }: PriceChangedReviewProps) {
   const cheaper = updated.totalCents < previous.totalCents;
+  const explanation = explainPriceChange(previous, updated, formatCurrency);
   return (
     <div
       role="alertdialog"
@@ -29,7 +31,21 @@ export function PriceChangedReview({ previous, updated, busy = false, onAccept, 
         <p className="text-sm text-slate-600 mb-4">
           Prices or fees were updated since your quote was prepared. Nothing has been charged. Please review the new amounts before continuing.
         </p>
+        {explanation.sentence && (
+          <p className="text-sm text-slate-800 mb-4" data-testid="price-change-reason">
+            {explanation.sentence}
+          </p>
+        )}
         <dl className="mb-6 space-y-2 text-sm">
+          {explanation.travelFeeDeltaCents !== null && explanation.travelFeeDeltaCents !== 0 && (
+            <div className="flex justify-between border-b border-slate-200 pb-2">
+              <dt className="text-slate-600">Delivery fee change</dt>
+              <dd className="font-semibold text-slate-900">
+                {explanation.travelFeeDeltaCents > 0 ? '+' : '-'}
+                {formatCurrency(Math.abs(explanation.travelFeeDeltaCents))}
+              </dd>
+            </div>
+          )}
           <div className="flex justify-between">
             <dt className="text-slate-600">Total shown before</dt>
             <dd className="font-semibold text-slate-500 line-through">{formatCurrency(previous.totalCents)}</dd>

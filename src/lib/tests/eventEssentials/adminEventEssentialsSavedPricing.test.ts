@@ -53,6 +53,10 @@ function buildInput(lines: ResolverInputLine[], opts: { products?: Record<string
   return { lines, productConfigs: opts.products ?? {}, bundleConfigs: opts.bundles ?? {}, categories: opts.categories ?? {}, units: opts.units ?? {} };
 }
 
+// D3 / WP-P1-26: add-on pricing needs a valid active inflatable in the order. A zero-price one
+// opens that gate without changing any qualifying subtotal (these tests pin saved-price contribution).
+const ZZ_INFLATABLE: ResolverInputLine = { resolverKey: 'zz_inf', itemType: 'inflatable', qty: 1, unitId: 'u_zz', selectedUnitPriceCents: 0, wetOrDry: 'dry' };
+const ZZ_UNITS: Record<string, ResolverUnitConfig> = { u_zz: { id: 'u_zz', active: true } };
 const C_GEN = 'cat_gen';
 const C_TABLES = 'cat_tables';
 const baseCategories = { [C_GEN]: cat(C_GEN), [C_TABLES]: cat(C_TABLES) };
@@ -87,8 +91,9 @@ function testSavedProductContribution(): void {
         [
           productLine('existing', 'p_existing', 1, 12000),
           productLine('candidate', 'p_gen', 1),
+          ZZ_INFLATABLE,
         ],
-        { products: { p_existing: existingProd, p_gen: genCandidate }, categories: baseCategories },
+        { products: { p_existing: existingProd, p_gen: genCandidate }, categories: baseCategories, units: ZZ_UNITS },
       ),
     );
     const l = findByKey(r, 'candidate');
@@ -104,8 +109,9 @@ function testSavedProductContribution(): void {
         [
           productLine('existing', 'p_existing', 1),
           productLine('candidate', 'p_gen', 1),
+          ZZ_INFLATABLE,
         ],
-        { products: { p_existing: existingProd, p_gen: genCandidate }, categories: baseCategories },
+        { products: { p_existing: existingProd, p_gen: genCandidate }, categories: baseCategories, units: ZZ_UNITS },
       ),
     );
     const l = findByKey(r, 'candidate');
@@ -142,8 +148,9 @@ function testSavedPackageContribution(): void {
         [
           bundleLine('existing', 'b1', 1, 10000),
           productLine('candidate', 'p_gen', 1),
+          ZZ_INFLATABLE,
         ],
-        { products: { p_gen: genCandidate }, bundles: { b1: existingBundle }, categories: baseCategories },
+        { products: { p_gen: genCandidate }, bundles: { b1: existingBundle }, categories: baseCategories, units: ZZ_UNITS },
       ),
     );
     const l = findByKey(r, 'candidate');
@@ -159,8 +166,9 @@ function testSavedPackageContribution(): void {
         [
           bundleLine('existing', 'b1', 1),
           productLine('candidate', 'p_gen', 1),
+          ZZ_INFLATABLE,
         ],
-        { products: { p_gen: genCandidate }, bundles: { b1: existingBundle }, categories: baseCategories },
+        { products: { p_gen: genCandidate }, bundles: { b1: existingBundle }, categories: baseCategories, units: ZZ_UNITS },
       ),
     );
     const l = findByKey(r, 'candidate');

@@ -33,8 +33,9 @@ export interface BookedRange {
 export interface AvailabilityPort {
   // null = the blackout lookup failed
   blackout(start: string, end: string): Promise<BlackoutResult | null>;
-  // Existing bookings for these units in any blocking status. null = the lookup failed.
-  bookedRanges(unitIds: string[]): Promise<BookedRange[] | null>;
+  // Existing bookings for these units in any blocking status. null = the lookup failed. `excludeOrderId` leaves one order out (an
+  // existing order re-checking itself must not count against itself); callers that omit it get the previous behaviour.
+  bookedRanges(unitIds: string[], excludeOrderId?: string | null): Promise<BookedRange[] | null>;
   productAvailability(
     items: Array<{ product_id: string; quantity: number }>,
     start: string,
@@ -118,12 +119,14 @@ export function supabaseAvailabilityPort(db: any): AvailabilityPort {
       if (!row) return { is_full_blocked: false, is_same_day_pickup_blocked: false };
       return { is_full_blocked: row.is_full_blocked === true, is_same_day_pickup_blocked: row.is_same_day_pickup_blocked === true };
     },
-    async bookedRanges(unitIds) {
-      const { data, error } = await db
+    async bookedRanges(unitIds, excludeOrderId) {
+      let query = db
         .from("order_items")
         .select("unit_id, orders!inner(event_date, event_end_date, status)")
         .in("unit_id", unitIds)
         .in("orders.status", [...BLOCKING_ORDER_STATUSES]);
+      if (excludeOrderId) query = query.neq("order_id", excludeOrderId);
+      const { data, error } = await query;
       if (error || !Array.isArray(data)) return null;
       // deno-lint-ignore no-explicit-any
       // eslint-disable-next-line @typescript-eslint/no-explicit-any

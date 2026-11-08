@@ -45,7 +45,8 @@ function staff(answers: boolean[] = []): Staff {
     },
   };
 }
-const mount = (s: Staff) => runHook(() => useInvoiceEventDetails({ confirmEndWindowException: s.confirm }), undefined);
+// Admin / Master: may approve the exception (D5). Crew gets no authority: see the Crew block below.
+const mount = (s: Staff) => runHook(() => useInvoiceEventDetails({ canApproveEndWindowException: true, confirmEndWindowException: s.confirm }), undefined);
 
 async function main() {
   // --- pure rule ---
@@ -54,6 +55,34 @@ async function main() {
   const base = { location_type: 'commercial', pickup_preference: 'same_day', confirmedEndWindow: null };
   ok('rule: 19:00 and earlier never need confirmation; later does; the confirmed exact time does not', !needsEndWindowConfirmation({ ...base, end_window: '19:00' }) && !needsEndWindowConfirmation({ ...base, end_window: '15:30' }) && needsEndWindowConfirmation({ ...base, end_window: '19:01' }) && !needsEndWindowConfirmation({ ...base, end_window: '21:00', confirmedEndWindow: '21:00' }) && needsEndWindowConfirmation({ ...base, end_window: '22:00', confirmedEndWindow: '21:00' }));
   ok('rule: declining returns to the last accepted time, or to 19:00 when that is no longer allowed', endWindowAfterDecline({ ...base, lastAcceptedEndWindow: '17:00' }) === '17:00' && endWindowAfterDecline({ ...base, lastAcceptedEndWindow: '21:00' }) === '19:00');
+
+  // --- WP-P2-12a (F-34): a new invoice starts with BLANK times (no invented 9:00 AM / 5:00 PM) ---
+  {
+    const s = staff();
+    const run = mount(s);
+    await run.settle();
+    ok('a new invoice starts with a blank start and end time', run.result.eventDetails.start_window === '' && run.result.eventDetails.end_window === '');
+    ok('blank times raise no end-time question', s.asked.length === 0);
+    run.result.updateEventDetails({ event_date: '2031-07-04', start_window: '10:00', end_window: '14:00' });
+    await run.settle();
+    run.result.resetEventDetails();
+    await run.settle();
+    ok('resetting after an invoice goes back to blank times, not to defaults', run.result.eventDetails.start_window === '' && run.result.eventDetails.end_window === '');
+    // a declined exception with no earlier accepted time clears back to blank, never to an invented time
+    const s2 = staff([false]);
+    const run2 = mount(s2);
+    run2.result.updateEventDetails({ event_date: '2031-07-04', pickup_preference: 'same_day', end_window: '21:00' });
+    await run2.settle();
+    ok('declining an after-7-PM exception when no time was accepted before returns to blank (staff choose again), never to an invented 17:00', run2.result.eventDetails.end_window === '' && s2.asked.length === 1);
+    // intentional times are never silently replaced
+    const s3 = staff();
+    const run3 = mount(s3);
+    run3.result.updateEventDetails({ event_date: '2031-07-04', start_window: '08:15', end_window: '11:45' });
+    await run3.settle();
+    run3.result.updateEventDetails({ address_line1: '1 ZZ TEST St' });
+    await run3.settle();
+    ok('chosen times survive other edits unchanged', run3.result.eventDetails.start_window === '08:15' && run3.result.eventDetails.end_window === '11:45');
+  }
 
   // --- normal times: no prompt ---
   {
@@ -169,6 +198,51 @@ async function main() {
     ok('...and answering it keeps the time', run.result.eventDetails.end_window === '21:00' && s.asked.length === 1);
   }
 
+  // --- D5 (WP-P2-25): Crew gets NO exception authority; a user who cannot approve is told why and the time is refused ---
+  {
+    const told: string[] = [];
+    const asked: string[] = [];
+    const mountCrew = () => runHook(() => useInvoiceEventDetails({ confirmEndWindowException: (m: string) => { asked.push(m); return Promise.resolve(true); }, onEndWindowRefused: (m: string) => { told.push(m); } }), undefined);
+    const run = mountCrew();
+    run.result.updateEventDetails({ event_date: '2031-07-04', pickup_preference: 'same_day', end_window: '16:00' });
+    await run.settle();
+    run.result.updateEventDetails({ end_window: '21:00' });
+    await run.settle();
+    ok('Crew (default, no approval authority): a 21:00 same-day end is refused, never offered a confirmation', asked.length === 0 && told.length === 1 && /21:00/.test(told[0]) && /Only an Admin/.test(told[0]));
+    ok('Crew: the refused time goes back to the last accepted time (16:00) and no exception is confirmed', run.result.eventDetails.end_window === '16:00' && run.result.endWindowExceptionConfirmed === false);
+    run.result.updateEventDetails({ end_window: '21:00' });
+    await run.settle();
+    ok('Crew: entering the same refused time again is refused again', told.length === 2 && run.result.eventDetails.end_window === '16:00');
+    const run2 = mountCrew();
+    run2.result.updateEventDetails({ event_date: '2031-07-04', location_type: 'commercial', end_window: '20:00' });
+    await run2.settle();
+    ok('Crew: a commercial rental after 19:00 is refused too (blank when nothing was accepted before, never an invented time)', run2.result.eventDetails.end_window === '' && asked.length === 0);
+    const run3 = mountCrew();
+    run3.result.updateEventDetails({ event_date: '2031-07-04', pickup_preference: 'same_day', end_window: '19:00' });
+    await run3.settle();
+    ok('Crew: exactly 19:00 is a normal time, and a residential next-day 21:00 is allowed (overnight bookings not broken)', run3.result.eventDetails.end_window === '19:00');
+    const run4 = mountCrew();
+    run4.result.updateEventDetails({ event_date: '2031-07-04', end_window: '21:00' });
+    await run4.settle();
+    ok('Crew: next-day residential 21:00 raises neither a refusal nor a question', run4.result.eventDetails.end_window === '21:00' && told.length === 3 && asked.length === 0);
+    // Admin: the confirmation yields the flag the builder sends; declining yields nothing
+    const s = staff([true]);
+    const admin = mount(s);
+    admin.result.updateEventDetails({ event_date: '2031-07-04', pickup_preference: 'same_day', end_window: '21:00' });
+    await admin.settle();
+    ok('Admin: confirming exposes endWindowExceptionConfirmed for exactly that time', admin.result.endWindowExceptionConfirmed === true && admin.result.eventDetails.end_window === '21:00');
+    admin.result.updateEventDetails({ end_window: '18:00' });
+    await admin.settle();
+    ok('Admin: back inside the window clears the confirmed flag', admin.result.endWindowExceptionConfirmed === false);
+    const s2 = staff([false]);
+    const declined = mount(s2);
+    declined.result.updateEventDetails({ event_date: '2031-07-04', pickup_preference: 'same_day', end_window: '21:00' });
+    await declined.settle();
+    ok('Admin: cancelling the warning keeps nothing (time reverted, no flag, so nothing can be saved with the exception)', declined.result.endWindowExceptionConfirmed === false && declined.result.eventDetails.end_window === '');
+    // The default stays safe: no option at all means no authority
+    ok('source-level: the hook defaults to NO approval authority', /options\.canApproveEndWindowException === true/.test(readFileSync('src/hooks/invoices/useInvoiceEventDetails.ts', 'utf8')));
+  }
+
   // --- the customer Quote and the staff editors ---
   {
     const quote = readFileSync('src/components/quote/EventDetailsSection.tsx', 'utf8').replace(/\r\n/g, '\n');
@@ -179,7 +253,9 @@ async function main() {
     const m = /<TimePickerInput\s+value=\{editedOrder\.end_window\}[\s\S]*?\/>/.exec(editor);
     ok('the staff editor\'s End Time picker still has no maximum (flexibility preserved; the hook asks instead)', !!m && !/\bmax=/.test(m[0]));
     for (const f of ['src/components/admin/invoices/InvoiceBuilder.tsx', 'src/components/crew/CrewInvoiceBuilder.tsx']) {
-      ok(`${f} gets the confirmation through useInvoiceEventDetails`, /useInvoiceEventDetails\(\)/.test(readFileSync(f, 'utf8')));
+      const src = readFileSync(f, 'utf8');
+      const admin = f.includes('admin/');
+      ok(`${f} gets its end-time rule through useInvoiceEventDetails (${admin ? 'Admin: may approve, role from useAuth' : 'Crew: no override option'})`, admin ? /useInvoiceEventDetails\(\{ canApproveEndWindowException: isAdmin \}\)/.test(src) && /endWindowExceptionConfirmed/.test(src) : /useInvoiceEventDetails\(\)/.test(src) && !/canApproveEndWindowException|endWindowExceptionConfirmed/.test(src));
     }
     const hook = readFileSync('src/hooks/invoices/useInvoiceEventDetails.ts', 'utf8');
     ok('the hook no longer silently cuts the end time to 19:00', !/'19:00'/.test(hook) && !/cappedEndWindow/.test(hook));

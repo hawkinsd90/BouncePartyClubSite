@@ -263,7 +263,11 @@ export function Checkout() {
           console.error('Error creating booking request:', error);
           if (error instanceof BookingApiError && error.code === 'PRICE_CHANGED' && error.totals) {
             setPriceReview({
-              previous: { totalCents: unifiedTotals.totalCents, depositCents: unifiedTotals.depositCents },
+              previous: {
+                totalCents: unifiedTotals.totalCents,
+                depositCents: unifiedTotals.depositCents,
+                ...(priceBreakdown && Number.isSafeInteger(priceBreakdown.travel_fee_cents) ? { travelFeeCents: priceBreakdown.travel_fee_cents as number } : {}),
+              },
               updated: error.totals,
             });
           } else if (error instanceof BookingApiError && error.code === 'ACCOUNT_SIGN_IN_REQUIRED') {

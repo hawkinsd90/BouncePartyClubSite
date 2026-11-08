@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react';
 import { format } from 'date-fns';
 import { storedOrderTotalCents } from '../../lib/pricing/orderMoney';
-import { CheckCircle, XCircle, Phone, MapPin, Calendar, Package } from 'lucide-react';
+import { CheckCircle, XCircle, Phone, MapPin, Calendar, Package, Clock } from 'lucide-react';
+import { approvalEventTime } from '../../lib/portal/approvalEventTime';
 import { useNavigate } from 'react-router-dom';
 import { formatCurrency } from '../../lib/pricing';
 import { formatOrderId } from '../../lib/utils';
@@ -57,6 +58,8 @@ export function OrderApprovalView({
   const [customTipAmount, setCustomTipAmount] = useState('');
   const [showApprovalModal, setShowApprovalModal] = useState(false);
   const [showRejectionModal, setShowRejectionModal] = useState(false);
+
+  const eventTime = approvalEventTime(order, changelog);
 
   const currentTotalCents = orderSummary
     ? orderSummary.total
@@ -199,6 +202,18 @@ export function OrderApprovalView({
                   </span>
                 </div>
 
+                {eventTime && (
+                  <div className="flex items-center gap-2">
+                    <Clock className="w-4 h-4 text-slate-500 flex-shrink-0" />
+                    <span className="text-slate-700" data-testid="approval-event-time">
+                      {eventTime.current}
+                      {eventTime.previous && (
+                        <span className="ml-2 text-xs text-slate-400 line-through">{eventTime.previous}</span>
+                      )}
+                    </span>
+                  </div>
+                )}
+
                 {order.addresses && (
                   <div className="flex items-start gap-2">
                     <MapPin className="w-4 h-4 text-slate-500 mt-0.5 flex-shrink-0" />
@@ -270,7 +285,14 @@ export function OrderApprovalView({
                   ? orderSummary.fees.map((fee, i) => (
                       <div key={i} className="flex justify-between">
                         <span className="text-slate-600">{fee.name}</span>
-                        <span className="font-medium">{formatCurrency(fee.amount)}</span>
+                        <span className="flex items-center gap-2">
+                          {!(fee.waived && fee.amountUnknown) && (
+                            <span className={fee.waived ? 'font-medium line-through text-red-600' : 'font-medium'}>{formatCurrency(fee.amount)}</span>
+                          )}
+                          {fee.waived && (
+                            <span className="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-semibold bg-red-100 text-red-700">WAIVED</span>
+                          )}
+                        </span>
                       </div>
                     ))
                   : <>

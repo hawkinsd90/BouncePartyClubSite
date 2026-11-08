@@ -3,6 +3,7 @@ import type { Order } from '../../types/orders';
 import { SafeStorage } from '../../lib/core/safeStorage';
 import { eventAddressLine2 } from '../../lib/booking/eventAddress';
 import { notifyError, notifyWarning, showConfirm } from '../../lib/toasts';
+import { duplicateOrderTimes } from '../../lib/orders/duplicateOrderTimes';
 import { buildDuplicateCart, duplicateCanStake, type StoredOrderLine } from '../../lib/orders/duplicateOrderCart';
 
 export function useOrderDuplication() {
@@ -61,8 +62,7 @@ export function useOrderDuplication() {
         address_line2: eventAddressLine2(orderData),
         event_date: '',
         event_end_date: '',
-        start_window: orderData.start_window || '09:00',
-        end_window: orderData.end_window || '17:00',
+        ...duplicateOrderTimes(orderData),
       };
 
       SafeStorage.setItem('bpc_quote_prefill', prefillData, { expirationDays: 7 });

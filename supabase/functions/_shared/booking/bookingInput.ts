@@ -159,8 +159,15 @@ export function validateBookingInput(raw: unknown): BookingValidation<BookingInp
   const startWindow = typeof ev.start_window === "string" && TIME_RE.test(ev.start_window) ? ev.start_window : null;
   const endWindow = typeof ev.end_window === "string" && TIME_RE.test(ev.end_window) ? ev.end_window : null;
   if (!startWindow || !endWindow) return { ok: false, error: "invalid:event.windows" };
+  // F-48: on a single-date rental the end time must be after the start time. A multi-day rental (end date after the start date) is not limited by this.
+  // Same rule as src/lib/core/eventTimeWindow.ts (this file cannot import from src/).
+  if (span === 0 && endWindow.slice(0, 5) <= startWindow.slice(0, 5)) return { ok: false, error: "invalid:event.window_order" };
   if (ev.location_type !== "residential" && ev.location_type !== "commercial") return { ok: false, error: "invalid:event.location_type" };
   if (ev.pickup_preference !== "next_day" && ev.pickup_preference !== "same_day") return { ok: false, error: "invalid:event.pickup_preference" };
+  // D5 (WP-P2-25): customers stay subject to the 19:00 end-time cutoff on same-day (residential) and commercial rentals, so a hand-built request cannot
+  // bypass the Quote page's cap. Only Admin / Master may approve a later time, and only through staff-order-save (an invoice or an order edit).
+  // Same rule as src/lib/core/endWindowExceptions.ts (this file cannot import from src/).
+  if ((ev.location_type === "commercial" || ev.pickup_preference === "same_day") && endWindow.slice(0, 5) > "19:00") return { ok: false, error: "invalid:event.end_window_cutoff" };
   const canStake = ev.can_stake === true ? true : ev.can_stake === false ? false : ev.can_stake === null || ev.can_stake === undefined ? null : undefined;
   if (canStake === undefined) return { ok: false, error: "invalid:event.can_stake" };
   const special = optStr(ev.special_details, 2000);

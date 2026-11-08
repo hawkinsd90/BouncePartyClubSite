@@ -15,7 +15,7 @@ import { formatCurrency } from '../../lib/pricing';
 import { storedOrderTotalCents } from '../../lib/pricing/orderMoney';
 import { portalAction, PortalActionError } from '../../lib/portal/customerPortalApi';
 import { checkEventEssentialsAvailability } from '../../lib/queries/products';
-import { enterConfirmed } from '../../lib/orders/orderLifecycleApi';
+import { enterConfirmed, isAvailabilityRefusal } from '../../lib/orders/orderLifecycleApi';
 import { isDepositFullyCollected } from '../../lib/orders/depositCollected';
 import { classifyApprovalFailure } from '../../lib/orders/approvalFailure';
 import { COMPANY_PHONE } from '../../lib/notifications/emailTemplateBase';
@@ -93,6 +93,8 @@ export function CustomerApprovalModal({
   async function confirmThroughLifecycle(source: string, outcome: 'already_paid' | 'zero_due_with_card') {
     const result = await enterConfirmed(order.id, source, outcome, order.status, { invoiceToken: invoiceLinkToken });
     if (!result.success) {
+      // A stock refusal names the unavailable equipment (written for the customer by the server); anything else stays generic.
+      if (isAvailabilityRefusal(result)) throw new Error(result.error);
       throw new Error('We could not confirm your approval yet. Please try again or contact us.');
     }
   }

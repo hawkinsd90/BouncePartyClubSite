@@ -10,7 +10,7 @@
 
 import { validateBookingInput } from "./bookingInput.ts";
 import { buildBooking, includedCitiesOf, type BookingCatalog } from "./bookingBuild.ts";
-import type { AddressVerifier, CityVerification } from "./addressVerification.ts";
+import { VERIFIER_THREW_REASON, type AddressVerifier, type CityVerification } from "./addressVerification.ts";
 import { verifyBookingAvailability, type AvailabilityPort } from "./bookingAvailability.ts";
 import { generateBookingToken, hashBookingToken, bookingProofExpiry } from "./bookingProof.ts";
 import { recordTravelCityReview } from "./travelCityReview.ts";
@@ -42,7 +42,7 @@ const BUNDLE_SELECT =
 export async function loadBookingCatalog(db: Db): Promise<BookingCatalog | null> {
   const [rules, units, products, pricing, categories, bundles] = await Promise.all([
     db.from("pricing_rules").select("*"),
-    db.from("units").select("id, name, price_dry_cents, price_water_cents, active"),
+    db.from("units").select("id, name, price_dry_cents, price_water_cents, active, types"),
     db.from("inventory_products").select("id, name, category_id, active, public_visible"),
     db.from("product_pricing").select("*"),
     db.from("product_categories").select("id"),
@@ -94,7 +94,8 @@ export async function createBookingRequest(deps: CreateBookingDeps, rawBody: unk
     try {
       verification = await deps.verifyAddress({ line1: a.line1, city: a.city, state: a.state, zip: a.zip, lat: a.lat, lng: a.lng }, includedCities);
     } catch {
-      verification = null;
+      // Same outcome as no result (never a free grant); the reason is recorded for diagnosis (WP-P1-05).
+      verification = { status: "unverified", reason: VERIFIER_THREW_REASON };
     }
   }
 
@@ -131,11 +132,17 @@ export async function createBookingRequest(deps: CreateBookingDeps, rawBody: unk
   // Price review: refuse BEFORE creating anything when the customer was shown a different price. The response carries the server's
   // price so the page can show old versus new and let the customer accept it. No charge happens in this flow either way.
   if (priceChangedSinceShown(parsed.value.payment, plan.totals)) {
+    if (plan.travelCity.status === "unverified") {
+      console.warn(`[create-booking] price_changed travel_city_unverified review=${plan.travelCity.review ?? "none"} reason=${plan.travelCity.reason ?? "n/a"}`);
+    }
     return json(409, {
       success: false,
       error: "The price for your booking has changed. Please review the new price to continue.",
       code: "PRICE_CHANGED",
       totals: { totalCents: plan.totals.totalCents, depositCents: plan.totals.depositCents },
+      // WP-P1-06: two more numbers so the price review can say WHY the price rose (server-computed; nothing else is added).
+      travelFeeCents: Number(plan.order.travel_fee_cents) || 0,
+      travelCityStatus: plan.travelCity.status,
     });
   }
 
@@ -175,7 +182,11 @@ export async function createBookingRequest(deps: CreateBookingDeps, rawBody: unk
   // is written to the function log, and the customer sees the distance fee in the price review. Recording never blocks the booking.
   if (plan.travelCity.review) {
     await recordTravelCityReview(deps.db, { orderId: data.order_id, travelCity: plan.travelCity, typedCity: String(parsed.value.event.address.city ?? ""), userId: null });
-    console.warn(`[create-booking] travel_city_review order=${data.order_id} review=${plan.travelCity.review} verification=${plan.travelCity.status}`);
+    console.warn(`[create-booking] travel_city_review order=${data.order_id} review=${plan.travelCity.review} verification=${plan.travelCity.status} reason=${plan.travelCity.reason ?? "n/a"}`);
+  } else if (plan.travelCity.status === "unverified") {
+    // WP-P1-05: the typed city is not on the free list, but the server could not verify the address either. Logged once per booking so the
+    // cause of an unexpected distance fee can be found; no behaviour change.
+    console.warn(`[create-booking] travel_city_unverified order=${data.order_id} reason=${plan.travelCity.reason ?? "n/a"}`);
   }
 
   return json(200, {

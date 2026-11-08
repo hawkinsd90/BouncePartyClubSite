@@ -181,6 +181,28 @@ textarea {
   color: #64748b;
 }
 
+.menu-preview-route .menu-package-includes {
+  border-top: 1px solid #e2e8f0;
+  padding-top: 8px;
+  margin-top: 4px;
+}
+
+.menu-preview-route .menu-package-includes-title {
+  font-size: 12px;
+  font-weight: 800;
+  color: #0f766e;
+  margin-bottom: 4px;
+}
+
+.menu-preview-route .menu-package-includes-list {
+  margin: 0;
+  padding-left: 18px;
+  font-size: 13px;
+  font-weight: 600;
+  color: #334155;
+  list-style: disc;
+}
+
 .menu-preview-route .menu-unit-card {
   border: 3px solid transparent;
   background: linear-gradient(white, white) padding-box,
@@ -688,6 +710,26 @@ textarea {
   body.print-menu-preview #root .menu-addons-subtitle {
     font-size: 10px !important;
     color: #64748b !important;
+  }
+
+  body.print-menu-preview #root .menu-package-includes {
+    margin: 2px 0 6px !important;
+    padding-top: 4px !important;
+    border-top: 1px solid #e2e8f0 !important;
+  }
+
+  body.print-menu-preview #root .menu-package-includes-title {
+    font-size: 9px !important;
+    font-weight: 800 !important;
+    color: #0f766e !important;
+  }
+
+  body.print-menu-preview #root .menu-package-includes-list {
+    margin: 0 !important;
+    padding-left: 12px !important;
+    font-size: 9px !important;
+    list-style: disc !important;
+    color: #334155 !important;
   }
 
   body.print-menu-preview #root .menu-unit-card {

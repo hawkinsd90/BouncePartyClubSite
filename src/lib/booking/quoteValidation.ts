@@ -1,5 +1,7 @@
 import type { QuoteFormData } from '../../hooks/booking/useQuoteForm';
 import { hasSelectedAddress, SELECT_ADDRESS_MESSAGE } from './addressEdit';
+import { END_BEFORE_START_MESSAGE, isEndAfterStart, isSameDateRental } from '../core/eventTimeWindow';
+import { SAME_DAY_LATEST_END_TIME, isEndWindowRestricted } from '../core/endWindowExceptions';
 import type { UnifiedCartItem, InflatableCartItem, EventEssentialProductCartItem, EventEssentialBundleCartItem } from '../../types';
 
 interface ValidationResult {
@@ -148,6 +150,27 @@ export function validateQuote(
     return {
       isValid: false,
       errorMessage: 'Please select an event end time.',
+      errorSection: 'event',
+      errorFieldId: 'end-time',
+    };
+  }
+
+  // Same-day end time must be after the start time (F-48). Multi-day and next-day rentals are not limited by this rule.
+  if (!isEndAfterStart(formData.start_window, formData.end_window, isSameDateRental(formData))) {
+    return {
+      isValid: false,
+      errorMessage: END_BEFORE_START_MESSAGE,
+      errorSection: 'event',
+      errorFieldId: 'end-time',
+    };
+  }
+
+  // DEC-06: customers cannot book a same-day (residential) or commercial end time after 7:00 PM; the picker caps it and this check keeps the
+  // validation consistent with it. Staff may keep a later time on their own screens after a warning (useInvoiceEventDetails).
+  if (isEndWindowRestricted({ location_type: formData.location_type, pickup_preference: formData.pickup_preference ?? '' }) && formData.end_window > SAME_DAY_LATEST_END_TIME) {
+    return {
+      isValid: false,
+      errorMessage: 'The latest end time for same-day and commercial rentals is 7:00 PM. Please choose an earlier end time.',
       errorSection: 'event',
       errorFieldId: 'end-time',
     };

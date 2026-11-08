@@ -13,6 +13,8 @@ import { RegularPortalView } from '../components/customer-portal/RegularPortalVi
 import { LoadingSpinner } from '../components/common/LoadingSpinner';
 import { showToast } from '../lib/toasts';
 import { trackEvent } from '../lib/core/siteEvents';
+import { enterConfirmed } from '../lib/orders/orderLifecycleApi';
+import { confirmAfterCardSave, CARD_SAVED_CONFIRM_FAILED_MESSAGE } from '../lib/orders/lifecycleRefusal';
 import { parsePortalToken } from '../lib/portal/portalToken';
 import { SecureAccessRequired } from '../components/customer-portal/SecureAccessRequired';
 import { PortalLoadError, PortalRefreshNotice } from '../components/customer-portal/PortalLoadNotices';
@@ -149,12 +151,17 @@ export function CustomerPortal() {
                 return;
               }
             } else {
-              try {
-                await supabase.functions.invoke('order-lifecycle', {
-                  body: { action: 'enter_confirmed', orderId, source: 'invoice_card_saved_fallback', paymentOutcome: 'zero_due_with_card', sessionId: returnSessionId, ...(invoiceToken ? { invoiceToken } : {}) },
-                });
-              } catch (lifecycleErr) {
-                console.error('[CustomerPortal] order-lifecycle fallback failed (non-fatal):', lifecycleErr instanceof Error ? lifecycleErr.message : 'unknown');
+              // A refused confirmation (stock conflict, unverifiable stock, any other refusal) must not look like success: the saved card
+              // stays, nothing is charged here, and the customer sees why the booking is not confirmed.
+              const confirmation = await confirmAfterCardSave(() =>
+                enterConfirmed(orderId, 'invoice_card_saved_fallback', 'zero_due_with_card', null, { sessionId: returnSessionId, invoiceToken: invoiceToken ?? null })
+              );
+              if (!confirmation.confirmed) {
+                console.error('[CustomerPortal] order-lifecycle fallback did not confirm the order.');
+                showToast(confirmation.message ?? CARD_SAVED_CONFIRM_FAILED_MESSAGE, 'error', { duration: 12000 });
+                setInvoiceProcessing(false);
+                await reloadPortalData();
+                return;
               }
             }
             await reloadPortalData();

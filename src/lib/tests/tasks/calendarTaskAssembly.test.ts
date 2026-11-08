@@ -11,7 +11,8 @@ import { formatOrderId } from '../../utils';
 import { ORDER_STATUS } from '../../constants/statuses';
 import { formatOperationalEquipment } from '../../tasks/operationalEquipment';
 import { aggregateOrderEquipment } from '../../eventEssentials/customerGeneratorCart';
-import { buildCalendarTasks, deriveWaiverType, derivePickupReadiness, derivePickupBlockReason } from '../../tasks/calendarTaskAssembly';
+import { isTaskActiveRouteStop, isDropOffPlanningOnly } from '../../tasks/calendarUtils';
+import { buildCalendarTasks, deriveWaiverType, derivePickupReadiness, derivePickupBlockReason, isUnconfirmedOrderStatus, CALENDAR_ORDER_STATUSES, calendarOrderStatusesFor } from '../../tasks/calendarTaskAssembly';
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
@@ -408,11 +409,28 @@ const ID = 'aaaaaaaa-0000-0000-0000-000000000001';
 {
   const defaults = compare('defaults', [mkOrder({ total_cents: null, balance_due_cents: -500, deposit_paid_cents: null, balance_paid_cents: null, tip_cents: null, start_window: null, end_window: null, special_details: null, has_pets: null, payments: null, stripe_payment_method_id: undefined, surface: undefined })], [], []).actual;
   eq('defaults: money and window fallbacks', [defaults[0].total, defaults[0].balanceDue, defaults[0].depositPaidCents, defaults[0].tipCents, defaults[0].eventStartTime, defaults[0].eventEndTime, defaults[0].notes, defaults[0].hasPets, defaults[0].payments, defaults[0].stripePaymentMethodId], [0, 0, 0, 0, 'TBD', 'TBD', undefined, false, [], null]);
-  for (const st of ['pending_review', 'confirmed', 'in_progress', 'completed', 'cancelled', 'draft', 'awaiting_customer_approval']) {
+  for (const st of ['pending_review', 'confirmed', 'in_progress', 'completed', 'cancelled', 'draft']) {
     compare(`order status ${st} (assembled as-is; filtering happens in the query)`, [mkOrder({ status: st, balance_due_cents: 1234 })], [], [status(ID, 'drop-off', '2026-07-04', { status: 'completed' })]);
   }
   const pend = compare('pending_review pickup', [mkOrder({ status: 'pending_review' })], [], []).actual;
   eq('pending_review pickup is projected with its reason', [pend[1].pickupReadiness, pend[1].pickupBlockReason], ['projected', 'Order not yet confirmed']);
+  // WP-P1-23 (DEC-09): awaiting_customer_approval is now treated like pending_review (planning only). The old oracle treated it as
+  // confirmed, so it is deliberately NOT part of the differential loop above; the new rule is pinned directly.
+  const awaiting = buildCalendarTasks({ orders: [mkOrder({ status: 'awaiting_customer_approval', balance_due_cents: 0 })], orderItems: [], taskStatuses: [status(ID, 'drop-off', '2026-07-04', { status: 'completed' })], generatorCategoryProductIds: GEN }) as any[];
+  eq('awaiting_customer_approval pickup is projected with its reason (not ready), even with a completed drop-off and no balance', [awaiting[1].pickupReadiness, awaiting[1].pickupBlockReason], ['projected', 'Order not yet confirmed']);
+  eq('awaiting_customer_approval tasks keep their status for the calendar', [awaiting[0].status, awaiting[1].status], ['awaiting_customer_approval', 'awaiting_customer_approval']);
+  eq('helper: unconfirmed statuses', ['pending_review', 'awaiting_customer_approval', 'confirmed', 'in_progress', 'completed', 'cancelled', 'draft', null, undefined].map((x) => isUnconfirmedOrderStatus(x as any)), [true, true, false, false, false, false, false, false, false]);
+  eq('calendar query statuses: awaiting_customer_approval displayed; cancelled, void and draft excluded', [CALENDAR_ORDER_STATUSES.includes('awaiting_customer_approval'), ['cancelled', 'void', 'draft'].some((x) => CALENDAR_ORDER_STATUSES.includes(x)), ['pending_review', 'confirmed', 'in_progress', 'completed'].every((x) => CALENDAR_ORDER_STATUSES.includes(x))], [true, false, true]);
+  // D4: Admin sees awaiting_customer_approval as planning only; crew never loads it; neither role gets an actionable stop for it.
+  eq('D4: Admin calendar query includes awaiting_customer_approval', calendarOrderStatusesFor(true).includes('awaiting_customer_approval'), true);
+  eq('D4: crew calendar query excludes awaiting_customer_approval but keeps every other status', [calendarOrderStatusesFor(false).includes('awaiting_customer_approval'), ['pending_review', 'confirmed', 'in_progress', 'completed'].every((x) => calendarOrderStatusesFor(false).includes(x))], [false, true]);
+  eq('D4: cancelled, void and draft are excluded for both roles', [true, false].map((a) => ['cancelled', 'void', 'draft'].some((x) => calendarOrderStatusesFor(a).includes(x))), [false, false]);
+  {
+    eq('D4: an awaiting_customer_approval drop-off is planning-only and not an active route stop', [isDropOffPlanningOnly(awaiting[0]), isTaskActiveRouteStop(awaiting[0])], [true, false]);
+    eq('D4: an awaiting_customer_approval pick-up is not an active route stop (projected)', isTaskActiveRouteStop(awaiting[1]), false);
+    const conf = buildCalendarTasks({ orders: [mkOrder({ status: 'confirmed', balance_due_cents: 0 })], orderItems: [], taskStatuses: [], generatorCategoryProductIds: GEN }) as any[];
+    eq('D4: a confirmed drop-off stays an active route stop', [isDropOffPlanningOnly(conf[0]), isTaskActiveRouteStop(conf[0])], [false, true]);
+  }
   const blocked = compare('blocked pickup', [mkOrder({ balance_due_cents: 4567 })], [], [status(ID, 'drop-off', '2026-07-04', { status: 'completed' })]).actual;
   eq('blocked pickup reason', [blocked[1].pickupReadiness, blocked[1].pickupBlockReason], ['blocked', 'Unpaid balance: $45.67']);
   const ID2 = 'bbbbbbbb-0000-0000-0000-000000000002'; const ID3 = 'cccccccc-0000-0000-0000-000000000003';

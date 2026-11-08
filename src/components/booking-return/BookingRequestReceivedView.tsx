@@ -6,9 +6,11 @@ import { supabase } from '../../lib/supabase';
 import { portalPathForCurrentVisitor } from '../../lib/portal/portalToken';
 import { useState, useEffect } from 'react';
 import { getPublicBusinessSettings } from '../../lib/core/adminSettingsCache';
+import { bookingReturnCopy } from '../../lib/booking/bookingReturnCopy';
 
 interface OrderDetails {
   id: string;
+  status?: string;
   event_date: string;
   deposit_due_cents: number;
   balance_due_cents: number;
@@ -54,6 +56,7 @@ export function BookingRequestReceivedView({ orderDetails, sessionTipCents = 0, 
   }, []);
 
   const displayTipCents = orderDetails?.tip_cents || sessionTipCents;
+  const copy = bookingReturnCopy(orderDetails?.status);
 
   return (
     <div className="min-h-screen bg-white flex items-center justify-center px-4 py-8">
@@ -75,10 +78,10 @@ export function BookingRequestReceivedView({ orderDetails, sessionTipCents = 0, 
             </svg>
           </div>
 
-          <h1 className="text-3xl font-bold text-slate-900 mb-4">Request Received!</h1>
+          <h1 className="text-3xl font-bold text-slate-900 mb-4">{copy.heading}</h1>
 
           <p className="text-slate-600 mb-4">
-            Thank you for choosing Bounce Party Club. Your booking request has been submitted and is now pending admin review.
+            {copy.intro}
           </p>
 
           <div className="flex items-start gap-3 bg-green-50 border border-green-300 rounded-lg p-4 mb-6 text-left">
@@ -86,9 +89,9 @@ export function BookingRequestReceivedView({ orderDetails, sessionTipCents = 0, 
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
             </svg>
             <div>
-              <p className="text-sm font-semibold text-green-900">Your card has not been charged</p>
+              <p className="text-sm font-semibold text-green-900">{copy.noticeTitle}</p>
               <p className="text-xs text-green-800 mt-0.5">
-                Your payment information has been saved securely. No charge will be made until admin reviews and approves your order — typically within 24 hours.
+                {copy.noticeBody}
               </p>
             </div>
           </div>
@@ -114,7 +117,7 @@ export function BookingRequestReceivedView({ orderDetails, sessionTipCents = 0, 
                 </p>
               </div>
               <div>
-                <p className="text-sm text-slate-600 mb-1">Required Deposit After Approval:</p>
+                <p className="text-sm text-slate-600 mb-1">{copy.depositLabel}:</p>
                 <p className="font-semibold text-green-600">
                   ${(orderDetails.deposit_due_cents / 100).toFixed(2)}
                 </p>
@@ -129,7 +132,7 @@ export function BookingRequestReceivedView({ orderDetails, sessionTipCents = 0, 
               )}
               {displayTipCents > 0 && (
                 <div className="col-span-2">
-                  <p className="text-sm text-slate-600 mb-1">Amount Charged After Approval:</p>
+                  <p className="text-sm text-slate-600 mb-1">{copy.tipTotalLabel}:</p>
                   <p className="font-semibold text-green-600 text-lg">
                     ${((orderDetails.deposit_due_cents + displayTipCents) / 100).toFixed(2)}
                   </p>
@@ -164,8 +167,7 @@ export function BookingRequestReceivedView({ orderDetails, sessionTipCents = 0, 
 
             <div className="p-6 bg-slate-50 rounded-lg">
               <p className="text-sm text-slate-700 leading-relaxed mb-3">
-                Our admin team will review your booking request and contact you within 24 hours to
-                confirm your delivery time window and finalize your reservation details.
+                {copy.nextSteps}
               </p>
               <p className="text-sm text-slate-600">
                 If you have any questions, contact us at{' '}

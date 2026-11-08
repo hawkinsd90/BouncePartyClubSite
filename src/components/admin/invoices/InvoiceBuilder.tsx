@@ -18,7 +18,9 @@ import { useInvoiceData } from '../../../hooks/invoices/useInvoiceData';
 import { usePricing } from '../../../hooks/booking/usePricing';
 import { useInvoiceCart } from '../../../hooks/invoices/useInvoiceCart';
 import { useCustomerManagement } from '../../../hooks/admin/useCustomerManagement';
+import { useAuth } from '../../../contexts/AuthContext';
 import { useInvoiceEventDetails } from '../../../hooks/invoices/useInvoiceEventDetails';
+import { eventWindowProblem } from '../../../lib/core/eventTimeWindow';
 import { generateInvoice } from '../../../lib/payments/invoiceService';
 import { checkMultipleUnitsAvailability } from '../../../lib/booking/availability';
 import { resolveAdminGeneratorIncrease, decideAdminGeneratorDecrease } from '../../../lib/eventEssentials/adminGeneratorResolution';
@@ -66,7 +68,9 @@ export function InvoiceBuilder() {
   const { cartItems, addItemToCart, removeItemFromCart, updateItemQuantity, clearCart } =
     useInvoiceCart();
   const customerManagement = useCustomerManagement();
-  const { eventDetails, updateEventDetails, resetEventDetails } = useInvoiceEventDetails();
+  // Admin / Master may keep an end time after 19:00 on a same-day or commercial rental, after a warning and an explicit confirmation (D5).
+  const { isAdmin } = useAuth();
+  const { eventDetails, endWindowExceptionConfirmed, updateEventDetails, resetEventDetails } = useInvoiceEventDetails({ canApproveEndWindowException: isAdmin });
 
   const [stagedEEItems, setStagedEEItems] = useState<StagedEEItem[]>([]);
   const [discounts, setDiscounts] = useState<ManagedDiscount[]>([]);
@@ -556,6 +560,13 @@ export function InvoiceBuilder() {
       return;
     }
 
+    // Start and end times start blank: ask for both here instead of letting the server answer with a generic 400 (F-34); same-day end must be after start (F-48).
+    const windowProblem = eventWindowProblem(eventDetails, { requireTimes: true });
+    if (windowProblem) {
+      showToast(windowProblem, 'error');
+      return;
+    }
+
     setSaving(true);
     try {
       // Recheck inflatable availability before creating invoice
@@ -627,6 +638,7 @@ export function InvoiceBuilder() {
         {
           customerId: customerManagement.selectedCustomer || null,
           cartItems,
+          endWindowExceptionConfirmed,
           eeProductItems: activeEEItems.map(item => ({
             product_id: item.product_id,
             bundle_id: item.bundle_id,

@@ -34,7 +34,7 @@ import { buildGeneratorResolverCatalog } from './detail-modal/generatorResolverC
 import { buildOrderDetailPricingRevision, buildGeneratorContextRevision } from './detail-modal/orderDetailRevisions';
 import { usePricing } from '../../../hooks/booking/usePricing';
 import { useAdminOrderDetails } from '../../../hooks/admin/useAdminOrderDetails';
-import { saveOrderChanges } from '../../../lib/orders/staffOrderSaveRequest';
+import { saveOrderChanges, SaveCancelledError } from '../../../lib/orders/staffOrderSaveRequest';
 import { orderPricingState } from '../../../lib/pricing/orderPricingState';
 import { initDepositOverrideState } from '../../../lib/pricing/depositCalculation';
 import { sendOrderEditNotifications } from '../../../lib/notifications/orderNotificationService';
@@ -762,7 +762,10 @@ export function OrderDetailModal({ order, onClose, onUpdate }: OrderDetailModalP
         },
       });
     } catch (error) {
-      if (error instanceof Error && error.message !== 'Availability conflict') {
+      if (error instanceof SaveCancelledError) {
+        // The Admin declined the warning: nothing was saved, the editor stays open with its edits.
+        showToast('No changes were saved.', 'info');
+      } else if (error instanceof Error && error.message !== 'Availability conflict') {
         console.error('Error saving changes:', error);
         showToast(
           `Failed to save changes: ${error.message}`,

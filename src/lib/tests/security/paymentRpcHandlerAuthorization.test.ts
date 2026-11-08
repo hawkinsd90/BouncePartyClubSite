@@ -26,6 +26,8 @@ import * as paymentOperationHelpers from '../../../../supabase/functions/_shared
 import * as itemLabelHelpers from '../../../../supabase/functions/_shared/payments/order-item-label';
 import * as siteOriginHelpers from '../../../../supabase/functions/_shared/siteOrigin';
 import * as travelCityReviewHelpers from '../../../../supabase/functions/_shared/booking/travelCityReview';
+import * as bookingAvailabilityHelpers from '../../../../supabase/functions/_shared/booking/bookingAvailability';
+import * as orderConfirmAvailabilityHelpers from '../../../../supabase/functions/_shared/booking/orderConfirmAvailability';
 
 let passed = 0;
 let failed = 0;
@@ -341,6 +343,9 @@ function loadHandler(fnDir: string, w: World): (req: Request) => Promise<Respons
     ...paymentOperationHelpers,
     ...itemLabelHelpers,
     ...travelCityReviewHelpers,
+    // order-lifecycle now re-checks stock after a non-charge confirmation (WP-P1-16); its imports must exist in this fake scope.
+    supabaseAvailabilityPort: bookingAvailabilityHelpers.supabaseAvailabilityPort,
+    ...orderConfirmAvailabilityHelpers,
     getSiteOrigin: () => siteOriginHelpers.getSiteOrigin({ get: (k: string) => env[k] }),
     configuredOrigins: () => siteOriginHelpers.configuredOrigins({ get: (k: string) => env[k] }),
     corsHeaders: { 'Access-Control-Allow-Origin': '*' },

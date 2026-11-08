@@ -1,5 +1,6 @@
-// WP-05 (B1): three-select time picker. Every minute 00-59 is selectable starting at :00, nothing is chosen by default, a half-chosen
-// time emits nothing, stored values (including off-grid ones) display, and the value format stays "HH:mm".
+// Time picker. The pure logic below (timeSelect.ts: parsing "HH:mm" / "HH:mm:ss", every minute round-trips, nothing chosen by default, a
+// half-chosen time emits nothing, the value format stays "HH:mm") is unchanged. WP-P2-12b (F-34) replaced the three-select component by the
+// native time control; the component assertions near the end are SOURCE-LEVEL and describe that control.
 import { readFileSync } from 'node:fs';
 import {
   EMPTY_TIME_DRAFT,
@@ -83,19 +84,24 @@ eq('period chosen first, hour later', toTime24(applyHourChange(applyPeriodChange
 eq('display 7:05 PM', formatDisplayTime('19:05'), '7:05 PM');
 eq('display empty', formatDisplayTime(''), '');
 
-// Component wiring (source)
+// Component wiring (SOURCE-LEVEL assertions: they read the component text, they do not render it). WP-P2-12b (F-34): the picker is the
+// native time control again, replacing the Hr / Min / AM-PM selects that these assertions used to describe.
 const picker = read('src/components/ui/TimePickerInput.tsx');
-eq('picker no longer renders a native time input', /type="time"/.test(picker), false);
-eq('picker has hour, minute and AM/PM selects', ['aria-label="Hour"', 'aria-label="Minute"', 'aria-label="AM or PM"'].every((s) => picker.includes(s)), true);
-eq('first control carries the label id', /<select\s+id=\{id\}/.test(picker), true);
-eq('controls are at least 44px tall', picker.includes('min-h-[48px]'), true);
-eq('16px text avoids iOS zoom', picker.includes('text-base'), true);
-eq('no default hours are preselected', !/useState<TimeDraft>\(\(\) => \{[^}]*HOUR_OPTIONS/.test(picker), true);
+eq('source-level: picker renders the native time input', /<input[\s\S]*?type="time"/.test(picker), true);
+eq('source-level: picker no longer renders hour / minute / AM-PM selects', /<select|aria-label="Hour"|aria-label="Minute"|aria-label="AM or PM"/.test(picker), false);
+eq('source-level: the input carries the label id (htmlFor works) and an optional accessible name', /<input\s+id=\{id\}/.test(picker) && picker.includes('aria-label={ariaLabel}'), true);
+eq('source-level: control is at least 48px tall', picker.includes('min-h-[48px]'), true);
+eq('source-level: 16px text avoids iOS zoom', picker.includes('text-base') && picker.includes("fontSize: '16px'"), true);
+eq('source-level: required and disabled are passed to the native input (native "required" works)', picker.includes('required={required}') && picker.includes('disabled={disabled}'), true);
+eq('source-level: min / max / step are NOT put on the input (they would constrain minute entry on some phones)', /<input[\s\S]*?\/>/.exec(picker)?.[0].match(/\b(min|max|step)=/) === null, true);
+eq('source-level: the picker puts no default time anywhere (empty stays empty)', !/'\d\d:\d\d'/.test(picker.replace(/'HH:mm'/g, '')) && !/value=\{[^}]*\|\|\s*'\d/.test(picker), true);
+eq('source-level: the value shown is the caller\'s value without seconds (saved times are never replaced)', picker.includes('normalizeTime(value)') && picker.includes('onChange(e.target.value)'), true);
 const editor = read('src/components/order-detail/EventDetailsEditor.tsx');
-eq('admin editor uses the shared picker', (editor.match(/<TimePickerInput/g) || []).length === 2 && !/type="time"/.test(editor), true);
+eq('source-level: admin editor uses the shared picker', (editor.match(/<TimePickerInput/g) || []).length === 2 && !/type="time"/.test(editor), true);
 for (const f of ['src/components/quote/EventDetailsSection.tsx', 'src/pages/Contact.tsx']) {
-  eq(`${f} still uses the shared picker`, read(f).includes('<TimePickerInput'), true);
+  eq(`source-level: ${f} still uses the shared picker`, read(f).includes('<TimePickerInput'), true);
 }
+eq('source-level: all four consumers (Quote, Edit Order and both invoice builders through the editor, Contact) still use the one shared picker file', ['src/components/quote/EventDetailsSection.tsx', 'src/components/order-detail/EventDetailsEditor.tsx', 'src/pages/Contact.tsx'].every((f) => read(f).includes("from '../ui/TimePickerInput'") || read(f).includes("from '../components/ui/TimePickerInput'")) && ['src/components/admin/invoices/InvoiceBuilder.tsx', 'src/components/crew/CrewInvoiceBuilder.tsx'].every((f) => read(f).includes('EventDetailsEditor')), true);
 
 console.log(`\nWP-05 time picker tests: ${passed} passed, ${failed} failed`);
 if (failed > 0) process.exit(1);

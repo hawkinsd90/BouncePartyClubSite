@@ -2,7 +2,7 @@
 // PASS - LOCAL AUTOMATED. Layout at 320/360/390/tablet/desktop, landscape and with the keyboard (M-01..M-04, M-10) is REQUIRES HOSTED DEV VERIFICATION.
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { readFileSync } from 'node:fs';
-import { buildNavLinks, CLOSED_NAV, menuGroupPath, navMenuReducer, nextFocusIndex, type NavInput, type NavMenuState } from '../../core/navLinks';
+import { buildNavLinks, CLOSED_NAV, LOGIN_LABEL, menuGroupPath, navMenuReducer, nextFocusIndex, PACKAGES_PATH, type NavInput, type NavMenuState } from '../../core/navLinks';
 import { HEADER_HEIGHT_PX, HEADER_OFFSET_PX, SCROLL_MARGIN_CSS } from '../../core/headerOffset';
 
 let passed = 0;
@@ -100,6 +100,39 @@ const lock = read('src/hooks/core/useBodyScrollLock.ts');
 ok('scroll lock restores exactly what it changed', /previousOverflow/.test(lock) && /body\.style\.overflow = previousOverflow/.test(lock) && /previousPadding/.test(lock));
 const nav = read('src/components/common/nav/SiteNav.tsx') + read('src/components/common/nav/AccountMenu.tsx');
 ok('dropdowns report aria-expanded and dismiss on outside click and Escape', (nav.match(/aria-expanded=\{/g) ?? []).length === 2 && (nav.match(/useDismissable\(/g) ?? []).length === 2);
+
+
+// --- WP-P2-23a (F-28): Party Packages are separate from the Party Add-Ons groups; the label is a link, the chevron opens the list ------------
+{
+  const addOnsOf = (m: ReturnType<typeof buildNavLinks>) => m.primary.find((l) => l.id === 'addons');
+  const withPk = buildNavLinks({ ...base, hasPackages: true });
+  eq('with packages: groups, then "View all add-ons", then a separate Party Packages entry last', addOnsOf(withPk)?.children?.map((c) => c.id), ['group-1', 'group-2', 'addons-all', 'addons-packages']);
+  eq('the Party Packages entry goes to the packages section of the Add-Ons page and is drawn apart', [addOnsOf(withPk)?.children?.[3].to, addOnsOf(withPk)?.children?.[3].separated, PACKAGES_PATH], ['/event-essentials?section=packages', true, '/event-essentials?section=packages']);
+  ok('no group is a package entry (packages are never merged into the add-on groups)', addOnsOf(withPk)?.children?.filter((c) => c.id.startsWith('group-')).every((c) => !c.to.includes('section=packages')) === true);
+  const pkOnly = addOnsOf(buildNavLinks({ ...base, menuGroups: G0, hasPackages: true }));
+  eq('packages but no groups: Party Add-Ons is a dropdown with "View all add-ons" and Party Packages', [pkOnly?.to, pkOnly?.children?.map((c) => c.id)], ['/event-essentials', ['addons-all', 'addons-packages']]);
+  eq('no packages (or add-ons page off): no Party Packages entry anywhere', [JSON.stringify(buildNavLinks(base)).includes('addons-packages'), JSON.stringify(buildNavLinks({ ...base, eventEssentialsEnabled: false, hasPackages: true })).includes('addons-packages')], [false, false]);
+  eq('the top-level link still points at the Add-Ons page', addOnsOf(withPk)?.to, '/event-essentials');
+
+  const siteNav = read('src/components/common/nav/SiteNav.tsx');
+  ok('source-level: desktop Party Add-Ons is a Link to the page plus a separate chevron button (aria-expanded, own accessible name)', /<Link to=\{link\.to\} className=\{linkClass\} onClick=\{onClose\}>/.test(siteNav) && /aria-label=\{`\$\{link\.label\} menu`\}/.test(siteNav) && /aria-expanded=\{addOnsOpen\}/.test(siteNav) && !/<button[^>]*>\s*\{link\.label\}/.test(siteNav));
+  ok('source-level: mobile drawer does the same (label link + 44px chevron button)', /<Link to=\{link\.to\} onClick=\{onClose\} className=\{`\$\{rowClass\} flex-1`\}>/.test(drawer) && /aria-label=\{`\$\{link\.label\} menu`\}/.test(drawer) && /min-w-\[44px\] min-h-\[44px\]/.test(drawer));
+  ok('source-level: the separated entry has a divider in both menus', /child\.separated/.test(siteNav) && /child\.separated/.test(drawer));
+  ok('source-level: the header only asks for packages when the Add-Ons page is on, and passes hasPackages to the nav model', /fetchProductBundles\(\)\.then/.test(layout) && /hasPackages\b/.test(layout) && /buildNavLinks\(\{[^}]*hasPackages \}\)/.test(layout));
+  ok('source-level: the Add-Ons page has the section anchor and scrolls to it for ?section=packages', /id="party-packages"/.test(read('src/pages/EventEssentialsCatalog.tsx')) && /searchParams\.get\('section'\) === 'packages'/.test(read('src/pages/EventEssentialsCatalog.tsx')));
+}
+
+// --- WP-P2-18 (F-33): signed-out account link says Login / Sign Up, everywhere a visitor sees it -------------------------------------------
+{
+  const accountMenu = read('src/components/common/nav/AccountMenu.tsx');
+  eq('the label names both Login and Sign Up', LOGIN_LABEL, 'Login / Sign Up');
+  ok('source-level: header (AccountMenu) and phone drawer both use the shared label and still go to /login', /\{LOGIN_LABEL\}/.test(accountMenu) && /\{LOGIN_LABEL\}/.test(drawer) && /<Link to="\/login"/.test(accountMenu) && /<Link to="\/login"/.test(drawer));
+  ok('source-level: no bare "Login" link text is left in the navigation files', !/>\s*Login\s*</.test(accountMenu) && !/^\s+Login\s*$/m.test(drawer));
+  ok('source-level: the header label does not wrap (nowrap) and the icon does not shrink', /whitespace-nowrap/.test(accountMenu) && /shrink-0/.test(accountMenu));
+  ok('source-level: signed-in users never see the label (a menu with the email or Account name, and Sign Out, replaces it)', /if \(!signedIn\) \{[\s\S]*?LOGIN_LABEL[\s\S]*?\n {2}\}\n\n {2}return \(/.test(accountMenu) && /auth === 'logout' \?/.test(drawer));
+  ok('source-level: the destination page offers sign up', /navigate\('\/signup'/.test(read('src/pages/Login.tsx')) && /Don't have an account\? Sign up/.test(read('src/pages/Login.tsx')));
+  ok('source-level: between 768 and 1023 px the brand text is hidden so the longer label fits (the logo image keeps the name)', /min-\[380px\]:inline md:hidden lg:inline/.test(layout));
+}
 
 // --- WP-19: no stale header literals ---------------------------------------------------------------------------------------------------
 eq('header constants', [HEADER_HEIGHT_PX, HEADER_OFFSET_PX, SCROLL_MARGIN_CSS], [64, 80, 'calc(var(--site-header-height) + 1rem)']);

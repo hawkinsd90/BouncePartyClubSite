@@ -76,7 +76,7 @@ async function draw(data: any) {
   g.document = fake.document;
   const url = await mod.__draw(data, null, data.units.map(() => null), (data.addOns ?? []).map(() => null));
   const texts = fake.calls.filter(([k]) => k === 'fillText').map(([, a]) => String(a[0]));
-  return { url, texts, height: fake.canvas.height };
+  return { url, texts, height: fake.canvas.height, width: fake.canvas.width };
 }
 
 function renderMenu(data: any): string {
@@ -118,6 +118,54 @@ async function main() {
   ok('image: a data URL comes back', /^data:image\/png/.test(withImg.url));
   const filtered = await draw({ ...base, activeFilter: 'Bounce Houses', addOns: [] });
   ok('image: a filtered menu (no add-ons) stays an inflatable-only image', !filtered.texts.includes('Party Add-Ons'));
+
+
+  // --- WP-P2-15 (F-31): Party Packages are their own section and list their real components, in preview, print DOM and image ---
+  const pkgCard = (i: number, components?: any[]) => addOn(i, { id: `k${i}`, kind: 'package', name: `ZZ TEST Package ${i}`, categoryName: 'Packages', components });
+  const table = { name: 'ZZ TEST Table', quantity: 2 };
+  const chair = { name: 'ZZ TEST Chair', quantity: 16 };
+  const castle = { name: 'ZZ TEST Castle', quantity: 1, mode: 'customer_choice' };
+  const withPackages = renderMenu({ ...base, addOns: [addOn(1), addOn(2), pkgCard(3, [castle, table, chair]), pkgCard(4, undefined)] });
+  ok('packages: a separate "Party Packages" heading after the "Party Add-Ons" section', /menu-packages-title">Party Packages</.test(withPackages) && withPackages.indexOf('Party Packages') > withPackages.indexOf('Party Add-Ons'));
+  ok('packages: the actual components and quantities are printed under "Includes"', />Includes</.test(withPackages) && withPackages.includes('2 \u00d7 ZZ TEST Table') && withPackages.includes('16 \u00d7 ZZ TEST Chair') && withPackages.includes('1 \u00d7 ZZ TEST Castle (dry or water)'));
+  ok('packages: a package without a resolved contents list prints no "Includes" and no invented contents', (withPackages.match(/>Includes</g) ?? []).length === 1);
+  ok('packages: products stay in the add-ons section, packages are not mixed into it', withPackages.indexOf('ZZ TEST Package 3') > withPackages.indexOf('Table 2') && (withPackages.match(/menu-addons-title">Party Add-Ons</g) ?? []).length === 1);
+  ok('packages: the last add-ons page breaks before the packages section', (withPackages.match(/menu-print-page-break/g) ?? []).length >= 2);
+  const onlyPackages = renderMenu({ ...base, addOns: [pkgCard(1, [table])] });
+  ok('packages only: no empty "Party Add-Ons" heading', !/menu-addons-title">Party Add-Ons</.test(onlyPackages) && /Party Packages/.test(onlyPackages));
+  const noPackages = renderMenu({ ...base, addOns });
+  ok('products only (older saved menus): no packages section', !/Party Packages/.test(noPackages) && !/menu-package-includes/.test(noPackages));
+  const oldSavedPackage = renderMenu({ ...base, addOns: [addOn(1, { kind: 'package', categoryName: 'Packages' })] });
+  ok('an older saved package (no components field) still renders, without a contents list', /Table 1/.test(oldSavedPackage) && !/menu-package-includes/.test(oldSavedPackage));
+
+  const imgPlain = await draw({ ...base, addOns: [addOn(1), addOn(2), addOn(3)] });
+  const imgPkgs = await draw({ ...base, addOns: [addOn(1), addOn(2), addOn(3), pkgCard(4, [castle, table, chair])] });
+  ok('image: "Party Packages" heading, the package name, "Includes" and every component line are drawn', imgPkgs.texts.includes('Party Packages') && imgPkgs.texts.includes('ZZ TEST Package 4') && imgPkgs.texts.includes('Includes') && imgPkgs.texts.includes('2 \u00d7 ZZ TEST Table') && imgPkgs.texts.includes('16 \u00d7 ZZ TEST Chair') && imgPkgs.texts.includes('1 \u00d7 ZZ TEST Castle (dry or water)'));
+  ok('image: the packages are a separate section from the add-ons heading', imgPkgs.texts.indexOf('Party Add-Ons') < imgPkgs.texts.indexOf('Party Packages') && !imgPlain.texts.includes('Party Packages'));
+  // 1 package row: heading band 56 + (card 188 + contents (18 + 3 lines * 14 + 4)) + bottom pad 32, all at 2x
+  eq('image: the extra height is exactly the packages section sized for its contents lines', (imgPkgs.height - imgPlain.height) / 2, 56 + (188 + 18 + 3 * 14 + 4) + 32);
+  const imgNoList = await draw({ ...base, addOns: [pkgCard(1, undefined)] });
+  ok('image: a package without a contents list draws no "Includes"', !imgNoList.texts.includes('Includes') && imgNoList.texts.includes('ZZ TEST Package 1'));
+  // PNG scale cap: a very long menu must not exceed the mobile canvas area limit
+  const manyUnits = Array.from({ length: 60 }, (_, i) => unit(i + 1));
+  const huge = await draw({ ...base, units: manyUnits, addOns: [] });
+  ok('image: a very long menu stays under the canvas area cap (scaled down, still draws)', huge.width * huge.height <= 16777216 && huge.width < 2400 && /^data:image\/png/.test(huge.url));
+  ok('image: a normal menu keeps the 2x retina size', imgPlain.width === 2400);
+
+  // --- D6: an excluded package is absent from preview, print DOM and PNG alike; only an Admin's menu data shows the notice ---
+  const omitted = [{ id: 'bad', name: 'ZZ TEST Omitted Package', reason: 'the product "ZZ TEST Secret Part" is not public' }];
+  const consistent = [addOn(1), pkgCard(2, [table, chair])]; // the Catalog already dropped the incomplete package from addOns
+  const custHtml = renderMenu({ ...base, addOns: consistent });
+  const custImg = await draw({ ...base, addOns: consistent });
+  ok('customer menu: no notice, no omitted package name and no hidden component detail anywhere in preview/print', !/menu-admin-omitted-notice/.test(custHtml) && !custHtml.includes('Omitted Package') && !custHtml.includes('Secret Part') && !custHtml.includes('Left out of the menu'));
+  ok('customer image: nothing about the omitted package is drawn', !custImg.texts.some((t) => /Omitted Package|Secret Part|Left out/.test(t)));
+  ok('preview and image list the same packages (consistency)', custHtml.includes('ZZ TEST Package 2') && custImg.texts.includes('ZZ TEST Package 2') && !custHtml.includes('Package 3') && !custImg.texts.includes('ZZ TEST Package 3'));
+  const adminData = { ...base, addOns: consistent, adminOmittedPackages: omitted };
+  const adminHtml = renderMenu(adminData);
+  ok('admin menu: a screen-only warning names the omitted package and the reason', /role="alert"/.test(adminHtml) && /menu-admin-omitted-notice[^>]*no-print/.test(adminHtml) && adminHtml.includes('ZZ TEST Omitted Package') && adminHtml.includes('Secret Part'));
+  const adminImg = await draw(adminData);
+  ok('admin menu: the warning is not part of the PNG, which equals the customer image', !adminImg.texts.some((t) => /Omitted Package|Secret Part|Left out/.test(t)) && adminImg.texts.join('|') === custImg.texts.join('|') && adminImg.height === custImg.height);
+  ok('admin menu: the printed menu body (inside #menu-content) does not contain the warning', !adminHtml.slice(adminHtml.indexOf('id="menu-content"')).includes('Omitted Package'));
 
   // --- what the catalog hands to the preview ---
   const catalog = fs.readFileSync('src/pages/Catalog.tsx', 'utf8').replace(/\r\n/g, '\n');

@@ -19,6 +19,7 @@ import * as payOps from '../../../../supabase/functions/_shared/payments/payment
 import * as outcomeHelpers from '../../../../supabase/functions/_shared/orders/lifecycle-outcome';
 import * as bookingProofHelpers from '../../../../supabase/functions/_shared/booking/bookingProof';
 import * as returnOriginHelpers from '../../../../supabase/functions/_shared/booking/returnOrigin';
+import { confirmAvailabilityBlocks as confirmAvailabilityBlocksFn } from '../../../../supabase/functions/_shared/booking/orderConfirmAvailability';
 import { PgPool, ensurePayDatabase, makeWorld, loadHandler, loadModule, callHandler, lit, SERVICE_KEY, ANON_KEY, type World } from '../support/paymentHarness';
 
 let passed = 0;
@@ -965,8 +966,14 @@ const shared = { ...authHelpers, ...outcomeHelpers, ...bookingProofHelpers, ...r
     ['an Admin Invoice with a deposit due', { status: 'draft', invoice: true, dd: 5000, dp: 0, bd: 10000 }, 'draft', []],
     ['an Admin Invoice with a Full or Custom amount required (deposit due)', { status: 'draft', invoice: true, dd: 5000, dp: 0, bd: 10000, selType: 'full', selCents: 15000 }, 'draft', []],
     ['an Admin Invoice whose deposit is only part paid', { status: 'draft', invoice: true, dd: 5000, dp: 2000, bd: 8000 }, 'draft', []],
-    ['an Admin Invoice with an explicit $0 deposit and a card required', { status: 'draft', invoice: true, dd: 0, bd: 15000 }, 'confirmed', ['zero_due_with_card']],
-    ['an Admin Invoice whose deposit is already paid', { status: 'draft', invoice: true, dd: 5000, dp: 5000, bd: 10000 }, 'confirmed', ['charged_now']],
+    // D1 (WP-P1-16): the webhook no longer writes "confirmed" itself for these two; it stores the card and asks order-lifecycle to confirm
+    // (lifecycle re-checks stock first). Lifecycle is a stub in this harness, so the order stays 'draft' here; the lifecycle call is what is pinned.
+    ['an Admin Invoice with an explicit $0 deposit and a card required', { status: 'draft', invoice: true, dd: 0, bd: 15000 }, 'draft', ['zero_due_with_card']],
+    // A card save collects no money, so an already-paid invoice reports "already_paid" (never "charged_now", which skips the stock gate).
+    ['an Admin Invoice whose deposit is already paid', { status: 'draft', invoice: true, dd: 5000, dp: 5000, bd: 10000 }, 'draft', ['already_paid']],
+    ['a pending-review Admin Invoice whose deposit is already paid', { status: 'pending_review', invoice: true, dd: 5000, dp: 5000, bd: 10000 }, 'pending_review', ['already_paid']],
+    ['a pending-review Admin Invoice with an explicit $0 deposit', { status: 'pending_review', invoice: true, dd: 0, bd: 15000 }, 'pending_review', ['zero_due_with_card']],
+    // (a 'quote' status cannot be seeded here: orders_status_check does not allow it; the quote rule is pinned on planSetupConfirmation below)
     ['a booking request', { status: 'draft', invoice: false, dd: 5000, dp: 0, bd: 10000 }, 'pending_review', [undefined]],
   ] as Array<[string, Seed, string, Array<string | undefined>]>) {
     for (const via of ['checkout.session.completed', 'setup_intent.succeeded']) {
@@ -980,6 +987,62 @@ const shared = { ...authHelpers, ...outcomeHelpers, ...bookingProofHelpers, ...r
       eq(`card saved (${via}) for ${label}: lifecycle outcome`, lifecycleCalls(w).map((c) => c.body.paymentOutcome), expectLifecycle);
       ok(`card saved (${via}) for ${label}: the card is stored, and nothing is charged or recorded`, (await orderRow(id)).stripe_payment_method_id === 'pm_card' && w.stripe.calls.every((c) => !c.api.startsWith('paymentIntents.create')) && (await payRows(id)).length === 0 && snap.dp === (seed.dp ?? 0));
     }
+  }
+  {
+    // WP-P1-16: lifecycle REFUSES the confirmation (known stock conflict). The card save must stand; nothing is charged, recorded or confirmed;
+    // a redelivered event repeats the same refused request and changes nothing else. Lifecycle accepting leaves the same webhook-side effects.
+    for (const [seedLabel, seed, outcome] of [
+      ['already-paid draft invoice', { status: 'draft', invoice: true, dd: 5000, dp: 5000, bd: 10000 }, 'already_paid'],
+      ['zero-deposit draft invoice', { status: 'draft', invoice: true, dd: 0, bd: 15000 }, 'zero_due_with_card'],
+      ['already-paid pending-review invoice', { status: 'pending_review', invoice: true, dd: 5000, dp: 5000, bd: 10000 }, 'already_paid'],
+      ['zero-deposit pending-review invoice', { status: 'pending_review', invoice: true, dd: 0, bd: 15000 }, 'zero_due_with_card'],
+    ] as Array<[string, Seed, string]>) {
+      for (const via of ['checkout.session.completed', 'setup_intent.succeeded']) {
+        for (const refuse of [true, false]) {
+          const w = newWorld();
+          const id = await seedOrder(w, seed);
+          w.invokeHandlers['order-lifecycle'] = () => (refuse
+            ? { data: { success: false, code: 'AVAILABILITY_CONFLICT', error: 'ZZ TEST Castle is already booked for those dates.' }, error: null }
+            : { data: { success: true }, error: null });
+          const wh = await webhookFor(w);
+          const fire = async () => {
+            if (via === 'checkout.session.completed') await wh.handlers.handleCheckoutSessionCompleted(setupSession(id), wh.client, w.stripe);
+            else await wh.handlers.handleSetupIntentSucceeded({ id: 'seti_1', metadata: { order_id: id }, payment_method: 'pm_card', customer: 'cus_1' }, wh.client, w.stripe);
+          };
+          const before = await snapshot(id);
+          await fire();
+          await fire(); // webhook redelivery
+          const snap = await snapshot(id);
+          const tag = `${seedLabel} via ${via}, lifecycle ${refuse ? 'refuses' : 'accepts'}`;
+          eq(`${tag}: the webhook itself never writes "confirmed" (status unchanged: ${seed.status})`, snap.status, seed.status);
+          ok(`${tag}: the card stays saved`, (await orderRow(id)).stripe_payment_method_id === 'pm_card');
+          ok(`${tag}: no charge, no payment row, deposit and balance untouched`, w.stripe.calls.every((c) => !c.api.startsWith('paymentIntents.create')) && (await payRows(id)).length === 0 && snap.dp === before.dp && snap.bd === before.bd && snap.bp === before.bp);
+          eq(`${tag}: each delivery asks lifecycle with the already-paid / zero-due outcome (never charged_now)`, lifecycleCalls(w).map((c) => c.body.paymentOutcome), [outcome, outcome]);
+          ok(`${tag}: the old status is passed through for the history`, lifecycleCalls(w).every((c) => c.body.oldStatusHint === seed.status));
+        }
+      }
+    }
+  }
+  {
+    // The decision itself, pure (so the 'quote' status, which the database does not allow today, is still pinned): the webhook never writes
+    // "confirmed" on a card save for any eligible status; the confirmation is lifecycle's, with an outcome that is never charged_now.
+    const wh = await webhookFor(newWorld());
+    const plan = wh.handlers.planSetupConfirmation;
+    for (const status of ['draft', 'quote', 'pending_review']) {
+      const paid = plan({ isAdminInvoice: true, principalOutstanding: false, currentStatus: status, depositDue: 5000 });
+      eq(`plan (${status}, invoice, deposit already paid): lifecycle confirms with already_paid, the webhook writes no status`, [paid.lifecycleConfirms, paid.writeStatus, paid.outcome], [true, null, 'already_paid']);
+      const zero = plan({ isAdminInvoice: true, principalOutstanding: false, currentStatus: status, depositDue: 0 });
+      eq(`plan (${status}, invoice, $0 deposit): lifecycle confirms with zero_due_with_card, the webhook writes no status`, [zero.lifecycleConfirms, zero.writeStatus, zero.outcome], [true, null, 'zero_due_with_card']);
+      const owed = plan({ isAdminInvoice: true, principalOutstanding: true, currentStatus: status, depositDue: 5000 });
+      eq(`plan (${status}, invoice, deposit still owed): nothing advances`, [owed.safeToAdvance, owed.lifecycleConfirms, owed.writeStatus], [false, false, null]);
+      const booking = plan({ isAdminInvoice: false, principalOutstanding: true, currentStatus: status, depositDue: 5000 });
+      eq(`plan (${status}, ordinary booking request): goes to pending_review as before, never confirmed`, [booking.lifecycleConfirms, booking.writeStatus], [false, 'pending_review']);
+    }
+    for (const status of ['confirmed', 'awaiting_customer_approval', 'in_progress', 'completed', 'cancelled', 'void']) {
+      const p = plan({ isAdminInvoice: true, principalOutstanding: false, currentStatus: status, depositDue: 5000 });
+      eq(`plan (${status}, invoice, nothing to collect): a redelivered or late event changes nothing`, [p.safeToAdvance, p.lifecycleConfirms, p.writeStatus], [false, false, null]);
+    }
+    ok('the already-paid and zero-due outcomes are gated by lifecycle, charged_now is not (so a card save must never report it)', ['already_paid', 'zero_due_with_card'].every((o) => confirmAvailabilityBlocksFn(o, 'draft') && confirmAvailabilityBlocksFn(o, 'quote')) && !confirmAvailabilityBlocksFn('charged_now', 'draft'));
   }
   {
     // The Checkout Session has no top-level payment_method (SDK types / Stripe docs): the card of a setup-mode session comes ONLY from its

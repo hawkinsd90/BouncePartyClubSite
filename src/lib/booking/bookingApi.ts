@@ -137,6 +137,10 @@ export function buildBookingRequest(input: BookingIntentInput): Record<string, u
 export interface ServerTotals {
   totalCents: number;
   depositCents: number;
+  /** PRICE_CHANGED only (WP-P1-06): the delivery fee in the price. Lets the review say why the price moved. */
+  travelFeeCents?: number;
+  /** PRICE_CHANGED only: how the server decided the free-delivery city ('verified_match', 'verified_mismatch', 'unverified', 'not_checked'). */
+  travelCityStatus?: string;
 }
 
 export class BookingApiError extends Error {
@@ -150,10 +154,20 @@ export class BookingApiError extends Error {
   }
 }
 
-function parseServerTotals(value: unknown): ServerTotals | null {
+const TRAVEL_CITY_STATUSES = ['verified_match', 'verified_mismatch', 'unverified', 'not_checked'];
+
+// `extra` is the whole response body of a PRICE_CHANGED answer, which carries the two explanatory values next to `totals`.
+export function parseServerTotals(value: unknown, extra?: unknown): ServerTotals | null {
   if (!value || typeof value !== 'object') return null;
   const v = value as Record<string, unknown>;
-  return typeof v.totalCents === 'number' && typeof v.depositCents === 'number' ? { totalCents: v.totalCents, depositCents: v.depositCents } : null;
+  if (typeof v.totalCents !== 'number' || typeof v.depositCents !== 'number') return null;
+  const totals: ServerTotals = { totalCents: v.totalCents, depositCents: v.depositCents };
+  if (extra && typeof extra === 'object') {
+    const e = extra as Record<string, unknown>;
+    if (typeof e.travelFeeCents === 'number' && Number.isSafeInteger(e.travelFeeCents) && e.travelFeeCents >= 0) totals.travelFeeCents = e.travelFeeCents;
+    if (typeof e.travelCityStatus === 'string' && TRAVEL_CITY_STATUSES.includes(e.travelCityStatus)) totals.travelCityStatus = e.travelCityStatus;
+  }
+  return totals;
 }
 
 export interface CreatedBooking {
@@ -166,9 +180,9 @@ export interface CreatedBooking {
 }
 
 export async function createBooking(request: Record<string, unknown>): Promise<CreatedBooking> {
-  const { ok, data } = await post<{ orderId?: string; bookingToken?: string; expiresAt?: string; totals?: unknown }>('create-booking', request);
+  const { ok, data } = await post<{ orderId?: string; bookingToken?: string; expiresAt?: string; totals?: unknown; travelFeeCents?: number; travelCityStatus?: string }>('create-booking', request);
   if (!ok || !data.orderId || !data.bookingToken) {
-    throw new BookingApiError(data.error || 'We could not create your booking. Please try again.', data.code ?? null, parseServerTotals(data.totals));
+    throw new BookingApiError(data.error || 'We could not create your booking. Please try again.', data.code ?? null, parseServerTotals(data.totals, data));
   }
   return {
     orderId: data.orderId,

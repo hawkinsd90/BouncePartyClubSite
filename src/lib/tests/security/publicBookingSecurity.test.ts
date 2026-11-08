@@ -86,7 +86,7 @@ function makeWorld() {
       units: [
         { id: UNIT_A, name: 'Castle', price_dry_cents: 20000, price_water_cents: 25000, active: true },
         { id: UNIT_B, name: 'Old Slide', price_dry_cents: 15000, price_water_cents: null, active: false },
-        { id: UNIT_C, name: 'Combo', price_dry_cents: 30000, price_water_cents: null, active: true },
+        { id: UNIT_C, name: 'Combo', price_dry_cents: 30000, price_water_cents: null, active: true, types: ['Combo'] },
       ],
       inventory_products: [
         { id: PROD_1, name: 'Tables', category_id: CAT_1, active: true, public_visible: true },
@@ -366,7 +366,85 @@ const noRows = (w: World, snapshot: string) => JSON.stringify(w.db) === snapshot
     {
       const w = makeWorld();
       const r = await book(w, baseRequest({ items: [{ type: 'inflatable', unit_id: UNIT_C, wet_or_dry: 'water', qty: 1 }] }));
-      ok('price: a water price that does not exist for the unit is rejected', r.status === 400 && w.db.orders.length === 0);
+      // F-19 (approved): a Combo with no separate water price is rented in Water mode at the base (dry) price. It used to be refused (400).
+      ok('price: a wet-capable unit with no water price is priced at the base rental price in Water mode (F-19)', r.status === 200 && w.db.order_items[0].unit_price_cents === 30000 && orderRow(w).subtotal_cents === 30000);
+    }
+    {
+      // F-19: zero water surcharge, dry-only units and crafted water lines. Server-authoritative.
+      const UNIT_COMBO0 = 'aaaaaaaa-1111-4111-8111-aaaaaaaaaaaa';
+      const UNIT_DRY0 = 'aaaaaaaa-2222-4222-8222-aaaaaaaaaaaa';
+      const UNIT_DRYNULL = 'aaaaaaaa-3333-4333-8333-aaaaaaaaaaaa';
+      const UNIT_SLIDE0 = 'aaaaaaaa-4444-4444-8444-aaaaaaaaaaaa';
+      const UNIT_LEGACY = 'aaaaaaaa-5555-4555-8555-aaaaaaaaaaaa';
+      const f19World = () => {
+        const w = makeWorld();
+        w.tables.units.push(
+          { id: UNIT_COMBO0, name: 'Combo Zero', price_dry_cents: 20000, price_water_cents: 0, active: true, types: ['Combo'] },
+          { id: UNIT_DRY0, name: 'Dry Zero', price_dry_cents: 15000, price_water_cents: 0, active: true, types: ['Bounce House'] },
+          { id: UNIT_DRYNULL, name: 'Dry Null', price_dry_cents: 15000, price_water_cents: null, active: true, types: ['Bounce House'] },
+          { id: UNIT_SLIDE0, name: 'Slide Zero', price_dry_cents: 18000, price_water_cents: 0, active: true, types: ['Water Slide'] },
+          { id: UNIT_LEGACY, name: 'Legacy Priced', price_dry_cents: 12000, price_water_cents: 14000, active: true, types: [] },
+        );
+        return w;
+      };
+      const line = (unit: string, mode: 'dry' | 'water', extra: Record<string, unknown> = {}) => baseRequest({ items: [{ type: 'inflatable', unit_id: unit, wet_or_dry: mode, qty: 1, ...extra }] });
+      {
+        const w = f19World();
+        const r = await book(w, line(UNIT_COMBO0, 'water'));
+        ok('F-19: Combo with water price 0 in Water mode is the base price, never free', r.status === 200 && w.db.order_items[0].unit_price_cents === 20000 && w.db.order_items[0].wet_or_dry === 'water' && orderRow(w).subtotal_cents === 20000);
+      }
+      {
+        const w = f19World();
+        const r = await book(w, line(UNIT_COMBO0, 'dry'));
+        ok('F-19: the same Combo in Dry mode is unchanged', r.status === 200 && w.db.order_items[0].unit_price_cents === 20000 && w.db.order_items[0].wet_or_dry === 'dry');
+      }
+      {
+        const w = f19World();
+        const r = await book(w, line(UNIT_SLIDE0, 'water'));
+        ok('F-19: Water Slide with water price 0 in Water mode is the base price', r.status === 200 && w.db.order_items[0].unit_price_cents === 18000);
+      }
+      for (const [label, unit] of [['water price 0', UNIT_DRY0], ['water price null', UNIT_DRYNULL]] as const) {
+        const w = f19World();
+        const r = await book(w, line(unit, 'water'));
+        ok(`F-19: a crafted water line for a dry-only unit (${label}) is refused and creates nothing`, r.status === 400 && r.body.code === 'ITEM_UNAVAILABLE' && w.db.orders.length === 0 && w.rpcCalls.length === 0);
+        const w2 = f19World();
+        const r2 = await book(w2, line(unit, 'dry'));
+        ok(`F-19: the dry-only unit (${label}) is still rentable dry at its price`, r2.status === 200 && w2.db.order_items[0].unit_price_cents === 15000);
+      }
+      {
+        const w = f19World();
+        const r = await book(w, line(UNIT_LEGACY, 'water', { unit_price_cents: 1 }));
+        ok('F-19: a unit that carries a real water price keeps it in Water mode (existing behaviour), whatever the client claims', r.status === 200 && w.db.order_items[0].unit_price_cents === 14000);
+      }
+      {
+        const w = makeWorld();
+        const r = await book(w, line(UNIT_A, 'water'));
+        ok('F-19: a real water-slide price is unchanged (250.00)', r.status === 200 && w.db.order_items[0].unit_price_cents === 25000);
+      }
+      {
+        // A $0 line can never be created for a unit whose base price is positive: no wet-capable/zero-water combination yields 0.
+        let free = false;
+        for (const u of [UNIT_COMBO0, UNIT_SLIDE0, UNIT_DRY0, UNIT_DRYNULL, UNIT_C, UNIT_A]) {
+          for (const mode of ['dry', 'water'] as const) {
+            const wx = f19World();
+            const rx = await book(wx, line(u, mode));
+            if (rx.status === 200 && wx.db.order_items.some((i: any) => i.unit_price_cents === 0)) free = true;
+          }
+        }
+        ok('F-19: no unit / mode combination produces a $0 inflatable line', free === false);
+      }
+      {
+        // The Quote shows the base price for a Combo in Water mode (UnitDetail / CartSection fall back to dry); the server now agrees, so no PRICE_CHANGED.
+        const probe = await book(f19World(), line(UNIT_COMBO0, 'water'));
+        const T = (probe.body as any).totals;
+        const r = await book(f19World(), baseRequest({ items: [{ type: 'inflatable', unit_id: UNIT_COMBO0, wet_or_dry: 'water', qty: 1 }], payment: { selection_type: 'deposit', claimed_total_cents: T.totalCents, claimed_deposit_cents: T.depositCents } }));
+        ok('F-19: a claim equal to the server price for a zero-water Combo is accepted (no price-changed review)', r.status === 200);
+      }
+      {
+        const sb = read('supabase/functions/_shared/booking/bookingBuild.ts');
+        const cb = read('supabase/functions/_shared/booking/createBooking.ts');
+        ok('F-19 (source-level): the catalog select includes types and the build prices through effectiveUnitPriceCents', cb.includes('price_water_cents, active, types') && sb.includes('effectiveUnitPriceCents(unit, it.wet_or_dry)') && !sb.includes('it.wet_or_dry === "water" ? unit.price_water_cents'));
+      }
     }
     {
       const w = makeWorld();
@@ -941,6 +1019,10 @@ const noRows = (w: World, snapshot: string) => JSON.stringify(w.db) === snapshot
     const badTotal = await book(wTotal, claimed(T.totalCents - 100, T.depositCents));
     ok('price review: a different total answers 409 PRICE_CHANGED with the server price and creates nothing', badTotal.status === 409 && badTotal.body.code === 'PRICE_CHANGED' && (badTotal.body as any).totals?.totalCents === T.totalCents && (badTotal.body as any).totals?.depositCents === T.depositCents && noRows(wTotal, before) && wTotal.rpcCalls.length === 0);
 
+    // WP-P1-06: the 409 carries exactly two more server-computed numbers (the delivery fee and how the city was decided) and nothing else.
+    ok('price review: the 409 body has exactly success, error, code, totals, travelFeeCents and travelCityStatus (nothing else leaks)', JSON.stringify(Object.keys(badTotal.body).sort()) === JSON.stringify(['code', 'error', 'success', 'totals', 'travelCityStatus', 'travelFeeCents']));
+    ok('price review: the 409 delivery fee equals the order travel fee the server priced and the status is not_checked without a free list', (badTotal.body as any).travelFeeCents === probe.rpcCalls[0].p_payload.order.travel_fee_cents && (badTotal.body as any).travelCityStatus === 'not_checked' && Object.keys((badTotal.body as any).totals).sort().join() === 'depositCents,totalCents');
+
     const wDep = makeWorld();
     const badDeposit = await book(wDep, claimed(T.totalCents, T.depositCents + 500));
     ok('price review: a different deposit answers 409 PRICE_CHANGED and creates nothing', badDeposit.status === 409 && badDeposit.body.code === 'PRICE_CHANGED' && wDep.rpcCalls.length === 0 && wDep.db.orders.length === 0);
@@ -1027,6 +1109,26 @@ const noRows = (w: World, snapshot: string) => JSON.stringify(w.db) === snapshot
     const w7 = withFreeList(makeWorld());
     const r7 = await bookV(w7, baseRequest({ ...farRequest('Detroit'), payment: { selection_type: 'deposit', claimed_total_cents: (r1.body as any).totals.totalCents } }), async () => ({ status: 'unverified', reason: 'x' }));
     ok('verify: a free price shown to the customer but not verified by the server is a PRICE_CHANGED review', r7.status === 409 && r7.body.code === 'PRICE_CHANGED' && w7.db.orders.length === 0);
+    ok('verify: that PRICE_CHANGED answer carries the distance fee and the status unverified (WP-P1-06)', (r7.body as any).travelCityStatus === 'unverified' && (r7.body as any).travelFeeCents === travelFull);
+    {
+      // WP-P1-05: the unverified reason is logged (the PRICE_CHANGED path and the thrown-verifier path); the price is unchanged.
+      const warned: string[] = [];
+      const realWarn = console.warn;
+      console.warn = (...a: unknown[]) => void warned.push(a.join(' '));
+      try {
+        const wl = withFreeList(makeWorld());
+        await bookV(wl, baseRequest({ ...farRequest('Detroit'), payment: { selection_type: 'deposit', claimed_total_cents: (r1.body as any).totals.totalCents } }), async () => ({ status: 'unverified', reason: 'imprecise location (GEOMETRIC_CENTER)' }));
+        const wt = withFreeList(makeWorld());
+        const rt = await bookV(wt, farRequest('Detroit'), async () => { throw new Error('boom'); });
+        const wn = withFreeList(makeWorld());
+        await bookV(wn, farRequest('Troy'), async () => ({ status: 'unverified', reason: 'partial match' }));
+        ok('WP-P1-05: PRICE_CHANGED with an unverified city logs the reason', warned.some((l) => l.includes('price_changed travel_city_unverified') && l.includes('imprecise location (GEOMETRIC_CENTER)')));
+        ok('WP-P1-05: a thrown verifier is logged as "verifier threw" and recorded in the review note, price unchanged', rt.status === 200 && travelOf(wt) === travelFull && warned.some((l) => l.includes('travel_city_review') && l.includes('reason=verifier threw')) && ((wt.db as any).order_changelog ?? []).some((c: any) => c.change_type === 'travel_city_review' && /Verification detail: verifier threw\./.test(String(c.notes))));
+        ok('WP-P1-05: a typed non-free city that is unverified is logged once with its reason (no review row)', warned.filter((l) => l.includes('travel_city_unverified order=') && l.includes('reason=partial match')).length === 1 && (((wn.db as any).order_changelog ?? []) as any[]).filter((c) => c.change_type === 'travel_city_review').length === 0);
+      } finally {
+        console.warn = realWarn;
+      }
+    }
   }
 
   // =============================================================================================================

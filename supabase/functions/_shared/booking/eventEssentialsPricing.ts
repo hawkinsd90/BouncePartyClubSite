@@ -444,6 +444,42 @@ function bundleRequiresCustomerChoice(cfg: ResolverBundleConfig): boolean {
 }
 
 // ---------------------------------------------------------------------------
+// D3 / WP-P1-26 — add-on discount requires a valid direct inflatable.
+// ---------------------------------------------------------------------------
+
+/**
+ * True when at least one direct inflatable line is VALID (positive qty, known
+ * and ACTIVE unit, valid price and wet/dry mode). Inactive, unknown, removed or
+ * malformed inflatables never qualify. Any valid inflatable qualifies; there is
+ * no per-unit eligibility list.
+ */
+function hasValidDirectInflatable(input: ResolverInput): boolean {
+  for (const line of input.lines) {
+    if (line.itemType !== 'inflatable') continue;
+    if (validateInflatable(line, input).valid) return true;
+  }
+  return false;
+}
+
+/**
+ * True when the add-on is fully configured and the subtotal threshold is met
+ * but only the missing valid inflatable keeps the line at standalone pricing.
+ */
+function addonNeedsInflatable(
+  cfg: { addonEnabled: boolean; addonPriceCents: number | null; addonQualifyingThresholdCents: number | null },
+  qualifyingSubtotal: number,
+  input: ResolverInput,
+): boolean {
+  return (
+    cfg.addonEnabled &&
+    classifyNumeric(cfg.addonPriceCents) === 'valid' &&
+    classifyNumeric(cfg.addonQualifyingThresholdCents) === 'valid' &&
+    qualifyingSubtotal >= (cfg.addonQualifyingThresholdCents as number) &&
+    !hasValidDirectInflatable(input)
+  );
+}
+
+// ---------------------------------------------------------------------------
 // Price-path resolution.
 // ---------------------------------------------------------------------------
 
@@ -481,6 +517,12 @@ function resolvePricePath(params: {
   addonPriceCents: number | null;
   addonQualifyingThresholdCents: number | null;
   qualifyingSubtotal: number; // null-sentinel for overflow handled by caller
+  /**
+   * D3 / WP-P1-26: the discounted add-on price applies only when the order also
+   * contains at least one VALID direct inflatable (active, known unit, valid
+   * qty/price/mode) in addition to the existing qualifying-subtotal threshold.
+   */
+  hasValidInflatable: boolean;
 }): PricePathResult {
   const {
     standaloneEnabled,
@@ -489,6 +531,7 @@ function resolvePricePath(params: {
     addonPriceCents,
     addonQualifyingThresholdCents,
     qualifyingSubtotal,
+    hasValidInflatable,
   } = params;
 
   const standaloneStatus = classifyNumeric(standalonePriceCents);
@@ -507,7 +550,7 @@ function resolvePricePath(params: {
   // A. Add-on fully configured. Evaluate threshold BEFORE considering standalone.
   if (addonPriceOk && thresholdOk) {
     const threshold = addonQualifyingThresholdCents as number;
-    if (qualifyingSubtotal >= threshold) {
+    if (qualifyingSubtotal >= threshold && hasValidInflatable) {
       // Add-on qualified. An invalid standalone must NOT block this path; it
       // surfaces as a non-fatal warning only.
       return {
@@ -520,6 +563,7 @@ function resolvePricePath(params: {
         selectableReason: 'OK',
       };
     }
+    // Remaining is the threshold gap only; a missing inflatable leaves it at 0.
     const remaining = max0(threshold - qualifyingSubtotal);
     if (standaloneValid) {
       return {
@@ -824,6 +868,7 @@ function resolveProductLine(index: number, line: ResolverInputLine, input: Resol
     addonPriceCents: cfg.addonPriceCents,
     addonQualifyingThresholdCents: cfg.addonQualifyingThresholdCents,
     qualifyingSubtotal,
+    hasValidInflatable: hasValidDirectInflatable(input),
   });
 
   const invalid = pricePath.invalidReason !== null;
@@ -838,7 +883,9 @@ function resolveProductLine(index: number, line: ResolverInputLine, input: Resol
           pricePath.remainingAmountCents !== null &&
           pricePath.remainingAmountCents > 0
         ? 'ADD_REMAINING_TO_QUALIFY'
-        : 'NONE';
+        : pricePath.resolvedContext === 'standalone' && addonNeedsInflatable(cfg, qualifyingSubtotal, input)
+          ? 'ADDON_REQUIRES_INFLATABLE'
+          : 'NONE';
 
   return {
     resolverKey: line.resolverKey,
@@ -927,6 +974,7 @@ function resolveBundleLine(index: number, line: ResolverInputLine, input: Resolv
     addonPriceCents: cfg.addonPriceCents,
     addonQualifyingThresholdCents: cfg.addonQualifyingThresholdCents,
     qualifyingSubtotal,
+    hasValidInflatable: hasValidDirectInflatable(input),
   });
 
   const invalid = pricePath.invalidReason !== null;
@@ -948,6 +996,8 @@ function resolveBundleLine(index: number, line: ResolverInputLine, input: Resolv
     pricePath.remainingAmountCents > 0
   ) {
     message = 'ADD_REMAINING_TO_QUALIFY';
+  } else if (pricePath.resolvedContext === 'standalone' && addonNeedsInflatable(cfg, qualifyingSubtotal, input)) {
+    message = 'ADDON_REQUIRES_INFLATABLE';
   }
 
   return {

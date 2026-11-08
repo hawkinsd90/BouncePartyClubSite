@@ -15,6 +15,8 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
 declare const process: { env: Record<string, string | undefined> };
+declare const require: (id: string) => any;
+const fs = require('fs');
 
 import * as authHelpers from '../../../../supabase/functions/_shared/auth';
 import * as staffSave from '../../../../supabase/functions/_shared/orders/staff-order-save';
@@ -97,7 +99,15 @@ const RULES_LATER = { ...RULES, surface_sandbag_fee_cents: 5000, residential_mul
   const distanceCalls: string[] = [];
   let distanceFor: (destination: string) => number | null = () => 14.2;
   const fakeMeasure = async (destination: string) => { distanceCalls.push(destination); return distanceFor(destination); };
-  const withFake = (fn: any) => (deps: any, raw: any) => fn({ ...deps, drivingMiles: fakeMeasure }, raw);
+  // WP-P1-16: the stock lookups of the confirm re-check (a scenario sets what the other orders / the stock function say).
+  const availCalls: string[] = [];
+  const okPort = (): any => ({
+    blackout: async () => ({ is_full_blocked: false, is_same_day_pickup_blocked: false }),
+    bookedRanges: async (ids: string[], exclude?: string | null) => { availCalls.push(`booked:${ids.join(',')}:${exclude ?? ''}`); return []; },
+    productAvailability: async (items: any[]) => { availCalls.push('product'); return { data: items.map((i) => ({ product_id: i.product_id, is_allowed: true })), error: null }; },
+  });
+  let availPort: any = okPort();
+  const withFake = (fn: any) => (deps: any, raw: any) => fn({ ...deps, drivingMiles: fakeMeasure, availabilityPort: availPort }, raw);
   const shared = { ...authHelpers, ...staffSave, saveStaffOrderChanges: withFake(staffSave.saveStaffOrderChanges), createStaffInvoiceOrder: withFake(staffSave.createStaffInvoiceOrder) };
   const sharedProduction = { ...authHelpers, ...staffSave };
   const handler = (w: World) => loadHandler('staff-order-save', w, shared);
@@ -258,6 +268,86 @@ const RULES_LATER = { ...RULES, surface_sandbag_fee_cents: 5000, residential_mul
     ok('create_invoice: Crew cannot set a price either', crewTamper.status === 400);
     const unknownAction = await callHandler(handler(w), { action: 'delete_order', orderId: id }, 'jwt-admin');
     ok('an unknown action is refused', unknownAction.status === 400);
+  }
+
+  // =================================================================================================================
+  // 2a. D5 (WP-P2-25): an end time after 19:00 on a same-day / commercial rental is an Admin / Master exception with an explicit confirmation flag;
+  //     the role is the verified caller's, so Crew and customers can neither bypass nor self-approve it
+  // =================================================================================================================
+  {
+    const w = newWorld();
+    const late = (over: Record<string, unknown> = {}) => eventBase({ pickup_preference: 'same_day', start_window: '10:00', end_window: '21:00', ...over });
+    const before = await orderCount();
+    const noFlag = await call(w, invoiceBody({ eventDetails: late() }));
+    ok('D5 create_invoice: Admin, same-day end 21:00, NO confirmation: refused 400 END_WINDOW_CONFIRMATION_REQUIRED, nothing created', noFlag.status === 400 && noFlag.json?.code === 'END_WINDOW_CONFIRMATION_REQUIRED' && (await orderCount()) === before);
+    const falseFlag = await call(w, invoiceBody({ eventDetails: late(), endWindowExceptionConfirmed: false }));
+    ok('D5 create_invoice: Admin with endWindowExceptionConfirmed=false is refused too', falseFlag.status === 400 && falseFlag.json?.code === 'END_WINDOW_CONFIRMATION_REQUIRED' && (await orderCount()) === before);
+    const stringFlag = await call(w, invoiceBody({ eventDetails: late(), endWindowExceptionConfirmed: 'true' }));
+    ok('D5 create_invoice: a non-boolean flag is an invalid request', stringFlag.status === 400 && stringFlag.json?.code === 'INVALID_REQUEST' && (await orderCount()) === before);
+    const adminOk = await call(w, invoiceBody({ eventDetails: late(), endWindowExceptionConfirmed: true }));
+    ok('D5 create_invoice: Admin WITH the explicit confirmation creates the invoice and the time is stored as entered', adminOk.status === 200 && (await orderRow(adminOk.json.orderId)).end_window?.slice(0, 5) === '21:00');
+    if (adminOk.json?.orderId) createdOrders.push(adminOk.json.orderId as string);
+    const masterOk = await call(w, invoiceBody({ eventDetails: late({ location_type: 'commercial' }), endWindowExceptionConfirmed: true }), 'jwt-master');
+    ok('D5 create_invoice: Master WITH the confirmation creates a commercial after-19:00 invoice', masterOk.status === 200);
+    if (masterOk.json?.orderId) createdOrders.push(masterOk.json.orderId as string);
+    const afterAdmin = await orderCount();
+    const crewNo = await call(w, invoiceBody({ eventDetails: late() }), 'jwt-crew');
+    const crewYes = await call(w, invoiceBody({ eventDetails: late(), endWindowExceptionConfirmed: true }), 'jwt-crew');
+    ok('D5 create_invoice: Crew is refused 403 END_WINDOW_NOT_PERMITTED, with or without the flag, and nothing is created', crewNo.status === 403 && crewYes.status === 403 && crewYes.json?.code === 'END_WINDOW_NOT_PERMITTED' && (await orderCount()) === afterAdmin);
+    const crewCommercial = await call(w, invoiceBody({ eventDetails: late({ location_type: 'commercial' }), endWindowExceptionConfirmed: true }), 'jwt-crew');
+    ok('D5 create_invoice: Crew is refused for a commercial rental after 19:00 even with the flag', crewCommercial.status === 403 && (await orderCount()) === afterAdmin);
+    const crewNormal = await call(w, invoiceBody({ eventDetails: late({ end_window: '19:00' }) }), 'jwt-crew');
+    ok('D5 create_invoice: Crew may still create a same-day invoice ending exactly 19:00, and a next-day invoice ending 23:59', crewNormal.status === 200 && (await call(w, invoiceBody({ eventDetails: eventBase({ end_window: '23:59' }) }), 'jwt-crew')).status === 200);
+    const cust = await call(w, invoiceBody({ eventDetails: late(), endWindowExceptionConfirmed: true }), 'jwt-cust');
+    ok('D5 create_invoice: a customer token cannot create staff invoices at all', cust.status === 403);
+    // Edit Order (save_changes is Admin / Master only)
+    const id = await createOrder(w, { eventDetails: eventBase({ pickup_preference: 'same_day', start_window: '10:00', end_window: '12:00' }) });
+    const lateEdit = async (flag?: unknown, bearer = 'jwt-admin', end = '20:30') => {
+      const b = await editBody(id);
+      return call(w, { ...b, edited: { ...b.edited, end_window: end }, ...(flag === undefined ? {} : { endWindowExceptionConfirmed: flag }) }, bearer);
+    };
+    const editNo = await lateEdit();
+    ok('D5 edit: Admin setting a same-day end of 20:30 with no confirmation is refused and nothing changes', editNo.status === 400 && editNo.json?.code === 'END_WINDOW_CONFIRMATION_REQUIRED' && (await orderRow(id)).end_window?.slice(0, 5) === '12:00');
+    const editCrew = await lateEdit(true, 'jwt-crew');
+    ok('D5 edit: Crew cannot use save_changes at all (403), flag or not', editCrew.status === 403 && (await orderRow(id)).end_window?.slice(0, 5) === '12:00');
+    const editOk = await lateEdit(true);
+    ok('D5 edit: Admin WITH the explicit confirmation saves 20:30', editOk.status === 200 && (await orderRow(id)).end_window?.slice(0, 5) === '20:30');
+    const editUnrelated = await call(w, await editBody(id, { adminMessage: 'Unrelated note' }));
+    ok('D5 edit: an unrelated save of an order that already stores the later time is not blocked (no flag needed)', editUnrelated.status === 200);
+    const editLater = await lateEdit(undefined, 'jwt-admin', '22:00');
+    ok('D5 edit: changing the stored later time to another later time needs a NEW confirmation', editLater.status === 400 && editLater.json?.code === 'END_WINDOW_CONFIRMATION_REQUIRED');
+    const editBack = await lateEdit(undefined, 'jwt-admin', '18:00');
+    ok('D5 edit: moving the end back inside the window needs no confirmation', editBack.status === 200 && (await orderRow(id)).end_window?.slice(0, 5) === '18:00');
+  }
+
+  // =================================================================================================================
+  // 2b. WP-P1-11 (F-48): a same-date window must end after it starts; multi-day and next-day windows stay valid
+  // =================================================================================================================
+  {
+    const w = newWorld();
+    const before = await orderCount();
+    const reversed = await call(w, invoiceBody({ eventDetails: eventBase({ start_window: '14:00', end_window: '10:00' }) }));
+    ok('F-48 create_invoice: a same-date window that ends before it starts is refused and creates nothing', reversed.status === 400 && reversed.json?.detail === 'edited.window_order' && (await orderCount()) === before);
+    const equal = await call(w, invoiceBody({ eventDetails: eventBase({ start_window: '14:00', end_window: '14:00' }) }));
+    ok('F-48 create_invoice: an end equal to the start is refused', equal.status === 400 && equal.json?.detail === 'edited.window_order');
+    const multiDay = await call(w, invoiceBody({ eventDetails: eventBase({ event_end_date: '2030-06-02', start_window: '14:00', end_window: '10:00' }) }));
+    ok('F-48 create_invoice: a multi-day rental may end earlier in the day than it starts', multiDay.status === 200);
+    if (multiDay.json?.orderId) createdOrders.push(multiDay.json.orderId as string);
+    const lateEnd = await call(w, invoiceBody({ eventDetails: eventBase({ start_window: '10:00', end_window: '23:59' }) }));
+    ok('F-48 create_invoice: a next-day-pickup style window ending 23:59 on the event day is accepted', lateEnd.status === 200);
+    if (lateEnd.json?.orderId) createdOrders.push(lateEnd.json.orderId as string);
+  }
+  {
+    const w = newWorld();
+    const id = await createOrder(w);
+    const reversedEdit = await call(w, await editBody(id, { edited: { ...(await editBody(id)).edited, start_window: '15:00', end_window: '09:00' } }));
+    ok('F-48 edit: changing the window to end before it starts is refused', reversedEdit.status === 400 && reversedEdit.json?.detail === 'edited.window_order');
+    // an order that ALREADY stores a reversed window (existing rows) is not blocked by an unrelated edit
+    await pg.exec(`UPDATE public.orders SET start_window = '15:00', end_window = '09:00' WHERE id = '${id}';`);
+    const legacyNote = await call(w, await editBody(id, { adminMessage: 'Legacy window note' }));
+    ok('F-48 edit: an unrelated edit of an order that already stores a reversed window still saves', legacyNote.status === 200 && legacyNote.json?.saved === true);
+    const legacyTouched = await call(w, await editBody(id, { adminMessage: 'again', edited: { ...(await editBody(id)).edited, end_window: '08:00' } }));
+    ok('F-48 edit: changing the window of such an order to another reversed window is refused', legacyTouched.status === 400);
   }
 
   // =================================================================================================================
@@ -860,9 +950,111 @@ const RULES_LATER = { ...RULES, surface_sandbag_fee_cents: 5000, residential_mul
     await pg.exec(`DROP FUNCTION IF EXISTS public.zz_try_as(text, uuid, text, text); DELETE FROM public.user_roles WHERE user_id = 'aaaaaaaa-0000-4000-8000-${TAG}a02';`);
   }
 
+  // =================================================================================================================
+  // WP-P1-16 (D1 / DEC-09 / F-18): Admin "force approve" (adminOverrideApproval) re-checks stock before a NEW confirmation. The override flag
+  // never skips the check; a blocked save writes nothing (status, items, pricing, change log) and touches no payment.
+  // =================================================================================================================
+  {
+    const CONFLICT_RANGE = [{ unit_id: U1, event_date: '2030-06-01', event_end_date: '2030-06-01', status: 'confirmed' }];
+    const snapshot = async (id: string) => JSON.stringify({ order: await orderRow(id), items: await rowsOf('order_items', id), changelog: (await rowsOf('order_changelog', id)).length, payments: (await rowsOf('payments', id)).length });
+    const override = (id: string, over: Record<string, unknown> = {}) => editBody(id, { adminMessage: 'forced', adminOverrideApproval: true, ...over });
+
+    for (const [who, bearer] of [['Admin', 'jwt-admin'], ['Master', 'jwt-master']] as Array<[string, string]>) {
+      const w = newWorld();
+      const id = await createOrder(w);
+      const before = await snapshot(id);
+      availPort = { ...okPort(), bookedRanges: async (_ids: string[], exclude?: string | null) => { availCalls.push(`booked:${exclude ?? ''}`); return CONFLICT_RANGE; } };
+      availCalls.length = 0;
+      const r = await call(w, await override(id), bearer);
+      ok(`force approve (${who}): a known inflatable conflict is refused (409 AVAILABILITY_CONFLICT)`, r.status === 409 && r.json?.success === false && r.json?.code === 'AVAILABILITY_CONFLICT');
+      ok(`force approve (${who}): the response names the unavailable unit and the status it kept`, Array.isArray(r.json?.unavailable) && r.json.unavailable.includes(`Test Castle ${TAG}`) && String(r.json?.error).includes(`Test Castle ${TAG}`) && r.json?.preservedStatus === 'pending_review');
+      ok(`force approve (${who}): the check excludes the order itself`, availCalls.includes(`booked:${id}`));
+      eq(`force approve (${who}): nothing was written (status, items, pricing, message, change log, payments)`, await snapshot(id), before);
+      eq(`force approve (${who}): the order is still pending_review`, (await orderRow(id)).status, 'pending_review');
+    }
+    {
+      const w = newWorld();
+      const id = await createOrder(w);
+      const before = await snapshot(id);
+      availPort = { ...okPort(), bookedRanges: async () => null };
+      const r = await call(w, await override(id));
+      ok('force approve: an availability check that cannot be completed is refused, never approved (503 AVAILABILITY_UNVERIFIABLE)', r.status === 503 && r.json?.code === 'AVAILABILITY_UNVERIFIABLE' && r.json?.success === false && r.json?.preservedStatus === 'pending_review');
+      eq('force approve (unverifiable): nothing was written', await snapshot(id), before);
+      availPort = { ...okPort(), bookedRanges: async () => { throw new Error('db down'); } };
+      const t = await call(w, await override(id));
+      ok('force approve: a lookup that throws is also refused as unverifiable', t.status === 503 && t.json?.code === 'AVAILABILITY_UNVERIFIABLE');
+      eq('force approve (throwing lookup): nothing was written', await snapshot(id), before);
+    }
+    {
+      // Event Essentials: insufficient quantity (an order with an Event Essentials line already on it)
+      const w = newWorld();
+      const id = await createOrder(w);
+      const PRODUCT = `eeeeeeee-0000-4000-8000-${TAG}001`;
+      const CAT = `eeeeeeee-0000-4000-8000-${TAG}0c1`;
+      await pg.exec(`INSERT INTO public.product_categories (id, slug, name) VALUES ('${CAT}', 'zz-test-cat-${TAG}', 'ZZ TEST category'); INSERT INTO public.inventory_products (id, slug, name, total_quantity, active, public_visible, category_id) VALUES ('${PRODUCT}', 'zz-test-chair-${TAG}', 'ZZ TEST Folding Chair', 100, true, true, '${CAT}');`);
+      await pg.exec(`INSERT INTO public.order_items (order_id, product_id, item_name, qty, unit_price_cents, pricing_context) VALUES ('${id}', '${PRODUCT}', 'ZZ TEST Folding Chair', 40, 200, 'standalone');`);
+      const before = await snapshot(id);
+      availPort = { ...okPort(), productAvailability: async (items: any[]) => ({ data: items.map((i) => ({ product_id: i.product_id, product_name: 'ZZ TEST Folding Chair', quantity_requested: i.quantity, available_before_request: 10, is_allowed: false })), error: null }) };
+      const r = await call(w, await override(id, { items: (await rowsOf('order_items', id)).map((i: any) => ({ id: i.id, kind: i.unit_id ? 'inflatable' : 'product', qty: i.qty, is_deleted: false, is_updated: false })) }));
+      ok('force approve: an Event Essentials shortage is refused with the item and quantities named', r.status === 409 && r.json?.code === 'AVAILABILITY_CONFLICT' && (r.json?.unavailable ?? []).some((u: string) => u.includes('ZZ TEST Folding Chair') && u.includes('need 40') && u.includes('10 available')));
+      eq('force approve (Event Essentials short): nothing was written', await snapshot(id), before);
+    }
+    {
+      // available -> confirms; the unchanged other behaviour of an Admin approval
+      const w = newWorld();
+      const id = await createOrder(w);
+      availPort = okPort();
+      availCalls.length = 0;
+      const r = await call(w, await override(id));
+      ok('force approve: with the equipment available the order is confirmed', r.status === 200 && r.json?.saved === true && r.json?.newStatus === 'confirmed' && (await orderRow(id)).status === 'confirmed');
+      ok('force approve: the check ran (override does not skip it)', availCalls.some((c) => c.startsWith('booked:')));
+      eq('force approve (available): no payment row and no outgoing message record was created by the save', (await rowsOf('payments', id)).length, 0);
+    }
+    {
+      // not newly confirming: no override, or already confirmed -> the check is not consulted and nothing is blocked
+      const w = newWorld();
+      const id = await createOrder(w);
+      availPort = { ...okPort(), bookedRanges: async () => { availCalls.push('consulted'); return CONFLICT_RANGE; } };
+      availCalls.length = 0;
+      const r = await call(w, await editBody(id, { adminMessage: 'ordinary edit' }));
+      ok('ordinary edit (no override) of an order whose equipment is double booked still saves, as awaiting customer approval, with no stock lookup', r.status === 200 && r.json?.newStatus === 'awaiting_customer_approval' && !availCalls.includes('consulted'));
+      await pg.exec(`UPDATE public.orders SET status = 'confirmed' WHERE id = '${id}';`);
+      availCalls.length = 0;
+      const c = await call(w, await override(id, { adminMessage: 'edit of a confirmed order' }));
+      ok('an edit of an ALREADY confirmed order (override on) is not a new confirmation: it is not blocked and not re-checked', c.status === 200 && c.json?.saved === true && !availCalls.includes('consulted') && (await orderRow(id)).status === 'confirmed');
+      for (const st of ['cancelled']) {
+        const done = await createOrder(w);
+        await pg.exec(`UPDATE public.orders SET status = '${st}' WHERE id = '${done}';`);
+        const reached = (await orderRow(done)).status === st;
+        availCalls.length = 0;
+        const d = await call(w, await override(done, { adminMessage: 'late note' }));
+        ok(`a ${st} order (status preserved) is never confirmed by an override, so it is not blocked`, reached && d.status === 200 && (await orderRow(done)).status === st && !availCalls.includes('consulted'));
+      }
+    }
+    {
+      // no role gets past it: Crew / customer / anonymous are refused before any of this
+      const w = newWorld();
+      const id = await createOrder(w);
+      const before = await snapshot(id);
+      for (const bearer of ['jwt-crew', 'jwt-cust', null]) {
+        const r = await call(w, await override(id), bearer);
+        ok(`force approve: ${bearer ?? 'anonymous'} cannot approve at all`, r.status === 401 || r.status === 403);
+      }
+      eq('force approve (other roles): nothing was written', await snapshot(id), before);
+    }
+    {
+      // source-level: the production wiring consults the real database port; the Edge Function sets no port and the request cannot supply one
+      const mod = fs.readFileSync('supabase/functions/_shared/orders/staff-order-save.ts', 'utf8');
+      ok('source-level: the module defaults to supabaseAvailabilityPort(db)', /deps\.availabilityPort \?\? supabaseAvailabilityPort\(db\)/.test(mod));
+      ok('source-level: the request key list has no availability key', !/SAVE_KEYS = \[[^\]]*availab/i.test(mod));
+      ok('source-level: the Edge Function does not inject a port', !/availabilityPort/.test(fs.readFileSync('supabase/functions/staff-order-save/index.ts', 'utf8')));
+    }
+    availPort = okPort();
+  }
+
   // cleanup
   const ids = createdOrders.map((i) => `'${i}'`).join(',') || "'00000000-0000-0000-0000-000000000000'";
-  await pg.exec(`DELETE FROM public.payments WHERE order_id IN (${ids}); DELETE FROM public.order_changelog WHERE order_id IN (${ids}); DELETE FROM public.order_items WHERE order_id IN (${ids}); DELETE FROM public.order_discounts WHERE order_id IN (${ids}); DELETE FROM public.order_custom_fees WHERE order_id IN (${ids}); DELETE FROM public.invoice_links WHERE order_id IN (${ids}); DELETE FROM public.orders WHERE id IN (${ids}); DELETE FROM public.addresses WHERE line1 LIKE '${TAG}%'; DELETE FROM public.units WHERE id IN ('${U1}', '${U2}'); DELETE FROM auth.users WHERE email LIKE 'staff-${TAG}-%@example.test';`);
+  await pg.exec(`DELETE FROM public.payments WHERE order_id IN (${ids}); DELETE FROM public.order_changelog WHERE order_id IN (${ids}); DELETE FROM public.order_items WHERE order_id IN (${ids}); DELETE FROM public.order_discounts WHERE order_id IN (${ids}); DELETE FROM public.order_custom_fees WHERE order_id IN (${ids}); DELETE FROM public.invoice_links WHERE order_id IN (${ids}); DELETE FROM public.orders WHERE id IN (${ids}); DELETE FROM public.addresses WHERE line1 LIKE '${TAG}%'; DELETE FROM public.inventory_products WHERE slug = 'zz-test-chair-${TAG}'; DELETE FROM public.product_categories WHERE slug = 'zz-test-cat-${TAG}'; DELETE FROM public.units WHERE id IN ('${U1}', '${U2}'); DELETE FROM auth.users WHERE email LIKE 'staff-${TAG}-%@example.test';`);
   pg.close();
   finish();
 })().catch((e) => {

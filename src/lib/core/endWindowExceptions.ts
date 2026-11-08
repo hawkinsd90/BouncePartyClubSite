@@ -30,3 +30,28 @@ export function endWindowAfterDecline(ctx: EndWindowContext & { lastAcceptedEndW
 export function endWindowExceptionMessage(endWindow: string): string {
   return `${endWindow} is after ${SAME_DAY_LATEST_END_TIME}, outside the normal customer booking window for same-day and commercial rentals (customers cannot choose it on the Quote page). Keep this end time as an exception for this order?`;
 }
+
+/** Shown to a signed-in user who may not approve the exception (Crew): the time is refused, there is nothing to confirm. */
+export function endWindowNotPermittedMessage(endWindow: string): string {
+  return `${endWindow} is after ${SAME_DAY_LATEST_END_TIME}, outside the normal booking window for same-day and commercial rentals. Only an Admin can approve a later end time, so please choose ${SAME_DAY_LATEST_END_TIME} or earlier.`;
+}
+
+interface EditedEndWindowFields extends EndWindowContext {
+  end_window: unknown;
+}
+
+const hhmm = (v: unknown): string => (typeof v === 'string' ? v.slice(0, 5) : '');
+
+/**
+ * Edit Order (Admin / Master only; the server refuses every other role): true when this save puts an end time after 19:00 on a same-day or
+ * commercial rental AND the save changes the end time or the rental type, so an unrelated edit of an order that already stores a later time
+ * is not asked about (the server applies the same test). `stored` is the order as loaded; a missing stored field counts as changed.
+ */
+export function editNeedsEndWindowExceptionConfirmation(
+  stored: { end_window?: unknown; location_type?: unknown; pickup_preference?: unknown },
+  edited: EditedEndWindowFields
+): boolean {
+  const end = hhmm(edited.end_window);
+  if (!isEndWindowRestricted(edited) || end <= SAME_DAY_LATEST_END_TIME) return false;
+  return hhmm(stored.end_window) !== end || stored.location_type !== edited.location_type || stored.pickup_preference !== edited.pickup_preference;
+}

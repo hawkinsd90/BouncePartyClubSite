@@ -3,7 +3,7 @@ import { balanceDueLabel, equipmentSummary, eventTimeRange, statusLabel } from '
 import { AddressLink } from '../shared/AddressLink';
 import { PhoneLink } from '../shared/PhoneLink';
 import { Task } from '../../hooks/admin/useCalendarTasks';
-import { ORDER_STATUS } from '../../lib/constants/statuses';
+import { isUnconfirmedOrderStatus } from '../../lib/tasks/calendarTaskAssembly';
 
 export type TaskPosition = 'current' | 'next' | 'previous' | null;
 
@@ -20,7 +20,7 @@ export function TaskCard({ task, stopNumber, taskPosition = null, onClick }: Tas
   const isProjected = !isDropOff && readiness === 'projected';
   const isBlocked = !isDropOff && readiness === 'blocked';
   const isCompletedTask = task.taskStatus?.status === 'completed' || (!isDropOff && readiness === 'completed');
-  const isPlanningOnlyDropOff = isDropOff && task.status === ORDER_STATUS.PENDING;
+  const isPlanningOnlyDropOff = isDropOff && isUnconfirmedOrderStatus(task.status);
 
   function getCardStyle(): string {
     if (isCompletedTask) return 'bg-slate-50 border-slate-200 hover:bg-slate-100 opacity-60';

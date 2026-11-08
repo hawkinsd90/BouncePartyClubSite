@@ -57,8 +57,8 @@ interface BuildSummaryOptions {
   pickup_preference?: string;
 }
 
-export function buildFeesList(fees: FeeInput): Array<{ name: string; amount: number; amountUnknown?: boolean }> {
-  const feesList: Array<{ name: string; amount: number; amountUnknown?: boolean }> = [];
+export function buildFeesList(fees: FeeInput): Array<{ name: string; amount: number; amountUnknown?: boolean; waived?: boolean }> {
+  const feesList: Array<{ name: string; amount: number; amountUnknown?: boolean; waived?: boolean }> = [];
   const unknown = new Set(fees.waived_amount_unknown ?? []);
 
   // Show fees if they have a value > 0 OR if they're explicitly waived
@@ -68,19 +68,19 @@ export function buildFeesList(fees: FeeInput): Array<{ name: string; amount: num
     if (fees.travel_total_miles && fees.travel_total_miles > 0) {
       travelFeeName = `Travel Fee (${fees.travel_total_miles.toFixed(1)} mi)`;
     }
-    feesList.push({ name: travelFeeName, amount: fees.travel_fee_cents || 0, ...(unknown.has('travel') ? { amountUnknown: true } : {}) });
+    feesList.push({ name: travelFeeName, amount: fees.travel_fee_cents || 0, ...(unknown.has('travel') ? { amountUnknown: true } : {}), ...(fees.travel_fee_waived ? { waived: true } : {}) });
   }
 
   if ((fees.surface_fee_cents && fees.surface_fee_cents > 0) || fees.surface_fee_waived) {
-    feesList.push({ name: 'Surface Fee (Sandbags)', amount: fees.surface_fee_cents || 0, ...(unknown.has('surface') ? { amountUnknown: true } : {}) });
+    feesList.push({ name: 'Surface Fee (Sandbags)', amount: fees.surface_fee_cents || 0, ...(unknown.has('surface') ? { amountUnknown: true } : {}), ...(fees.surface_fee_waived ? { waived: true } : {}) });
   }
 
   if ((fees.same_day_pickup_fee_cents && fees.same_day_pickup_fee_cents > 0) || fees.same_day_pickup_fee_waived) {
-    feesList.push({ name: 'Same-Day Pickup Fee', amount: fees.same_day_pickup_fee_cents || 0, ...(unknown.has('same_day_pickup') ? { amountUnknown: true } : {}) });
+    feesList.push({ name: 'Same-Day Pickup Fee', amount: fees.same_day_pickup_fee_cents || 0, ...(unknown.has('same_day_pickup') ? { amountUnknown: true } : {}), ...(fees.same_day_pickup_fee_waived ? { waived: true } : {}) });
   }
 
   if ((fees.same_day_weekday_delivery_fee_cents && fees.same_day_weekday_delivery_fee_cents > 0) || fees.same_day_weekday_delivery_fee_waived) {
-    feesList.push({ name: 'Same-Day Delivery Fee', amount: fees.same_day_weekday_delivery_fee_cents || 0, ...(unknown.has('same_day_weekday_delivery') ? { amountUnknown: true } : {}) });
+    feesList.push({ name: 'Same-Day Delivery Fee', amount: fees.same_day_weekday_delivery_fee_cents || 0, ...(unknown.has('same_day_weekday_delivery') ? { amountUnknown: true } : {}), ...(fees.same_day_weekday_delivery_fee_waived ? { waived: true } : {}) });
   }
 
   if ((fees.generator_fee_cents && fees.generator_fee_cents > 0) || fees.generator_fee_waived) {
@@ -88,7 +88,7 @@ export function buildFeesList(fees: FeeInput): Array<{ name: string; amount: num
       fees.generator_qty && fees.generator_qty > 1
         ? `Generators (${fees.generator_qty}x)`
         : 'Generator';
-    feesList.push({ name: generatorLabel, amount: fees.generator_fee_cents || 0, ...(unknown.has('generator') ? { amountUnknown: true } : {}) });
+    feesList.push({ name: generatorLabel, amount: fees.generator_fee_cents || 0, ...(unknown.has('generator') ? { amountUnknown: true } : {}), ...(fees.generator_fee_waived ? { waived: true } : {}) });
   }
 
   if (fees.setup_fee_cents && fees.setup_fee_cents > 0) {
@@ -128,7 +128,8 @@ export function buildOrderSummaryDisplay(options: BuildSummaryOptions): OrderSum
     amount: fee.amount_cents,
   }));
 
-  const totalFees = fees.reduce((sum, fee) => sum + fee.amount, 0);
+  // A waived fee is shown (struck through) but is not charged, so it is not part of the fees total.
+  const totalFees = fees.reduce((sum, fee) => sum + (fee.waived ? 0 : fee.amount), 0);
   const totalDiscounts = discounts.reduce((sum, d) => sum + d.amount, 0);
   const totalCustomFees = customFees.reduce((sum, f) => sum + f.amount, 0);
 

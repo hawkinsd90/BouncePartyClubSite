@@ -3,10 +3,9 @@ import { useRefetchOnReturn } from '../core/useRefetchOnReturn';
 import { supabase } from '../../lib/supabase';
 import type { Database } from '../../lib/database.types';
 import { format, startOfMonth, endOfMonth, addDays } from 'date-fns';
-import { ORDER_STATUS } from '../../lib/constants/statuses';
 import { type OperationalEquipmentItem } from '../../lib/tasks/operationalEquipment';
 import { loadGeneratorCategoryProductIds } from '../../lib/eventEssentials/customerGeneratorCart';
-import { buildCalendarTasks, calendarOrdersSelect, type PickupReadiness } from '../../lib/tasks/calendarTaskAssembly';
+import { buildCalendarTasks, calendarOrdersSelect, calendarOrderStatusesFor, type PickupReadiness } from '../../lib/tasks/calendarTaskAssembly';
 import { useAuth } from '../../contexts/AuthContext';
 import { shouldRaiseLoading } from '../../lib/core/loadingPolicy';
 
@@ -176,7 +175,7 @@ export function useCalendarTasks(currentMonth: Date) {
         .select(calendarOrdersSelect(isAdminRef.current) as '*')
         .gte('event_date', format(queryStart, 'yyyy-MM-dd'))
         .lte('event_date', format(monthEnd, 'yyyy-MM-dd'))
-        .in('status', [ORDER_STATUS.CONFIRMED, ORDER_STATUS.IN_PROGRESS, ORDER_STATUS.COMPLETED, ORDER_STATUS.PENDING])
+        .in('status', [...calendarOrderStatusesFor(isAdminRef.current)])
         .order('event_date', { ascending: true });
 
       if (error) throw error;

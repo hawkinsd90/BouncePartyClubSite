@@ -1,4 +1,6 @@
-import { showToast } from '../toasts';
+import { showConfirm, showToast } from '../toasts';
+import { END_BEFORE_START_MESSAGE, eventWindowProblem, normalizeTime } from '../core/eventTimeWindow';
+import { editNeedsEndWindowExceptionConfirmation, endWindowExceptionMessage } from '../core/endWindowExceptions';
 import { hasActiveInflatable, surfaceChoiceProblem } from './surfaceChoice';
 import { notifyPortalRefresh } from '../portal/customerPortalRefreshSignal';
 import { callStaffOrderSave, StaffOrderSaveError } from './staffOrderSaveApi';
@@ -10,6 +12,14 @@ import type { OrderPricingState } from '../pricing/orderPricingState';
 interface SavedOrderRef {
   id: string;
   status: string;
+  // The stored event date and time window, when the caller has them: an end-before-start window already stored is only refused when this save changes it.
+  event_date?: unknown;
+  event_end_date?: unknown;
+  start_window?: unknown;
+  end_window?: unknown;
+  // The stored rental type, used to tell whether this save changes it (an after-19:00 exception is asked about only when it is new).
+  location_type?: unknown;
+  pickup_preference?: unknown;
 }
 interface EditedOrderFields {
   location_type?: unknown;
@@ -85,6 +95,11 @@ interface SaveOrderChangesParams {
   parksAcknowledgmentCounty?: string | null;
   depositCatchupMode?: 'require' | 'waive';
   requireCardOnFile?: boolean;
+  // Admin / Master explicitly confirmed an end time after 19:00 on a same-day or commercial rental (D5). Set by saveOrderChanges after the
+  // warning; the server honours it only for Admin / Master and refuses the save otherwise.
+  endWindowExceptionConfirmed?: boolean;
+  // Asks before the save is sent; resolves true to keep the exception. Defaults to the app's confirm dialog. Declining saves nothing.
+  confirmEndWindowException?: (message: string) => Promise<boolean>;
   sendNotificationsFn: () => Promise<void>;
   onComplete: () => void;
 }
@@ -97,6 +112,15 @@ interface SaveResponse {
   preserveCurrentStatus: boolean;
   oldStatus: string;
   adminOverrideApproval?: boolean;
+}
+
+// Thrown when the Admin declines a confirmation prompt (the after-19:00 exception): nothing was sent or saved. It is a neutral cancel, not a
+// failure; the editor stays open with its edits intact and must not show "Failed to save changes".
+export class SaveCancelledError extends Error {
+  constructor(message = 'No changes were saved.') {
+    super(message);
+    this.name = 'SaveCancelledError';
+  }
 }
 
 const kindOf = (item: StagedItemFields): 'inflatable' | 'product' | 'bundle' => (item.unit_id ? 'inflatable' : item.bundle_id ? 'bundle' : 'product');
@@ -145,12 +169,33 @@ export function buildSaveRequest(p: SaveOrderChangesParams) {
     adminOverrideApproval: p.adminOverrideApproval,
     depositCatchupMode: p.depositCatchupMode,
     requireCardOnFile: p.requireCardOnFile,
+    ...(p.endWindowExceptionConfirmed === true ? { endWindowExceptionConfirmed: true } : {}),
     parks: { required: p.parksAcknowledgmentRequired, county: p.parksAcknowledgmentCounty ?? undefined },
   };
 }
 
+// The message for an Edit Order save whose event times cannot be saved, or null. A blank or half-chosen time always needs a choice (the server
+// refuses it); an end-before-start window is refused only when this save changes the times or dates, so an unrelated edit of an order that
+// already stores such a window (F-48 legacy rows) is not blocked.
+export function editOrderWindowProblem(order: SavedOrderRef, edited: EditedOrderFields): string | null {
+  const problem = eventWindowProblem(edited, { requireTimes: true });
+  if (!problem) return null;
+  if (problem !== END_BEFORE_START_MESSAGE) return problem;
+  const minutes = (v: unknown) => normalizeTime(v);
+  const dateOf = (v: unknown) => (typeof v === 'string' ? v.slice(0, 10) : '');
+  const unchanged =
+    minutes(edited.start_window) === minutes(order.start_window) &&
+    minutes(edited.end_window) === minutes(order.end_window) &&
+    dateOf(edited.event_date) === dateOf(order.event_date) &&
+    (dateOf(edited.event_end_date) || dateOf(edited.event_date)) === (dateOf(order.event_end_date) || dateOf(order.event_date));
+  return unchanged ? null : problem;
+}
+
 export async function saveOrderChanges(params: SaveOrderChangesParams): Promise<void> {
   const { order, availabilityIssues, sendNotificationsFn, onComplete } = params;
+  const windowProblem = editOrderWindowProblem(order, params.editedOrder);
+  // Thrown with the plain message: the editor's own catch shows it ("Failed to save changes: ..."), so it is not toasted twice.
+  if (windowProblem) throw new Error(windowProblem);
   // Adding the first inflatable to an Event Essentials-only order must not silently pick grass: the surface has to be chosen.
   const surfaceProblem = surfaceChoiceProblem({ hasInflatables: hasActiveInflatable(params.stagedItems), surface: params.editedOrder.surface });
   if (surfaceProblem) {
@@ -168,11 +213,28 @@ export async function saveOrderChanges(params: SaveOrderChangesParams): Promise<
     throw new Error('Same-Day Delivery Fee waiver reason required');
   }
 
+  // D5 (WP-P2-25): an end time after 19:00 on a same-day or commercial rental is an Admin / Master exception. Warn BEFORE anything is sent; a
+  // decline throws before the request, so nothing is saved. (This screen is Admin only and the server re-checks the role and the flag.)
+  let endWindowExceptionConfirmed = false;
+  if (editNeedsEndWindowExceptionConfirmation(order, { location_type: params.editedOrder.location_type as string, pickup_preference: params.editedOrder.pickup_preference as string, end_window: params.editedOrder.end_window })) {
+    const keep = await (params.confirmEndWindowException ?? ((message: string) => showConfirm(message, { confirmText: 'Keep this end time', cancelText: 'Go back', type: 'warning' })))(
+      endWindowExceptionMessage(String(params.editedOrder.end_window).slice(0, 5))
+    );
+    if (!keep) throw new SaveCancelledError('End time exception declined: nothing was saved.');
+    endWindowExceptionConfirmed = true;
+  }
+
   let result: SaveResponse;
   try {
-    result = await callStaffOrderSave<SaveResponse>('save_changes', buildSaveRequest(params));
+    result = await callStaffOrderSave<SaveResponse>('save_changes', buildSaveRequest({ ...params, endWindowExceptionConfirmed }));
   } catch (error) {
     if (error instanceof StaffOrderSaveError) {
+      // A blocked Force Approve (stock refusal from the server): show the server's equipment message as is, and end quietly like the
+      // client-side availability check does (the editor stays open, nothing is toasted twice).
+      if (error.code === 'AVAILABILITY_CONFLICT' || error.code === 'AVAILABILITY_UNVERIFIABLE') {
+        showToast(error.message, 'error', { duration: 12000 });
+        throw new Error('Availability conflict');
+      }
       showToast(error.code === 'STALE_ORDER' ? error.message : `Failed to save changes: ${error.message}`, 'error');
       throw new Error(error.message);
     }

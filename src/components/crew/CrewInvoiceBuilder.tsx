@@ -13,6 +13,7 @@ import { useInvoicePricing } from '../../hooks/invoices/useInvoicePricing';
 import { useInvoiceCart } from '../../hooks/invoices/useInvoiceCart';
 import { useCustomerManagement } from '../../hooks/admin/useCustomerManagement';
 import { useInvoiceEventDetails } from '../../hooks/invoices/useInvoiceEventDetails';
+import { eventWindowProblem } from '../../lib/core/eventTimeWindow';
 import { generateInvoice } from '../../lib/payments/invoiceService';
 import { buildInvoiceSummary } from '../../lib/payments/invoiceSummaryBuilder';
 import { checkMultipleUnitsAvailability } from '../../lib/booking/availability';
@@ -59,6 +60,13 @@ export function CrewInvoiceBuilder() {
 
     if (!eventDetails.event_date || !eventDetails.address_line1) {
       showToast('Please fill in event details (date and address)', 'error');
+      return;
+    }
+
+    // Start and end times start blank: ask for both here instead of letting the server answer with a generic 400 (F-34); same-day end must be after start (F-48).
+    const windowProblem = eventWindowProblem(eventDetails, { requireTimes: true });
+    if (windowProblem) {
+      showToast(windowProblem, 'error');
       return;
     }
 

@@ -141,6 +141,7 @@ export function OrderSummary({
 
             // Determine if this specific fee is waived
             const isWaived =
+              !!fee.waived ||
               (fee.name.startsWith('Travel Fee') && travelFeeWaived) ||
               (fee.name === 'Surface Fee (Sandbags)' && surfaceFeeWaived) ||
               (fee.name.startsWith('Generator') && generatorFeeWaived) ||

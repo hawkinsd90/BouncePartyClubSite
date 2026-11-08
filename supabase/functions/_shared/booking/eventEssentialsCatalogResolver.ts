@@ -360,6 +360,8 @@ export interface CandidateViewModel {
   prereqRequiresEligibleInflatable: boolean;
   prereqMisconfigured: boolean;
   requiresCustomerChoice: boolean;
+  /** WP-P1-26: the Party Add-On price needs an active inflatable in the cart (not a dollar gap). */
+  addonRequiresInflatable: boolean;
 }
 
 export function deriveCandidateViewModel(
@@ -378,6 +380,7 @@ export function deriveCandidateViewModel(
       prereqRequiresEligibleInflatable: false,
       prereqMisconfigured: false,
       requiresCustomerChoice: false,
+      addonRequiresInflatable: false,
     };
   }
 
@@ -400,6 +403,8 @@ export function deriveCandidateViewModel(
       prereqRequiresEligibleInflatable: false,
       prereqMisconfigured: false,
       requiresCustomerChoice: out.requiresCustomerChoice,
+      // The engine leaves the remaining amount at 0 when only the inflatable is missing.
+      addonRequiresInflatable: out.remainingAmountCents === 0,
     };
   }
 
@@ -440,6 +445,7 @@ export function deriveCandidateViewModel(
         out.prerequisiteFailureReason === 'UNIT_INACTIVE'),
     prereqMisconfigured,
     requiresCustomerChoice: out.requiresCustomerChoice,
+    addonRequiresInflatable: out.customerMessageCode === 'ADDON_REQUIRES_INFLATABLE',
   };
 }
 
@@ -466,6 +472,9 @@ export function formatPriceCents(cents: number | null | undefined): string {
 // Customer-facing qualification message derived purely from the candidate
 // view model. Threshold-spend copy is intentionally omitted — customers never
 // see qualification thresholds, qualifying subtotals, or remaining amounts.
+export const NEEDS_INFLATABLE_FOR_ADDON_MESSAGE =
+  'Add an inflatable to your cart to get the Party Add-On price.';
+
 export function qualificationMessage(vm: CandidateViewModel): string | null {
   if (vm.priceState === 'addon') return null;
   if (vm.prereqBlocked) {
@@ -475,9 +484,11 @@ export function qualificationMessage(vm: CandidateViewModel): string | null {
     return 'This package is currently unavailable.';
   }
   if (vm.priceState === 'blocked_addon_only') {
+    if (vm.addonRequiresInflatable) return NEEDS_INFLATABLE_FOR_ADDON_MESSAGE;
     return 'Currently unavailable for this cart.';
   }
   if (vm.priceState === 'standalone') {
+    if (vm.addonRequiresInflatable) return NEEDS_INFLATABLE_FOR_ADDON_MESSAGE;
     return null;
   }
   return 'This item is currently unavailable.';

@@ -294,7 +294,8 @@ function run() {
     const p2 = makeProductConfig('p2', C_CHAIRS, { standalonePriceCents: 20000 });
     const prod1 = makeProductCart('p1', 'Tables', 10000, 'standalone');
     const prod2 = makeProductCart('p2', 'Chairs', 20000, 'standalone');
-    const cart: UnifiedCartItem[] = [prod2, prod1];
+    // D3 / WP-P1-26: a valid active inflatable (zero price, so the subtotal is unchanged) opens the add-on gate.
+    const cart: UnifiedCartItem[] = [prod2, prod1, makeInflatable(U_TROPICAL, 0)];
     const result = repriceEventEssentialsCart(
       buildInput(cart, { productConfigs: { p1, p2 } }),
     );
@@ -308,7 +309,8 @@ function run() {
     const p2 = makeProductConfig('p2', C_CHAIRS, { standalonePriceCents: 10000 });
     const prod1 = makeProductCart('p1', 'Tables', 6000, 'addon');
     const prod2 = makeProductCart('p2', 'Chairs', 10000, 'standalone');
-    const cart: UnifiedCartItem[] = [prod1, prod2];
+    // D3 / WP-P1-26: a valid active inflatable (zero price, so the subtotal is unchanged) opens the add-on gate.
+    const cart: UnifiedCartItem[] = [prod1, prod2, makeInflatable(U_TROPICAL, 0)];
     const result = repriceEventEssentialsCart(
       buildInput(cart, { productConfigs: { p1, p2 } }),
     );
@@ -724,7 +726,8 @@ function run() {
     const prod1 = makeProductCart('p1', 'Tables', 10000, 'standalone', 1); // qty 1
     const prod2 = makeProductCart('p2', 'Chairs', 10000, 'standalone', 3); // qty 3
     // prod1 sees prod2's 30000 >= 10000 -> addon. prod2 sees prod1's 10000 >= 10000 -> addon.
-    const cart: UnifiedCartItem[] = [prod1, prod2];
+    // D3 / WP-P1-26: a valid active inflatable (zero price, so the subtotal is unchanged) opens the add-on gate.
+    const cart: UnifiedCartItem[] = [prod1, prod2, makeInflatable(U_TROPICAL, 0)];
     const result = repriceEventEssentialsCart(
       buildInput(cart, { productConfigs: { p1, p2 } }),
     );
@@ -1260,11 +1263,11 @@ function run() {
     );
   }
 
-  // 72. A valid add-on product qualified by another Event Essential category
-  //     does not produce a "Requires Inflatable" warning. E1 is the sole
-  //     source of qualification-invalid messages; the old local heuristic is
-  //     removed. Here a product in category B qualifies a product in category A
-  //     with NO inflatable present, and no issue is produced.
+  // 72. D3 / WP-P1-26 (owner decision, supersedes the earlier "qualified by another
+  //     category with no inflatable" behaviour): a product in category B alone does
+  //     NOT unlock the discounted add-on price for category A. With NO valid
+  //     inflatable the line stays at standalone pricing (still bookable, no
+  //     blocking issue). E1 remains the sole source of qualification messages.
   {
     const p1 = makeProductConfig('p1', C_TABLES, { addonQualifyingThresholdCents: 10000, addonPriceCents: 6000, standalonePriceCents: 10000 });
     const p2 = makeProductConfig('p2', C_CHAIRS, { standalonePriceCents: 10000 });
@@ -1274,9 +1277,23 @@ function run() {
     const result = repriceEventEssentialsCart(buildInput(cart, { productConfigs: { p1, p2 } }));
     const out1 = result.cart[1] as EventEssentialProductCartItem;
     ok(
-      '72 cross-category add-on valid without inflatable -> no Requires Inflatable',
-      out1.pricing_context === 'addon' && result.issues.length === 0,
+      '72 cross-category, NO inflatable -> standalone price, no blocking issue',
+      out1.pricing_context === 'standalone' && out1.unit_price_cents === 10000 && result.issues.length === 0,
     );
+  }
+
+  // 72b. Same cart plus a valid active inflatable -> add-on price applies.
+  {
+    const p1 = makeProductConfig('p1', C_TABLES, { addonQualifyingThresholdCents: 10000, addonPriceCents: 6000, standalonePriceCents: 10000 });
+    const p2 = makeProductConfig('p2', C_CHAIRS, { standalonePriceCents: 10000 });
+    const cart: UnifiedCartItem[] = [
+      makeProductCart('p2', 'Chairs', 10000, 'standalone'),
+      makeProductCart('p1', 'Tables', 10000, 'standalone'),
+      makeInflatable(U_TROPICAL, 0),
+    ];
+    const result = repriceEventEssentialsCart(buildInput(cart, { productConfigs: { p1, p2 } }));
+    const out1 = result.cart[1] as EventEssentialProductCartItem;
+    ok('72b cross-category + valid inflatable -> addon', out1.pricing_context === 'addon' && out1.unit_price_cents === 6000);
   }
 
   // 73. Re-adding EE after successful config load reuses ready configuration.
@@ -1438,7 +1455,8 @@ function run() {
     });
     const prod = makeProductCart('p_gen', 'Generator', 20000, 'standalone');
     const bcart = makeBundleCart('b_pkg', 'Package', 15000, 'standalone');
-    const cart: UnifiedCartItem[] = [prod, bcart];
+    // D3 / WP-P1-26: a valid active inflatable (zero price, so the subtotal is unchanged) opens the add-on gate.
+    const cart: UnifiedCartItem[] = [prod, bcart, makeInflatable(U_TROPICAL, 0)];
     const input = buildInput(cart, {
       productConfigs: { p_gen: gen },
       bundleConfigs: { b_pkg: bCfg },

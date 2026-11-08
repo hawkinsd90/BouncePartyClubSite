@@ -5,6 +5,8 @@ import { matchesIncludedCity, normalizeCityName, calculateTravelFeeFromDistance 
 import { shouldReuseSavedTravel } from '../../pricing/orderPricingCalculation';
 import {
   MAX_CLIENT_COORDINATE_DRIFT_MILES,
+  NO_VERIFICATION_RESULT_REASON,
+  VERIFIER_THREW_REASON,
   createGoogleAddressVerifier,
   interpretGeocode,
   resolveTrustedTravelCity,
@@ -84,9 +86,35 @@ eq('empty free list: nothing to verify, typed city passes through', resolveTrust
 eq('match => the verified city', resolveTrustedTravelCity({ status: 'verified_match', city: 'Detroit' }, 'Utica', FREE), { city: 'Detroit', review: null, status: 'verified_match' });
 eq('mismatch with a typed free city => no grant, flagged', resolveTrustedTravelCity({ status: 'verified_mismatch', city: 'Utica' }, 'Detroit', FREE), { city: 'Utica', review: 'typed_free_city_contradicted', status: 'verified_mismatch' });
 eq('mismatch with a typed non-free city => no flag', resolveTrustedTravelCity({ status: 'verified_mismatch', city: 'Utica' }, 'Utica', FREE).review, null);
-eq('unverified with a typed free city => no grant, flagged', resolveTrustedTravelCity({ status: 'unverified', reason: 'x' }, 'Detroit', FREE), { city: '', review: 'typed_free_city_not_verified', status: 'unverified' });
+eq('unverified with a typed free city => no grant, flagged', resolveTrustedTravelCity({ status: 'unverified', reason: 'x' }, 'Detroit', FREE), { city: '', review: 'typed_free_city_not_verified', status: 'unverified', reason: 'x' });
 eq('no verifier result and a free list => no grant', resolveTrustedTravelCity(null, 'Detroit', FREE).city, '');
 eq('no verifier result at all (undefined) with a free list => no grant', resolveTrustedTravelCity(undefined, 'Detroit', FREE).city, '');
+
+// ---- WP-P1-05: every unverified outcome carries a reason (diagnostic only; the price outcome is unchanged) ------------------------
+{
+  const reasonOf = (v: any) => (v.status === 'unverified' ? v.reason : null);
+  const cases: Array<[string, any]> = [
+    ['geocoder status none', interpretGeocode(null, ADDR, FREE)],
+    ['geocoder status ZERO_RESULTS', interpretGeocode({ status: 'ZERO_RESULTS', results: [] }, ADDR, FREE)],
+    ['partial match', interpretGeocode(result({ partial_match: true }, 'Detroit'), ADDR, FREE)],
+    ['imprecise location (GEOMETRIC_CENTER)', interpretGeocode(result(atType('GEOMETRIC_CENTER'), 'Detroit'), ADDR, FREE)],
+    ['imprecise location (APPROXIMATE)', interpretGeocode(result(atType('APPROXIMATE'), 'Detroit'), ADDR, FREE)],
+    ['state differs from the address', interpretGeocode(result({}, 'Detroit', 'OH'), ADDR, FREE)],
+    ['no coordinates in the result', interpretGeocode(result({ geometry: { location: {}, location_type: 'ROOFTOP' } }, 'Detroit'), ADDR, FREE)],
+    ['browser coordinates differ from the geocoded address', interpretGeocode(result({}, 'Detroit'), far, FREE)],
+    ['no city (locality) in the result', interpretGeocode(result({}, null), ADDR, FREE)],
+  ];
+  for (const [expected, v] of cases) eq(`reason: ${expected}`, reasonOf(v), expected);
+  eq('reason: a city that matches or mismatches has no reason field', [reasonOf(interpretGeocode(result({}, 'Detroit'), ADDR, FREE)), reasonOf(interpretGeocode(result(), ADDR, FREE))], [null, null]);
+  // The reason travels with the trusted-city decision and never changes city, review or status.
+  const t = resolveTrustedTravelCity({ status: 'unverified', reason: 'imprecise location (GEOMETRIC_CENTER)' }, 'Detroit', FREE);
+  eq('reason: copied onto the trusted city', [t.city, t.review, t.status, t.reason], ['', 'typed_free_city_not_verified', 'unverified', 'imprecise location (GEOMETRIC_CENTER)']);
+  eq('reason: typed non-free city, unverified => still no review, reason kept', (({ review, reason, status }) => [review, reason, status])(resolveTrustedTravelCity({ status: 'unverified', reason: 'partial match' }, 'Troy', FREE)), [null, 'partial match', 'unverified']);
+  eq('reason: no verifier result gets the literal reason', [resolveTrustedTravelCity(null, 'Detroit', FREE).reason, resolveTrustedTravelCity(undefined, 'Detroit', FREE).reason, NO_VERIFICATION_RESULT_REASON], ['no verification result', 'no verification result', 'no verification result']);
+  eq('reason: blank reason falls back to the literal', resolveTrustedTravelCity({ status: 'unverified', reason: '' }, 'Detroit', FREE).reason, NO_VERIFICATION_RESULT_REASON);
+  eq('reason: thrown verifier literal', VERIFIER_THREW_REASON, 'verifier threw');
+  eq('reason: verified outcomes and the empty free list carry no reason', [resolveTrustedTravelCity({ status: 'verified_match', city: 'Detroit' }, 'x', FREE).reason, resolveTrustedTravelCity({ status: 'verified_mismatch', city: 'Utica' }, 'Detroit', FREE).reason, resolveTrustedTravelCity(undefined, 'Detroit', []).reason], [undefined, undefined, undefined]);
+}
 
 (async () => {
   // ---- the Google client ---------------------------------------------------------------------------------------------------------
@@ -118,6 +146,13 @@ eq('no verifier result at all (undefined) with a free list => no grant', resolve
   const timedOut = await createGoogleAddressVerifier({ apiKey: 'K', fetchImpl: hang, timeoutMs: 60 })(ADDR, FREE);
   eq('client: a slow geocoder times out => unverified', [timedOut?.status, Date.now() - t0 < 2000], ['unverified', true]);
 
+  eq('reason: no key / http / network / timeout verifier results all carry a reason', [
+    (await createGoogleAddressVerifier({ apiKey: '', fetchImpl: okFetch })(ADDR, FREE)) as any,
+    (await createGoogleAddressVerifier({ apiKey: 'K', fetchImpl: httpErr })(ADDR, FREE)) as any,
+    (await createGoogleAddressVerifier({ apiKey: 'K', fetchImpl: boom })(ADDR, FREE)) as any,
+    timedOut as any,
+  ].map((v) => v.reason), ['no geocoding key configured', 'geocoder HTTP 500', 'geocoder request failed', 'geocoder timeout']);
+
   // ---- reuse of the stored travel snapshot -------------------------------------------------------------------------------------
   const ev = { address_line1: '1 Main St', address_city: 'Detroit', address_state: 'MI', address_zip: '48201' };
   const stored = (over: Record<string, unknown> = {}) =>
@@ -135,6 +170,7 @@ eq('no verifier result at all (undefined) with a free list => no grant', resolve
   const create = read('supabase/functions/_shared/booking/createBooking.ts');
   eq('create-booking verifies once, before pricing, only when a free list exists', create.includes('includedCities.length > 0 && deps.verifyAddress') && create.indexOf('deps.verifyAddress(') < create.indexOf('buildBooking(parsed.value, catalog, now, verification)'), true);
   eq('the Edge Function wires the Google verifier with the server key', read('supabase/functions/create-booking/index.ts').includes('createGoogleAddressVerifier({ apiKey: Deno.env.get("GOOGLE_MAPS_API_KEY") ?? "" })'), true);
+  eq('create-booking records a thrown verifier as a reason, logs the reason, and logs an unverified typed-non-free city once', create.includes('reason: VERIFIER_THREW_REASON') && create.includes('reason=${plan.travelCity.reason ?? "n/a"}') && create.includes('travel_city_unverified order='), true);
   const staff = read('supabase/functions/_shared/orders/staff-order-save.ts');
   eq('staff save verifies only a new or changed address', staff.includes('if (existing && sameAddressText(e, existing.addresses)) return { city: undefined, trusted: null };'), true);
   eq('staff save passes the verified city to the pricing engine on both paths', (staff.match(/verifiedTravelCity \}\)/g) || []).length === 2, true);

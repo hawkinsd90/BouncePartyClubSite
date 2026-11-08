@@ -5,6 +5,7 @@ import { SafeStorage } from '../../lib/core/safeStorage';
 import { useCallback, useEffect, useMemo, useReducer, useState } from 'react';
 import { notifyError } from '../../lib/toasts';
 import { getPublicBusinessSettings, getPublicMenuGroups, type PublicMenuGroup } from '../../lib/core/adminSettingsCache';
+import { fetchProductBundles } from '../../lib/queries/products';
 import { buildNavLinks, CLOSED_NAV, navMenuReducer } from '../../lib/core/navLinks';
 import { SiteNav } from './nav/SiteNav';
 import { AccountMenu } from './nav/AccountMenu';
@@ -23,6 +24,7 @@ export function Layout() {
   const [facebookUrl, setFacebookUrl] = useState('');
   const [eventEssentialsEnabled, setEventEssentialsEnabled] = useState(false);
   const [menuGroups, setMenuGroups] = useState<PublicMenuGroup[]>([]);
+  const [hasPackages, setHasPackages] = useState(false);
 
   const closeMenus = useCallback(() => dispatchNav({ type: 'closeAll' }), []);
 
@@ -51,6 +53,13 @@ export function Layout() {
           setMenuGroups(groups.filter(g => g.qualifying_inventory_count > 1));
         }).catch(err => {
           console.error('Exception loading menu groups:', err);
+        });
+        // WP-P2-23a: the header offers a separate "Party Packages" entry only when there is at least one public package (same anon-readable query
+        // the Party Add-Ons page uses; a failure just leaves the entry out).
+        fetchProductBundles().then(result => {
+          setHasPackages(!result.error && (result.data ?? []).length > 0);
+        }).catch(err => {
+          console.error('Exception loading packages for the header:', err);
         });
       }
     }).catch(err => {
@@ -90,8 +99,8 @@ export function Layout() {
   };
 
   const model = useMemo(
-    () => buildNavLinks({ signedIn: !!user, isAdmin, isCrew: hasRole('CREW'), eventEssentialsEnabled, menuGroups }),
-    [user, isAdmin, hasRole, eventEssentialsEnabled, menuGroups],
+    () => buildNavLinks({ signedIn: !!user, isAdmin, isCrew: hasRole('CREW'), eventEssentialsEnabled, menuGroups, hasPackages }),
+    [user, isAdmin, hasRole, eventEssentialsEnabled, menuGroups, hasPackages],
   );
 
   return (
@@ -113,7 +122,7 @@ export function Layout() {
                 alt="Bounce Party Club"
                 className="h-10 sm:h-12 w-auto"
               />
-              <span className="text-lg sm:text-xl font-bold text-slate-900 hidden min-[380px]:inline">
+              <span className="text-lg sm:text-xl font-bold text-slate-900 hidden min-[380px]:inline md:hidden lg:inline">
                 Bounce Party Club
               </span>
             </Link>

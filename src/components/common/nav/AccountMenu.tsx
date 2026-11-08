@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { ChevronDown, LogIn, LogOut, User } from 'lucide-react';
 import type { NavLink } from '../../../lib/core/navLinks';
 import { useDismissable } from '../../../hooks/core/useBodyScrollLock';
+import { LOGIN_LABEL } from '../../../lib/core/navLinks';
 
 interface Props {
   signedIn: boolean;
@@ -21,9 +22,11 @@ export function AccountMenu({ signedIn, email, links, open, onToggle, onClose, o
 
   if (!signedIn) {
     return (
-      <Link to="/login" className="flex items-center text-slate-600 hover:text-blue-600 transition-colors min-h-[44px] px-2">
-        <LogIn className="w-5 h-5 mr-2" />
-        <span className="font-medium">Login</span>
+      // WP-P2-18 / F-33: the word "Login" alone gave a new customer no hint that they can also create an account. The same page (/login) has
+      // "Don't have an account? Sign up", so the label names both.
+      <Link to="/login" className="flex items-center whitespace-nowrap text-slate-600 hover:text-blue-600 transition-colors min-h-[44px] px-2">
+        <LogIn className="w-5 h-5 mr-2 shrink-0" />
+        <span className="font-medium">{LOGIN_LABEL}</span>
       </Link>
     );
   }

@@ -21,7 +21,7 @@ import { isSameDayWeekdayDelivery } from "../booking/pricing.ts";
 import { orderPricingState, sameOrderPricingState, type OrderPricingState } from "../booking/orderPricingState.ts";
 import { ORDER_STATUS } from "../booking/orderStatuses.ts";
 import { loadBookingCatalog } from "../booking/createBooking.ts";
-import { createGoogleAddressVerifier, resolveTrustedTravelCity, type AddressVerifier, type CityVerification, type TrustedTravelCity } from "../booking/addressVerification.ts";
+import { createGoogleAddressVerifier, resolveTrustedTravelCity, VERIFIER_THREW_REASON, type AddressVerifier, type CityVerification, type TrustedTravelCity } from "../booking/addressVerification.ts";
 import { recordTravelCityReview } from "../booking/travelCityReview.ts";
 import { repriceEventEssentialsCart, hasBlockingIssues } from "../booking/eventEssentialsCartRepricing.ts";
 import {
@@ -30,6 +30,8 @@ import {
   buildCategoryMap,
   buildUnitMap,
 } from "../booking/eventEssentialsCatalogResolver.ts";
+import { checkOrderAvailabilityForConfirm, blockedConfirmationMessage } from "../booking/orderConfirmAvailability.ts";
+import { supabaseAvailabilityPort, type AvailabilityPort } from "../booking/bookingAvailability.ts";
 import type { BookingCatalog } from "../booking/bookingBuild.ts";
 import { HOME_BASE, includedCitiesOf } from "../booking/bookingBuild.ts";
 
@@ -50,6 +52,8 @@ export interface StaffSaveDeps {
   drivingMiles?: (destination: string) => Promise<number | null>;
   // Server check of the address city for the free-delivery list (WP-18). Defaults to Google Geocoding with the same GOOGLE_MAPS_API_KEY.
   verifyAddress?: AddressVerifier;
+  // Stock lookups for the confirm re-check (WP-P1-16). Defaults to the service-role database port; set by the Edge Function wiring or a test, never by the request.
+  availabilityPort?: AvailabilityPort;
 }
 
 export interface HttpResult {
@@ -178,6 +182,32 @@ function parseEvent(e: unknown): EventFields | string {
     pickup_preference: e.pickup_preference, address_line1: line1, address_line2: line2, address_city: city, address_state: state, address_zip: zip,
     address_lat: lat as number | null, address_lng: lng as number | null,
   };
+}
+
+// F-48: on a single-date rental the end time must be after the start time (a multi-day rental is not limited). Same rule as
+// src/lib/core/eventTimeWindow.ts (this file cannot import from src/). Compared as HH:mm.
+function windowEndsBeforeStart(e: { start_window: string; end_window: string; event_date: string; event_end_date: string }): boolean {
+  return e.event_date.slice(0, 10) === e.event_end_date.slice(0, 10) && e.end_window.slice(0, 5) <= e.start_window.slice(0, 5);
+}
+
+// D5 (WP-P2-25): the customer booking window for same-day (residential) and commercial rentals ends at 19:00. Same rule as
+// src/lib/core/endWindowExceptions.ts (this file cannot import from src/; a test keeps them aligned). A later end time is an operational
+// exception that ONLY Admin / Master may approve, and only with the explicit endWindowExceptionConfirmed flag. The role is the verified caller's
+// (deps.canOverridePricing, set from the roles), never a field of the body; Crew sending the flag changes nothing.
+const SAME_DAY_LATEST_END_TIME = "19:00";
+function endWindowOutsideNormalWindow(e: { location_type: string; pickup_preference: string; end_window: string }): boolean {
+  const restricted = (e.location_type === "residential" && e.pickup_preference === "same_day") || e.location_type === "commercial";
+  return restricted && e.end_window.slice(0, 5) > SAME_DAY_LATEST_END_TIME;
+}
+// null = allowed. Otherwise the refusal to return, before any database write.
+function endWindowExceptionRefusal(deps: StaffSaveDeps, confirmed: unknown): HttpResult | null {
+  if (deps.canOverridePricing !== true) {
+    return json(403, { success: false, code: "END_WINDOW_NOT_PERMITTED", error: "Only an Admin can approve an end time after 7:00 PM for a same-day or commercial rental.", detail: "edited.end_window" });
+  }
+  if (confirmed !== true) {
+    return json(400, { success: false, code: "END_WINDOW_CONFIRMATION_REQUIRED", error: "An end time after 7:00 PM for a same-day or commercial rental needs an explicit confirmation.", detail: "edited.end_window" });
+  }
+  return null;
 }
 
 interface ItemIntent {
@@ -373,11 +403,12 @@ async function resolveVerifiedTravelCity(
   try {
     verification = await verify({ line1: e.address_line1, city: e.address_city, state: e.address_state, zip: e.address_zip, lat: null, lng: null }, includedCities);
   } catch {
-    verification = null;
+    // Same outcome as no result (never a free grant); the reason is kept so the Admin's "Verification detail" note says why (diagnostics only).
+    verification = { status: "unverified", reason: VERIFIER_THREW_REASON };
   }
   const trusted = resolveTrustedTravelCity(verification, e.address_city, includedCities);
   if (trusted.review) {
-    console.warn(`[staff-order-save] travel_city_review order=${orderRef} review=${trusted.review} verification=${trusted.status}`);
+    console.warn(`[staff-order-save] travel_city_review order=${orderRef} review=${trusted.review} verification=${trusted.status}${trusted.reason ? ` reason=${trusted.reason}` : ""}`);
   }
   return { city: trusted.city, trusted };
 }
@@ -455,7 +486,7 @@ function reconcile<T extends { id?: string; name: string }>(stored: Array<T & { 
 // ---------------------------------------------------------------------------------------------------------------------
 // Admin Edit
 // ---------------------------------------------------------------------------------------------------------------------
-const SAVE_KEYS = ["orderId", "expectedState", "edited", "items", "discounts", "customFees", "waivers", "customDepositCents", "customSetupFeeCents", "adminMessage", "adminOverrideApproval", "depositCatchupMode", "requireCardOnFile", "parks", "clientPricing"] as const;
+const SAVE_KEYS = ["orderId", "expectedState", "edited", "items", "discounts", "customFees", "waivers", "customDepositCents", "customSetupFeeCents", "adminMessage", "adminOverrideApproval", "depositCatchupMode", "requireCardOnFile", "parks", "clientPricing", "endWindowExceptionConfirmed"] as const;
 
 export async function saveStaffOrderChanges(deps: StaffSaveDeps, raw: unknown): Promise<HttpResult> {
   if (!isObj(raw)) return bad("body");
@@ -469,6 +500,7 @@ export async function saveStaffOrderChanges(deps: StaffSaveDeps, raw: unknown): 
   if (!isObj(raw.expectedState) || !isObj(raw.expectedState.columns) || !isObj(raw.expectedState.children)) return bad("expectedState");
   const edited = parseEvent(raw.edited);
   if (typeof edited === "string") return bad(edited);
+  if (raw.endWindowExceptionConfirmed !== undefined && typeof raw.endWindowExceptionConfirmed !== "boolean") return bad("endWindowExceptionConfirmed");
   const itemIntents = parseItems(raw.items, false);
   if (typeof itemIntents === "string") return bad(itemIntents);
   const discountsIn = parseDiscounts(raw.discounts ?? []);
@@ -493,6 +525,24 @@ export async function saveStaffOrderChanges(deps: StaffSaveDeps, raw: unknown): 
   const orderRes = await db.from("orders").select("*").eq("id", orderId).maybeSingle();
   if (orderRes.error || !orderRes.data) return json(404, { success: false, code: "ORDER_NOT_FOUND", error: "Order not found." });
   const order = orderRes.data;
+  // An end-before-start window is refused only when this save changes the times or dates, so an unrelated edit of an order that already stores
+  // such a window (existing rows) is not blocked.
+  if (windowEndsBeforeStart(edited)) {
+    const hhmm = (v: unknown) => (typeof v === "string" ? v.slice(0, 5) : "");
+    const day = (v: unknown) => (typeof v === "string" ? v.slice(0, 10) : "");
+    const changed = hhmm(order.start_window) !== hhmm(edited.start_window) || hhmm(order.end_window) !== hhmm(edited.end_window)
+      || day(order.event_date) !== day(edited.event_date) || (day(order.event_end_date) || day(order.event_date)) !== day(edited.event_end_date);
+    if (changed) return bad("edited.window_order");
+  }
+  // D5: a later end time on a same-day / commercial rental needs the explicit Admin / Master confirmation, but only when THIS save sets the end time
+  // or changes the rental type: an unrelated edit of an order that already stores a later time is not blocked.
+  if (endWindowOutsideNormalWindow(edited)) {
+    const hhmm = (v: unknown) => (typeof v === "string" ? v.slice(0, 5) : "");
+    if (hhmm(order.end_window) !== hhmm(edited.end_window) || order.location_type !== edited.location_type || order.pickup_preference !== edited.pickup_preference) {
+      const refusal = endWindowExceptionRefusal(deps, raw.endWindowExceptionConfirmed);
+      if (refusal) return refusal;
+    }
+  }
   const [addrRes, itemsRes, discRes, feeRes, catalog] = await Promise.all([
     order.address_id ? db.from("addresses").select("*").eq("id", order.address_id).maybeSingle() : Promise.resolve({ data: null, error: null }),
     db.from("order_items").select("*").eq("order_id", orderId),
@@ -627,6 +677,28 @@ export async function saveStaffOrderChanges(deps: StaffSaveDeps, raw: unknown): 
     return json(200, { success: true, saved: false, hasTrackedChanges: false, hasCustomerVisibleChanges: false, preserveCurrentStatus: finalized.preserveCurrentStatus, oldStatus: order.status });
   }
 
+  // WP-P1-16 (D1 / DEC-09): an Admin / Master "force approve" that would NEWLY move the order to confirmed re-checks stock first, on the
+  // order's own post-edit items and dates, with the same engine order-lifecycle and charge-deposit use. The override flag skips no check. A known
+  // conflict or an unverifiable check refuses the save before anything is written (status, items, pricing, change log all stay as they were).
+  // An order that is ALREADY confirmed is not newly confirmed by an edit, so it is not blocked here (narrow scope). No money moves in this function.
+  if ((finalized.changes as Any).status === ORDER_STATUS.CONFIRMED && order.status !== ORDER_STATUS.CONFIRMED) {
+    const check = await checkOrderAvailabilityForConfirm(
+      deps.availabilityPort ?? supabaseAvailabilityPort(db),
+      { id: orderId, event_date: edited.event_date, event_end_date: edited.event_end_date },
+      activeLines.map((l) => ({ unit_id: l.unit_id ?? null, product_id: l.product_id ?? null, bundle_id: l.bundle_id ?? null, qty: l.qty, component_snapshot: l.component_snapshot ?? null })) as Any,
+      { units: async (ids: string[]) => Object.fromEntries(ids.map((id) => [id, catalog.units.find((u) => u.id === id)?.name ?? ""]).filter(([, n]) => n)) },
+    );
+    if (check.kind !== "ok") {
+      return json(check.kind === "conflict" ? 409 : 503, {
+        success: false,
+        code: check.kind === "conflict" ? "AVAILABILITY_CONFLICT" : "AVAILABILITY_UNVERIFIABLE",
+        error: blockedConfirmationMessage(check),
+        ...(check.kind === "conflict" ? { unavailable: check.unavailable } : {}),
+        preservedStatus: order.status,
+      });
+    }
+  }
+
   const rpc = await db.rpc("apply_staff_order_save", {
     p_order_id: orderId,
     p_acting_user_id: deps.actingUserId,
@@ -663,7 +735,7 @@ export async function saveStaffOrderChanges(deps: StaffSaveDeps, raw: unknown): 
 // ---------------------------------------------------------------------------------------------------------------------
 // Admin / Crew Invoice creation
 // ---------------------------------------------------------------------------------------------------------------------
-const INVOICE_KEYS = ["customerId", "items", "eventDetails", "discounts", "customFees", "waivers", "customDepositCents", "customSetupFeeCents", "adminMessage", "requireCardOnFile", "clientPricing"] as const;
+const INVOICE_KEYS = ["customerId", "items", "eventDetails", "discounts", "customFees", "waivers", "customDepositCents", "customSetupFeeCents", "adminMessage", "requireCardOnFile", "clientPricing", "endWindowExceptionConfirmed"] as const;
 const INVOICE_EVENT_KEYS = ["event_date", "event_end_date", "start_window", "end_window", "until_end_of_day", "location_type", "surface", "generator_qty", "pickup_preference", "same_day_responsibility_accepted", "overnight_responsibility_accepted", "address_line1", "address_line2", "city", "state", "zip", "lat", "lng"] as const;
 
 export async function createStaffInvoiceOrder(deps: StaffSaveDeps, raw: unknown): Promise<HttpResult> {
@@ -678,6 +750,12 @@ export async function createStaffInvoiceOrder(deps: StaffSaveDeps, raw: unknown)
     address_city: ev.city, address_state: ev.state, address_zip: ev.zip, address_lat: ev.lat, address_lng: ev.lng,
   });
   if (typeof parsedEvent === "string") return bad(parsedEvent);
+  if (windowEndsBeforeStart(parsedEvent)) return bad("edited.window_order");
+  if (raw.endWindowExceptionConfirmed !== undefined && typeof raw.endWindowExceptionConfirmed !== "boolean") return bad("endWindowExceptionConfirmed");
+  if (endWindowOutsideNormalWindow(parsedEvent)) {
+    const refusal = endWindowExceptionRefusal(deps, raw.endWindowExceptionConfirmed);
+    if (refusal) return refusal;
+  }
   const customerId = raw.customerId === null || raw.customerId === undefined ? null : (typeof raw.customerId === "string" && UUID_RE.test(raw.customerId) ? raw.customerId : "bad");
   if (customerId === "bad") return bad("customerId");
   const itemIntents = parseItems(raw.items, true);

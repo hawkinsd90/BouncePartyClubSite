@@ -170,6 +170,9 @@ export function useBookingReturnConfirmation(orderId: string | null, sessionId: 
 
         const order = completed.order as OrderDetails & { booking_confirmation_sent?: boolean };
         setOrderDetails(order);
+        // The booking request now exists on the server (a non-draft order was loaded), so the cart is spent. Clear it NOW, not only after
+        // the confirmation notification returns: a slow or failed notification, Back, or leaving this page must not leave a full cart.
+        clearLocalStorage();
         setSessionTipCents(completed.tipCents);
         const adminInvoice = completed.isAdminInvoice;
         setIsAdminInvoice(adminInvoice);

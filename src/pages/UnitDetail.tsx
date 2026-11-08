@@ -224,6 +224,11 @@ export function UnitDetail() {
                       <img
                         src={displayImage.url}
                         alt={displayImage.alt}
+                        // F-30: the main photo is the first thing seen on this page (load it first, reserve its 16:9 box, decode off the main thread).
+                        fetchPriority="high"
+                        decoding="async"
+                        width={1280}
+                        height={720}
                         className="w-full h-full object-cover"
                       />
                     ) : (
@@ -248,6 +253,10 @@ export function UnitDetail() {
                           <img
                             src={media.url}
                             alt={media.alt}
+                            loading="lazy"
+                            decoding="async"
+                            width={320}
+                            height={180}
                             className="w-full h-full object-cover"
                           />
                         </button>
@@ -490,6 +499,7 @@ export function UnitDetail() {
                   <img
                     src={displayImage.url}
                     alt={displayImage.alt}
+                    decoding="async"
                     className="max-w-full max-h-full object-contain"
                   />
                 )}
@@ -512,6 +522,10 @@ export function UnitDetail() {
                       <img
                         src={media.url}
                         alt={media.alt}
+                        loading="lazy"
+                        decoding="async"
+                        width={80}
+                        height={80}
                         className="w-full h-full object-cover"
                       />
                     </button>

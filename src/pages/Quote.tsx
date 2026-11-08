@@ -11,6 +11,7 @@ import { useQuotePricing } from '../hooks/booking/useQuotePricing';
 import { useQuotePrefill } from '../hooks/booking/useQuotePrefill';
 import { useDataFetch } from '../hooks/core/useDataFetch';
 import { checkDateBlackout } from '../lib/booking/availability';
+import { hasSelectedAddress } from '../lib/booking/addressEdit';
 import { evaluateQuoteSubmitGate, evaluateAvailabilityRecheck } from '../lib/booking/quoteSubmitGate';
 import type { QuoteSubmitGateFailure } from '../lib/booking/quoteSubmitGate';
 import { composeUnifiedQuoteTotals } from '../lib/pricing/unifiedTotals';
@@ -115,6 +116,8 @@ export function Quote() {
       deposit_per_unit_cents: parsedSettings.inflatableDepositPerUnitCents,
       same_day_pickup_fee_cents: Number(data.same_day_pickup_fee_cents ?? 0),
       same_day_weekday_delivery_fee_cents: Number(data.same_day_weekday_delivery_fee_cents ?? 0),
+      // The configured days the same-day fee applies on. Left out, the browser fell back to Monday-Friday while the server used the saved days.
+      same_day_delivery_fee_days: data.same_day_delivery_fee_days,
       generator_fee_single_cents: Number(data.generator_fee_single_cents ?? data.generator_price_cents ?? 10000),
       generator_fee_multiple_cents: Number(data.generator_fee_multiple_cents ?? data.generator_price_cents ?? 7500),
       apply_taxes_by_default: data.apply_taxes_by_default ?? true,
@@ -611,7 +614,7 @@ export function Quote() {
             </div>
 
             <div className="lg:col-span-1">
-              <QuoteSummarySection cart={cart} priceBreakdown={priceBreakdown} totals={quoteTotals} pricingConfigError={pricingConfigError} isCalculating={cart.length > 0 && !priceBreakdown} submitting={submitting} />
+              <QuoteSummarySection cart={cart} priceBreakdown={priceBreakdown} totals={quoteTotals} pricingConfigError={pricingConfigError} isCalculating={cart.length > 0 && !priceBreakdown} submitting={submitting} needsAddress={!hasSelectedAddress(formData)} />
             </div>
           </div>
         </form>
